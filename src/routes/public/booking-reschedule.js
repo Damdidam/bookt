@@ -488,7 +488,7 @@ router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) 
                   p.display_name AS practitioner_name,
                   c.full_name AS client_name, c.email AS client_email,
                   biz.name AS business_name, biz.slug AS business_slug, biz.settings, biz.theme,
-                  biz.email AS business_email, biz.address AS business_address
+                  biz.email AS business_email, biz.phone AS business_phone, biz.address AS business_address
            FROM bookings b LEFT JOIN services s ON s.id = b.service_id LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
            JOIN practitioners p ON p.id = b.practitioner_id LEFT JOIN clients c ON c.id = b.client_id
            JOIN businesses biz ON biz.id = b.business_id WHERE b.id = $1`, [bk.id]
@@ -532,7 +532,7 @@ router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) 
           }
           await sendRescheduleConfirmationEmail({
             booking: r,
-            business: { name: r.business_name, slug: r.business_slug, settings: r.settings, theme: r.theme, email: r.business_email, address: r.business_address },
+            business: { name: r.business_name, slug: r.business_slug, settings: r.settings, theme: r.theme, email: r.business_email, phone: r.business_phone, address: r.business_address },
             oldStartAt: bk.start_at,
             oldEndAt: groupMembers.length > 1 ? groupMembers[groupMembers.length - 1].end_at : bk.end_at,
             groupServices: groupSvcs

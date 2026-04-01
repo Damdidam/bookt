@@ -997,7 +997,7 @@ router.post('/notify-impacted', requireOwner, async (req, res, next) => {
 
       // Check if this group is a split (different practitioners)
       const siblings = await queryWithRLS(bid,
-        `SELECT b.id, b.practitioner_id, b.status, b.public_token, b.start_at,
+        `SELECT b.id, b.practitioner_id, b.status, b.public_token, b.start_at, b.end_at,
                 b.promotion_label, b.promotion_discount_cents,
                 b.deposit_status, b.deposit_amount_cents,
                 CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS service_name,
@@ -1034,6 +1034,8 @@ router.post('/notify-impacted', requireOwner, async (req, res, next) => {
             timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long',
             hour: '2-digit', minute: '2-digit'
           });
+          const lastSib = siblings.rows[siblings.rows.length - 1];
+          const endTimeLocal = lastSib.end_at ? new Date(lastSib.end_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' }) : '';
           const svcList = siblings.rows.map(s => {
             const price = s.price_cents ? ` \u00b7 ${(s.price_cents / 100).toFixed(2).replace('.', ',')} \u20ac` : '';
             return `<div style="font-size:13px;color:#3D3832;padding:2px 0">\u2022 ${escHtml(s.service_name)}${price} \u00b7 ${escHtml(s.practitioner_name || '')}</div>`;
@@ -1059,12 +1061,14 @@ router.post('/notify-impacted', requireOwner, async (req, res, next) => {
             <p>Bonjour <strong>${escHtml(clientName || 'cher client')}</strong>,</p>
             <p>Nous sommes d\u00e9sol\u00e9s, votre rendez-vous a d\u00fb \u00eatre annul\u00e9 suite \u00e0 l'indisponibilit\u00e9 de ${escHtml(pracName)} :</p>
             <div style="background:#FEF2F2;border-left:4px solid #EF4444;border-radius:6px;padding:14px 16px;margin:16px 0">
-              <div style="font-size:14px;font-weight:600;color:#1A1816;margin-bottom:6px">${escHtml(startLocal)}</div>
+              <div style="font-size:14px;font-weight:600;color:#1A1816;margin-bottom:6px">${escHtml(startLocal)}${endTimeLocal ? ' \u2013 ' + endTimeLocal : ''}</div>
               ${svcList}
               ${promoHTML}
             </div>
             ${depositHTML}
-            <p>Vous pouvez reprendre un nouveau cr\u00e9neau en cliquant ci-dessous :</p>`;
+            <p>Vous pouvez reprendre un nouveau cr\u00e9neau en cliquant ci-dessous :</p>
+            ${business.phone ? `<p style="font-size:13px;color:#3D3832">📞 Téléphone : <a href="tel:${escHtml(business.phone)}" style="color:#1A1816">${escHtml(business.phone)}</a></p>` : ''}
+            ${business.email ? `<p style="font-size:13px;color:#3D3832;margin-top:-8px">✉️ Email : <a href="mailto:${escHtml(business.email)}" style="color:#1A1816">${escHtml(business.email)}</a></p>` : ''}`;
 
           const html = buildEmailHTML({
             title: 'Rendez-vous annul\u00e9',
@@ -1076,7 +1080,7 @@ router.post('/notify-impacted', requireOwner, async (req, res, next) => {
             cancelUrl: publicToken ? `${baseUrl}/booking/${publicToken}` : null,
             businessName: business.name,
             primaryColor,
-            footerText: `${business.name} \u2014 Via Genda.be`
+            footerText: `${business.name}${business.address ? ' \u00b7 ' + escHtml(business.address) : ''} \u2014 Via Genda.be`
           });
 
           const emailResult = await sendEmail({

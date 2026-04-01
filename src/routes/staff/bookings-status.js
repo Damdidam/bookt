@@ -592,7 +592,7 @@ router.patch('/:id/status', async (req, res, next) => {
                   COALESCE(sv.duration_min, s.duration_min, 0) AS duration_min,
                   p.display_name AS practitioner_name,
                   biz.name AS biz_name, biz.slug, biz.email AS biz_email,
-                  biz.address, biz.theme, biz.settings AS biz_settings, biz.plan AS biz_plan
+                  biz.phone AS biz_phone, biz.address, biz.theme, biz.settings AS biz_settings, biz.plan AS biz_plan
            FROM bookings b
            LEFT JOIN clients c ON c.id = b.client_id
            LEFT JOIN services s ON s.id = b.service_id
@@ -625,7 +625,7 @@ router.patch('/:id/status', async (req, res, next) => {
           const { sendCancellationEmail } = require('../../services/email');
           sendCancellationEmail({
             booking: { start_at: d.start_at, end_at: groupEndAt || d.end_at, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name, service_category: d.service_category, practitioner_name: d.practitioner_name, deposit_required: d.deposit_required, deposit_status: d.deposit_status, deposit_amount_cents: d.deposit_amount_cents, deposit_paid_at: d.deposit_paid_at, deposit_payment_intent_id: d.deposit_payment_intent_id, gc_paid_cents: gcPaidForEmail, promotion_label: d.promotion_label, promotion_discount_cents: d.promotion_discount_cents, promotion_discount_pct: d.promotion_discount_pct, service_price_cents: cancelServicePrice, duration_min: d.duration_min },
-            business: { name: d.biz_name, slug: d.slug, email: d.biz_email, address: d.address, theme: d.theme, settings: d.biz_settings },
+            business: { name: d.biz_name, slug: d.slug, email: d.biz_email, phone: d.biz_phone, address: d.address, theme: d.theme, settings: d.biz_settings },
             groupServices
           }).catch(e => console.warn('[EMAIL] Cancellation email error:', e.message));
         }
@@ -645,7 +645,7 @@ router.patch('/:id/status', async (req, res, next) => {
                   COALESCE(sv.duration_min, s.duration_min, 0) AS duration_min,
                   p.display_name AS practitioner_name,
                   biz.name AS biz_name, biz.slug, biz.email AS biz_email,
-                  biz.address, biz.settings, biz.theme
+                  biz.phone AS biz_phone, biz.address, biz.settings, biz.theme
            FROM bookings b
            LEFT JOIN clients c ON c.id = b.client_id
            LEFT JOIN services s ON s.id = b.service_id
@@ -674,7 +674,7 @@ router.patch('/:id/status', async (req, res, next) => {
           const { sendDepositRefundEmail } = require('../../services/email');
           sendDepositRefundEmail({
             booking: { start_at: d.start_at, end_at: groupEndAt || d.end_at, deposit_amount_cents: d.deposit_amount_cents, deposit_payment_intent_id: d.deposit_payment_intent_id, gc_paid_cents: gcPaidRefund, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name, service_category: d.service_category, practitioner_name: d.practitioner_name, promotion_label: d.promotion_label, promotion_discount_cents: d.promotion_discount_cents, promotion_discount_pct: d.promotion_discount_pct, service_price_cents: d.service_price_cents, duration_min: d.duration_min },
-            business: { name: d.biz_name, slug: d.slug, email: d.biz_email, address: d.address, settings: d.settings, theme: d.theme },
+            business: { name: d.biz_name, slug: d.slug, email: d.biz_email, phone: d.biz_phone, address: d.address, settings: d.settings, theme: d.theme },
             groupServices
           }).catch(e => console.warn('[EMAIL] Deposit refund email error:', e.message));
         }
@@ -751,7 +751,7 @@ router.patch('/:id/status', async (req, res, next) => {
                   COALESCE(sv.price_cents, s.price_cents, 0) AS service_price_cents,
                   COALESCE(sv.duration_min, s.duration_min, 0) AS duration_min,
                   p.display_name AS practitioner_name,
-                  biz.name AS business_name, biz.email AS business_email, biz.address AS business_address,
+                  biz.name AS business_name, biz.email AS business_email, biz.phone AS business_phone, biz.address AS business_address,
                   biz.theme, biz.settings, biz.slug AS business_slug
            FROM bookings b
            LEFT JOIN clients c ON c.id = b.client_id
@@ -789,7 +789,7 @@ router.patch('/:id/status', async (req, res, next) => {
           const { sendDepositRequestEmail } = require('../../services/email');
           sendDepositRequestEmail({
             booking: { ...d, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name, service_category: d.service_category },
-            business: { name: d.business_name, slug: d.business_slug, email: d.business_email, address: d.business_address, theme: d.theme, settings: d.settings },
+            business: { name: d.business_name, slug: d.business_slug, email: d.business_email, phone: d.business_phone, address: d.business_address, theme: d.theme, settings: d.settings },
             depositUrl,
             payUrl,
             groupServices
@@ -1075,7 +1075,7 @@ router.patch('/:id/deposit-refund', async (req, res, next) => {
                 COALESCE(sv.duration_min, s.duration_min, 0) AS duration_min,
                 p.display_name AS practitioner_name,
                 biz.name AS biz_name, biz.slug, biz.email AS biz_email,
-                biz.address, biz.settings, biz.theme
+                biz.phone AS biz_phone, biz.address, biz.settings, biz.theme
          FROM bookings b
          LEFT JOIN clients c ON c.id = b.client_id
          LEFT JOIN services s ON s.id = b.service_id
@@ -1104,7 +1104,7 @@ router.patch('/:id/deposit-refund', async (req, res, next) => {
         const { sendDepositRefundEmail } = require('../../services/email');
         sendDepositRefundEmail({
           booking: { start_at: d.start_at, end_at: groupEndAt || d.end_at, deposit_amount_cents: d.deposit_amount_cents, deposit_payment_intent_id: d.deposit_payment_intent_id, gc_paid_cents: gcPaidManual, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name, service_category: d.service_category, service_price_cents: d.service_price_cents, duration_min: d.duration_min, practitioner_name: d.practitioner_name, promotion_label: d.promotion_label, promotion_discount_cents: d.promotion_discount_cents, promotion_discount_pct: d.promotion_discount_pct },
-          business: { name: d.biz_name, slug: d.slug, email: d.biz_email, address: d.address, settings: d.settings, theme: d.theme },
+          business: { name: d.biz_name, slug: d.slug, email: d.biz_email, phone: d.biz_phone, address: d.address, settings: d.settings, theme: d.theme },
           groupServices
         }).catch(e => console.warn('[EMAIL] Deposit refund email error:', e.message));
       }
@@ -1314,7 +1314,7 @@ router.post('/:id/send-deposit-request', async (req, res, next) => {
              COALESCE(sv.duration_min, s.duration_min, 0) AS duration_min,
              p.display_name AS practitioner_name,
              biz.name AS business_name, biz.email AS business_email,
-             biz.address AS business_address, biz.theme, biz.plan, biz.settings
+             biz.phone AS business_phone, biz.address AS business_address, biz.theme, biz.plan, biz.settings
       FROM bookings b
       LEFT JOIN clients c ON c.id = b.client_id
       LEFT JOIN services s ON s.id = b.service_id
@@ -1439,7 +1439,7 @@ router.post('/:id/send-deposit-request', async (req, res, next) => {
           const payUrl = `${baseUrl}/api/public/deposit/${bk.public_token}/pay`;
           const r = await sendDepositRequestEmail({
             booking: bk,
-            business: { name: bk.business_name, email: bk.business_email, address: bk.business_address, theme: bk.theme, settings: bk.settings },
+            business: { name: bk.business_name, email: bk.business_email, phone: bk.business_phone, address: bk.business_address, theme: bk.theme, settings: bk.settings },
             depositUrl, payUrl, groupServices
           });
           results[ch] = r;
@@ -1528,7 +1528,7 @@ router.post('/:id/require-deposit', async (req, res, next) => {
                 COALESCE(sv.duration_min, s.duration_min, 0) AS duration_min,
                 p.display_name AS practitioner_name,
                 biz.name AS business_name, biz.email AS business_email,
-                biz.address AS business_address, biz.theme, biz.settings
+                biz.phone AS business_phone, biz.address AS business_address, biz.theme, biz.settings
          FROM bookings b
          LEFT JOIN clients c ON c.id = b.client_id
          LEFT JOIN services s ON s.id = b.service_id
@@ -1660,7 +1660,7 @@ router.post('/:id/require-deposit', async (req, res, next) => {
         const { sendDepositRequestEmail } = require('../../services/email');
         const sendResult = await sendDepositRequestEmail({
           booking: bookingForEmail,
-          business: { name: b.business_name, email: b.business_email, address: b.business_address, theme: b.theme, settings: b.settings },
+          business: { name: b.business_name, email: b.business_email, phone: b.business_phone, address: b.business_address, theme: b.theme, settings: b.settings },
           depositUrl: txResult.depositUrl,
           payUrl,
           groupServices

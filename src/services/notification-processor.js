@@ -427,6 +427,7 @@ async function sendModificationRejectedProEmail(bk, groupServices) {
   const color = safeColor(bk.biz_theme?.primary_color);
   const dateStr = fmtDate(bk.start_at);
   const timeStr = fmtTime(bk.start_at);
+  const endTimeStr = fmtTime(bk.end_at);
   const clientName = escHtml(bk.client_name || 'Client');
 
   const serviceHTML = buildServiceDetailHTML(bk, groupServices);
@@ -457,7 +458,7 @@ async function sendModificationRejectedProEmail(bk, groupServices) {
     <div style="background:#FEF2F2;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #EF4444">
       <div style="font-size:14px;color:#DC2626;font-weight:600;margin-bottom:4px">Modification refus\u00e9e</div>
       <div style="font-size:15px;font-weight:600;color:#1A1816;margin-bottom:6px">${dateStr}</div>
-      <div style="font-size:14px;color:#3D3832;margin-bottom:8px">${timeStr}</div>
+      <div style="font-size:14px;color:#3D3832;margin-bottom:8px">${timeStr}${endTimeStr ? ' \u2013 ' + endTimeStr : ''}</div>
       <div style="font-size:13px;color:#3D3832;margin-bottom:8px">Le rendez-vous a \u00e9t\u00e9 annul\u00e9.</div>
       ${serviceHTML}
     </div>

@@ -623,7 +623,7 @@ async function handleStripeWebhook(req, res) {
                 const { sendPassPurchaseEmail } = require('../../services/email');
                 await sendPassPurchaseEmail({
                   pass: { code, name: tpl.name, sessions_total: tpl.sessions_count, price_cents: tpl.price_cents, service_name: tpl.service_name, buyer_name, buyer_email, expires_at: expiresAt },
-                  business: { name: biz.name, slug: biz.slug, email: biz.email, theme: biz.theme }
+                  business: { name: biz.name, slug: biz.slug, email: biz.email, phone: biz.phone, address: biz.address, theme: biz.theme }
                 });
               }
             } catch (emailErr) { console.warn('[STRIPE] Pass email error:', emailErr.message); }

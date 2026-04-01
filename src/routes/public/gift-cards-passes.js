@@ -131,7 +131,7 @@ router.post('/deposit/:token/gift-card', depositLimiter, async (req, res, next) 
                   COALESCE(sv.duration_min, s.duration_min, 0) AS duration_min,
                   p.display_name AS practitioner_name,
                   c.full_name AS client_name, c.email AS client_email,
-                  biz.name AS biz_name, biz.email AS biz_email, biz.address AS biz_address,
+                  biz.name AS biz_name, biz.email AS biz_email, biz.phone AS biz_phone, biz.address AS biz_address,
                   biz.theme AS biz_theme, biz.slug AS biz_slug, biz.settings AS biz_settings
            FROM bookings b LEFT JOIN services s ON s.id = b.service_id LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
            LEFT JOIN practitioners p ON p.id = b.practitioner_id LEFT JOIN clients c ON c.id = b.client_id
@@ -157,7 +157,7 @@ router.post('/deposit/:token/gift-card', depositLimiter, async (req, res, next) 
           const { sendDepositPaidEmail } = require('../../services/email');
           await sendDepositPaidEmail({
             booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, deposit_amount_cents: row.deposit_amount_cents, gc_paid_cents: gcPaidForEmail, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, service_category: row.service_category, practitioner_name: row.practitioner_name, public_token: row.public_token, promotion_label: row.promotion_label, promotion_discount_cents: row.promotion_discount_cents, promotion_discount_pct: row.promotion_discount_pct, service_price_cents: row.service_price_cents, duration_min: row.duration_min },
-            business: { name: row.biz_name, slug: row.biz_slug, email: row.biz_email, address: row.biz_address, theme: row.biz_theme, settings: row.biz_settings },
+            business: { name: row.biz_name, slug: row.biz_slug, email: row.biz_email, phone: row.biz_phone, address: row.biz_address, theme: row.biz_theme, settings: row.biz_settings },
             groupServices
           });
         }
