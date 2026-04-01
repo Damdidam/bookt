@@ -1396,6 +1396,8 @@ router.patch('/:id/modify', async (req, res, next) => {
           const siblingsRes = await queryWithRLS(bid,
             `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS name,
                     COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                    COALESCE(sv.price_cents, s.price_cents) AS price_cents,
+                    b.discount_pct,
                     p.display_name AS practitioner_name
              FROM bookings b
              LEFT JOIN services s ON s.id = b.service_id
@@ -1421,6 +1423,9 @@ router.patch('/:id/modify', async (req, res, next) => {
             promotion_label: oldBooking.promotion_label,
             promotion_discount_cents: oldBooking.promotion_discount_cents,
             promotion_discount_pct: oldBooking.promotion_discount_pct,
+            deposit_status: oldBooking.deposit_status,
+            deposit_amount_cents: oldBooking.deposit_amount_cents,
+            deposit_paid_at: oldBooking.deposit_paid_at,
             old_start_at: oldBooking.start_at,
             old_end_at: oldBooking.end_at,
             new_start_at: start_at,
