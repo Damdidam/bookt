@@ -812,7 +812,7 @@ router.get('/booking/:token/confirm-booking', async (req, res, next) => {
              LEFT JOIN clients c ON c.id = b.client_id
              WHERE b.id = $1`, [bk.id]
           );
-          const bizRow = await query(`SELECT name, email, address, phone, theme, settings FROM businesses WHERE id = $1`, [bk.business_id]);
+          const bizRow = await query(`SELECT name, email, address, phone, theme, settings, plan FROM businesses WHERE id = $1`, [bk.business_id]);
           if (fullBk.rows[0] && bizRow.rows[0]) {
             let groupServices = null;
             if (fullBk.rows[0].group_id) {
@@ -840,6 +840,22 @@ router.get('/booking/:token/confirm-booking', async (req, res, next) => {
             // Fix end_at for multi-service groups
             if (groupServices && groupServices.length > 1) emailBk.end_at = groupServices[groupServices.length - 1].end_at;
             await sendBookingConfirmation({ booking: emailBk, business: bizRow.rows[0], groupServices });
+
+            // SMS confirmation (pro/premium)
+            if (emailBk.client_phone && ['pro', 'premium'].includes(bizRow.rows[0].plan)) {
+              try {
+                const { sendSMS } = require('../../services/sms');
+                const { BASE_URL } = require('./helpers');
+                const manageUrl = `${BASE_URL}/booking/${emailBk.public_token}`;
+                const _sd = new Date(emailBk.start_at);
+                const _sDate = _sd.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
+                const _sTime = _sd.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
+                const _svcLabel = groupServices && groupServices.length > 1
+                  ? `${groupServices[0].name} +${groupServices.length - 1}`
+                  : emailBk.service_name || 'RDV';
+                await sendSMS({ to: emailBk.client_phone, body: `${bizRow.rows[0].name} : RDV "${_svcLabel}" confirmé le ${_sDate} à ${_sTime}${emailBk.practitioner_name ? ' avec ' + emailBk.practitioner_name : ''}. Gérer : ${manageUrl}`, businessId: bk.business_id });
+              } catch (smsErr) { console.warn('[SMS] Post-confirm SMS error:', smsErr.message); }
+            }
           }
         } catch (e) { console.warn('[EMAIL] Post-confirmation email error:', e.message); }
       })();
@@ -1325,7 +1341,7 @@ router.post('/booking/:token/confirm-booking', async (req, res, next) => {
                   COALESCE(sv.duration_min, s.duration_min, 0) AS duration_min,
                   p.display_name AS practitioner_name,
                   c.full_name AS client_name, c.email AS client_email,
-                  biz.name AS biz_name, biz.email AS biz_email, biz.phone AS biz_phone, biz.address AS biz_address, biz.theme AS biz_theme, biz.settings AS biz_settings
+                  biz.name AS biz_name, biz.email AS biz_email, biz.phone AS biz_phone, biz.address AS biz_address, biz.theme AS biz_theme, biz.settings AS biz_settings, biz.plan AS biz_plan
            FROM bookings b
            LEFT JOIN services s ON s.id = b.service_id
            LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
@@ -1363,6 +1379,22 @@ router.post('/booking/:token/confirm-booking', async (req, res, next) => {
             business: { name: row.biz_name, email: row.biz_email, phone: row.biz_phone, address: row.biz_address, theme: row.biz_theme, settings: row.biz_settings },
             groupServices
           });
+
+          // SMS confirmation (pro/premium)
+          if (row.client_phone && ['pro', 'premium'].includes(row.biz_plan)) {
+            try {
+              const { sendSMS } = require('../../services/sms');
+              const { BASE_URL } = require('./helpers');
+              const manageUrl = `${BASE_URL}/booking/${row.public_token}`;
+              const _sd2 = new Date(row.start_at);
+              const _sDate2 = _sd2.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
+              const _sTime2 = _sd2.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
+              const _svcLabel2 = groupServices && groupServices.length > 1
+                ? `${groupServices[0].name} +${groupServices.length - 1}`
+                : row.service_name || 'RDV';
+              await sendSMS({ to: row.client_phone, body: `${row.biz_name} : RDV "${_svcLabel2}" confirmé le ${_sDate2} à ${_sTime2}${row.practitioner_name ? ' avec ' + row.practitioner_name : ''}. Gérer : ${manageUrl}`, businessId: row.business_id });
+            } catch (smsErr) { console.warn('[SMS] Post-confirm SMS error:', smsErr.message); }
+          }
         }
       } catch (e) { console.warn('[EMAIL] Post-confirmation email error:', e.message); }
     })();
