@@ -30,10 +30,9 @@ async function sendSessionNotesEmail({ to, toName, sessionHTML, serviceName, dat
       ${sessionHTML}
     </div>
     <p style="margin:0">Cordialement,<br><strong>${safeBizName}</strong></p>
+    ${businessPhone || businessEmail ? `<p style="font-size:13px;color:#7A7470;margin:12px 0 0">${[businessPhone ? '\u{1F4DE} ' + escHtml(businessPhone) : '', businessEmail ? '\u2709\uFE0F ' + escHtml(businessEmail) : ''].filter(Boolean).join(' \u00b7 ')}</p>` : ''}
   `;
-  const footerParts = [businessName];
-  if (businessAddress) footerParts.push(businessAddress);
-  footerParts.push('Via Genda.be');
+  const footerParts = [businessName, businessAddress, businessPhone, businessEmail, 'Via Genda.be'].filter(Boolean);
   const html = buildEmailHTML({
     title: 'Notes de ' + svcLower,
     bodyHTML,
@@ -123,7 +122,7 @@ async function sendReviewRequestEmail({ booking, business }) {
     ctaUrl: reviewUrl,
     businessName: business.name,
     primaryColor: color,
-    footerText: `${safeBizName}${business.address ? ' · ' + escHtml(business.address) : ''} · Via Genda.be`
+    footerText: [business.name, business.address, business.phone, business.email, 'Via Genda.be'].filter(Boolean).join(' \u00b7 ')
   });
 
   return sendEmail({
@@ -167,9 +166,7 @@ async function sendGiftCardEmail({ giftCard, business }) {
     ${expiryStr ? `<p style="font-size:13px;color:#9C958E;text-align:center;margin:0 0 8px">Valable jusqu'au ${expiryStr}</p>` : ''}
     <p style="font-size:14px;color:#5C564F;text-align:center">Présentez ce code lors de votre réservation ou en salon.</p>`;
 
-  const gcFooterParts = [business.name];
-  if (business.address) gcFooterParts.push(business.address);
-  gcFooterParts.push('Via Genda.be');
+  const gcFooterParts = [business.name, business.address, business.phone, business.email, 'Via Genda.be'].filter(Boolean);
   const html = buildEmailHTML({
     title: 'Votre carte cadeau',
     preheader: `${buyerName} vous offre une carte cadeau de ${amtStr}\u20ac`,
@@ -213,9 +210,7 @@ async function sendGiftCardReceiptEmail({ giftCard, business }) {
     </div>
     <p style="font-size:14px;color:#5C564F">Un email contenant le code a été envoyé au destinataire.</p>`;
 
-  const rcptFooterParts = [business.name];
-  if (business.address) rcptFooterParts.push(business.address);
-  rcptFooterParts.push('Via Genda.be');
+  const rcptFooterParts = [business.name, business.address, business.phone, business.email, 'Via Genda.be'].filter(Boolean);
   const html = buildEmailHTML({
     title: 'Carte cadeau envoy\u00e9e',
     preheader: `Carte cadeau de ${amtStr}\u20ac envoy\u00e9e \u00e0 ${recipientName}`,
@@ -270,7 +265,7 @@ async function sendPassPurchaseEmail({ pass, business }) {
       Lors de votre prochaine réservation, indiquez votre code <strong>${escHtml(pass.code)}</strong> ou votre adresse email. Une séance sera automatiquement débitée de votre pass.
     </div>
 
-    <p style="font-size:13px;color:#9C958E">Conservez cet email comme preuve d'achat. Pour toute question, contactez directement ${escHtml(business.name)}${business.phone ? ' au ' + escHtml(business.phone) : ''}.</p>`;
+    <p style="font-size:13px;color:#9C958E">Conservez cet email comme preuve d'achat. Pour toute question, contactez directement ${escHtml(business.name)}${business.phone ? ' au ' + escHtml(business.phone) : ''}${business.email ? ' (' + escHtml(business.email) + ')' : ''}.</p>`;
 
   const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
   const html = buildEmailHTML({
@@ -281,7 +276,7 @@ async function sendPassPurchaseEmail({ pass, business }) {
     ctaUrl: `${baseUrl}/${business.slug}/book`,
     businessName: business.name,
     primaryColor: color,
-    footerText: `${business.name}${business.address ? ' \u00b7 ' + business.address : ''} \u00b7 Via Genda.be`
+    footerText: [business.name, business.address, business.phone, business.email, 'Via Genda.be'].filter(Boolean).join(' \u00b7 ')
   });
 
   return sendEmail({
