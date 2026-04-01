@@ -433,7 +433,7 @@ router.patch('/:id/move', async (req, res, next) => {
                     COALESCE(sv.price_cents, s.price_cents, 0) AS service_price_cents,
                     COALESCE(sv.duration_min, s.duration_min, 0) AS duration_min,
                     p.display_name AS practitioner_name,
-                    biz.name AS business_name, biz.theme, biz.address, biz.email AS business_email
+                    biz.name AS business_name, biz.theme, biz.address, biz.email AS business_email, biz.phone AS business_phone
              FROM bookings b
              LEFT JOIN clients c ON c.id = b.client_id
              LEFT JOIN services s ON s.id = b.service_id
@@ -516,6 +516,7 @@ router.patch('/:id/move', async (req, res, next) => {
                 business: {
                   name: bk.business_name,
                   email: bk.business_email,
+                  phone: bk.business_phone,
                   theme: bk.theme || {},
                   address: bk.address
                 },
@@ -795,6 +796,7 @@ router.patch('/:id/move', async (req, res, next) => {
                 business: {
                   name: bk.business_name,
                   email: bk.business_email,
+                  phone: bk.business_phone,
                   theme: bk.theme || {},
                   address: bk.address
                 }
@@ -1278,7 +1280,7 @@ router.patch('/:id/modify', async (req, res, next) => {
               COALESCE(sv.duration_min, s.duration_min, 0) AS duration_min,
               COALESCE(s.buffer_before_min, 0) AS svc_buffer_before,
               p.display_name AS practitioner_name,
-              biz.name AS business_name, biz.slug, biz.theme, biz.address, biz.email AS business_email
+              biz.name AS business_name, biz.slug, biz.theme, biz.address, biz.email AS business_email, biz.phone AS business_phone
        FROM bookings b
        LEFT JOIN clients c ON c.id = b.client_id
        LEFT JOIN services s ON s.id = b.service_id
@@ -1443,6 +1445,7 @@ router.patch('/:id/modify', async (req, res, next) => {
           business: {
             name: oldBooking.business_name,
             email: oldBooking.business_email,
+            phone: oldBooking.business_phone,
             theme: oldBooking.theme || {},
             address: oldBooking.address
           },
