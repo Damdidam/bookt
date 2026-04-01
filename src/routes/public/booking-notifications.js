@@ -186,9 +186,35 @@ async function sendPostBookingComms({
           }
         }
       } else {
+        // Direct confirmation: email + SMS
         const emailOpts = { booking: emailBooking, business: bizRow.rows[0] };
         if (groupServices) emailOpts.groupServices = groupServices;
         await sendBookingConfirmation(emailOpts);
+
+        // SMS confirmation (pro/premium plans)
+        if (clientPhone && ['pro', 'premium'].includes(bizRow.rows[0].plan)) {
+          try {
+            const { sendSMS } = require('../../services/sms');
+            const baseUrl = BASE_URL;
+            const manageUrl = `${baseUrl}/booking/${createdBooking.public_token}`;
+            const _sd = new Date(emailBooking.start_at);
+            const _sDate = _sd.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
+            const _sTime = _sd.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
+            const _svcLabel = groupServices && groupServices.length > 1
+              ? `${groupServices[0].name} +${groupServices.length - 1}`
+              : serviceName || 'RDV';
+            const smsBody = `${bizRow.rows[0].name} : RDV "${_svcLabel}" confirmé le ${_sDate} à ${_sTime}${practitionerName ? ' avec ' + practitionerName : ''}. Gérer : ${manageUrl}`;
+            const smsResult = await sendSMS({ to: clientPhone, body: smsBody, businessId });
+            try {
+              await query(
+                `INSERT INTO notifications (business_id, booking_id, type, recipient_phone, status, sent_at, error) VALUES ($1,$2,'sms_confirmation',$3,$4,NOW(),$5)`,
+                [businessId, createdBooking.id, clientPhone, smsResult.success ? 'sent' : 'failed', smsResult.error || null]
+              );
+            } catch (_) {}
+          } catch (smsErr) {
+            console.warn('[SMS] Direct confirmation SMS error:', smsErr.message);
+          }
+        }
       }
     } catch (e) { console.warn(`[EMAIL] ${logPrefix} email error:`, e.message); }
   })();
