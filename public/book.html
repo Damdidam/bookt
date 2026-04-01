@@ -2235,15 +2235,16 @@ function buildDateRow(){
     const d=new Date(today);d.setDate(today.getDate()+i);
     const key=localDateStr(d);
     const slots=slotsData[key]||[];
+    // Hide days with no slots (closed days, weekends off, holidays)
+    if(!slots.length) continue;
     // Deduplicate count when no practitioner selected
     let slotCount=slots.length;
     if(!selectedPractitioner&&slots.length>0){
       const seen={};slots.forEach(s=>{seen[s.start_time]=true;});slotCount=Object.keys(seen).length;
     }
-    const has=slotCount>0;
-    html+='<div class="date-btn '+(has?'':'empty')+' '+(selectedDate===key?'sel':'')+'" data-date="'+key+'">'
+    html+='<div class="date-btn '+(selectedDate===key?'sel':'')+'" data-date="'+key+'">'
       +'<div class="dow">'+DAYS_SHORT[d.getDay()]+'</div><div class="num">'+d.getDate()+'</div><div class="month">'+MONTHS[d.getMonth()]+'</div>'
-      +(has?'<div class="slot-count">'+slotCount+'</div>':'')+'</div>';
+      +'<div class="slot-count">'+slotCount+'</div></div>';
   }
   row.innerHTML=html;
   row.querySelectorAll('.date-btn:not(.empty)').forEach(b=>b.addEventListener('click',()=>selectDate(b.dataset.date)));
