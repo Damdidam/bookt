@@ -292,25 +292,23 @@ function render(d) {
     html += `<div class="cancel-section">
       <h3>Annuler ce rendez-vous</h3>`;
 
-    if (can.allowed) {
-      if (can.deposit_at_risk) {
-        const depAmount = (can.deposit_amount_cents / 100).toFixed(2).replace('.', ',');
-        html += `
-          <div class="deadline-info past-deadline" style="background:#FFF3E0;border-color:#FF9800"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Attention : le délai d'annulation gratuite (${can.window_hours}h avant) est dépassé. <strong>Votre acompte de ${depAmount}\u202f€ ne sera pas remboursé.</strong></div>
-          <p>Vous pouvez toujours annuler, mais l'acompte sera conservé par le salon. Vous pouvez aussi <strong>déplacer</strong> votre rendez-vous sans perdre votre acompte.</p>`;
-      } else if (can.deadline_enforced) {
-        html += `
-          <div class="deadline-info"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M5 3 2 6"/><path d="m22 6-3-3"/><path d="M6.38 18.7 4 21"/><path d="M17.64 18.67 20 21"/></svg> Annulation gratuite jusqu'au ${deadlineStr}</div>`;
-      } else {
-        html += `
-          <div class="deadline-info"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M5 3 2 6"/><path d="m22 6-3-3"/><path d="M6.38 18.7 4 21"/><path d="M17.64 18.67 20 21"/></svg> Vous pouvez annuler ce rendez-vous à tout moment avant l'heure prévue.</div>`;
-      }
+    if (can.deposit_at_risk) {
+      const depAmount = (can.deposit_amount_cents / 100).toFixed(2).replace('.', ',');
       html += `
-        <p>Une fois annulé, le créneau sera libéré pour d'autres patients.</p>
-        <textarea id="cancelReason" placeholder="Raison de l'annulation (optionnel)"></textarea>
-        <button class="btn-cancel" id="cancelBtn" onclick="cancelBooking()">Annuler mon rendez-vous</button>
-      `;
+        <div class="deadline-info past-deadline" style="background:#FFF3E0;border-color:#FF9800"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Attention : le délai d'annulation gratuite (${can.window_hours}h avant) est dépassé. <strong>Votre acompte de ${depAmount}\u202f€ ne sera pas remboursé.</strong></div>
+        <p>Vous pouvez toujours annuler, mais l'acompte sera conservé par le salon. Vous pouvez aussi <strong>déplacer</strong> votre rendez-vous sans perdre votre acompte.</p>`;
+    } else if (can.deadline_enforced && can.deadline) {
+      html += `
+        <div class="deadline-info"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M5 3 2 6"/><path d="m22 6-3-3"/><path d="M6.38 18.7 4 21"/><path d="M17.64 18.67 20 21"/></svg> Annulation gratuite jusqu'au ${deadlineStr}</div>`;
+    } else {
+      html += `
+        <div class="deadline-info"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M5 3 2 6"/><path d="m22 6-3-3"/><path d="M6.38 18.7 4 21"/><path d="M17.64 18.67 20 21"/></svg> Vous pouvez annuler ce rendez-vous à tout moment avant l'heure prévue.</div>`;
     }
+    html += `
+      <p>Une fois annulé, le créneau sera libéré pour d'autres patients.</p>
+      <textarea id="cancelReason" placeholder="Raison de l'annulation (optionnel)"></textarea>
+      <button class="btn-cancel" id="cancelBtn" onclick="cancelBooking()">Annuler mon rendez-vous</button>
+    `;
     html += `</div>`;
   } else if (bk.status === 'cancelled') {
     html += `<div class="cancelled-msg"><div class="check"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div><h2>Rendez-vous annulé</h2><p>Ce rendez-vous a été annulé. Vous pouvez en reprendre un nouveau.</p></div>`;

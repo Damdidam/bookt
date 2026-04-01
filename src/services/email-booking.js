@@ -96,9 +96,10 @@ async function sendBookingConfirmation({ booking, business, groupServices }) {
     </div>`;
   }
 
-  // Deposit paid banner
+  // Deposit paid banner (skip if already covered by pass above)
   if (booking.deposit_required && booking.deposit_status === 'paid' && booking.deposit_amount_cents > 0
-      && booking.deposit_payment_intent_id) {
+      && booking.deposit_payment_intent_id
+      && !booking.deposit_payment_intent_id.startsWith('pass_')) {
     const depAmt = (booking.deposit_amount_cents / 100).toFixed(2).replace('.', ',');
     if (booking.deposit_payment_intent_id.startsWith('gc_')) {
       const gcCode = booking.deposit_payment_intent_id.replace('gc_', '');

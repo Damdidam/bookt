@@ -507,7 +507,7 @@ function showSuccess() {
   var gcAmt = '';
   var gcRecip = '';
   try { gcAmt = sessionStorage.getItem('gc_amount') || ''; gcRecip = sessionStorage.getItem('gc_recipient') || ''; sessionStorage.removeItem('gc_amount'); sessionStorage.removeItem('gc_recipient'); } catch (_) {}
-  var amtStr = gcAmt ? (parseInt(gcAmt) / 100).toFixed(2).replace('.', ',') + ' \u20ac' : '';
+  var amtStr = gcAmt ? parseFloat(gcAmt).toFixed(2).replace('.', ',') + ' \u20ac' : '';
 
   var detailHtml = '';
   if (amtStr || gcRecip) {
