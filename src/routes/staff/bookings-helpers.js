@@ -208,6 +208,12 @@ async function getMaxConcurrent(bid, pracId) {
  * @returns {Promise<Array>} Conflicting booking rows
  */
 async function checkBookingConflicts(client, { bid, pracId, newStart, newEnd, excludeIds, movingProcTime, movingProcStart, movingBufferBefore }) {
+  // Advisory lock on (practitioner, timeslot) to prevent double-booking on empty slots.
+  // FOR UPDATE only locks existing rows — if no booking exists yet, two concurrent
+  // transactions both see 0 conflicts and insert. This lock serializes them.
+  const lockKey = `${pracId}_${newStart}`;
+  await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [lockKey]);
+
   let excludeClause = '';
   const params = [bid, pracId, newStart, newEnd];
 
