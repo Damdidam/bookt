@@ -485,7 +485,14 @@ async function submitGiftCard() {
       btn.innerHTML = GIFT_ICON + ' Offrir cette carte cadeau \u2192';
       return;
     }
-    if (data.url) window.location.href = data.url;
+    if (data.url) {
+      // Save details for success page (lost after Stripe redirect)
+      try {
+        sessionStorage.setItem('gc_amount', String(selectedAmount));
+        sessionStorage.setItem('gc_recipient', document.getElementById('recipientName').value.trim() || document.getElementById('recipientEmail').value.trim());
+      } catch (_) {}
+      window.location.href = data.url;
+    }
   } catch (err) {
     alert('Erreur de connexion');
     btn.disabled = false;
@@ -497,6 +504,19 @@ function showSuccess() {
   document.getElementById('heroSubtitle').textContent = '';
   document.querySelector('.gc-hero h1').innerHTML = 'Merci pour votre <em>g\u00e9n\u00e9rosit\u00e9</em> !';
 
+  var gcAmt = '';
+  var gcRecip = '';
+  try { gcAmt = sessionStorage.getItem('gc_amount') || ''; gcRecip = sessionStorage.getItem('gc_recipient') || ''; sessionStorage.removeItem('gc_amount'); sessionStorage.removeItem('gc_recipient'); } catch (_) {}
+  var amtStr = gcAmt ? (parseInt(gcAmt) / 100).toFixed(2).replace('.', ',') + ' \u20ac' : '';
+
+  var detailHtml = '';
+  if (amtStr || gcRecip) {
+    detailHtml = '<div style="margin-top:16px;padding:14px 18px;background:var(--surface);border-radius:10px;text-align:left;font-size:.85rem">';
+    if (amtStr) detailHtml += '<div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="color:var(--text-3)">Montant</span><strong>' + amtStr + '</strong></div>';
+    if (gcRecip) detailHtml += '<div style="display:flex;justify-content:space-between"><span style="color:var(--text-3)">Destinataire</span><strong>' + gcRecip.replace(/</g, '&lt;') + '</strong></div>';
+    detailHtml += '</div>';
+  }
+
   document.getElementById('cardContent').innerHTML =
     '<div class="success-wrap">'
     +'<div class="success-icon">'
@@ -504,6 +524,7 @@ function showSuccess() {
     +'</div>'
     +'<h2>Carte cadeau envoy\u00e9e !</h2>'
     +'<p>Le destinataire recevra sa carte cadeau par email avec un code unique.<br>Merci pour votre achat !</p>'
+    + detailHtml
     +'</div>';
 
   launchConfetti();
