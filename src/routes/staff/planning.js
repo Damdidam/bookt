@@ -932,10 +932,12 @@ router.post('/notify-impacted', requireOwner, async (req, res, next) => {
     // Fetch impacted bookings (same logic as GET /impact)
     const bookings = await queryWithRLS(bid,
       `SELECT b.id, b.start_at, b.end_at, b.status, b.public_token, b.group_id,
+              b.appointment_mode,
               c.full_name AS client_name, c.phone AS client_phone,
               c.email AS client_email, c.consent_sms,
               CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
               COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+              COALESCE(sv.price_cents, s.price_cents) AS price_cents,
               p.display_name AS practitioner_name
        FROM bookings b
        LEFT JOIN clients c ON c.id = b.client_id
@@ -1113,6 +1115,23 @@ router.post('/notify-impacted', requireOwner, async (req, res, next) => {
         timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit'
       });
 
+      // Compute end time from end_at or start_at + duration_min
+      let endTimeLocal = '';
+      if (bk.end_at) {
+        endTimeLocal = new Date(bk.end_at).toLocaleTimeString('fr-BE', {
+          timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit'
+        });
+      } else if (bk.duration_min) {
+        const endMs = new Date(bk.start_at).getTime() + bk.duration_min * 60000;
+        endTimeLocal = new Date(endMs).toLocaleTimeString('fr-BE', {
+          timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit'
+        });
+      }
+
+      // Price display
+      const priceCents = parseInt(bk.price_cents) || 0;
+      const priceStr = priceCents > 0 ? (priceCents / 100).toFixed(2).replace('.', ',') + ' €' : '';
+
       // ── EMAIL ──
       if (bk.client_email) {
         try {
@@ -1120,16 +1139,24 @@ router.post('/notify-impacted', requireOwner, async (req, res, next) => {
             ? `${process.env.APP_BASE_URL || 'https://genda.be'}/booking/${bk.public_token}`
             : null;
 
+          // Address line (only if appointment is at the business location)
+          const addressLine = (bk.appointment_mode === 'cabinet' || !bk.appointment_mode) && business.address
+            ? `<div style="font-size:13px;color:#3D3832;margin-top:2px">📍 ${escHtml(business.address)}</div>`
+            : '';
+
           const bodyHTML = `
             <p>Bonjour <strong>${escHtml(bk.client_name || 'cher client')}</strong>,</p>
             <p>Nous vous informons que votre rendez-vous pourrait être impacté suite à l'indisponibilité de ${escHtml(pracName)} :</p>
             <div style="background:#FFF7ED;border-left:4px solid #F59E0B;border-radius:6px;padding:14px 16px;margin:16px 0">
               <div style="font-size:14px;font-weight:600;color:#1A1816;margin-bottom:4px">${escHtml(bk.service_name || 'Rendez-vous')}</div>
-              <div style="font-size:13px;color:#3D3832">${escHtml(startLocal)}</div>
+              <div style="font-size:13px;color:#3D3832">${escHtml(startLocal)}${endTimeLocal ? ' – ' + endTimeLocal : ''}</div>
+              ${priceStr ? `<div style="font-size:13px;color:#3D3832;margin-top:2px">${priceStr}</div>` : ''}
               <div style="font-size:13px;color:#3D3832;margin-top:2px">avec ${escHtml(pracName)}</div>
+              ${addressLine}
             </div>
             <p>Nous vous recontacterons prochainement pour reprogrammer votre rendez-vous à un créneau qui vous convient.</p>
-            <p style="font-size:13px;color:#9C958E;margin-top:16px">N'hésitez pas à nous contacter pour toute question.</p>`;
+            ${business.phone ? `<p style="font-size:13px;color:#3D3832">📞 Téléphone : <a href="tel:${escHtml(business.phone)}" style="color:#1A1816">${escHtml(business.phone)}</a></p>` : ''}
+            ${business.email ? `<p style="font-size:13px;color:#3D3832;margin-top:-8px">✉️ Email : <a href="mailto:${escHtml(business.email)}" style="color:#1A1816">${escHtml(business.email)}</a></p>` : ''}`;
 
           const html = buildEmailHTML({
             title: 'Changement concernant votre rendez-vous',
@@ -1138,7 +1165,7 @@ router.post('/notify-impacted', requireOwner, async (req, res, next) => {
             businessName: business.name,
             primaryColor,
             ...(manageUrl ? { ctaText: 'Gérer mon rendez-vous', ctaUrl: manageUrl } : {}),
-            footerText: `${business.name} — Via Genda.be`
+            footerText: `${business.name}${business.address ? ' · ' + escHtml(business.address) : ''} — Via Genda.be`
           });
 
           const emailResult = await sendEmail({
@@ -1296,6 +1323,9 @@ router.post('/reassign', requireOwner, async (req, res, next) => {
           weekday: 'long', day: 'numeric', month: 'long',
           hour: '2-digit', minute: '2-digit'
         });
+        const endLocal = bk.end_at ? new Date(bk.end_at).toLocaleTimeString('fr-BE', {
+          timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit'
+        }) : null;
 
         // Build price/promo details
         const priceCents = parseInt(bk.price_cents) || 0;
@@ -1322,7 +1352,7 @@ router.post('/reassign', requireOwner, async (req, res, next) => {
           <p>Votre rendez-vous a été réassigné à un nouveau praticien :</p>
           <div style="background:#F0FDF4;border-left:4px solid #22C55E;border-radius:6px;padding:14px 16px;margin:16px 0">
             <div style="font-size:14px;font-weight:600;color:#1A1816;margin-bottom:4px">${escHtml(bk.service_name || 'Rendez-vous')}${detailStr}</div>${promoLine}
-            <div style="font-size:13px;color:#3D3832">${escHtml(startLocal)}</div>
+            <div style="font-size:13px;color:#3D3832">${escHtml(startLocal)}${endLocal ? ' – ' + escHtml(endLocal) : ''}</div>
             <div style="font-size:13px;color:#3D3832;margin-top:4px">
               <span style="text-decoration:line-through;opacity:.6">avec ${escHtml(bk.old_practitioner_name || '—')}</span>
               → <strong>avec ${escHtml(newPrac.display_name)}</strong>

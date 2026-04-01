@@ -201,6 +201,7 @@ async function process24hReminders(stats) {
               <tr><td style="padding:8px 0;color:#7A7470"> Praticien</td><td style="padding:8px 0;font-weight:600">${escHtml(bk.practitioner_name)}</td></tr>
               ${bk.appointment_mode === 'cabinet' && bk.business_address ? `<tr><td style="padding:8px 0;color:#7A7470"> Adresse</td><td style="padding:8px 0"><a href="https://maps.google.com/?q=${encodeURIComponent(bk.business_address)}" style="color:inherit;text-decoration:underline">${escHtml(bk.business_address)}</a></td></tr>` : ''}
             </table>
+            ${(() => { const cp = []; if (bk.business_phone) cp.push('📞 ' + escHtml(bk.business_phone)); if (bk.business_email) cp.push('✉️ ' + escHtml(bk.business_email)); return cp.length > 0 ? '<p style="font-size:13px;color:#7A7470;margin:12px 0">' + cp.join(' · ') + '</p>' : ''; })()}
             <p style="font-size:13px;color:#9C958E;margin-top:16px">Besoin de modifier ou annuler ? Utilisez le bouton ci-dessous.</p>
           `,
           ctaText: 'Gérer mon rendez-vous',
@@ -293,7 +294,7 @@ async function process2hReminders(stats) {
       bk.promotion_label, bk.promotion_discount_cents,
       bk.discount_pct,
       b.id AS business_id, b.name AS business_name,
-      b.address AS business_address,
+      b.phone AS business_phone, b.address AS business_address,
       b.plan, b.settings, b.theme, b.email AS business_email
     FROM bookings bk
     JOIN clients c ON c.id = bk.client_id
@@ -443,9 +444,10 @@ async function process2hReminders(stats) {
         }
         const promoLine2h = (!isMulti && promoDiscount2h > 0 && promoLabel2h) ? `<p style="font-size:12px;color:#7A7470;margin:4px 0 0">${escHtml(promoLabel2h)} : -${(promoDiscount2h / 100).toFixed(2).replace('.', ',')} \u20ac</p>` : '';
         const endTimeSuffix2h = endTimeStr2h ? ' \u2013 ' + endTimeStr2h : '';
+        const contactBlock2h = (() => { const cp = []; if (bk.business_phone) cp.push('📞 ' + escHtml(bk.business_phone)); if (bk.business_email) cp.push('✉️ ' + escHtml(bk.business_email)); return cp.length > 0 ? '<p style="font-size:13px;color:#7A7470;margin:12px 0">' + cp.join(' · ') + '</p>' : ''; })();
         const bodyHTML = isMulti
-          ? `<p>Bonjour ${escHtml(bk.client_name)},</p><p>Vos rendez-vous approchent, le <strong>${dateStr2h}</strong> \u00e0 <strong>${timeShort}${endTimeSuffix2h}</strong> :</p><div style="margin:12px 0">${serviceHTML}</div>${addressHTML}<p>\u00c0 bient\u00f4t !</p>`
-          : `<p>Bonjour ${escHtml(bk.client_name)},</p><p>Votre rendez-vous avec <strong>${escHtml(bk.practitioner_name)}</strong> est dans 2 heures, le <strong>${dateStr2h}</strong> \u00e0 <strong>${timeShort}${endTimeSuffix2h}</strong>.</p><p style="font-size:14px;margin:8px 0"><strong>${escHtml(bk.service_name)}</strong> (${bk.duration_min} min${singlePriceBody2h})</p>${promoLine2h}${addressHTML}<p>\u00c0 bient\u00f4t !</p>`;
+          ? `<p>Bonjour ${escHtml(bk.client_name)},</p><p>Vos rendez-vous approchent, le <strong>${dateStr2h}</strong> \u00e0 <strong>${timeShort}${endTimeSuffix2h}</strong> :</p><div style="margin:12px 0">${serviceHTML}</div>${addressHTML}${contactBlock2h}<p>\u00c0 bient\u00f4t !</p>`
+          : `<p>Bonjour ${escHtml(bk.client_name)},</p><p>Votre rendez-vous avec <strong>${escHtml(bk.practitioner_name)}</strong> est dans 2 heures, le <strong>${dateStr2h}</strong> \u00e0 <strong>${timeShort}${endTimeSuffix2h}</strong>.</p><p style="font-size:14px;margin:8px 0"><strong>${escHtml(bk.service_name)}</strong> (${bk.duration_min} min${singlePriceBody2h})</p>${promoLine2h}${addressHTML}${contactBlock2h}<p>\u00c0 bient\u00f4t !</p>`;
 
         const result = await sendEmail({
           to: bk.client_email,

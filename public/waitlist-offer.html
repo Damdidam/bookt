@@ -109,7 +109,7 @@ body{font-family:var(--sans);background:var(--surface);min-height:100vh;display:
       <div class="icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
       <h2>C'est réservé !</h2>
       <p>Votre rendez-vous est confirmé.<br><br>
-      <a id="manageLink" href="#">Gérer mon rendez-vous →</a></p>
+      <a id="manageLink" href="#" style="display:none">Gérer mon rendez-vous →</a></p>
     </div>
   </div>
 
@@ -240,6 +240,7 @@ async function acceptOffer() {
     clearInterval(countdownInterval);
     if (data.booking?.manage_url) {
       document.getElementById('manageLink').href = data.booking.manage_url;
+      document.getElementById('manageLink').style.display = '';
     }
     showState('bookedState');
 

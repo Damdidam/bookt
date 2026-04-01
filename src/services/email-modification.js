@@ -9,15 +9,19 @@ const { escHtml, fmtSvcLabel, safeColor, _ic, fmtTimeBrussels, sendEmail, buildB
  */
 async function sendModificationEmail({ booking, business, groupServices }) {
   const oldDate = new Date(booking.old_start_at).toLocaleDateString('fr-BE', {
-    timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long'
+    timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
   });
   const oldTime = new Date(booking.old_start_at).toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' });
   const newDate = new Date(booking.new_start_at).toLocaleDateString('fr-BE', {
-    timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long'
+    timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
   });
   const newTime = fmtTimeBrussels(booking.new_start_at);
   // For multi-service: compute real end from start + total duration
   const isMultiMod = Array.isArray(groupServices) && groupServices.length > 1;
+  const realOldEnd = isMultiMod
+    ? new Date(new Date(booking.old_start_at).getTime() + groupServices.reduce((s, sv) => s + (sv.duration_min || 0), 0) * 60000)
+    : new Date(booking.old_end_at);
+  const oldEndTime = fmtTimeBrussels(realOldEnd);
   const realNewEnd = isMultiMod
     ? new Date(new Date(booking.new_start_at).getTime() + groupServices.reduce((s, sv) => s + (sv.duration_min || 0), 0) * 60000)
     : new Date(booking.new_end_at);
@@ -87,7 +91,7 @@ async function sendModificationEmail({ booking, business, groupServices }) {
     <p>Bonjour <strong>${safeClientName}</strong>,</p>
     <p>Votre rendez-vous a \u00e9t\u00e9 modifi\u00e9 :</p>
     <div style="background:#FEF3E2;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #E6A817">
-      <div style="font-size:13px;color:#92700C;margin-bottom:4px"><strong>Avant :</strong> ${oldDate} \u00e0 ${oldTime}</div>
+      <div style="font-size:13px;color:#92700C;margin-bottom:4px"><strong>Avant :</strong> ${oldDate} \u00e0 ${oldTime} \u2013 ${oldEndTime}</div>
       ${serviceDetailOld}
     </div>
     <div style="background:#EEFAF1;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #1B7A42">

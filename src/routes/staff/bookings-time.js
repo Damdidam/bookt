@@ -1624,6 +1624,7 @@ router.post('/:id/send-reminder', async (req, res, next) => {
 
     const dateStr = new Date(b.start_at).toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
     const timeStr = new Date(b.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
+    const endTimeStr = b.end_at ? new Date(b.end_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' }) : null;
     const baseUrl = process.env.BASE_URL || 'https://genda.be';
     const manageUrl = `${baseUrl}/booking/${b.public_token}`;
     const result = {};
@@ -1717,7 +1718,7 @@ router.post('/:id/send-reminder', async (req, res, next) => {
         const html = buildEmailHTML({
           businessName: b.business_name, primaryColor,
           title: 'Rappel de votre rendez-vous',
-          bodyHTML: `<p>Bonjour <strong>${escHtml(b.client_name || '')}</strong>,</p><p>Ceci est un rappel pour votre rendez-vous :</p><div style="background:#F4F1EE;border-radius:8px;padding:14px 16px;margin:12px 0">${serviceBlock}<br>${escHtml(dateStr)} à ${escHtml(timeStr)}<br>avec ${escHtml(b.practitioner_name || '')}${addressLine}</div>${contactLine}`,
+          bodyHTML: `<p>Bonjour <strong>${escHtml(b.client_name || '')}</strong>,</p><p>Ceci est un rappel pour votre rendez-vous :</p><div style="background:#F4F1EE;border-radius:8px;padding:14px 16px;margin:12px 0">${serviceBlock}<br>${escHtml(dateStr)} à ${escHtml(timeStr)}${endTimeStr ? ' – ' + escHtml(endTimeStr) : ''}<br>avec ${escHtml(b.practitioner_name || '')}${addressLine}</div>${contactLine}`,
           ctaText: 'Voir mon rendez-vous', ctaUrl: manageUrl,
           cancelText: 'Gérer mon rendez-vous', cancelUrl: manageUrl,
           footerText: `${b.business_name}${b.address ? ' \u00b7 ' + b.address : ''} \u00b7 Via Genda.be`

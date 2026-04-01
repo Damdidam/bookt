@@ -333,13 +333,15 @@ router.delete('/:id/group-remove', async (req, res, next) => {
         const remainRes = await client.query(
           `SELECT b.id, b.group_order, b.service_id, b.booked_price_cents, b.public_token,
                   b.deposit_required, b.deposit_status, b.deposit_amount_cents, b.deposit_paid_at,
-                  b.promotion_id, b.promotion_discount_cents,
+                  b.promotion_id, b.promotion_discount_cents, b.end_at,
                   COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents, 0) AS effective_price_cents,
                   s.name AS service_name, s.category AS service_category, s.duration_min,
-                  s.price_cents AS service_price_cents
+                  s.price_cents AS service_price_cents,
+                  p.display_name AS practitioner_name
            FROM bookings b
            LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
            LEFT JOIN services s ON s.id = b.service_id
+           LEFT JOIN practitioners p ON p.id = b.practitioner_id
            WHERE b.group_id = $1 AND b.business_id = $2
            ORDER BY b.group_order`,
           [groupId, bid]
@@ -552,6 +554,8 @@ router.delete('/:id/group-remove', async (req, res, next) => {
               deposit_status: depositCarrier.deposit_status,
               deposit_amount_cents: newDepositCents,
               start_at: remaining[0] ? locked.start_at : null,
+              end_at: remaining.length > 0 ? remaining[remaining.length - 1].end_at : null,
+              practitioner_name: remaining[0]?.practitioner_name || null,
               public_token: remaining[0]?.public_token || null
             };
           }
@@ -600,10 +604,12 @@ router.delete('/:id/group-remove', async (req, res, next) => {
 
         const dateStr = ed.start_at ? new Date(ed.start_at).toLocaleDateString('fr-BE', { timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long' }) : '';
         const timeStr = ed.start_at ? fmtTimeBrussels(ed.start_at) : '';
+        const endTimeStr = ed.end_at ? fmtTimeBrussels(ed.end_at) : '';
+        const pracName = ed.practitioner_name || '';
 
         const bodyHTML = `
           <p>Bonjour <strong>${escHtml(ed.client_name)}</strong>,</p>
-          <p>Une prestation a \u00e9t\u00e9 retir\u00e9e de votre rendez-vous${dateStr ? ' du <strong>' + dateStr + '</strong> \u00e0 <strong>' + timeStr + '</strong>' : ''} :</p>
+          <p>Une prestation a \u00e9t\u00e9 retir\u00e9e de votre rendez-vous${dateStr ? ' du <strong>' + dateStr + '</strong> à <strong>' + timeStr + (endTimeStr ? ' – ' + endTimeStr : '') + '</strong>' : ''}${pracName ? ' avec <strong>' + escHtml(pracName) + '</strong>' : ''} :</p>
           <div style="background:#FEF3E2;border-radius:8px;padding:12px 16px;margin:16px 0;border-left:3px solid #E6A817">
             <div style="font-size:13px;color:#92700C;text-decoration:line-through;opacity:.7">${escHtml(ed.removed_service)}</div>
           </div>

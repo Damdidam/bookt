@@ -40,7 +40,7 @@ router.get('/:slug', async (req, res, next) => {
               b.accreditation, b.bce_number, b.parking_info, b.logo_url,
               b.cover_image_url, b.social_links, b.theme, b.seo_title,
               b.seo_description, b.page_sections, b.settings,
-              b.google_reviews_url, b.category, b.sector
+              b.google_reviews_url, b.category, b.sector, b.plan
        FROM businesses b WHERE b.slug = $1 AND b.is_active = true`,
       [slug]
     );
@@ -53,7 +53,7 @@ router.get('/:slug', async (req, res, next) => {
                 b.accreditation, b.bce_number, b.parking_info, b.logo_url,
                 b.cover_image_url, b.social_links, b.theme, b.seo_title,
                 b.seo_description, b.page_sections, b.settings,
-                b.google_reviews_url, b.category, b.sector
+                b.google_reviews_url, b.category, b.sector, b.plan
          FROM businesses b
          JOIN custom_domains cd ON cd.business_id = b.id
          WHERE cd.domain = $1 AND cd.verification_status = 'ssl_active' AND b.is_active = true`,
@@ -318,7 +318,8 @@ router.get('/:slug', async (req, res, next) => {
         payment_methods: biz.settings?.payment_methods || [],
         about_image_url: biz.settings?.about_image_url || null,
         giftcard_enabled: !!biz.settings?.giftcard_enabled,
-        passes_enabled: !!biz.settings?.passes_enabled
+        passes_enabled: !!biz.settings?.passes_enabled,
+        plan: biz.plan || 'free'
       },
       practitioners: pracResult.rows.map(p => ({
         id: p.id,

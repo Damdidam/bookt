@@ -251,6 +251,16 @@ async function sendDepositReminderEmail({ booking, business, depositUrl, payUrl,
       </div>
     </div>`;
 
+  // Footer: address, contact, payment methods, calendar links
+  const serviceNameDRem = isMulti ? safeServiceName : fmtSvcLabel(booking.service_category, booking.service_name, null, booking.custom_label);
+  const calEndAtDRem = realEnd ? realEnd.toISOString() : (booking.end_at || booking.start_at);
+  bodyHTML += buildBookingFooter({
+    business, booking, serviceName: serviceNameDRem,
+    practitionerName: booking.practitioner_name || '',
+    startAt: booking.start_at, endAt: calEndAtDRem,
+    publicToken: booking.public_token || null
+  });
+
   const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
   const directPayUrl = payUrl || (booking.public_token ? `${baseUrl}/api/public/deposit/${booking.public_token}/pay` : depositUrl);
   const manageUrl = booking.public_token ? `${baseUrl}/booking/${booking.public_token}` : null;
@@ -521,7 +531,7 @@ async function sendDepositRefundEmail({ booking, business, groupServices }) {
     </div>`;
   }
 
-  const bodyHTML = `
+  let bodyHTML = `
     <p>Bonjour <strong>${safeClientName}</strong>,</p>
     <p>Votre acompte a \u00e9t\u00e9 rembours\u00e9 suite \u00e0 l'annulation de votre rendez-vous.</p>
     ${refundBanner}
@@ -533,6 +543,19 @@ async function sendDepositRefundEmail({ booking, business, groupServices }) {
       ${safePracName && !hasSplitPracRF ? `<div style="font-size:14px;color:#6B6560">${safePracName}</div>` : ''}
     </div>
     <p style="font-size:14px;color:#3D3832">N'h\u00e9sitez pas \u00e0 reprendre rendez-vous quand vous le souhaitez.</p>`;
+
+  // Address + contact info so client can reach the business
+  if (business.address || business.phone || business.email) {
+    let contactHTML = '<div style="margin-top:16px;padding-top:14px;border-top:1px solid #eee">';
+    if (business.address) {
+      const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(business.address)}`;
+      contactHTML += `<div style="font-size:13px;color:#6B6560;padding:4px 0">${escHtml(business.address)} \u2014 <a href="${mapsUrl}" target="_blank" style="color:#0D9488;text-decoration:none;font-weight:500">Google Maps \u2192</a></div>`;
+    }
+    if (business.phone) contactHTML += `<div style="font-size:13px;color:#6B6560;padding:4px 0">${escHtml(business.phone)}</div>`;
+    if (business.email) contactHTML += `<div style="font-size:13px;color:#6B6560;padding:4px 0">${escHtml(business.email)}</div>`;
+    contactHTML += '</div>';
+    bodyHTML += contactHTML;
+  }
 
   const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
   const bookingUrl = business.slug ? `${baseUrl}/${business.slug}/book` : null;
