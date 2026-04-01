@@ -270,9 +270,7 @@ class GendaAPI {
     return this.get(`/api/calls/logs${qs ? '?' + qs : ''}`);
   }
 
-  async getCallStats() {
-    return this.get('/api/calls/stats');
-  }
+
 
   // ============================================================
   // SITE MANAGEMENT (staff)

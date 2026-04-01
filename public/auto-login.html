@@ -4,21 +4,22 @@
 <script>
 var token = new URLSearchParams(window.location.search).get('t');
 if (token) {
-  // Validate the token via API BEFORE storing in localStorage
-  fetch('/api/staff/dashboard', { headers: { 'Authorization': 'Bearer ' + token } })
-    .then(function(r) {
-      if (!r.ok) throw new Error('Invalid token');
-      return r.json();
-    })
-    .then(function(d) {
-      if (!d.user) throw new Error('Invalid token');
+  var headers = { 'Authorization': 'Bearer ' + token };
+  // Validate token + fetch user and business in parallel
+  Promise.all([
+    fetch('/api/auth/me', { headers: headers }).then(function(r) { if (!r.ok) throw new Error('Invalid token'); return r.json(); }),
+    fetch('/api/dashboard', { headers: headers }).then(function(r) { return r.ok ? r.json() : {}; })
+  ])
+    .then(function(results) {
+      var me = results[0];
+      var dash = results[1];
+      if (!me.user) throw new Error('Invalid token');
       localStorage.setItem('genda_token', token);
-      localStorage.setItem('genda_user', JSON.stringify(d.user));
-      if (d.business) localStorage.setItem('genda_business', JSON.stringify(d.business));
+      localStorage.setItem('genda_user', JSON.stringify(me.user));
+      if (dash.business) localStorage.setItem('genda_business', JSON.stringify(dash.business));
       window.location.href = '/dashboard';
     })
     .catch(function() {
-      // Token invalid or API error — redirect to login
       localStorage.removeItem('genda_token');
       window.location.href = '/login';
     });

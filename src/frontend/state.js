@@ -13,11 +13,14 @@ import { GendaAPI, GendaUI } from './api-client.js';
     localStorage.removeItem('genda_user');
     localStorage.removeItem('genda_business');
     // Fetch fresh user/business data, then reload clean
-    fetch('/api/staff/dashboard', { headers: { 'Authorization': 'Bearer ' + at } })
-      .then(r => r.json())
-      .then(d => {
-        if (d.user) localStorage.setItem('genda_user', JSON.stringify(d.user));
-        if (d.business) localStorage.setItem('genda_business', JSON.stringify(d.business));
+    const headers = { 'Authorization': 'Bearer ' + at };
+    Promise.all([
+      fetch('/api/auth/me', { headers }).then(r => r.ok ? r.json() : {}),
+      fetch('/api/dashboard', { headers }).then(r => r.ok ? r.json() : {})
+    ])
+      .then(([me, dash]) => {
+        if (me.user) localStorage.setItem('genda_user', JSON.stringify(me.user));
+        if (dash.business) localStorage.setItem('genda_business', JSON.stringify(dash.business));
       })
       .catch(() => {})
       .finally(() => {
