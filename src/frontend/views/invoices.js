@@ -72,7 +72,7 @@ async function loadInvoices(){
         const typeLabels={invoice:'Facture',quote:'Devis',credit_note:'Note crédit'};
         const typeColors={invoice:'var(--primary)',quote:'var(--gold)',credit_note:'var(--text-3)'};
         const sc=statusColors[f.status]||'var(--text-4)';
-        const d=new Date(f.issue_date).toLocaleDateString('fr-BE');
+        const d=new Date(f.issue_date).toLocaleDateString('fr-BE',{timeZone:'Europe/Brussels'});
         h+=`<tr style="border-bottom:1px solid var(--border-light)">
           <td style="padding:10px 14px;font-weight:600">${esc(f.invoice_number)}</td>
           <td style="padding:10px"><span style="font-size:.7rem;padding:2px 8px;border-radius:10px;background:${typeColors[f.type]}15;color:${typeColors[f.type]};font-weight:600">${typeLabels[f.type]||f.type}</span></td>
@@ -315,7 +315,7 @@ async function invClientChanged(){
   if(_unbilledBookings.length===0){section.style.display='none';return;}
   section.style.display='';
   list.innerHTML=_unbilledBookings.map((b,i)=>{
-    const dt=new Date(b.start_at).toLocaleDateString('fr-BE');
+    const dt=new Date(b.start_at).toLocaleDateString('fr-BE',{timeZone:'Europe/Brussels'});
     const price=b.booked_price_cents??b.variant_price_cents??b.service_price_cents??0;
     const label=b.service_name+(b.variant_name?' \u2014 '+b.variant_name:'')+' ('+(b.practitioner_name||'?')+') \u2014 '+dt;
     const passBadge=b.pass_covered?' <span style="font-size:.68rem;color:var(--green);font-weight:600;padding:1px 6px;border-radius:4px;background:var(--green-bg)">Pass</span>':'';
@@ -335,7 +335,7 @@ function invToggleUnbilled(idx,checked){
   const container=document.getElementById('invLines');
   if(!container)return;
   if(checked){
-    const dt=new Date(b.start_at).toLocaleDateString('fr-BE');
+    const dt=new Date(b.start_at).toLocaleDateString('fr-BE',{timeZone:'Europe/Brussels'});
     const desc=b.service_name+(b.variant_name?' \u2014 '+b.variant_name:'')+' ('+(b.practitioner_name||'')+') \u2014 '+dt;
     const fullPrice=b.booked_price_cents??b.variant_price_cents??b.service_price_cents??0;
 
@@ -357,22 +357,42 @@ function invToggleUnbilled(idx,checked){
       }
     }
 
-    // Stripe deposit: show actual amount paid as deduction (once per payment intent)
-    if(b.deposit_status==='paid'&&b.deposit_amount_cents&&b.deposit_payment_intent_id&&(b.deposit_payment_intent_id.startsWith('pi_')||b.deposit_payment_intent_id.startsWith('cs_'))){
-      const depDesc='Acompte pay\u00e9 (Stripe)';
-      const existing=[...container.querySelectorAll('.inv-desc')].some(el=>el.value===depDesc);
-      if(!existing){
-        _addInvoiceLineFromBooking(b.id,depDesc,1,-(b.deposit_amount_cents/100));
-      }
-    }
+    // Deposit deduction: handle split GC/Stripe payments
+    if(b.deposit_status==='paid'&&b.deposit_amount_cents&&b.deposit_payment_intent_id){
+      const gcCents=parseInt(b.gc_paid_cents)||0;
+      const totalDep=parseInt(b.deposit_amount_cents)||0;
 
-    // Gift card deposit: show actual amount paid as deduction (once per GC code)
-    if(b.deposit_status==='paid'&&b.deposit_amount_cents&&b.deposit_payment_intent_id&&b.deposit_payment_intent_id.startsWith('gc_')){
-      const gcCode=b.deposit_payment_intent_id.replace('gc_','');
-      const gcDesc='Acompte pay\u00e9 (Carte cadeau '+gcCode+')';
-      const existing=[...container.querySelectorAll('.inv-desc')].some(el=>el.value===gcDesc);
-      if(!existing){
-        _addInvoiceLineFromBooking(b.id,gcDesc,1,-(b.deposit_amount_cents/100));
+      if(b.deposit_payment_intent_id.startsWith('gc_')&&gcCents<=0){
+        // Pure GC payment (legacy format)
+        const gcCode=b.deposit_payment_intent_id.replace('gc_','');
+        const gcDesc='Acompte pay\u00e9 (Carte cadeau '+gcCode+')';
+        const existing=[...container.querySelectorAll('.inv-desc')].some(el=>el.value===gcDesc);
+        if(!existing){
+          _addInvoiceLineFromBooking(b.id,gcDesc,1,-(totalDep/100));
+        }
+      }else if(gcCents>0){
+        // Split or full GC payment — show GC line
+        const gcDesc='Acompte pay\u00e9 (Carte cadeau)';
+        const existingGc=[...container.querySelectorAll('.inv-desc')].some(el=>el.value===gcDesc);
+        if(!existingGc){
+          _addInvoiceLineFromBooking(b.id,gcDesc,1,-(gcCents/100));
+        }
+        // Remaining via Stripe
+        const stripeCents=totalDep-gcCents;
+        if(stripeCents>0){
+          const stripeDesc='Acompte pay\u00e9 (Stripe)';
+          const existingSt=[...container.querySelectorAll('.inv-desc')].some(el=>el.value===stripeDesc);
+          if(!existingSt){
+            _addInvoiceLineFromBooking(b.id,stripeDesc,1,-(stripeCents/100));
+          }
+        }
+      }else if(b.deposit_payment_intent_id.startsWith('pi_')||b.deposit_payment_intent_id.startsWith('cs_')){
+        // Pure Stripe payment
+        const depDesc='Acompte pay\u00e9 (Stripe)';
+        const existing=[...container.querySelectorAll('.inv-desc')].some(el=>el.value===depDesc);
+        if(!existing){
+          _addInvoiceLineFromBooking(b.id,depDesc,1,-(totalDep/100));
+        }
       }
     }
   }else{

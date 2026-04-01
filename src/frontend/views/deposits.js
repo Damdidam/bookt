@@ -75,9 +75,9 @@ async function loadDeposits(){
       deps.forEach(d=>{
         const dc=depStatusColors[d.deposit_status]||'var(--text-4)';
         const bc=bkStatusColors[d.booking_status]||'var(--text-4)';
-        const rdvDate=new Date(d.start_at).toLocaleDateString('fr-BE');
-        const createdDate=new Date(d.created_at).toLocaleDateString('fr-BE');
-        const paidDate=d.deposit_paid_at?new Date(d.deposit_paid_at).toLocaleDateString('fr-BE'):'\u2014';
+        const rdvDate=new Date(d.start_at).toLocaleDateString('fr-BE',{timeZone:'Europe/Brussels'});
+        const createdDate=new Date(d.created_at).toLocaleDateString('fr-BE',{timeZone:'Europe/Brussels'});
+        const paidDate=d.deposit_paid_at?new Date(d.deposit_paid_at).toLocaleDateString('fr-BE',{timeZone:'Europe/Brussels'}):'\u2014';
         const hasAudit=d.audit_trail&&d.audit_trail.length>0;
 
         h+=`<tr style="border-bottom:1px solid var(--border-light)">
@@ -140,7 +140,7 @@ function showDepositAudit(bookingId){
     <div class="m-body">
       <div style="margin-bottom:14px;padding:12px;background:var(--surface);border-radius:var(--radius-xs)">
         <div style="font-size:.85rem;font-weight:600">${esc(dep.client_name)} \u2014 ${esc(dep.service_name)}</div>
-        <div style="font-size:.75rem;color:var(--text-3);margin-top:4px">Montant: ${fmtEur(dep.deposit_amount_cents)}${(()=>{const gc=parseInt(dep.gc_paid_cents)||0;if(gc<=0)return '';const stripe=Math.max(0,(dep.deposit_amount_cents||0)-gc);return ' ('+IC.gift+' '+fmtEur(gc)+' carte cadeau'+(stripe>0?' + '+fmtEur(stripe)+' Stripe':'')+')';})()} \u2022 RDV: ${new Date(dep.start_at).toLocaleDateString('fr-BE')} \u2022 Statut: ${depStatusLabels[dep.deposit_status]||dep.deposit_status}</div>
+        <div style="font-size:.75rem;color:var(--text-3);margin-top:4px">Montant: ${fmtEur(dep.deposit_amount_cents)}${(()=>{const gc=parseInt(dep.gc_paid_cents)||0;if(gc<=0)return '';const stripe=Math.max(0,(dep.deposit_amount_cents||0)-gc);return ' ('+IC.gift+' '+fmtEur(gc)+' carte cadeau'+(stripe>0?' + '+fmtEur(stripe)+' Stripe':'')+')';})()} \u2022 RDV: ${new Date(dep.start_at).toLocaleDateString('fr-BE',{timeZone:'Europe/Brussels'})} \u2022 Statut: ${depStatusLabels[dep.deposit_status]||dep.deposit_status}</div>
       </div>
       ${auditHtml}
     </div>

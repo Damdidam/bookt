@@ -279,7 +279,7 @@ router.delete('/:id/group-remove', async (req, res, next) => {
     // 1. Fetch the booking
     const bkRes = await queryWithRLS(bid,
       `SELECT b.id, b.group_id, b.group_order, b.status, b.start_at, b.end_at,
-              b.practitioner_id, b.service_id, b.client_id
+              b.practitioner_id, b.service_id, b.client_id, b.public_token
        FROM bookings b
        WHERE b.id = $1 AND b.business_id = $2`,
       [id, bid]
@@ -331,7 +331,7 @@ router.delete('/:id/group-remove', async (req, res, next) => {
 
         // Count remaining members in the group (with price + service info for recalculations)
         const remainRes = await client.query(
-          `SELECT b.id, b.group_order, b.service_id, b.booked_price_cents,
+          `SELECT b.id, b.group_order, b.service_id, b.booked_price_cents, b.public_token,
                   b.deposit_required, b.deposit_status, b.deposit_amount_cents, b.deposit_paid_at,
                   b.promotion_id, b.promotion_discount_cents,
                   COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents, 0) AS effective_price_cents,
@@ -551,7 +551,8 @@ router.delete('/:id/group-remove', async (req, res, next) => {
               promo_discount_cents: newPromoCents,
               deposit_status: depositCarrier.deposit_status,
               deposit_amount_cents: newDepositCents,
-              start_at: remaining[0] ? locked.start_at : null
+              start_at: remaining[0] ? locked.start_at : null,
+              public_token: remaining[0]?.public_token || null
             };
           }
         }
@@ -614,13 +615,17 @@ router.delete('/:id/group-remove', async (req, res, next) => {
           ${depositLine}
           <p style="font-size:13px;color:#9C958E">Si vous avez des questions, n\u2019h\u00e9sitez pas \u00e0 nous contacter.</p>`;
 
+        const _baseUrl = process.env.APP_BASE_URL || 'https://genda.be';
+        const _manageUrl = ed.public_token ? `${_baseUrl}/booking/${ed.public_token}` : null;
+        const _footerParts = [biz.name, biz.address, biz.phone, biz.email].filter(Boolean);
         const html = buildEmailHTML({
           title: 'Modification de votre rendez-vous',
           preheader: `Une prestation a \u00e9t\u00e9 retir\u00e9e de votre rendez-vous`,
           bodyHTML,
           businessName: biz.name,
           primaryColor: color,
-          footerText: `${biz.name}${biz.address ? ' \u00b7 ' + biz.address : ''} \u00b7 Via Genda.be`
+          ...(_manageUrl ? { ctaText: 'G\u00e9rer mon rendez-vous', ctaUrl: _manageUrl } : {}),
+          footerText: `${_footerParts.join(' \u00b7 ')} \u00b7 Via Genda.be`
         });
 
         await sendEmail({

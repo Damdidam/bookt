@@ -224,7 +224,7 @@ router.get('/summary', async (req, res, next) => {
         no_shows: parseInt(stats.no_shows),
         cancellations: parseInt(stats.cancellations),
         revenue_cents: parseInt(stats.revenue_cents),
-        revenue_formatted: `${(parseInt(stats.revenue_cents) / 100).toFixed(0)} €`
+        revenue_formatted: `${(parseInt(stats.revenue_cents) / 100).toFixed(2).replace('.', ',')} €`
       },
       clients: {
         total: parseInt(clientCount.rows[0].total)

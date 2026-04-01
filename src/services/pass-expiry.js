@@ -5,7 +5,7 @@ async function processExpiredPasses() {
   const result = await pool.query(
     `UPDATE passes SET status = 'expired', updated_at = NOW()
      WHERE status = 'active' AND expires_at IS NOT NULL AND expires_at < NOW()
-     RETURNING id, business_id, client_id, name, total_sessions, used_sessions`
+     RETURNING id, business_id, buyer_email, name, sessions_total, sessions_remaining`
   );
 
   // Send expiry notification emails (non-blocking)
@@ -16,13 +16,13 @@ async function processExpiredPasses() {
                 biz.name AS biz_name, biz.theme
          FROM clients c
          JOIN businesses biz ON biz.id = c.business_id
-         WHERE c.id = $1 AND c.business_id = $2`,
-        [pass.client_id, pass.business_id]
+         WHERE c.email = $1 AND c.business_id = $2`,
+        [pass.buyer_email, pass.business_id]
       );
       if (!rows[0]?.client_email) continue;
       const { client_name, client_email, biz_name, biz_theme } = rows[0];
       const color = safeColor(biz_theme?.primary_color);
-      const remaining = (pass.total_sessions || 0) - (pass.used_sessions || 0);
+      const remaining = pass.sessions_remaining || 0;
 
       const bodyHTML = `
         <p>Votre pass <strong>${escHtml(pass.name || 'Pass')}</strong> a expir\u00e9.</p>

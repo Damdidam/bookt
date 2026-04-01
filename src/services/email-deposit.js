@@ -37,7 +37,7 @@ async function sendDepositRequestEmail({ booking, business, depositUrl, payUrl, 
     ? groupServices.map(s => escHtml(s.name)).join(' + ')
     : escHtml(fmtSvcLabel(booking.service_category, booking.service_name, null, booking.custom_label));
 
-  const cancelDeadlineH = business.settings?.cancel_deadline_hours ?? 48;
+  const cancelDeadlineH = business.settings?.cancel_deadline_hours ?? 24;
 
   let serviceDetailHTML = '';
   if (isMulti) {
@@ -172,7 +172,7 @@ async function sendDepositReminderEmail({ booking, business, depositUrl, payUrl,
     ? groupServices.map(s => escHtml(s.name)).join(' + ')
     : escHtml(fmtSvcLabel(booking.service_category, booking.service_name, null, booking.custom_label));
 
-  const cancelDeadlineH = business.settings?.cancel_deadline_hours ?? 48;
+  const cancelDeadlineH = business.settings?.cancel_deadline_hours ?? 24;
 
   // Calculate hours remaining until deadline
   const hoursLeft = booking.deposit_deadline
@@ -387,7 +387,7 @@ async function sendDepositPaidEmail({ booking, business, groupServices }) {
   }
 
   bodyHTML += `
-    <p style="font-size:13px;color:#6B6560">En cas d'annulation jusqu'\u00e0 ${business.settings?.cancel_deadline_hours ?? 48}h avant votre rendez-vous, l'acompte vous sera restitu\u00e9${gcPaidCents > 0 && stripePaidCents > 0 ? ' (carte cadeau recr\u00e9dit\u00e9e + remboursement bancaire)' : gcPaidCents > 0 ? ' sur votre carte cadeau' : ''}.</p>`;
+    <p style="font-size:13px;color:#6B6560">En cas d'annulation jusqu'\u00e0 ${business.settings?.cancel_deadline_hours ?? 24}h avant votre rendez-vous, l'acompte vous sera restitu\u00e9${gcPaidCents > 0 && stripePaidCents > 0 ? ' (carte cadeau recr\u00e9dit\u00e9e + remboursement bancaire)' : gcPaidCents > 0 ? ' sur votre carte cadeau' : ''}.</p>`;
 
   // Footer: address, contact, payment methods, calendar links
   const depCalEndAt = realEnd ? realEnd.toISOString() : (booking.end_at || booking.start_at);

@@ -324,7 +324,7 @@ async function loadSiteSection(){
       h+=`<div class="empty" style="padding:24px;text-align:center;color:var(--text-4)">Aucune actualité. Publiez votre premier article !</div>`;
     }else{
       newsItems.forEach(n=>{
-        const date=new Date(n.published_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short',year:'numeric'});
+        const date=new Date(n.published_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short',year:'numeric',timeZone:'Europe/Brussels'});
         const tagColors={info:'var(--primary)',alert:'var(--gold)',new:'var(--green)',promo:'#D946EF'};
         h+=`<div class="news-item${n.is_active?'':' inactive'}" data-id="${n.id}">
           <div class="news-date">${date}</div>

@@ -253,6 +253,46 @@ async function sendBookingConfirmationRequest({ booking, business, timeoutMin, g
     </div>
     <p style="font-size:13px;color:#92700C;margin-top:8px">${_ic('hourglass-amb', 16, 16)} Vous avez <strong>${delayLabel}</strong> pour confirmer. Sans confirmation, le cr\u00e9neau sera automatiquement lib\u00e9r\u00e9.</p>`;
 
+  // Deposit info (if applicable)
+  if (booking.deposit_required && booking.deposit_status === 'paid' && booking.deposit_amount_cents > 0
+      && booking.deposit_payment_intent_id) {
+    const depAmt = (booking.deposit_amount_cents / 100).toFixed(2).replace('.', ',');
+    if (booking.deposit_payment_intent_id.startsWith('pass_')) {
+      const passCode = booking.deposit_payment_intent_id.replace('pass_', '');
+      bodyHTML += `
+    <div style="background:#EEFAF1;border-radius:8px;padding:12px 16px;margin:16px 0;border-left:3px solid #22C55E">
+      <div style="font-size:14px;color:#15803D;font-weight:600">\u2705 Cette prestation est couverte par votre abonnement</div>
+      <div style="font-size:12px;color:#15803D;margin-top:4px">Pass ${escHtml(passCode)}</div>
+    </div>`;
+    } else if (booking.deposit_payment_intent_id.startsWith('gc_')) {
+      const gcCode = booking.deposit_payment_intent_id.replace('gc_', '');
+      bodyHTML += `
+    <div style="background:#FFF8E1;border-radius:8px;padding:12px 16px;margin:16px 0;border-left:3px solid #F9A825">
+      <div style="font-size:14px;color:#5D4037;font-weight:600">\u{1F381} Acompte de ${depAmt}\u00a0\u20ac r\u00e9gl\u00e9 via votre carte cadeau</div>
+      <div style="font-size:12px;color:#8D6E63;margin-top:4px">Carte ${gcCode}</div>
+    </div>`;
+    } else {
+      bodyHTML += `
+    <div style="background:#F0FDF4;border-radius:8px;padding:12px 16px;margin:16px 0;border-left:3px solid #22C55E">
+      <div style="font-size:14px;color:#15803D;font-weight:600">\u2705 Acompte de ${depAmt}\u00a0\u20ac r\u00e9gl\u00e9 par carte bancaire</div>
+      <div style="font-size:12px;color:#15803D;margin-top:4px">Le montant restant sera \u00e0 r\u00e9gler sur place.</div>
+    </div>`;
+    }
+
+    // Reste a payer
+    const totalCentsCR = isMulti
+      ? groupServices.reduce((sum, s) => sum + (s.price_cents || 0), 0) - (booking.promotion_discount_cents || 0)
+      : (booking.service_price_cents || 0) - (booking.promotion_discount_cents || 0);
+    const resteCentsCR = totalCentsCR - (booking.deposit_amount_cents || 0);
+    if (resteCentsCR > 0) {
+      const resteStrCR = (resteCentsCR / 100).toFixed(2).replace('.', ',');
+      bodyHTML += `
+    <div style="background:#F5F4F1;border-radius:8px;padding:10px 16px;margin:0 0 16px;border-left:3px solid #6B6560">
+      <div style="font-size:14px;color:#3D3832;font-weight:600">Reste \u00e0 payer sur place : ${resteStrCR}\u00a0\u20ac</div>
+    </div>`;
+    }
+  }
+
   // Footer: address, contact, payment methods, calendar links
   const calEndAtCR = realEnd ? realEnd.toISOString() : (booking.end_at || booking.start_at);
   bodyHTML += buildBookingFooter({

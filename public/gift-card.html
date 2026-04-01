@@ -266,7 +266,9 @@ var selectedAmount = null;
 var config = null;
 
 // Check for success redirect
-if (new URLSearchParams(window.location.search).get('success') === '1') {
+if (new URLSearchParams(window.location.search).get('success') === '1' && slug) {
+  loadConfigThenSuccess();
+} else if (new URLSearchParams(window.location.search).get('success') === '1') {
   applyTheme('epure_nude');
   document.body.classList.add('ready');
   showSuccess();
@@ -287,11 +289,24 @@ async function loadConfig() {
   } catch (err) { applyTheme('epure_nude'); document.body.classList.add('ready'); showError('Erreur de chargement'); }
 }
 
-function render() {
-  // Apply full theme preset
+async function loadConfigThenSuccess() {
+  try {
+    var res = await fetch('/api/public/' + slug + '/gift-card-config');
+    if (res.ok) {
+      config = await res.json();
+      applyBusinessBranding();
+    } else {
+      applyTheme('epure_nude');
+    }
+  } catch (e) { applyTheme('epure_nude'); }
+  document.body.classList.add('ready');
+  showSuccess();
+}
+
+function applyBusinessBranding() {
+  if (!config) return;
   var preset = (config.theme && config.theme.preset) ? config.theme.preset : 'epure_nude';
   applyTheme(preset);
-  // Override primary if custom
   if (config.theme && config.theme.primary_color) {
     var pc = config.theme.primary_color;
     document.documentElement.style.setProperty('--primary', pc);
@@ -300,8 +315,6 @@ function render() {
     document.documentElement.style.setProperty('--primary-light','rgba('+rr+','+gg+','+bb+',.08)');
     document.documentElement.style.setProperty('--primary-soft','rgba('+rr+','+gg+','+bb+',.15)');
   }
-
-  // Logo
   var logoMark = document.getElementById('logoMark');
   var logoName = document.getElementById('logoName');
   if (config.logo_url) {
@@ -312,9 +325,12 @@ function render() {
   }
   logoName.textContent = config.business_name || 'Genda';
   document.getElementById('logoLink').href = '/' + slug;
-  document.getElementById('heroSubtitle').textContent = 'Faites plaisir \u00e0 vos proches avec une carte cadeau.';
-
   document.title = 'Carte Cadeau \u2014 ' + (config.business_name || 'Genda');
+}
+
+function render() {
+  applyBusinessBranding();
+  document.getElementById('heroSubtitle').textContent = 'Faites plaisir \u00e0 vos proches avec une carte cadeau.';
 
   // Build amount pills
   var amountsCents = config.amounts || [2500, 5000, 7500, 10000];
@@ -323,7 +339,7 @@ function render() {
 
   var pillsHtml = amountsCents.map(function(a) {
     var eur = a / 100;
-    return '<button class="amount-pill" data-amount="'+eur+'" onclick="selectAmount('+eur+', this)">'+eur.toFixed(0)+' \u20ac</button>';
+    return '<button class="amount-pill" data-amount="'+eur+'" onclick="selectAmount('+eur+', this)">'+(Number.isInteger(eur) ? eur : eur.toFixed(2).replace('.', ','))+' \u20ac</button>';
   }).join('');
 
   var html = '<div class="card-body">'

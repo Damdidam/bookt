@@ -133,7 +133,8 @@ router.post('/:id/send-session-notes', async (req, res, next) => {
               s.name AS service_name,
               p.display_name AS practitioner_name,
               biz.name AS business_name, biz.sector,
-              (biz.theme->>'primary_color') AS primary_color
+              (biz.theme->>'primary_color') AS primary_color,
+              biz.address AS business_address, biz.phone AS business_phone, biz.email AS business_email
        FROM bookings b
        LEFT JOIN clients c ON c.id = b.client_id
        LEFT JOIN services s ON s.id = b.service_id
@@ -204,7 +205,10 @@ router.post('/:id/send-session-notes', async (req, res, next) => {
       date: dateStr,
       practitionerName: d.practitioner_name,
       businessName: d.business_name,
-      primaryColor: d.primary_color || '#0D7377'
+      primaryColor: d.primary_color || '#0D7377',
+      businessAddress: d.business_address,
+      businessPhone: d.business_phone,
+      businessEmail: d.business_email
     });
 
     // Update sent timestamp

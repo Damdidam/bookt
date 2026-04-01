@@ -79,7 +79,7 @@ function renderPasses(c,passes,st){
 
     passes.forEach(p=>{
       const sc=statusColors[p.status]||'var(--text-4)';
-      const expiresDate=p.expires_at?new Date(p.expires_at).toLocaleDateString('fr-BE'):'—';
+      const expiresDate=p.expires_at?new Date(p.expires_at).toLocaleDateString('fr-BE',{timeZone:'Europe/Brussels'}):'—';
       const buyerName=p.buyer_name||'—';
       const buyerEmail=p.buyer_email||'';
       const serviceName=p.service_name||'—';

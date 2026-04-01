@@ -203,14 +203,14 @@ async function fcOpenDetail(bookingId) {
     // -- Deposit banner --
     if (b.deposit_required) {
       const depAmt = ((b.deposit_amount_cents || 0) / 100).toFixed(2).replace(".",",");
-      const depDl = b.deposit_deadline ? new Date(b.deposit_deadline).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+      const depDl = b.deposit_deadline ? new Date(b.deposit_deadline).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' }) : '';
       const depPaid = b.deposit_status === 'paid';
       const depRefunded = b.deposit_status === 'refunded';
       const depKept = b.deposit_status === 'cancelled' && !!b.deposit_paid_at;
       const depWaived = b.deposit_status === 'waived';
       const isFuture = new Date(b.start_at) > new Date();
       const bizSettings = calState.fcBusinessSettings || {};
-      const cancelDeadlineH = bizSettings.cancel_deadline_hours ?? 48;
+      const cancelDeadlineH = bizSettings.cancel_deadline_hours ?? 24;
       const hoursUntilRdv = (new Date(b.start_at).getTime() - Date.now()) / 3600000;
       const tooCloseForDeposit = hoursUntilRdv < cancelDeadlineH;
       const reqCount = b.deposit_request_count || 0;
@@ -251,7 +251,7 @@ async function fcOpenDetail(bookingId) {
       } else if (depPaid) {
         borderCol = '#86EFAC'; bgCol = 'var(--green-bg)'; textCol = 'var(--green)';
         statusText = 'Payé';
-        if (b.deposit_paid_at) extraHtml += `<div style="font-size:.72rem;color:var(--green);margin-top:4px">Pay\u00e9 le ${new Date(b.deposit_paid_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>`;
+        if (b.deposit_paid_at) extraHtml += `<div style="font-size:.72rem;color:var(--green);margin-top:4px">Pay\u00e9 le ${new Date(b.deposit_paid_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' })}</div>`;
         if (isFuture) {
           extraHtml += `<div style="margin-top:8px"><button class="m-st-btn" style="font-size:.72rem;padding:4px 12px;background:var(--red-bg);color:var(--red);border:1px solid var(--red-bg);border-radius:6px;cursor:pointer;font-weight:600" onclick="fcRefundDeposit(${b.deposit_amount_cents})">Rembourser l'acompte</button></div>`;
         }
@@ -260,7 +260,7 @@ async function fcOpenDetail(bookingId) {
         const neverSent = !b.deposit_requested_at && reqCount === 0;
 
         if (b.deposit_requested_at) {
-          const sentDate = new Date(b.deposit_requested_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+          const sentDate = new Date(b.deposit_requested_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
           extraHtml += `<div style="font-size:.72rem;color:#92700C;margin-top:4px;display:flex;align-items:center;gap:4px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="m22 2-7 20-4-9-9-4z"/></svg>Demande envoy\u00e9e le ${sentDate}${reqCount > 1 ? ' (' + reqCount + ' envoi' + (reqCount > 1 ? 's' : '') + ')' : ''}</div>`;
         } else if (neverSent) {
           extraHtml += `<div style="font-size:.72rem;color:var(--red);margin-top:4px;display:flex;align-items:center;gap:4px">${IC.info}Demande non envoy\u00e9e</div>`;
@@ -272,7 +272,7 @@ async function fcOpenDetail(bookingId) {
         } else if (b.deposit_deadline && !neverSent) {
           const reminderDate = new Date(new Date(b.deposit_deadline).getTime() - 48 * 3600000);
           if (reminderDate > new Date()) {
-            const reminderStr = reminderDate.toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+            const reminderStr = reminderDate.toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
             extraHtml += `<div style="font-size:.72rem;color:var(--text-3);margin-top:2px;font-style:italic">Relance auto pr\u00e9vue le ${reminderStr}</div>`;
           }
         }
@@ -313,7 +313,7 @@ async function fcOpenDetail(bookingId) {
     document.querySelectorAll('.m-require-deposit-wrap').forEach(el => el.remove());
     if (!b.deposit_required && ['pending', 'confirmed', 'modified_pending'].includes(b.status) && new Date(b.start_at) > new Date() && userRole !== 'practitioner') {
       const s = calState.fcBusinessSettings || {};
-      const rdvCancelDlH = s.cancel_deadline_hours ?? 48;
+      const rdvCancelDlH = s.cancel_deadline_hours ?? 24;
       const rdvHoursLeft = (new Date(b.start_at).getTime() - Date.now()) / 3600000;
       // Only show "Exiger un acompte" if RDV is far enough away
       if (rdvHoursLeft >= rdvCancelDlH) {
@@ -339,24 +339,24 @@ async function fcOpenDetail(bookingId) {
       }
     }
 
-    // -- Promo banner (last-minute discount) --
-    document.querySelectorAll('.m-promo-banner').forEach(el => el.remove());
+    // -- LM banner (last-minute discount) --
+    document.querySelectorAll('.m-lm-banner').forEach(el => el.remove());
     if (b.discount_pct) {
-      const origPrice = b.variant_price_cents ?? b.price_cents ?? 0;
-      const discPrice = origPrice > 0 ? Math.round(origPrice * (100 - b.discount_pct) / 100) : 0;
-      const priceHtml = origPrice > 0
-        ? ' <s style="opacity:.5">' + (origPrice / 100).toFixed(2).replace(".",",") + ' €</s> → <strong>' + (discPrice / 100).toFixed(2).replace(".",",") + ' €</strong>'
+      const catalogPrice = b.variant_price_cents ?? b.price_cents ?? 0;
+      const lmPrice = catalogPrice > 0 ? Math.round(catalogPrice * (100 - b.discount_pct) / 100) : 0;
+      const priceHtml = catalogPrice > 0
+        ? ' <s style="opacity:.5">' + (catalogPrice / 100).toFixed(2).replace(".",",") + ' €</s> → <strong>' + (lmPrice / 100).toFixed(2).replace(".",",") + ' €</strong>'
         : '';
-      const promoEl = document.createElement('div');
-      promoEl.className = 'm-promo-banner';
-      promoEl.style.cssText = 'padding:10px 16px;margin:0 24px 12px;border-radius:10px;border:1.5px solid var(--amber);background:var(--amber-bg)';
-      promoEl.innerHTML = `<div style="display:flex;align-items:center;gap:8px;font-size:.85rem;font-weight:700;color:var(--amber-dark)">
+      const lmEl = document.createElement('div');
+      lmEl.className = 'm-lm-banner';
+      lmEl.style.cssText = 'padding:10px 16px;margin:0 24px 12px;border-radius:10px;border:1.5px solid var(--amber);background:var(--amber-bg)';
+      lmEl.innerHTML = `<div style="display:flex;align-items:center;gap:8px;font-size:.85rem;font-weight:700;color:var(--amber-dark)">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/></svg>
         Dernière minute : -${b.discount_pct}%${priceHtml}
       </div>`;
       const depBanner = document.querySelector('.m-deposit-banner');
-      if (depBanner) depBanner.insertAdjacentElement('afterend', promoEl);
-      else document.getElementById('mStatusStrip').insertAdjacentElement('afterend', promoEl);
+      if (depBanner) depBanner.insertAdjacentElement('afterend', lmEl);
+      else document.getElementById('mStatusStrip').insertAdjacentElement('afterend', lmEl);
     }
 
     // -- Group siblings (fetched early for service card + horaire) --
@@ -394,7 +394,7 @@ async function fcOpenDetail(bookingId) {
       const groupStart = new Date(siblings[0].start_at);
       const groupEnd = new Date(siblings[siblings.length - 1].end_at);
       const totalDur = Math.round((groupEnd - groupStart) / 60000);
-      const totalPrice = siblings.reduce((sum, sib) => sum + (sib.variant_price_cents ?? sib.price_cents ?? 0), 0);
+      const totalPrice = siblings.reduce((sum, sib) => sum + (sib.booked_price_cents ?? sib.variant_price_cents ?? sib.price_cents ?? 0), 0);
       const promoSib = siblings.find(sib => sib.promotion_discount_cents > 0);
       const totalPromoDisc = promoSib ? (promoSib.promotion_discount_cents || 0) : 0;
       const svcNames = siblings.map(sib => esc(fmtSvcLabel(sib.service_category, sib.service_name, sib.variant_name))).join(' + ');
@@ -420,15 +420,19 @@ async function fcOpenDetail(bookingId) {
       svcCard.style.display = 'flex';
       svcCard.style.borderLeftColor = accentColor;
       const dur = b.variant_duration_min || b.duration_min || Math.round((e - s) / 60000);
-      const displayPrice = b.variant_price_cents ?? b.price_cents;
+      const catalogPrice = b.variant_price_cents ?? b.price_cents;
       const svcDisplayName = fmtSvcLabel(b.service_category, b.service_name, b.variant_name);
       let priceHtml = '';
-      if (displayPrice) {
-        if (b.discount_pct) {
-          const disc = Math.round(displayPrice * (100 - b.discount_pct) / 100);
-          priceHtml = '<div class="m-svc-price"><s style="font-size:.7rem;opacity:.5">' + (displayPrice / 100).toFixed(2).replace(".",",") + ' \u20ac</s> ' + (disc / 100).toFixed(2).replace(".",",") + ' \u20ac</div>';
+      if (catalogPrice) {
+        // Compute final price: LM discount first, then promo
+        let finalPrice = catalogPrice;
+        if (b.discount_pct) finalPrice = Math.round(catalogPrice * (100 - b.discount_pct) / 100);
+        if (b.promotion_discount_cents > 0) finalPrice = finalPrice - b.promotion_discount_cents;
+        if (finalPrice < 0) finalPrice = 0;
+        if (finalPrice !== catalogPrice) {
+          priceHtml = '<div class="m-svc-price"><s style="font-size:.7rem;opacity:.5">' + (catalogPrice / 100).toFixed(2).replace(".",",") + ' \u20ac</s> ' + (finalPrice / 100).toFixed(2).replace(".",",") + ' \u20ac</div>';
         } else {
-          priceHtml = '<div class="m-svc-price">' + (displayPrice / 100).toFixed(2).replace(".",",") + ' \u20ac</div>';
+          priceHtml = '<div class="m-svc-price">' + (catalogPrice / 100).toFixed(2).replace(".",",") + ' \u20ac</div>';
         }
       }
       const canAddSvc = !['cancelled', 'no_show'].includes(b.status) && userRole !== 'practitioner' && b.service_id;
@@ -450,11 +454,10 @@ async function fcOpenDetail(bookingId) {
       const promoSibs = isGroup ? (siblings || []) : [b];
       const promoSource = isGroup ? promoSibs.find(s => s.promotion_discount_cents > 0) || b : b;
       if (promoSource.promotion_discount_cents > 0 && promoSource.promotion_label) {
-        // Promo takes priority — hide last-minute discount banner if present
-        document.querySelectorAll('.m-promo-banner').forEach(el => el.remove());
+        // Use booked_price_cents (post-LM price) when available, so promo shows discount on top of LM
         const origPrice = isGroup
-          ? promoSibs.reduce((sum, sib) => sum + (sib.variant_price_cents ?? sib.price_cents ?? 0), 0)
-          : (b.variant_price_cents ?? b.price_cents ?? 0);
+          ? promoSibs.reduce((sum, sib) => sum + (sib.booked_price_cents ?? sib.variant_price_cents ?? sib.price_cents ?? 0), 0)
+          : (b.booked_price_cents ?? b.variant_price_cents ?? b.price_cents ?? 0);
         const discCents = promoSource.promotion_discount_cents;
         const reducedPrice = origPrice - discCents;
         promoBanner.style.display = '';
@@ -533,7 +536,13 @@ async function fcOpenDetail(bookingId) {
     const billingEl = document.getElementById('mBillingSection');
     if (billingEl && !isFreestyle) {
       const billSvcs = isGroup ? siblings : [b];
-      const billTotal = billSvcs.reduce((sum, sib) => sum + (sib.variant_price_cents ?? sib.price_cents ?? 0), 0);
+      // Catalog total (before any discount)
+      const billCatalogTotal = billSvcs.reduce((sum, sib) => sum + (sib.variant_price_cents ?? sib.price_cents ?? 0), 0);
+      // Booked total (post-LM if applicable)
+      const billTotal = billSvcs.reduce((sum, sib) => sum + (sib.booked_price_cents ?? sib.variant_price_cents ?? sib.price_cents ?? 0), 0);
+      // LM discount amount (catalog - booked)
+      const billLmDisc = billCatalogTotal - billTotal;
+      const billLmPct = b.discount_pct || (isGroup ? (billSvcs.find(sib => sib.discount_pct)?.discount_pct || 0) : 0);
       const billPromoSource = isGroup ? billSvcs.find(sib => sib.promotion_discount_cents > 0) : b;
       const billPromoDisc = billPromoSource?.promotion_discount_cents || 0;
       const billPromoLabel = billPromoSource?.promotion_label || '';
@@ -546,7 +555,7 @@ async function fcOpenDetail(bookingId) {
 
       let bh = '<div class="m-sec"><div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg> Facturation</span><span class="m-sec-line"></span></div>';
       bh += '<div style="font-size:.78rem;line-height:1.8">';
-      // Service lines
+      // Service lines (catalog prices)
       billSvcs.forEach(sib => {
         const svcName = esc(fmtSvcLabel(sib.service_category, sib.service_name, sib.variant_name));
         const svcPrice = sib.variant_price_cents ?? sib.price_cents ?? 0;
@@ -555,15 +564,19 @@ async function fcOpenDetail(bookingId) {
         }
       });
       // Subtotal if multiple services
-      if (billSvcs.length > 1 && billTotal > 0) {
-        bh += '<div style="display:flex;justify-content:space-between;border-top:1px solid var(--border-light);padding-top:4px;margin-top:2px"><span style="font-weight:600">Sous-total</span><span style="font-weight:600">' + fmtP(billTotal) + '</span></div>';
+      if (billSvcs.length > 1 && billCatalogTotal > 0) {
+        bh += '<div style="display:flex;justify-content:space-between;border-top:1px solid var(--border-light);padding-top:4px;margin-top:2px"><span style="font-weight:600">Sous-total</span><span style="font-weight:600">' + fmtP(billCatalogTotal) + '</span></div>';
+      }
+      // LM discount line (before promo)
+      if (billLmDisc > 0 && billLmPct) {
+        bh += '<div style="display:flex;justify-content:space-between;color:var(--amber-dark)"><span>Derni\u00e8re minute (-' + billLmPct + '%)</span><span>-' + fmtP(billLmDisc) + '</span></div>';
       }
       // Promo
       if (billPromoDisc > 0 && billPromoLabel) {
         bh += '<div style="display:flex;justify-content:space-between;color:var(--green)"><span>' + esc(billPromoLabel) + (billPromoPct ? ' (-' + billPromoPct + '%)' : '') + '</span><span>-' + fmtP(billPromoDisc) + '</span></div>';
       }
       // Total
-      if (billTotal > 0) {
+      if (billCatalogTotal > 0) {
         bh += '<div style="display:flex;justify-content:space-between;border-top:1px solid var(--border-light);padding-top:4px;margin-top:2px;font-weight:700"><span>Total</span><span>' + fmtP(billNet) + '</span></div>';
       }
       // Deposit
@@ -574,14 +587,14 @@ async function fcOpenDetail(bookingId) {
         bh += '<div style="display:flex;justify-content:space-between;color:var(--amber)"><span>Acompte en attente</span><span>' + fmtP(billDepPending) + '</span></div>';
       }
       // Balance due
-      if (billTotal > 0 && billDepPaid > 0) {
+      if (billCatalogTotal > 0 && billDepPaid > 0) {
         const isDue = billDue > 0;
         const isSolde = billDue <= 0;
         bh += '<div style="display:flex;justify-content:space-between;border-top:1px solid var(--border-light);padding-top:4px;margin-top:2px;font-weight:700;color:' + (isSolde ? 'var(--green)' : 'var(--text)') + '"><span>' + (isSolde ? 'Sold\u00e9' : 'Reste d\u00fb') + '</span><span>' + (isSolde ? '0,00 \u20ac' : fmtP(billDue)) + '</span></div>';
       }
       bh += '</div>';
       // Create invoice button
-      if (billTotal > 0 && !['cancelled', 'no_show'].includes(b.status) && userRole !== 'practitioner') {
+      if (billCatalogTotal > 0 && !['cancelled', 'no_show'].includes(b.status) && userRole !== 'practitioner') {
         const invBookingId = isGroup ? (billSvcs.find(sib => sib.group_order === 0) || billSvcs[0]).id : b.id;
         bh += '<button class="m-st-btn" style="margin-top:8px;font-size:.72rem;padding:5px 14px;width:100%;justify-content:center;background:var(--surface);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-weight:600;font-family:inherit" onclick="fcBillingCreateInvoice(\'' + invBookingId + '\')">' + IC.fileText + ' Cr\u00e9er la facture</button>';
       }
@@ -755,7 +768,7 @@ const STATUS_MAP = {
 
 function fmtHistoryTime(iso) {
   const d = new Date(iso);
-  return d.toLocaleDateString('fr-BE', { day: 'numeric', month: 'short' }) + ' ' +
+  return d.toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' }) + ' ' +
     d.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
 }
 
@@ -768,7 +781,7 @@ function fmtTimeOnly(iso) {
 function fmtDateTime(iso) {
   if (!iso) return '?';
   const d = new Date(iso);
-  return d.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short' }) + ' ' +
+  return d.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' }) + ' ' +
     d.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
 }
 

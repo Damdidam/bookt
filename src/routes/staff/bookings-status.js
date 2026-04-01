@@ -421,7 +421,7 @@ router.patch('/:id/status', async (req, res, next) => {
         );
         const dep = depInfo.rows[0];
         if (dep?.deposit_required) {
-          const cancelDeadlineH = dep.settings?.cancel_deadline_hours ?? 48;
+          const cancelDeadlineH = dep.settings?.cancel_deadline_hours ?? 24;
           const graceMin = dep.settings?.cancel_grace_minutes ?? 240;
           let newDepStatus;
           if (dep.deposit_status === 'paid') {
@@ -1551,7 +1551,7 @@ router.post('/:id/require-deposit', async (req, res, next) => {
       }
 
       // Time guard: don't allow if RDV is within cancel_deadline_hours
-      const bizCancelH = b.settings?.cancel_deadline_hours ?? 48;
+      const bizCancelH = b.settings?.cancel_deadline_hours ?? 24;
       const rdvHoursAway = (new Date(b.start_at).getTime() - Date.now()) / 3600000;
       if (rdvHoursAway < bizCancelH) {
         return { error: 400, message: `Trop proche du RDV pour exiger un acompte (moins de ${bizCancelH}h avant).` };

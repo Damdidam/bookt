@@ -101,7 +101,7 @@ async function sendCancellationEmail({ booking, business, groupServices }) {
     </div>`;
     }
   } else if (depositRetained) {
-    const cancelDeadlineH = business.settings?.cancel_deadline_hours ?? 48;
+    const cancelDeadlineH = business.settings?.cancel_deadline_hours ?? 24;
     depositHTML = `
     <div style="background:#FEF3E2;border-radius:8px;padding:12px 16px;margin:16px 0;border-left:3px solid #F59E0B">
       <div style="font-size:14px;color:#92700C;font-weight:600">\u26a0\ufe0f Acompte de ${depAmtStr} \u20ac non rembours\u00e9</div>

@@ -209,9 +209,9 @@ function renderClosuresCard() {
       const sameDay = cl.date_from === cl.date_to || from.toDateString() === to.toDateString();
       let dateStr;
       if (sameDay) {
-        dateStr = from.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'long' });
+        dateStr = from.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'long', timeZone: 'Europe/Brussels' });
       } else {
-        dateStr = from.toLocaleDateString('fr-BE', { day: 'numeric', month: 'short' }) + ' - ' + to.toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', year: 'numeric' });
+        dateStr = from.toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' }) + ' - ' + to.toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/Brussels' });
       }
       h += `<div class="closure-row">
         <div>
@@ -246,7 +246,7 @@ function renderHolidaysCard(year) {
   } else {
     h += `<div style="padding:10px 18px">`;
     holidaysData.forEach(hol => {
-      const dt = new Date(hol.date).toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'long' });
+      const dt = new Date(hol.date).toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'long', timeZone: 'Europe/Brussels' });
       h += `<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border-light)">
         <div style="display:flex;align-items:center;gap:8px">
           <svg viewBox="0 0 24 24" fill="none" stroke="var(--amber-dark)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
@@ -367,7 +367,7 @@ async function saveBusinessSchedule() {
 // ============================================================
 
 function openClosureModal() {
-  const today = new Date().toLocaleDateString('en-CA');
+  const today = new Date().toLocaleDateString('en-CA', {timeZone: 'Europe/Brussels'});
   const m = `<div class="m-overlay open" id="closureModal"><div class="m-dialog m-sm">
     <div class="m-header-simple"><h3>Nouvelle fermeture</h3><button class="m-close" onclick="closeModal('closureModal')">${ICON_X}</button></div><div class="m-body">
     <div class="m-row m-row-2"><div><label class="m-field-label">Du</label><input type="date" class="m-input" id="cl_from" value="${today}"></div><div><label class="m-field-label">Au</label><input type="date" class="m-input" id="cl_to" value="${today}"></div></div>
@@ -415,7 +415,7 @@ async function deleteClosure(id) {
 function openHolidayModal() {
   const m = `<div class="m-overlay open" id="holidayModal"><div class="m-dialog m-sm">
     <div class="m-header-simple"><h3>Nouveau jour férié</h3><button class="m-close" onclick="closeModal('holidayModal')">${ICON_X}</button></div><div class="m-body">
-    <div><label class="m-field-label">Date</label><input type="date" class="m-input" id="hol_date" value="${new Date().toLocaleDateString('en-CA')}"></div>
+    <div><label class="m-field-label">Date</label><input type="date" class="m-input" id="hol_date" value="${new Date().toLocaleDateString('en-CA', {timeZone: 'Europe/Brussels'})}"></div>
     <div><label class="m-field-label">Nom</label><input class="m-input" id="hol_name" placeholder="Ex: Noël, Fête nationale..."></div>
   </div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('holidayModal')">Annuler</button><button class="m-btn m-btn-primary" onclick="saveHoliday()">Enregistrer</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend', m);

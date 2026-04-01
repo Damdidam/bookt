@@ -285,7 +285,7 @@ function render(d) {
         <button style="flex:1;padding:12px;background:var(--red);color:#fff;border:none;border-radius:var(--radius-sm);font-family:var(--sans);font-size:.9rem;font-weight:600;cursor:pointer" id="refuseBtn" onclick="refuseModification()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Refuser</button>
       </div>
     </div>`;
-  } else if (bk.status === 'confirmed' || bk.status === 'pending_deposit') {
+  } else if (['confirmed', 'pending_deposit', 'pending'].includes(bk.status)) {
     const deadlineDate = new Date(can.deadline);
     const deadlineStr = deadlineDate.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' }) + ' à ' + deadlineDate.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
 
@@ -485,7 +485,7 @@ async function refuseModification() {
   const btn = document.getElementById('refuseBtn');
   btn.disabled = true; btn.textContent = 'Annulation...';
   try {
-    const res = await fetch(`/api/public/booking/${token}/cancel`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: 'Client a refusé la modification d\'horaire' }) });
+    const res = await fetch(`/api/public/booking/${token}/reject`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
     if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
     document.getElementById('cardContent').innerHTML = `<div class="cancelled-msg"><div class="check"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div><h2>Modification refusée</h2><p>Votre rendez-vous a été annulé. Vous pouvez reprendre un nouveau créneau.</p></div>`;
   } catch (e) { btn.disabled = false; btn.innerHTML = '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Refuser'; alert('Erreur: ' + e.message); }

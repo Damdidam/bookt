@@ -191,7 +191,11 @@ function render(d) {
     </div>
     <div class="detail-row">
       <div class="icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg></div>
-      <div class="info"><div class="label">Prestation</div><div class="value">${esc(bk.service.name)}</div><div class="sub">${bk.service.duration_min} min</div>${bk.promotion && bk.promotion.discount_cents > 0 ? '<div class="sub" style="color:var(--green);font-weight:600;margin-top:2px">\uD83C\uDFF7\uFE0F ' + esc(bk.promotion.label) + ' : -' + (bk.promotion.discount_cents / 100).toFixed(2).replace('.', ',') + ' \u20ac</div>' : ''}</div>
+      <div class="info"><div class="label">Prestation${bk.service.members && bk.service.members.length > 1 ? 's' : ''}</div>${bk.service.members && bk.service.members.length > 1
+        ? bk.service.members.map(function(m){ return '<div class="value" style="font-size:.85rem">' + esc(m.name) + ' <span style="color:var(--text-4);font-weight:400">(' + m.duration_min + ' min)</span></div>'; }).join('')
+          + '<div class="sub" style="margin-top:4px;font-weight:600">' + bk.service.duration_min + ' min au total</div>'
+        : '<div class="value">' + esc(bk.service.name) + '</div><div class="sub">' + bk.service.duration_min + ' min</div>'
+      }${bk.promotion && bk.promotion.discount_cents > 0 ? '<div class="sub" style="color:var(--green);font-weight:600;margin-top:2px">\uD83C\uDFF7\uFE0F ' + esc(bk.promotion.label) + ' : -' + (bk.promotion.discount_cents / 100).toFixed(2).replace('.', ',') + ' \u20ac</div>' : ''}</div>
     </div>
     <div class="detail-row">
       <div class="icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>

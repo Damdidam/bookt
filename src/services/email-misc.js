@@ -5,7 +5,7 @@
 const { escHtml, fmtSvcLabel, sanitizeRichText, safeColor, _ic, sendEmail, buildEmailHTML } = require('./email-utils');
 
 // ── Session notes email ──
-async function sendSessionNotesEmail({ to, toName, sessionHTML, serviceName, date, practitionerName, businessName, primaryColor }) {
+async function sendSessionNotesEmail({ to, toName, sessionHTML, serviceName, date, practitionerName, businessName, primaryColor, businessAddress, businessPhone, businessEmail }) {
   const safeSvcName = (serviceName || 'Rendez-vous').slice(0, 100).replace(/[\r\n]/g, ' ');
   const svcLower = escHtml((safeSvcName || 'rendez-vous').toLowerCase());
   const safeFirstName = escHtml(toName ? toName.split(' ')[0] : '');
@@ -31,17 +31,23 @@ async function sendSessionNotesEmail({ to, toName, sessionHTML, serviceName, dat
     </div>
     <p style="margin:0">Cordialement,<br><strong>${safeBizName}</strong></p>
   `;
+  const footerParts = [businessName];
+  if (businessAddress) footerParts.push(businessAddress);
+  footerParts.push('Via Genda.be');
   const html = buildEmailHTML({
     title: 'Notes de ' + svcLower,
     bodyHTML,
     businessName,
-    primaryColor: color
+    primaryColor: color,
+    footerText: footerParts.join(' \u00b7 ')
   });
   return sendEmail({
     to,
     toName,
     subject: `Notes — ${safeSvcName} du ${date}`,
-    html
+    html,
+    fromName: businessName,
+    replyTo: businessEmail || null
   });
 }
 
@@ -84,6 +90,15 @@ async function sendReviewRequestEmail({ booking, business }) {
   const practitioner = booking.practitioner_name ? ` avec ${escHtml(booking.practitioner_name)}` : '';
   const safeBizName = escHtml(business.name);
 
+  // Format booking date/time if available
+  let rdvDateStr = '';
+  if (booking.start_at) {
+    const d = new Date(booking.start_at);
+    const datePart = d.toLocaleDateString('fr-BE', { timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long' });
+    const timePart = d.toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' });
+    rdvDateStr = ` du ${datePart} \u00e0 ${timePart}`;
+  }
+
   const reviewUrl = `${process.env.BASE_URL || 'https://genda.be'}/review/${booking.review_token}`;
 
   // Star rating buttons (1-5)
@@ -94,7 +109,7 @@ async function sendReviewRequestEmail({ booking, business }) {
 
   const bodyHTML = `
     <p>Bonjour ${firstName},</p>
-    <p>Merci d'avoir choisi <strong>${safeBizName}</strong> pour ${serviceName}${practitioner}. Nous espérons que vous avez passé un agréable moment !</p>
+    <p>Merci d'avoir choisi <strong>${safeBizName}</strong> pour ${serviceName}${rdvDateStr}${practitioner}. Nous espérons que vous avez pass\u00e9 un agr\u00e9able moment !</p>
     <p style="margin:20px 0 8px;font-weight:600">Comment évalueriez-vous votre expérience ?</p>
     <div style="text-align:center;margin:16px 0">${starsHTML}</div>
     <p style="color:#9C958E;font-size:13px;text-align:center">Cliquez sur les étoiles ou sur le bouton ci-dessous pour donner votre avis.</p>
@@ -152,14 +167,18 @@ async function sendGiftCardEmail({ giftCard, business }) {
     ${expiryStr ? `<p style="font-size:13px;color:#9C958E;text-align:center;margin:0 0 8px">Valable jusqu'au ${expiryStr}</p>` : ''}
     <p style="font-size:14px;color:#5C564F;text-align:center">Présentez ce code lors de votre réservation ou en salon.</p>`;
 
+  const gcFooterParts = [business.name];
+  if (business.address) gcFooterParts.push(business.address);
+  gcFooterParts.push('Via Genda.be');
   const html = buildEmailHTML({
     title: 'Votre carte cadeau',
-    preheader: `${buyerName} vous offre une carte cadeau de ${amtStr}€`,
+    preheader: `${buyerName} vous offre une carte cadeau de ${amtStr}\u20ac`,
     bodyHTML,
-    ctaText: 'Réserver maintenant',
+    ctaText: 'R\u00e9server maintenant',
     ctaUrl: `${baseUrl}/${business.slug}/book?gc=${giftCard.code}`,
     businessName: business.name,
-    primaryColor: color
+    primaryColor: color,
+    footerText: gcFooterParts.join(' \u00b7 ')
   });
 
   return sendEmail({
@@ -190,12 +209,16 @@ async function sendGiftCardReceiptEmail({ giftCard, business }) {
     </div>
     <p style="font-size:14px;color:#5C564F">Un email contenant le code a été envoyé au destinataire.</p>`;
 
+  const rcptFooterParts = [business.name];
+  if (business.address) rcptFooterParts.push(business.address);
+  rcptFooterParts.push('Via Genda.be');
   const html = buildEmailHTML({
-    title: 'Carte cadeau envoyée',
-    preheader: `Carte cadeau de ${amtStr}€ envoyée à ${recipientName}`,
+    title: 'Carte cadeau envoy\u00e9e',
+    preheader: `Carte cadeau de ${amtStr}\u20ac envoy\u00e9e \u00e0 ${recipientName}`,
     bodyHTML,
     businessName: business.name,
-    primaryColor: business.theme?.primary_color
+    primaryColor: business.theme?.primary_color,
+    footerText: rcptFooterParts.join(' \u00b7 ')
   });
 
   return sendEmail({
@@ -243,7 +266,7 @@ async function sendPassPurchaseEmail({ pass, business }) {
       Lors de votre prochaine réservation, indiquez votre code <strong>${escHtml(pass.code)}</strong> ou votre adresse email. Une séance sera automatiquement débitée de votre pass.
     </div>
 
-    <p style="font-size:13px;color:#9C958E">Conservez cet email comme preuve d'achat. Pour toute question, contactez directement ${escHtml(business.name)}.</p>`;
+    <p style="font-size:13px;color:#9C958E">Conservez cet email comme preuve d'achat. Pour toute question, contactez directement ${escHtml(business.name)}${business.phone ? ' au ' + escHtml(business.phone) : ''}.</p>`;
 
   const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
   const html = buildEmailHTML({
@@ -254,7 +277,7 @@ async function sendPassPurchaseEmail({ pass, business }) {
     ctaUrl: `${baseUrl}/${business.slug}/book`,
     businessName: business.name,
     primaryColor: color,
-    footerText: `${business.name} · Via Genda.be`
+    footerText: `${business.name}${business.address ? ' \u00b7 ' + business.address : ''} \u00b7 Via Genda.be`
   });
 
   return sendEmail({

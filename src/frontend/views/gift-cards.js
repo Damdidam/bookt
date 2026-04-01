@@ -80,8 +80,8 @@ function renderGiftCards(c,cards,st){
 
     cards.forEach(gc=>{
       const sc=statusColors[gc.status]||'var(--text-4)';
-      const createdDate=gc.created_at?new Date(gc.created_at).toLocaleDateString('fr-BE'):'—';
-      const expiresDate=gc.expires_at?new Date(gc.expires_at).toLocaleDateString('fr-BE'):'—';
+      const createdDate=gc.created_at?new Date(gc.created_at).toLocaleDateString('fr-BE',{timeZone:'Europe/Brussels'}):'—';
+      const expiresDate=gc.expires_at?new Date(gc.expires_at).toLocaleDateString('fr-BE',{timeZone:'Europe/Brussels'}):'—';
       const recipientName=gc.recipient_name||'—';
       const recipientEmail=gc.recipient_email||'';
       const isActive=gc.status==='active';

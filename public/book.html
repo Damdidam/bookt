@@ -623,6 +623,7 @@ let currentStepIdx=0;
 let lockedSet={},featuredRanges={};
 let selectedServices=[];
 let selectedVariants={};
+let selectedVariantsByIdx=[]; // parallel array to selectedServices — variant per index for duplicate-service support
 let multiServiceMode=false;
 
 // OAuth state
@@ -925,10 +926,12 @@ function initPage(){
       var svc=siteData.services.find(function(s){return s.id===svcId;});
       if(!svc)return;
       selectedServices.push(svc);
+      var foundVar=null;
       if(varId&&svc.variants){
         var v=svc.variants.find(function(vr){return vr.id===varId;});
-        if(v)selectedVariants[svcId]=v;
+        if(v){selectedVariants[svcId]=v;foundVar=v;}
       }
+      selectedVariantsByIdx.push(foundVar);
     });
   }else if(siteData.business.multi_service_enabled){
     multiServiceMode=true;
@@ -1301,6 +1304,7 @@ function selectService(id){
     // BUG-m5: Allow adding the same service multiple times (no toggle)
     if(selectedServices.length<5){
       selectedServices.push(svc);
+      selectedVariantsByIdx.push(null);
       _updateSvcCards();updateCartBar();
       document.getElementById('btnStep1').disabled=false;
       selectedService=selectedServices.length===1?selectedServices[0]:(selectedServices[0]||null);
@@ -1322,25 +1326,26 @@ function selectVariant(svcId, varIdx){
   if(!svc||svc.bookable_online===false||!svc.variants||!svc.variants[varIdx])return;
   var variant=svc.variants[varIdx];
   if(multiServiceMode){
-    // If this service already selected, check if clicking same variant (deselect) or different (switch)
-    var idx=selectedServices.findIndex(function(s){return s.id===svcId;});
-    if(idx>=0&&selectedVariants[svcId]&&selectedVariants[svcId].id===variant.id){
-      // Deselect
-      selectedServices.splice(idx,1);
-      delete selectedVariants[svcId];
+    // Find if this exact service+variant combo is already in cart
+    var exactIdx=selectedServices.findIndex(function(s,i){return s.id===svcId&&selectedVariantsByIdx[i]&&selectedVariantsByIdx[i].id===variant.id;});
+    if(exactIdx>=0){
+      // Deselect exact match
+      selectedServices.splice(exactIdx,1);
+      selectedVariantsByIdx.splice(exactIdx,1);
+      // Update legacy selectedVariants: keep last remaining variant for this svcId, or delete
+      var lastIdx=-1;selectedServices.forEach(function(s,i){if(s.id===svcId&&selectedVariantsByIdx[i])lastIdx=i;});
+      if(lastIdx>=0)selectedVariants[svcId]=selectedVariantsByIdx[lastIdx];
+      else delete selectedVariants[svcId];
       _updateSvcCards();updateCartBar();
       document.getElementById('btnStep1').disabled=selectedServices.length===0;
       selectedService=selectedServices.length===1?selectedServices[0]:(selectedServices[0]||null);
       selectedPractitioner=null;noPrefSelected=false;selectedMode=null;selectedDate=null;selectedSlot=null;
       computeStepOrder();
-    }else if(idx>=0){
-      // Switch variant
-      selectedVariants[svcId]=variant;
-      _updateSvcCards();updateCartBar();
     }else if(selectedServices.length<5){
-      // Add new
+      // Add new (same service with different variant is allowed)
       selectedVariants[svcId]=variant;
       selectedServices.push(svc);
+      selectedVariantsByIdx.push(variant);
       _updateSvcCards();updateCartBar();
       document.getElementById('btnStep1').disabled=false;
       selectedService=selectedServices.length===1?selectedServices[0]:(selectedServices[0]||null);
@@ -1391,8 +1396,8 @@ function updateCartBar(){
   const n=selectedServices.length;
   bar.classList.toggle('show',n>0);
   if(n===0){document.getElementById('cartChips').innerHTML='';return;}
-  const totalMin=selectedServices.reduce(function(s,svc){var v=selectedVariants[svc.id];return s+(v?v.duration_min:(svc.duration_min||0));},0);
-  const totalPrice=selectedServices.reduce(function(s,svc){var v=selectedVariants[svc.id];return s+(v&&v.price_cents!=null?v.price_cents:(svc.price_cents||0));},0);
+  const totalMin=selectedServices.reduce(function(s,svc,i){var v=selectedVariantsByIdx[i]||selectedVariants[svc.id];return s+(v?v.duration_min:(svc.duration_min||0));},0);
+  const totalPrice=selectedServices.reduce(function(s,svc,i){var v=selectedVariantsByIdx[i]||selectedVariants[svc.id];return s+(v&&v.price_cents!=null?v.price_cents:(svc.price_cents||0));},0);
   const hours=Math.floor(totalMin/60);
   const mins=totalMin%60;
   const durStr=hours>0?hours+'h'+(mins>0?String(mins).padStart(2,'0'):''):totalMin+' min';
@@ -1403,7 +1408,7 @@ function updateCartBar(){
   const chipsEl=document.getElementById('cartChips');
   // BUG-m5: Use index-based removal to handle duplicate services correctly
   chipsEl.innerHTML=selectedServices.map(function(svc,idx){
-    const v=selectedVariants[svc.id];
+    const v=selectedVariantsByIdx[idx]||selectedVariants[svc.id];
     const varLabel=v?(' · '+escH(v.name)):'';
     return '<span class="cart-chip">'
       +'<span class="cart-chip-name">'+escH(svc.name)+'</span>'
@@ -1413,8 +1418,9 @@ function updateCartBar(){
   }).join('');
 
   // Nudge toast: "Plus que X€ pour bénéficier de -Y% !"
-  var eligibleTotal = selectedServices.filter(function(s){return s.promo_eligible !== false;}).reduce(function(sum, svc){
-    var v = selectedVariants[svc.id];
+  var eligibleTotal = selectedServices.reduce(function(sum, svc, i){
+    if(svc.promo_eligible === false) return sum;
+    var v = selectedVariantsByIdx[i] || selectedVariants[svc.id];
     return sum + (v && v.price_cents != null ? v.price_cents : svc.price_cents || 0);
   }, 0);
   checkPromoNudge(eligibleTotal);
@@ -1451,6 +1457,7 @@ function removeCartService(svcId){
   var idx=selectedServices.findIndex(function(s){return s.id===svcId;});
   if(idx>=0){
     selectedServices.splice(idx,1);
+    selectedVariantsByIdx.splice(idx,1);
     // Only delete variant if no more instances of this service remain
     if(!selectedServices.some(function(s){return s.id===svcId;})) delete selectedVariants[svcId];
     _updateSvcCards();updateCartBar();
@@ -1465,6 +1472,7 @@ function removeCartServiceByIdx(idx){
   if(idx>=0&&idx<selectedServices.length){
     var svcId=selectedServices[idx].id;
     selectedServices.splice(idx,1);
+    selectedVariantsByIdx.splice(idx,1);
     if(!selectedServices.some(function(s){return s.id===svcId;})) delete selectedVariants[svcId];
     _updateSvcCards();updateCartBar();
     document.getElementById('btnStep1').disabled=selectedServices.length===0;
@@ -1477,6 +1485,7 @@ function removeCartServiceByIdx(idx){
 function clearCart(){
   selectedServices=[];
   selectedVariants={};
+  selectedVariantsByIdx=[];
   selectedService=null;
   selectedPractitioner=null;noPrefSelected=false;selectedMode=null;selectedDate=null;selectedSlot=null;
   _updateSvcCards();updateCartBar();
@@ -1600,7 +1609,7 @@ function getEligiblePromos(){
   var cart=multiServiceMode?selectedServices:(selectedService?[selectedService]:[]);
   // BUG-M1: filter out services that are not promo_eligible
   var eligibleCart=cart.filter(function(s){return s.promo_eligible!==false;});
-  var cartTotal=eligibleCart.reduce(function(s,svc){var v=selectedVariants[svc.id];return s+(v&&v.price_cents!=null?v.price_cents:(svc.price_cents||0));},0);
+  var cartTotal=eligibleCart.reduce(function(s,svc,i){var v=selectedVariantsByIdx[i]||selectedVariants[svc.id];return s+(v&&v.price_cents!=null?v.price_cents:(svc.price_cents||0));},0);
   var cartIds=eligibleCart.map(function(s){return s.id;});
   return promos.filter(function(p){
     if(p.reward_type!=='info_only'&&eligibleCart.length===0)return false; // no promo-eligible services
@@ -1739,7 +1748,7 @@ function getPromoConditionText(p){
 function calcPromoDiscAmount(promoOrId,cart){
   var p=typeof promoOrId==='object'?promoOrId:(siteData&&siteData.promotions||[]).find(function(x){return x.id===promoOrId;});
   if(!p||!p.reward_type||p.reward_type==='info_only')return 0;
-  var cartTotal=cart.reduce(function(s,svc){var v=selectedVariants[svc.id];return s+(v&&v.price_cents!=null?v.price_cents:(svc.price_cents||0));},0);
+  var cartTotal=cart.reduce(function(s,svc,i){var v=selectedVariantsByIdx[i]||selectedVariants[svc.id];return s+(v&&v.price_cents!=null?v.price_cents:(svc.price_cents||0));},0);
   if(p.reward_type==='discount_pct'){
     if(p.condition_type==='specific_service'){
       var svc=cart.find(function(s){return s.id===p.condition_service_id;});
@@ -1827,6 +1836,9 @@ function oauthConnect(provider){
   if(Object.keys(selectedVariants).length>0){
     var sv={};Object.keys(selectedVariants).forEach(function(k){sv[k]=selectedVariants[k].id;});
     oauthState.variantIds=sv;
+  }
+  if(selectedVariantsByIdx.length>0){
+    oauthState.variantIdsByIdx=selectedVariantsByIdx.map(function(v){return v?v.id:null;});
   }
   oauthState.weekOffset=weekOffset;
   oauthState.noPrefSelected=noPrefSelected;
@@ -1956,7 +1968,17 @@ function restoreOauthState(){
     }
     if(st.slot)selectedSlot=st.slot;
     if(st.date)selectedDate=st.date;
-    if(st.variantIds&&siteData){
+    if(st.variantIdsByIdx&&st.serviceIds&&siteData){
+      // Restore per-index variants
+      selectedVariantsByIdx=st.variantIdsByIdx.map(function(vid,i){
+        if(!vid)return null;
+        var svcItem=st.serviceIds[i];
+        var svcId=svcItem.id||svcItem;
+        var svc=siteData.services.find(function(s){return s.id===svcId;});
+        if(svc&&svc.variants){var v=svc.variants.find(function(vr){return vr.id===vid;});if(v){selectedVariants[svcId]=v;return v;}}
+        return null;
+      });
+    } else if(st.variantIds&&siteData){
       Object.keys(st.variantIds).forEach(function(svcId){
         var svc=siteData.services.find(function(s){return s.id===svcId;});
         if(svc&&svc.variants){
@@ -2063,16 +2085,16 @@ function goToStep(n){
     if(recapEl){
       var rh='';
       if(multiServiceMode&&selectedServices.length>1){
-        selectedServices.forEach(function(svc){
-          var cv=selectedVariants[svc.id];
+        selectedServices.forEach(function(svc,i){
+          var cv=selectedVariantsByIdx[i]||selectedVariants[svc.id];
           var cn=cv?escH(svc.name)+' \u2014 '+escH(cv.name):escH(svc.name);
           var cd=cv?cv.duration_min:svc.duration_min;
           var cpc=cv&&cv.price_cents!=null?cv.price_cents:svc.price_cents;
           var cpStr=cpc>0?(cpc/100).toFixed(2).replace('.', ',')+' \u20ac':(cpc===0?'Gratuit':(svc.price_label||''));
           rh+='<div class="sum-row"><span class="label">\u2022 '+cn+'</span><span class="val">'+cd+' min \u00b7 '+cpStr+'</span></div>';
         });
-        var tMin=selectedServices.reduce(function(s,svc){var v=selectedVariants[svc.id];return s+(v?v.duration_min:svc.duration_min);},0);
-        var tPrice=selectedServices.reduce(function(s,svc){var v=selectedVariants[svc.id];return s+(v&&v.price_cents!=null?v.price_cents:(svc.price_cents||0));},0);
+        var tMin=selectedServices.reduce(function(s,svc,i){var v=selectedVariantsByIdx[i]||selectedVariants[svc.id];return s+(v?v.duration_min:svc.duration_min);},0);
+        var tPrice=selectedServices.reduce(function(s,svc,i){var v=selectedVariantsByIdx[i]||selectedVariants[svc.id];return s+(v&&v.price_cents!=null?v.price_cents:(svc.price_cents||0));},0);
         var tPriceStr=tPrice>0?(tPrice/100).toFixed(2).replace('.', ',')+' \u20ac':'';
         rh+='<div class="sum-divider"></div><div class="sum-row"><span class="label"><strong>Total</strong></span><span class="val"><strong>'+tMin+' min \u00b7 '+tPriceStr+'</strong></span></div>';
       }else if(selectedService){
@@ -2258,7 +2280,7 @@ async function loadSlots(){
     const params=new URLSearchParams({service_ids:selectedServices.map(s=>s.id).join(','),date_from:dateFrom,date_to:dateTo});
     if(selectedPractitioner&&!splitMode)params.set('practitioner_id',selectedPractitioner.id);
     if(selectedMode)params.set('appointment_mode',selectedMode);
-    var vids=selectedServices.map(function(s){return selectedVariants[s.id]?selectedVariants[s.id].id:'';}).join(',');
+    var vids=selectedServices.map(function(s,i){var v=selectedVariantsByIdx[i]||selectedVariants[s.id];return v?v.id:'';}).join(',');
     if(vids.replace(/,/g,''))params.set('variant_ids',vids);
     slotsUrl='/api/public/'+slug+'/multi-slots?'+params;
   }else{
@@ -2306,7 +2328,7 @@ function renderSlots(){
       var sv=selectedVariants[selectedService.id];
       svcDuration=sv?sv.duration_min:(selectedService.duration_min||0);
     }
-    if(multiServiceMode&&selectedServices.length>0)svcDuration=selectedServices.reduce(function(sum,s){var sv=selectedVariants[s.id];return sum+(sv?sv.duration_min:(s.duration_min||0));},0);
+    if(multiServiceMode&&selectedServices.length>0)svcDuration=selectedServices.reduce(function(sum,s,i){var sv=selectedVariantsByIdx[i]||selectedVariants[s.id];return sum+(sv?sv.duration_min:(s.duration_min||0));},0);
     slots=slots.filter(function(s){
       var pracId=s.practitioner_id;
       if(!pracId)return true;

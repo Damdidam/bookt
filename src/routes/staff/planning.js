@@ -976,7 +976,7 @@ router.post('/notify-impacted', requireOwner, async (req, res, next) => {
 
     // Fetch business info
     const bizResult = await queryWithRLS(bid,
-      `SELECT name, email, phone, plan, theme, settings, slug FROM businesses WHERE id = $1`, [bid]
+      `SELECT name, email, phone, address, plan, theme, settings, slug FROM businesses WHERE id = $1`, [bid]
     );
     const business = bizResult.rows[0] || { name: 'Genda' };
     const hasSms = ['pro', 'premium'].includes(business.plan);
@@ -997,6 +997,7 @@ router.post('/notify-impacted', requireOwner, async (req, res, next) => {
       const siblings = await queryWithRLS(bid,
         `SELECT b.id, b.practitioner_id, b.status, b.public_token, b.start_at,
                 b.promotion_label, b.promotion_discount_cents,
+                b.deposit_status, b.deposit_amount_cents,
                 CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS service_name,
                 COALESCE(sv.price_cents, s.price_cents) AS price_cents,
                 p.display_name AS practitioner_name,
@@ -1015,7 +1016,7 @@ router.post('/notify-impacted', requireOwner, async (req, res, next) => {
 
       // Cancel ALL siblings in the split group
       await queryWithRLS(bid,
-        `UPDATE bookings SET status = 'cancelled', cancelled_at = NOW(), cancelled_by = 'system'
+        `UPDATE bookings SET status = 'cancelled', cancel_reason = 'absence', updated_at = NOW()
          WHERE group_id = $1 AND business_id = $2 AND status IN ('confirmed', 'pending', 'pending_deposit')`,
         [bk.group_id, bid]
       );
@@ -1041,6 +1042,13 @@ router.post('/notify-impacted', requireOwner, async (req, res, next) => {
           const promoHTML = (grpPromoDiscount > 0 && grpPromoLabel)
             ? `<div style="font-size:12px;color:#7A7470;padding:2px 0">${escHtml(grpPromoLabel)} : -${(grpPromoDiscount / 100).toFixed(2).replace('.', ',')} \u20ac</div>`
             : '';
+          // Deposit info if any sibling had a paid deposit
+          const grpDepositPaid = siblings.rows.find(s => s.deposit_status === 'paid' && parseInt(s.deposit_amount_cents) > 0);
+          const depositHTML = grpDepositPaid
+            ? `<div style="background:#FFF8E1;border-radius:8px;padding:12px 16px;margin:12px 0;border-left:3px solid #F9A825">
+                <div style="font-size:13px;color:#5D4037">Votre acompte de ${(parseInt(grpDepositPaid.deposit_amount_cents) / 100).toFixed(2).replace('.', ',')} \u20ac a bien \u00e9t\u00e9 enregistr\u00e9. Nous vous recontacterons concernant son traitement (remboursement ou report).</div>
+              </div>`
+            : '';
           const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
           const slug = business.slug || '';
           const rebookUrl = slug ? `${baseUrl}/${slug}` : baseUrl;
@@ -1053,6 +1061,7 @@ router.post('/notify-impacted', requireOwner, async (req, res, next) => {
               ${svcList}
               ${promoHTML}
             </div>
+            ${depositHTML}
             <p>Vous pouvez reprendre un nouveau cr\u00e9neau en cliquant ci-dessous :</p>`;
 
           const html = buildEmailHTML({
@@ -1153,9 +1162,10 @@ router.post('/notify-impacted', requireOwner, async (req, res, next) => {
       if (hasSms && bk.client_phone && bk.consent_sms) {
         try {
           const _manageUrl = bk.public_token ? `${process.env.APP_BASE_URL || 'https://genda.be'}/booking/${bk.public_token}` : null;
+          // Note: split group cancelled bookings are already removed from filtered and notified by email only (no SMS for cancellations)
           const smsBody = _manageUrl
-            ? `${business.name}: Votre RDV "${bk.service_name || 'prestation'}" du ${dateShort} à ${timeShort} est impacté par une absence. Détails : ${_manageUrl}`
-            : `${business.name}: Votre RDV du ${dateShort} à ${timeShort} (${bk.service_name || 'prestation'}) est impacté par une absence. Nous vous recontacterons.`;
+            ? `${business.name}: Votre RDV "${bk.service_name || 'prestation'}" du ${dateShort} à ${timeShort} est impacté par une absence de votre praticien. Détails : ${_manageUrl}`
+            : `${business.name}: Votre RDV du ${dateShort} à ${timeShort} (${bk.service_name || 'prestation'}) est impacté par une absence de votre praticien. Nous vous recontacterons.`;
 
           const smsResult = await sendSMS({
             to: bk.client_phone,
@@ -1276,7 +1286,7 @@ router.post('/reassign', requireOwner, async (req, res, next) => {
     if (bk.client_email) {
       try {
         const bizResult = await queryWithRLS(bid,
-          `SELECT name, email, theme FROM businesses WHERE id = $1`, [bid]
+          `SELECT name, email, phone, address, theme FROM businesses WHERE id = $1`, [bid]
         );
         const business = bizResult.rows[0] || { name: 'Genda' };
         const primaryColor = business.theme?.primary_color;
@@ -1324,13 +1334,17 @@ router.post('/reassign', requireOwner, async (req, res, next) => {
           timeZone: 'Europe/Brussels', day: '2-digit', month: '2-digit'
         });
 
+        const _baseUrl = process.env.APP_BASE_URL || 'https://genda.be';
+        const _manageUrl = bk.public_token ? `${_baseUrl}/booking/${bk.public_token}` : null;
+        const footerParts = [business.name, business.address, business.phone, business.email].filter(Boolean);
         const html = buildEmailHTML({
           title: 'Votre rendez-vous a été réassigné',
           preheader: `RDV du ${dateShort} réassigné chez ${business.name}`,
           bodyHTML,
           businessName: business.name,
           primaryColor,
-          footerText: `${business.name} — Via Genda.be`
+          ...(_manageUrl ? { ctaText: 'Gérer mon rendez-vous', ctaUrl: _manageUrl } : {}),
+          footerText: `${footerParts.join(' · ')} · Via Genda.be`
         });
 
         await sendEmail({

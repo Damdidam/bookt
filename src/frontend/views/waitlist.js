@@ -150,7 +150,7 @@ async function wlSaveAdd(){
 function wlOffer(entryId,clientName,pracId,svcId){
   let m=`<div class="m-overlay open" id="wlOfferModal"><div class="m-dialog m-sm"><div class="m-header-simple"><h3>Proposer un cr\u00e9neau \u00e0 ${clientName}</h3><button class="m-close" onclick="closeModal('wlOfferModal')">${IC.x}</button></div><div class="m-body">`;
   m+=`<p style="font-size:.82rem;color:var(--text-3);margin-bottom:14px">Le client recevra un lien pour accepter ou d\u00e9cliner. L'offre expire apr\u00e8s <strong>2 heures</strong>.</p>`;
-  m+=`<div><label class="m-field-label">Date</label><input type="date" class="m-input" id="wlo_date" value="${new Date().toLocaleDateString('en-CA')}"></div>`;
+  m+=`<div><label class="m-field-label">Date</label><input type="date" class="m-input" id="wlo_date" value="${new Date().toLocaleDateString('en-CA',{timeZone:'Europe/Brussels'})}"></div>`;
   m+=`<div><label class="m-field-label">Heure de d\u00e9but</label><input type="time" class="m-input" id="wlo_start" value="09:00" step="900"></div>`;
   m+=`<div><label class="m-field-label">Heure de fin</label><input type="time" class="m-input" id="wlo_end" value="10:00" step="900"></div>`;
   m+=`</div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('wlOfferModal')">Annuler</button><button class="m-btn m-btn-primary" onclick="wlSendOffer('${entryId}')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Envoyer l'offre</button></div></div></div>`;
@@ -206,7 +206,7 @@ function wlDetail(idx){
   const DAY_S=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
   const TIME_L={any:'Toute la journ\u00e9e',morning:'Matin',afternoon:'Apr\u00e8s-midi'};
   const days=(e.preferred_days||[]).map(d=>DAY_S[d]||d).join(', ');
-  const created=new Date(e.created_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  const created=new Date(e.created_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',timeZone:'Europe/Brussels'});
 
   let m=`<div class="m-overlay open" id="wlDetailModal"><div class="m-dialog m-md"><div class="m-header-simple"><h3>${esc(e.client_name)}</h3><button class="m-close" onclick="closeModal('wlDetailModal')">${IC.x}</button></div><div class="m-body">`;
 
@@ -232,7 +232,7 @@ function wlDetail(idx){
   if(e.status==='offered'&&e.offer_booking_start){
     const d=new Date(e.offer_booking_start);
     const expMins=e.offer_expires_at?Math.max(0,Math.round((new Date(e.offer_expires_at)-new Date())/60000)):0;
-    m+=`<div style="padding:10px 14px;background:var(--amber-bg);border:1px solid var(--gold);border-radius:8px;font-size:.8rem;color:var(--amber-dark);margin-bottom:16px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Offre : <strong>${d.toLocaleDateString('fr-BE',{weekday:'short',day:'numeric',month:'short'})} \u00e0 ${d.toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'})}</strong> \u2014 expire dans <strong>${expMins>60?Math.floor(expMins/60)+'h'+String(expMins%60).padStart(2,'0'):expMins+' min'}</strong></div>`;
+    m+=`<div style="padding:10px 14px;background:var(--amber-bg);border:1px solid var(--gold);border-radius:8px;font-size:.8rem;color:var(--amber-dark);margin-bottom:16px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Offre : <strong>${d.toLocaleDateString('fr-BE',{weekday:'short',day:'numeric',month:'short',timeZone:'Europe/Brussels'})} \u00e0 ${d.toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'})}</strong> \u2014 expire dans <strong>${expMins>60?Math.floor(expMins/60)+'h'+String(expMins%60).padStart(2,'0'):expMins+' min'}</strong></div>`;
   }
 
   // Staff notes

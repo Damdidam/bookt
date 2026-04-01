@@ -39,7 +39,7 @@ async function loadDashboard(){
       };
       announcements.forEach(a=>{
         const s=typeStyles[a.type]||typeStyles.info;
-        const dateStr=a.ends_at?`Jusqu'au ${new Date(a.ends_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}`:'';
+        const dateStr=a.ends_at?`Jusqu'au ${new Date(a.ends_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit',timeZone:'Europe/Brussels'})}`:'';
         h+=`<div style="background:${s.bg};border:1px solid ${s.border};border-radius:var(--radius-sm);padding:14px 18px;margin-bottom:12px;display:flex;align-items:flex-start;gap:10px">`;
         h+=`<span style="color:${s.color};flex-shrink:0;margin-top:1px">${s.icon}</span>`;
         h+=`<div style="flex:1;min-width:0">`;
@@ -60,7 +60,7 @@ async function loadDashboard(){
 
       // ── KPI tiles ──
       const nbTime=nb?new Date(nb.start_at).toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'}):'';
-      const nbDate=nb?new Date(nb.start_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short'}):'';
+      const nbDate=nb?new Date(nb.start_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short',timeZone:'Europe/Brussels'}):'';
       h+=`<div class="stats">`;
       h+=`<div class="stat-card"><div class="label">RDV aujourd'hui</div><div class="val">${sum.today?.count||0}</div></div>`;
       h+=`<div class="stat-card${nb?' stat-card-link':''}"${nb?` onclick="openBookingDetail('${nb.id}')"`:''}><div class="label">Prochain RDV</div>${nb?`<div class="val" style="font-size:1.2rem">${nbTime}</div><div class="sub">${esc(nb.client_name||'—')} · ${nbDate}</div>`:`<div class="val" style="font-size:.9rem;color:var(--text-4)">—</div><div class="sub">Aucun prévu</div>`}</div>`;
@@ -143,8 +143,8 @@ async function loadDashboard(){
         if(al.upcoming_absences?.length>0){
           al.upcoming_absences.forEach(a=>{
             const typeLabel=a.type==='maladie'?'maladie':a.type==='conge'?'congé':a.type==='formation'?'formation':'absence';
-            const from=new Date(a.date_from).toLocaleDateString('fr-BE',{day:'numeric',month:'short'});
-            const to=new Date(a.date_to).toLocaleDateString('fr-BE',{day:'numeric',month:'short'});
+            const from=new Date(a.date_from).toLocaleDateString('fr-BE',{day:'numeric',month:'short',timeZone:'Europe/Brussels'});
+            const to=new Date(a.date_to).toLocaleDateString('fr-BE',{day:'numeric',month:'short',timeZone:'Europe/Brussels'});
             const range=a.date_from===a.date_to?from:`${from} → ${to}`;
             h+=`<div class="da-alert info">${IC.palmTree} ${esc(a.practitioner_name)} — ${typeLabel} ${range}</div>`;
           });
@@ -175,7 +175,7 @@ async function loadDashboard(){
       if(todos.length>0){
         todos.forEach(t=>{
           const ctx=t.client_name?`${esc(t.client_name)}${t.service_name?' · '+esc(t.service_name):''}`:t.service_name?esc(t.service_name):'';
-          const dt=t.booking_start?new Date(t.booking_start).toLocaleDateString('fr-BE',{day:'numeric',month:'short'}):'';
+          const dt=t.booking_start?new Date(t.booking_start).toLocaleDateString('fr-BE',{day:'numeric',month:'short',timeZone:'Europe/Brussels'}):'';
           h+=`<div class="dash-todo-row">
             <input type="checkbox" class="todo-check" onchange="dashToggleTodo('${t.id}','${t.booking_id||''}',this.checked)">
             <div style="flex:1;min-width:0">

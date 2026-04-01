@@ -52,7 +52,7 @@ function fcShowTooltip(event, x, y) {
   // ── Task tooltip (simpler) ──
   if (p._isTask) {
     const timeStr = start.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' }) + (end ? '–' + end.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' }) : '');
-    const dateStr = start.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short' });
+    const dateStr = start.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
     const dur = end ? Math.round((end - start) / 60000) : 0;
     let html = `<div class="tt-head">${IC.wrench} ${esc(p.title)}</div>`;
     html += `<div class="tt-time">${esc(dateStr)} · ${timeStr} · ${fmtDur(dur)}</div>`;
@@ -67,7 +67,7 @@ function fcShowTooltip(event, x, y) {
   }
 
   const timeStr = start.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' }) + (end ? '–' + end.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' }) : '');
-  const dateStr = start.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short' });
+  const dateStr = start.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
   const dur = end ? Math.round((end - start) / 60000) : p.duration_min || 0;
 
   let html = '';
@@ -98,7 +98,15 @@ function fcShowTooltip(event, x, y) {
     html += `<div class="tt-section"><div class="tt-svc">${svc}${durTag}</div></div>`;
   }
 
-  // ── 3b. Promo line ──
+  // ── 3b. LM discount line ──
+  {
+    const lmPct = p.discount_pct || (p._isGroup && p._members ? (p._members.find(m => m.discount_pct)?.discount_pct || 0) : 0);
+    if (lmPct > 0) {
+      html += `<div class="tt-row" style="color:var(--amber-dark);font-size:.75rem;font-weight:600">⏰ Derni\u00e8re minute -${lmPct}%</div>`;
+    }
+  }
+
+  // ── 3c. Promo line ──
   {
     let promoLabel = '', promoPct = 0, promoDiscCents = 0;
     if (p._isGroup && p._members) {
@@ -111,7 +119,7 @@ function fcShowTooltip(event, x, y) {
       const pctStr = promoPct ? '-' + promoPct + '%' : '';
       const discStr = (promoDiscCents / 100).toFixed(2).replace('.', ',');
       const label = promoLabel ? esc(promoLabel) : 'Promo';
-      html += `<div class="tt-row" style="color:var(--green);font-size:.75rem;font-weight:600">🏷 ${pctStr} ${label} (-${discStr} €)</div>`;
+      html += `<div class="tt-row" style="color:var(--green);font-size:.75rem;font-weight:600">\ud83c\udff7 ${pctStr} ${label} (-${discStr} \u20ac)</div>`;
     }
   }
 

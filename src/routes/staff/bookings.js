@@ -32,6 +32,7 @@ router.get('/', async (req, res, next) => {
              b.locked, b.created_at,
              b.discount_pct,
              b.promotion_id, b.promotion_label, b.promotion_discount_pct, b.promotion_discount_cents,
+             b.booked_price_cents,
              b.confirmation_expires_at, b.deposit_deadline,
              b.processing_time, b.processing_start,
              s.name AS service_name, s.category AS service_category, s.duration_min, s.buffer_before_min, s.price_cents, s.color AS service_color,
@@ -208,6 +209,7 @@ router.get('/:id/detail', async (req, res, next) => {
       const grp = await queryWithRLS(bid,
         `SELECT b.id, b.start_at, b.end_at, b.group_order, b.status, b.locked,
                 b.practitioner_id, b.service_id, b.service_variant_id,
+                b.discount_pct, b.booked_price_cents,
                 b.promotion_id, b.promotion_label, b.promotion_discount_pct, b.promotion_discount_cents,
                 s.name AS service_name, s.category AS service_category, s.duration_min, s.price_cents, s.color AS service_color,
                 sv.name AS variant_name, sv.duration_min AS variant_duration_min, sv.price_cents AS variant_price_cents

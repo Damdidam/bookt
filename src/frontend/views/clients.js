@@ -34,7 +34,7 @@ async function loadClients(){
     else{
       h+=`<div style="overflow-x:auto"><table class="table"><thead><tr><th>Nom</th><th>Téléphone</th><th>Email</th><th>RDV</th><th>NS</th><th title="Réservations jamais confirmées">Exp.</th><th>Dernière visite</th><th>Statut</th></tr></thead><tbody>`;
       clients.forEach(cl=>{
-        const last=cl.last_visit?new Date(cl.last_visit).toLocaleDateString('fr-BE',{day:'numeric',month:'short',year:'numeric'}):'—';
+        const last=cl.last_visit?new Date(cl.last_visit).toLocaleDateString('fr-BE',{day:'numeric',month:'short',year:'numeric',timeZone:'Europe/Brussels'}):'—';
         const tagColors={'bloqué':'#dc2626','récidiviste':'#B45309','à surveiller':'#ca8a04','fantôme':'#7C3AED','fidèle':'#15803d','actif':'#0D7377','nouveau':'#888'};
         const tagColor=tagColors[cl.tag]||'#888';
         const nsDisplay=cl.no_show_count>0?`<span style="color:var(--amber-dark);font-weight:600">${cl.no_show_count}</span>`:'0';
@@ -99,10 +99,10 @@ async function openClientDetail(id){
     if(cl.is_blocked){
       m+=`<div style="background:var(--red-bg);border:1px solid var(--red-bg);border-radius:8px;padding:12px;margin-bottom:12px;font-size:.82rem"><strong style="color:var(--red)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg> ${categoryLabels.client} bloqué·e</strong><br><span style="color:var(--text-3)">${cl.blocked_reason||'Bloqué manuellement'}</span><br><button class="btn-sm" style="margin-top:6px;background:var(--green);color:#fff;border:none" onclick="unblockClient('${cl.id}')">Débloquer</button> <button class="btn-sm" style="margin-top:6px;background:var(--text-3);color:#fff;border:none" onclick="resetNoShow('${cl.id}')">Reset no-shows</button></div>`;
     }else if(cl.no_show_count>0){
-      m+=`<div style="background:var(--amber-bg);border:1px solid var(--amber-bg);border-radius:8px;padding:12px;margin-bottom:12px;font-size:.82rem"><strong style="color:var(--amber-dark)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> ${cl.no_show_count} no-show${cl.no_show_count>1?'s':''}</strong>${cl.last_no_show_at?` <span style="color:var(--text-4)">· dernier le ${new Date(cl.last_no_show_at).toLocaleDateString('fr-BE')}</span>`:''}<br><button class="btn-sm btn-danger" style="margin-top:6px" onclick="blockClient('${cl.id}')">Bloquer</button> <button class="btn-sm" style="margin-top:6px;background:var(--text-3);color:#fff;border:none" onclick="resetNoShow('${cl.id}')">Reset</button></div>`;
+      m+=`<div style="background:var(--amber-bg);border:1px solid var(--amber-bg);border-radius:8px;padding:12px;margin-bottom:12px;font-size:.82rem"><strong style="color:var(--amber-dark)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> ${cl.no_show_count} no-show${cl.no_show_count>1?'s':''}</strong>${cl.last_no_show_at?` <span style="color:var(--text-4)">· dernier le ${new Date(cl.last_no_show_at).toLocaleDateString('fr-BE',{timeZone:'Europe/Brussels'})}</span>`:''}<br><button class="btn-sm btn-danger" style="margin-top:6px" onclick="blockClient('${cl.id}')">Bloquer</button> <button class="btn-sm" style="margin-top:6px;background:var(--text-3);color:#fff;border:none" onclick="resetNoShow('${cl.id}')">Reset</button></div>`;
     }
     if(cl.expired_pending_count>0){
-      m+=`<div style="background:var(--purple-bg);border:1px solid var(--purple-bg);border-radius:8px;padding:12px;margin-bottom:12px;font-size:.82rem"><strong style="color:var(--purple)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg> ${cl.expired_pending_count} réservation${cl.expired_pending_count>1?'s':''} jamais confirmée${cl.expired_pending_count>1?'s':''}</strong>${cl.last_expired_pending_at?` <span style="color:var(--text-4)">· dernière le ${new Date(cl.last_expired_pending_at).toLocaleDateString('fr-BE')}</span>`:''}<br><button class="btn-sm" style="margin-top:6px;background:var(--text-3);color:#fff;border:none" onclick="resetExpired('${cl.id}')">Reset</button></div>`;
+      m+=`<div style="background:var(--purple-bg);border:1px solid var(--purple-bg);border-radius:8px;padding:12px;margin-bottom:12px;font-size:.82rem"><strong style="color:var(--purple)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg> ${cl.expired_pending_count} réservation${cl.expired_pending_count>1?'s':''} jamais confirmée${cl.expired_pending_count>1?'s':''}</strong>${cl.last_expired_pending_at?` <span style="color:var(--text-4)">· dernière le ${new Date(cl.last_expired_pending_at).toLocaleDateString('fr-BE',{timeZone:'Europe/Brussels'})}</span>`:''}<br><button class="btn-sm" style="margin-top:6px;background:var(--text-3);color:#fff;border:none" onclick="resetExpired('${cl.id}')">Reset</button></div>`;
     }
     m+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:${cl.is_vip?'var(--amber-bg)':'var(--surface)'};border:1px solid ${cl.is_vip?'var(--gold)':'var(--border-light)'};border-radius:10px;margin-bottom:14px;transition:all .2s">
       <div style="display:flex;align-items:center;gap:8px">
@@ -127,7 +127,7 @@ async function openClientDetail(id){
       m+=`<div style="border-radius:8px;border:1px solid var(--border-light);overflow:hidden;max-height:200px;overflow-y:auto">`;
       allNotes.forEach((b,i)=>{
         const bg=i%2===0?'var(--white)':'var(--surface)';
-        const dt=new Date(b.start_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short'});
+        const dt=new Date(b.start_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short',timeZone:'Europe/Brussels'});
         m+=`<div style="padding:8px 12px;background:${bg};font-size:.8rem;cursor:pointer" onclick="fcOpenDetail('${b.id}')">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
             <span style="font-weight:600;color:var(--text)">${b.service_name||'RDV libre'} · ${dt}</span>
@@ -154,7 +154,7 @@ async function openClientDetail(id){
         const bg = i % 2 === 0 ? 'var(--white)' : 'var(--surface)';
         const bal = (g.balance_cents / 100).toFixed(2);
         const orig = (g.amount_cents / 100).toFixed(2);
-        const exp = g.expires_at ? new Date(g.expires_at).toLocaleDateString('fr-BE', {day:'numeric',month:'short',year:'numeric'}) : '—';
+        const exp = g.expires_at ? new Date(g.expires_at).toLocaleDateString('fr-BE', {day:'numeric',month:'short',year:'numeric',timeZone:'Europe/Brussels'}) : '—';
         const active = g.status === 'active' && g.balance_cents > 0;
         m += `<div style="background:${bg}">`;
         m += `<div style="padding:8px 12px;font-size:.8rem;display:flex;justify-content:space-between;align-items:center">
@@ -174,7 +174,7 @@ async function openClientDetail(id){
           const txSigns = {purchase:'+',debit:'-',refund:'+'};
           m += `<div style="padding:0 12px 8px;font-size:.72rem">`;
           gcTxs.forEach(t => {
-            const dt = new Date(t.created_at).toLocaleDateString('fr-BE', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+            const dt = new Date(t.created_at).toLocaleDateString('fr-BE', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit',timeZone:'Europe/Brussels'});
             const col = txColors[t.type] || 'var(--text-4)';
             const sign = txSigns[t.type] || '';
             const label = txLabels[t.type] || t.type;
@@ -199,7 +199,7 @@ async function openClientDetail(id){
       m += `<div style="border-radius:8px;border:1px solid var(--border-light);overflow:hidden">`;
       passes.forEach((p, i) => {
         const bg = i % 2 === 0 ? 'var(--white)' : 'var(--surface)';
-        const exp = p.expires_at ? new Date(p.expires_at).toLocaleDateString('fr-BE', {day:'numeric',month:'short',year:'numeric'}) : '—';
+        const exp = p.expires_at ? new Date(p.expires_at).toLocaleDateString('fr-BE', {day:'numeric',month:'short',year:'numeric',timeZone:'Europe/Brussels'}) : '—';
         const active = p.status === 'active' && p.sessions_remaining > 0;
         m += `<div style="background:${bg}">`;
         m += `<div style="padding:8px 12px;font-size:.8rem;display:flex;justify-content:space-between;align-items:center">
@@ -221,7 +221,7 @@ async function openClientDetail(id){
           const txSigns = {purchase:'+',debit:'-',refund:'+',cancel:''};
           m += `<div style="padding:0 12px 8px;font-size:.72rem">`;
           txs.forEach(t => {
-            const dt = new Date(t.created_at).toLocaleDateString('fr-BE', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+            const dt = new Date(t.created_at).toLocaleDateString('fr-BE', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit',timeZone:'Europe/Brussels'});
             const col = txColors[t.type] || 'var(--text-4)';
             const sign = txSigns[t.type] || '';
             const label = txLabels[t.type] || t.type;
@@ -254,9 +254,9 @@ async function openClientDetail(id){
         })() : '';
         const promoTag = (b.promotion_discount_cents > 0 && b.promotion_label) ? `<span style="font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:6px;color:#15803D;background:#15803D12;margin-left:4px">\uD83C\uDFF7\uFE0F ${b.promotion_label}</span>` : '';
         const createdDt=b.created_at?new Date(b.created_at):null;
-        const createdStr=createdDt?createdDt.toLocaleDateString('fr-BE',{day:'numeric',month:'short',year:'numeric'}):'';
+        const createdStr=createdDt?createdDt.toLocaleDateString('fr-BE',{day:'numeric',month:'short',year:'numeric',timeZone:'Europe/Brussels'}):'';
         const creatorStr=b.channel==='web'?'Client (en ligne)':b.created_by_name||'Staff';
-        m+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:${bg};font-size:.8rem"><div style="display:flex;flex-direction:column;gap:2px"><span style="color:var(--text)">${dt.toLocaleDateString('fr-BE',{day:'numeric',month:'short'})} — ${b.service_name||'RDV libre'}${depTag}${promoTag}</span><span style="font-size:.65rem;color:var(--text-4)">Créé le ${createdStr} par ${creatorStr}</span></div><span style="font-size:.68rem;font-weight:600;padding:2px 8px;border-radius:10px;color:${sc};background:${sc}12;white-space:nowrap">${stLabels[b.status]||b.status}</span></div>`;
+        m+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:${bg};font-size:.8rem"><div style="display:flex;flex-direction:column;gap:2px"><span style="color:var(--text)">${dt.toLocaleDateString('fr-BE',{day:'numeric',month:'short',timeZone:'Europe/Brussels'})} — ${b.service_name||'RDV libre'}${depTag}${promoTag}</span><span style="font-size:.65rem;color:var(--text-4)">Créé le ${createdStr} par ${creatorStr}</span></div><span style="font-size:.68rem;font-weight:600;padding:2px 8px;border-radius:10px;color:${sc};background:${sc}12;white-space:nowrap">${stLabels[b.status]||b.status}</span></div>`;
       });
       m+=`</div>`;
     } else {

@@ -514,7 +514,7 @@ async function loadSettings(){
 
     // 4. Sécurité
     h+=`<div class="settings-card"><div class="sc-h"><h3>${IC.lock} Sécurité</h3></div><div class="sc-body">
-      <p style="font-size:.85rem;color:var(--text-3);margin-bottom:14px">Connecté en tant que <strong>${u.email}</strong> · Rôle : ${sectorLabels[u.role]||u.role}${u.last_login_at?' · Dernière connexion : '+new Date(u.last_login_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}):''}</p>
+      <p style="font-size:.85rem;color:var(--text-3);margin-bottom:14px">Connecté en tant que <strong>${u.email}</strong> · Rôle : ${sectorLabels[u.role]||u.role}${u.last_login_at?' · Dernière connexion : '+new Date(u.last_login_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',timeZone:'Europe/Brussels'}):''}</p>
       <div class="field"><label>Mot de passe actuel</label><input id="s_pwd_current" type="password"></div>
       <div class="field-row"><div class="field"><label>Nouveau mot de passe</label><input id="s_pwd_new" type="password" placeholder="Min. 8 caractères"></div><div class="field"><label>Confirmer</label><input id="s_pwd_confirm" type="password"></div></div>
     </div><div class="sc-foot"><button class="btn-primary" onclick="changePassword()">Changer le mot de passe</button></div></div>`;

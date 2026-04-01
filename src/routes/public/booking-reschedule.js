@@ -412,12 +412,14 @@ router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) 
           // info_only promos have 0 discount, no update needed
 
           if (newPromoCents >= 0 && promo.reward_type !== 'info_only') {
+            // Recalculate percentage based on new amounts
+            const newPromoPct = groupTotal > 0 ? Math.round(newPromoCents / groupTotal * 100) : 0;
             // Update all group members that carry the promo (typically only the first/primary)
             for (const uid of promoIds) {
               await client.query(
-                `UPDATE bookings SET promotion_discount_cents = $1
-                 WHERE id = $2 AND business_id = $3 AND promotion_id IS NOT NULL`,
-                [newPromoCents, uid, bk.business_id]
+                `UPDATE bookings SET promotion_discount_cents = $1, promotion_discount_pct = $2
+                 WHERE id = $3 AND business_id = $4 AND promotion_id IS NOT NULL`,
+                [newPromoCents, newPromoPct, uid, bk.business_id]
               );
             }
           }

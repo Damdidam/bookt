@@ -1526,7 +1526,7 @@ router.post('/:id/send-reminder', async (req, res, next) => {
               COALESCE(sv.duration_min, s.duration_min) AS svc_duration_min,
               COALESCE(sv.price_cents, s.price_cents) AS svc_price_cents,
               p.display_name AS practitioner_name,
-              biz.name AS business_name, biz.slug, biz.theme, biz.address, biz.email AS business_email
+              biz.name AS business_name, biz.slug, biz.theme, biz.address, biz.email AS business_email, biz.phone AS business_phone
        FROM bookings b
        LEFT JOIN clients c ON c.id = b.client_id
        LEFT JOIN services s ON s.id = b.service_id
@@ -1640,14 +1640,22 @@ router.post('/:id/send-reminder', async (req, res, next) => {
           serviceBlock = `<strong>${escHtml(b.service_name || 'Rendez-vous')}</strong>${durationHTML}`;
         }
 
+        const addressLine = b.appointment_mode === 'cabinet' && b.address
+          ? `<br><a href="https://maps.google.com/?q=${encodeURIComponent(b.address)}" style="color:inherit;text-decoration:underline">${escHtml(b.address)}</a>` : '';
+        const contactParts = [];
+        if (b.business_phone) contactParts.push(escHtml(b.business_phone));
+        if (b.business_email) contactParts.push(escHtml(b.business_email));
+        const contactLine = contactParts.length > 0 ? `<p style="font-size:13px;color:#9C958E;margin-top:8px">${contactParts.join(' \u00b7 ')}</p>` : '';
+
         const html = buildEmailHTML({
           businessName: b.business_name, primaryColor,
           title: 'Rappel de votre rendez-vous',
-          bodyHTML: `<p>Bonjour <strong>${escHtml(b.client_name || '')}</strong>,</p><p>Ceci est un rappel pour votre rendez-vous :</p><div style="background:#F4F1EE;border-radius:8px;padding:14px 16px;margin:12px 0">${serviceBlock}<br>${escHtml(dateStr)} à ${escHtml(timeStr)}<br>avec ${escHtml(b.practitioner_name || '')}</div>`,
+          bodyHTML: `<p>Bonjour <strong>${escHtml(b.client_name || '')}</strong>,</p><p>Ceci est un rappel pour votre rendez-vous :</p><div style="background:#F4F1EE;border-radius:8px;padding:14px 16px;margin:12px 0">${serviceBlock}<br>${escHtml(dateStr)} à ${escHtml(timeStr)}<br>avec ${escHtml(b.practitioner_name || '')}${addressLine}</div>${contactLine}`,
           ctaText: 'Voir mon rendez-vous', ctaUrl: manageUrl,
-          cancelText: 'Gérer mon rendez-vous', cancelUrl: manageUrl
+          cancelText: 'Gérer mon rendez-vous', cancelUrl: manageUrl,
+          footerText: `${b.business_name}${b.address ? ' \u00b7 ' + b.address : ''} \u00b7 Via Genda.be`
         });
-        await sendEmail({ to: b.client_email, subject: `Rappel : votre RDV du ${dateStr} à ${timeStr} — ${b.business_name}`, html });
+        await sendEmail({ to: b.client_email, subject: `Rappel : votre RDV du ${dateStr} à ${timeStr} — ${b.business_name}`, html, fromName: b.business_name, replyTo: b.business_email || null });
         result.email = 'sent';
       } catch (e) {
         console.warn('[REMINDER] Email error:', e.message);

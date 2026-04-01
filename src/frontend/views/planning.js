@@ -899,7 +899,7 @@ async function _doCheckImpact() {
       h += '<div class="plan-impact-list" id="planImpactList">';
       bookings.forEach(b => {
         const dt = new Date(b.start_at);
-        const day = dt.toLocaleDateString('fr-BE', { day: 'numeric', month: 'short' });
+        const day = dt.toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
         const time = dt.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
         h += `<div class="plan-impact-item" data-bk="${esc(b.id)}">
           <div><strong>${esc(b.client_name || 'Client')}</strong> · ${esc(b.service_name || '')} · ${day} à ${time}</div>
@@ -1156,7 +1156,7 @@ async function planLoadLogs(absId) {
     let h = '';
     logs.forEach(log => {
       const date = new Date(log.created_at);
-      const dateStr = date.toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', year: 'numeric' });
+      const dateStr = date.toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/Brussels' });
       const timeStr = date.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
       let detailStr = '';
       if (log.action === 'modified' && log.details?.changes) {

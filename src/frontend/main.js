@@ -84,7 +84,7 @@ if (biz) {
 
 // ── Set today's date ──
 document.getElementById('todayDate').textContent = new Date().toLocaleDateString('fr-BE', {
-  weekday: 'long', day: 'numeric', month: 'long'
+  weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Brussels'
 });
 
 // ── Plan badge (refresh from server to catch DB changes) ──

@@ -24,7 +24,7 @@ async function refundPassForBooking(bookingId, dbClient) {
     await q(
       `INSERT INTO pass_transactions (id, pass_id, business_id, booking_id, sessions, type, note)
        VALUES (gen_random_uuid(), $1, $2, $3, $4, 'refund', 'Remboursement — annulation RDV')`,
-      [debit.pass_id, debit.business_id, bookingId, debit.sessions]
+      [debit.pass_id, debit.business_id, bookingId, Math.abs(debit.sessions)]
     );
     totalRefunded += debit.sessions;
     passes.push({ code: debit.code, sessions: debit.sessions });

@@ -665,8 +665,8 @@ async function teamLoadLeave(pracId, year) {
     const absEl = document.getElementById('tm_recent_abs');
     if (data.recent_absences && data.recent_absences.length > 0) {
       absEl.innerHTML = data.recent_absences.map(a => {
-        const from = new Date(a.date_from).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short' });
-        const to = new Date(a.date_to).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short' });
+        const from = new Date(a.date_from).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
+        const to = new Date(a.date_to).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
         return `<div style="padding:6px 0;border-bottom:1px solid var(--border-light);display:flex;justify-content:space-between;align-items:center">
           <span><span class="tm-badge" style="font-size:.6rem;margin-right:6px;background:var(--surface)">${TYPE_LABELS[a.type] || a.type}</span> ${from}${from !== to ? ' → ' + to : ''}</span>
           <span style="font-size:.68rem;color:var(--text-4)">${a.note ? esc(a.note) : ''}</span>
@@ -913,7 +913,7 @@ async function openPracTasks(pracId, pracName) {
     if (pendingTodos.length === 0) { h += `<div style="font-size:.8rem;color:var(--text-4)">Aucune tâche en cours</div>`; }
     else {
       pendingTodos.forEach(t => {
-        const dt = t.booking_start ? new Date(t.booking_start).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+        const dt = t.booking_start ? new Date(t.booking_start).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' }) : '';
         h += `<div style="padding:8px 0;border-bottom:1px solid var(--border-light);display:flex;gap:10px;align-items:flex-start">
           <input type="checkbox" onchange="togglePracTodo('${t.id}','${t.booking_id}',this.checked,'${pracId}','${esc(pracName)}')" style="margin-top:3px">
           <div style="flex:1;min-width:0">
@@ -930,7 +930,7 @@ async function openPracTasks(pracId, pracName) {
       doneTodos.slice(0, 10).forEach(t => {
         h += `<div style="padding:6px 0;border-bottom:1px solid var(--border-light);opacity:.5">
           <div style="font-size:.8rem;text-decoration:line-through">${escH(t.content)}</div>
-          <div style="font-size:.68rem;color:var(--text-4)">${t.client_name || ''} · ${t.done_at ? new Date(t.done_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short' }) : ''}</div>
+          <div style="font-size:.68rem;color:var(--text-4)">${t.client_name || ''} · ${t.done_at ? new Date(t.done_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' }) : ''}</div>
         </div>`;
       });
       if (doneTodos.length > 10) h += `<div style="font-size:.72rem;color:var(--text-4);padding:4px 0">+ ${doneTodos.length - 10} autres</div>`;
@@ -941,7 +941,7 @@ async function openPracTasks(pracId, pracName) {
     if (pendingReminders.length === 0) { h += `<div style="font-size:.8rem;color:var(--text-4)">Aucun rappel en attente</div>`; }
     else {
       pendingReminders.forEach(r => {
-        const dt = new Date(r.remind_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+        const dt = new Date(r.remind_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
         h += `<div style="padding:8px 0;border-bottom:1px solid var(--border-light)">
           <div style="font-size:.82rem">${dt}</div>
           <div style="font-size:.7rem;color:var(--text-4)">${r.client_name || ''} ${r.service_name ? '· ' + r.service_name : ''} ${r.message ? '· ' + escH(r.message) : ''}</div>
@@ -1123,7 +1123,7 @@ async function loadPracCalSync(pracId){
         <span style="font-size:1.1rem"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
         <div>
           <div style="font-size:.82rem;font-weight:600">Google Calendar</div>
-          ${gConn?`<div style="font-size:.68rem;color:var(--green)">${IC.check} ${_esc(gConn.email||'Connecté')}${gConn.last_sync_at?' \u00b7 '+new Date(gConn.last_sync_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):''}</div>`
+          ${gConn?`<div style="font-size:.68rem;color:var(--green)">${IC.check} ${_esc(gConn.email||'Connecté')}${gConn.last_sync_at?' \u00b7 '+new Date(gConn.last_sync_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit',timeZone:'Europe/Brussels'}):''}</div>`
           :`<div style="font-size:.68rem;color:var(--text-4)">Non connecté</div>`}
         </div>
       </div>
@@ -1139,7 +1139,7 @@ async function loadPracCalSync(pracId){
         <span style="font-size:1.1rem">${IC.mail}</span>
         <div>
           <div style="font-size:.82rem;font-weight:600">Outlook</div>
-          ${oConn?`<div style="font-size:.68rem;color:var(--green)">${IC.check} ${_esc(oConn.email||'Connecté')}${oConn.last_sync_at?' \u00b7 '+new Date(oConn.last_sync_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):''}</div>`
+          ${oConn?`<div style="font-size:.68rem;color:var(--green)">${IC.check} ${_esc(oConn.email||'Connecté')}${oConn.last_sync_at?' \u00b7 '+new Date(oConn.last_sync_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit',timeZone:'Europe/Brussels'}):''}</div>`
           :`<div style="font-size:.68rem;color:var(--text-4)">Non connecté</div>`}
         </div>
       </div>

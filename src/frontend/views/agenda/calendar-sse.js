@@ -17,7 +17,7 @@ function setupSSE() {
       try {
         const d = JSON.parse(ev.data);
         const slot = d.slot_start
-          ? new Date(d.slot_start).toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short' })
+          ? new Date(d.slot_start).toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' })
             + ' \u00e0 ' + new Date(d.slot_start).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' })
           : '';
         if (d.mode === 'manual') {

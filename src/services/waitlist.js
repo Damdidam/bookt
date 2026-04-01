@@ -150,35 +150,44 @@ async function processWaitlistForCancellation(bookingId, businessId) {
 
     // Fetch business info for branding
     const bizRow = await queryWithRLS(businessId,
-      `SELECT name, theme, address FROM businesses WHERE id = $1`, [businessId]
+      `SELECT name, theme, address, phone, email FROM businesses WHERE id = $1`, [businessId]
     );
     const biz = bizRow.rows[0] || { name: 'Genda' };
 
+    const slotEndTimeFmt = new Date(new Date(bk.start_at).getTime() + (bk.duration_min || 0) * 60000)
+      .toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
+    const contactParts = [];
+    if (biz.phone) contactParts.push(escHtml(biz.phone));
+    if (biz.email) contactParts.push(escHtml(biz.email));
+    const contactLine = contactParts.length > 0 ? `<p style="margin:8px 0 0;font-size:13px;color:#9C958E">${contactParts.join(' \u00b7 ')}</p>` : '';
+
     const offerHtml = buildEmailHTML({
-      title: 'Un créneau s\'est libéré !',
-      preheader: `${bk.service_name} chez ${bk.practitioner_name} — ${slotDateFmt} à ${slotTimeFmt}`,
+      title: 'Un cr\u00e9neau s\'est lib\u00e9r\u00e9 !',
+      preheader: `${bk.service_name} chez ${bk.practitioner_name} \u2014 ${slotDateFmt} \u00e0 ${slotTimeFmt}`,
       bodyHTML: `<p>Bonjour ${escHtml(entry.client_name)},</p>
-        <p>Bonne nouvelle ! Un créneau s'est libéré pour votre demande :</p>
+        <p>Bonne nouvelle ! Un cr\u00e9neau s'est lib\u00e9r\u00e9 pour votre demande :</p>
         <div style="background:#F5F4F1;border-radius:8px;padding:16px;margin:16px 0">
           <p style="margin:0 0 6px"><strong>${escHtml(bk.service_name)}</strong> (${bk.duration_min} min)</p>
           ${bk.price_cents ? `<p style="margin:0 0 4px;font-size:14px;color:#3D3832">${(bk.price_cents / 100).toFixed(2).replace('.', ',')} \u20ac</p>` : ''}
           <p style="margin:0 0 4px;font-size:14px;color:#3D3832">Avec ${escHtml(bk.practitioner_name)}</p>
-          <p style="margin:0;font-size:14px;color:#3D3832">${escHtml(slotDateFmt)} à ${escHtml(slotTimeFmt)}</p>
+          <p style="margin:0;font-size:14px;color:#3D3832">${escHtml(slotDateFmt)} \u00e0 ${escHtml(slotTimeFmt)} \u2013 ${slotEndTimeFmt}</p>
           ${biz.address ? `<p style="margin:4px 0 0;font-size:14px;color:#3D3832">\ud83d\udccd <a href="https://maps.google.com/?q=${encodeURIComponent(biz.address)}" style="color:#3D3832">${escHtml(biz.address)}</a></p>` : ''}
-        </div>
-        <p style="font-weight:600;color:#D97706">⏱ Vous avez 2 heures pour réserver ce créneau avant qu'il ne soit proposé à quelqu'un d'autre.</p>`,
-      ctaText: 'Réserver maintenant',
+        </div>${contactLine}
+        <p style="font-weight:600;color:#D97706">\u23f1 Vous avez 2 heures pour r\u00e9server ce cr\u00e9neau avant qu'il ne soit propos\u00e9 \u00e0 quelqu'un d'autre.</p>`,
+      ctaText: 'R\u00e9server maintenant',
       ctaUrl: offerUrl,
       businessName: biz.name,
-      primaryColor: biz.theme?.primary_color
+      primaryColor: biz.theme?.primary_color,
+      footerText: `${biz.name}${biz.address ? ' \u00b7 ' + biz.address : ''} \u00b7 Via Genda.be`
     });
 
     sendEmail({
       to: entry.client_email,
       toName: entry.client_name,
-      subject: `Créneau disponible — ${bk.service_name} le ${slotDateFmt}`,
+      subject: `Cr\u00e9neau disponible \u2014 ${bk.service_name} le ${slotDateFmt}`,
       html: offerHtml,
-      fromName: biz.name
+      fromName: biz.name,
+      replyTo: biz.email || undefined
     }).catch(e => console.warn('[WAITLIST] Offer email error:', e.message));
 
     broadcast(bk.business_id, 'waitlist_match', {
@@ -308,35 +317,44 @@ async function processExpiredOffers() {
           const cascadeTimeFmt = new Date(entry.offer_booking_start).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
 
           const cascadeBiz = await client.query(
-            `SELECT name, theme, address FROM businesses WHERE id = $1`, [entry.business_id]
+            `SELECT name, theme, address, phone, email FROM businesses WHERE id = $1`, [entry.business_id]
           );
           const cbiz = cascadeBiz.rows[0] || { name: 'Genda' };
 
+          const cascadeEndTimeFmt = new Date(new Date(entry.offer_booking_start).getTime() + (entry.duration_min || 0) * 60000)
+            .toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
+          const cContactParts = [];
+          if (cbiz.phone) cContactParts.push(escHtml(cbiz.phone));
+          if (cbiz.email) cContactParts.push(escHtml(cbiz.email));
+          const cContactLine = cContactParts.length > 0 ? `<p style="margin:8px 0 0;font-size:13px;color:#9C958E">${cContactParts.join(' \u00b7 ')}</p>` : '';
+
           const cascadeHtml = buildEmailHTML({
-            title: 'Un créneau s\'est libéré !',
-            preheader: `${entry.service_name} chez ${entry.practitioner_name} — ${cascadeDateFmt} à ${cascadeTimeFmt}`,
+            title: 'Un cr\u00e9neau s\'est lib\u00e9r\u00e9 !',
+            preheader: `${entry.service_name} chez ${entry.practitioner_name} \u2014 ${cascadeDateFmt} \u00e0 ${cascadeTimeFmt}`,
             bodyHTML: `<p>Bonjour ${escHtml(next.rows[0].client_name)},</p>
-              <p>Bonne nouvelle ! Un créneau s'est libéré pour votre demande :</p>
+              <p>Bonne nouvelle ! Un cr\u00e9neau s'est lib\u00e9r\u00e9 pour votre demande :</p>
               <div style="background:#F5F4F1;border-radius:8px;padding:16px;margin:16px 0">
                 <p style="margin:0 0 6px"><strong>${escHtml(entry.service_name)}</strong> (${entry.duration_min} min)</p>
                 ${entry.price_cents ? `<p style="margin:0 0 4px;font-size:14px;color:#3D3832">${(entry.price_cents / 100).toFixed(2).replace('.', ',')} \u20ac</p>` : ''}
                 <p style="margin:0 0 4px;font-size:14px;color:#3D3832">Avec ${escHtml(entry.practitioner_name)}</p>
-                <p style="margin:0;font-size:14px;color:#3D3832">${escHtml(cascadeDateFmt)} à ${escHtml(cascadeTimeFmt)}</p>
+                <p style="margin:0;font-size:14px;color:#3D3832">${escHtml(cascadeDateFmt)} \u00e0 ${escHtml(cascadeTimeFmt)} \u2013 ${cascadeEndTimeFmt}</p>
                 ${cbiz.address ? `<p style="margin:4px 0 0;font-size:14px;color:#3D3832">\ud83d\udccd <a href="https://maps.google.com/?q=${encodeURIComponent(cbiz.address)}" style="color:#3D3832">${escHtml(cbiz.address)}</a></p>` : ''}
-              </div>
-              <p style="font-weight:600;color:#D97706">⏱ Vous avez 2 heures pour réserver ce créneau avant qu'il ne soit proposé à quelqu'un d'autre.</p>`,
-            ctaText: 'Réserver maintenant',
+              </div>${cContactLine}
+              <p style="font-weight:600;color:#D97706">\u23f1 Vous avez 2 heures pour r\u00e9server ce cr\u00e9neau avant qu'il ne soit propos\u00e9 \u00e0 quelqu'un d'autre.</p>`,
+            ctaText: 'R\u00e9server maintenant',
             ctaUrl: cascadeUrl,
             businessName: cbiz.name,
-            primaryColor: cbiz.theme?.primary_color
+            primaryColor: cbiz.theme?.primary_color,
+            footerText: `${cbiz.name}${cbiz.address ? ' \u00b7 ' + cbiz.address : ''} \u00b7 Via Genda.be`
           });
 
           sendEmail({
             to: next.rows[0].client_email,
             toName: next.rows[0].client_name,
-            subject: `Créneau disponible — ${entry.service_name} le ${cascadeDateFmt}`,
+            subject: `Cr\u00e9neau disponible \u2014 ${entry.service_name} le ${cascadeDateFmt}`,
             html: cascadeHtml,
-            fromName: cbiz.name
+            fromName: cbiz.name,
+            replyTo: cbiz.email || undefined
           }).catch(e => console.warn('[WAITLIST] Cascade email error:', e.message));
 
           broadcast(entry.business_id, 'waitlist_match', {

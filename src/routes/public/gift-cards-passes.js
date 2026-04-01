@@ -224,12 +224,23 @@ router.get('/:slug/pass-config', async (req, res, next) => {
     if (!s.passes_enabled) return res.status(404).json({ error: 'Abonnements non disponibles' });
     const tplRes = await query(
       `SELECT pt.id, pt.name, pt.description, pt.sessions_count, pt.price_cents, pt.validity_days, pt.service_variant_id,
-              s.name AS service_name, s.category AS service_category, COALESCE(s.price_cents, 0) AS service_price_cents, sv.name AS variant_name
+              s.name AS service_name, s.category AS service_category, COALESCE(sv.price_cents, s.price_cents, 0) AS unit_price_cents, COALESCE(s.price_cents, 0) AS service_price_cents, sv.name AS variant_name
        FROM pass_templates pt JOIN services s ON s.id = pt.service_id LEFT JOIN service_variants sv ON sv.id = pt.service_variant_id
        WHERE pt.business_id = $1 AND pt.is_active = true ORDER BY s.name, sv.name, pt.price_cents`,
       [biz.id]
     );
-    res.json({ business_name: biz.name, slug: biz.slug, theme: biz.theme, logo_url: biz.logo_url || null, templates: tplRes.rows, validity_days: s.pass_validity_days || 365 });
+    // Compute savings_label for each template
+    const templates = tplRes.rows.map(t => {
+      const unitPrice = parseInt(t.unit_price_cents) || 0;
+      const totalAtUnit = unitPrice * (parseInt(t.sessions_count) || 1);
+      const passPrice = parseInt(t.price_cents) || 0;
+      if (totalAtUnit > 0 && passPrice < totalAtUnit) {
+        const pct = Math.round((1 - passPrice / totalAtUnit) * 100);
+        if (pct > 0) t.savings_label = `\u00c9conomisez ${pct}%`;
+      }
+      return t;
+    });
+    res.json({ business_name: biz.name, slug: biz.slug, theme: biz.theme, logo_url: biz.logo_url || null, templates, validity_days: s.pass_validity_days || 365 });
   } catch (err) { next(err); }
 });
 

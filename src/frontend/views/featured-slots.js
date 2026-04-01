@@ -47,7 +47,7 @@ function addDays(dateStr, n) {
 
 function fmtDate(dateStr) {
   const d = new Date(dateStr + 'T00:00:00');
-  return d.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short' });
+  return d.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
 }
 
 function timeToMin(t) {
