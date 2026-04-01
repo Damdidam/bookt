@@ -461,6 +461,10 @@ router.patch('/:id/move', async (req, res, next) => {
                ORDER BY b.group_order`,
               [draggedBooking.group_id, bid]
             );
+            // Apply discount_pct to get post-LM prices
+            siblingsRes.rows.forEach(r => {
+              if (r.discount_pct && r.price_cents) r.price_cents = Math.round(r.price_cents * (100 - r.discount_pct) / 100);
+            });
             const groupServices = siblingsRes.rows;
 
             // Only change status to modified_pending if time actually changed
@@ -496,7 +500,7 @@ router.patch('/:id/move', async (req, res, next) => {
                   service_name: bk.service_name,
                   service_category: bk.service_category,
                   practitioner_name: bk.practitioner_name,
-                  service_price_cents: bk.service_price_cents,
+                  service_price_cents: bk.booked_price_cents || (bk.discount_pct ? Math.round(bk.service_price_cents * (100 - bk.discount_pct) / 100) : bk.service_price_cents),
                   duration_min: bk.duration_min,
                   promotion_label: bk.promotion_label,
                   promotion_discount_cents: bk.promotion_discount_cents,
@@ -775,7 +779,7 @@ router.patch('/:id/move', async (req, res, next) => {
                   service_name: bk.service_name,
                   service_category: bk.service_category,
                   practitioner_name: bk.practitioner_name,
-                  service_price_cents: bk.service_price_cents,
+                  service_price_cents: bk.booked_price_cents || (bk.discount_pct ? Math.round(bk.service_price_cents * (100 - bk.discount_pct) / 100) : bk.service_price_cents),
                   duration_min: bk.duration_min,
                   promotion_label: bk.promotion_label,
                   promotion_discount_cents: bk.promotion_discount_cents,
@@ -1408,7 +1412,12 @@ router.patch('/:id/modify', async (req, res, next) => {
              ORDER BY b.group_order`,
             [oldBooking.group_id, bid]
           );
-          if (siblingsRes.rows.length > 1) groupServices = siblingsRes.rows;
+          if (siblingsRes.rows.length > 1) {
+            siblingsRes.rows.forEach(r => {
+              if (r.discount_pct && r.price_cents) r.price_cents = Math.round(r.price_cents * (100 - r.discount_pct) / 100);
+            });
+            groupServices = siblingsRes.rows;
+          }
         }
         const emailResult = await sendModificationEmail({
           booking: {
@@ -1418,7 +1427,7 @@ router.patch('/:id/modify', async (req, res, next) => {
             service_name: oldBooking.service_name,
             service_category: oldBooking.service_category,
             practitioner_name: oldBooking.practitioner_name,
-            service_price_cents: oldBooking.service_price_cents,
+            service_price_cents: oldBooking.booked_price_cents || (oldBooking.discount_pct ? Math.round(oldBooking.service_price_cents * (100 - oldBooking.discount_pct) / 100) : oldBooking.service_price_cents),
             duration_min: oldBooking.duration_min,
             promotion_label: oldBooking.promotion_label,
             promotion_discount_cents: oldBooking.promotion_discount_cents,

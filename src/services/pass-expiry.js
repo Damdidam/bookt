@@ -12,15 +12,15 @@ async function processExpiredPasses() {
   for (const pass of result.rows) {
     try {
       const { rows } = await pool.query(
-        `SELECT c.full_name AS client_name, c.email AS client_email,
-                biz.name AS biz_name, biz.theme, biz.email AS biz_email, biz.address AS biz_address, biz.phone AS biz_phone
-         FROM clients c
-         JOIN businesses biz ON biz.id = c.business_id
-         WHERE c.email = $1 AND c.business_id = $2`,
-        [pass.buyer_email, pass.business_id]
+        `SELECT biz.name AS biz_name, biz.theme, biz.email AS biz_email, biz.address AS biz_address, biz.phone AS biz_phone
+         FROM businesses biz
+         WHERE biz.id = $1`,
+        [pass.business_id]
       );
-      if (!rows[0]?.client_email) continue;
-      const { client_name, client_email, biz_name, theme, biz_email, biz_address, biz_phone } = rows[0];
+      if (!rows[0]) continue;
+      const { biz_name, theme, biz_email, biz_address, biz_phone } = rows[0];
+      const client_email = pass.buyer_email;
+      const client_name = pass.name || 'Client';
       const color = safeColor(theme?.primary_color);
       const remaining = pass.sessions_remaining || 0;
 

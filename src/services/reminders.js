@@ -374,7 +374,7 @@ async function process2hReminders(stats) {
         let smsBody;
         if (isMulti) {
           const serviceNames = groupServices.map(s => s.name).join(' + ');
-          smsBody = `${bk.business_name}: Rappel, votre RDV est dans 2h (${timeShort}) — ${serviceNames}. Détails : ${manageUrl2hSms}`;
+          smsBody = `${bk.business_name}: Rappel, votre RDV est dans 2h (${timeShort}) — ${serviceNames}${bk.practitioner_name ? ' avec ' + bk.practitioner_name : ''}. Détails : ${manageUrl2hSms}`;
         } else {
           smsBody = `${bk.business_name}: Rappel, votre RDV "${bk.service_name}" est dans 2h (${timeShort}) avec ${bk.practitioner_name}. Détails : ${manageUrl2hSms}`;
         }

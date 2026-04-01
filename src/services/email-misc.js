@@ -197,6 +197,9 @@ async function sendGiftCardEmail({ giftCard, business }) {
 async function sendGiftCardReceiptEmail({ giftCard, business }) {
   const amtStr = (giftCard.amount_cents / 100).toFixed(2).replace('.', ',');
   const recipientName = giftCard.recipient_name || giftCard.recipient_email || '—';
+  const expiryStr = giftCard.expires_at
+    ? new Date(giftCard.expires_at).toLocaleDateString('fr-BE', { timeZone: 'Europe/Brussels', day: 'numeric', month: 'long', year: 'numeric' })
+    : '';
 
   const bodyHTML = `
     <p style="margin:0 0 16px">Votre carte cadeau a bien été envoyée !</p>
@@ -205,6 +208,7 @@ async function sendGiftCardReceiptEmail({ giftCard, business }) {
         <tr><td style="color:#9C958E">Montant</td><td style="text-align:right;font-weight:600">${amtStr} €</td></tr>
         <tr><td style="color:#9C958E">Code</td><td style="text-align:right;font-weight:600;font-family:monospace;letter-spacing:1px">${escHtml(giftCard.code)}</td></tr>
         <tr><td style="color:#9C958E">Destinataire</td><td style="text-align:right">${escHtml(recipientName)}</td></tr>
+        ${expiryStr ? `<tr><td style="color:#9C958E">Valable jusqu'au</td><td style="text-align:right">${expiryStr}</td></tr>` : ''}
       </table>
     </div>
     <p style="font-size:14px;color:#5C564F">Un email contenant le code a été envoyé au destinataire.</p>`;

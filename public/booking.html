@@ -450,7 +450,8 @@ async function confirmBooking() {
   btn.textContent = 'Confirmation...';
 
   try {
-    const r = await fetch(`/api/public/booking/${token}/confirm`, { method: 'POST' });
+    const endpoint = bookingData?.booking?.status === 'pending' ? 'confirm-booking' : 'confirm';
+    const r = await fetch(`/api/public/booking/${token}/${endpoint}`, { method: 'POST' });
     if (!r.ok) throw new Error('Failed');
 
     document.getElementById('actionButtons').style.display = 'none';

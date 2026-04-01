@@ -89,7 +89,7 @@ async function sendPostBookingComms({
 }) {
   (async () => {
     try {
-      const bizRow = await query(`SELECT name, email, address, theme, settings, plan FROM businesses WHERE id = $1`, [businessId]);
+      const bizRow = await query(`SELECT name, email, phone, address, theme, settings, plan FROM businesses WHERE id = $1`, [businessId]);
       if (!bizRow.rows[0]) return;
 
       const emailBooking = {

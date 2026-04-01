@@ -452,6 +452,11 @@ async function checkout() {
   document.querySelectorAll('.error-msg').forEach(function(el){el.remove();});
 
   var valid = true;
+  if (!name) {
+    nameEl.classList.add('field-error');
+    nameEl.insertAdjacentHTML('afterend', '<div class="error-msg">Nom requis</div>');
+    valid = false;
+  }
   var emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!email) {
     emailEl.classList.add('field-error');

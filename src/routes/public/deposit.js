@@ -19,7 +19,7 @@ router.post('/deposit/:token/checkout', depositLimiter, async (req, res, next) =
     const result = await query(
       `SELECT b.id, b.business_id, b.status, b.deposit_required, b.deposit_status,
               b.deposit_amount_cents, b.deposit_deadline, b.public_token,
-              b.start_at, b.deposit_payment_intent_id,
+              b.start_at, b.deposit_payment_intent_id, b.group_id,
               c.full_name AS client_name, c.email AS client_email,
               CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
                   s.category AS service_category,
@@ -84,6 +84,17 @@ router.post('/deposit/:token/checkout', depositLimiter, async (req, res, next) =
       timeZone: 'Europe/Brussels', day: 'numeric', month: 'short'
     });
 
+    // Multi-service: show count instead of single service name
+    let serviceLabelCheckout = bk.service_name || 'Rendez-vous';
+    if (bk.group_id) {
+      const grpCount = await query(
+        `SELECT COUNT(*) AS cnt FROM bookings WHERE group_id = $1 AND business_id = $2 AND status NOT IN ('cancelled')`,
+        [bk.group_id, bk.business_id]
+      );
+      const cnt = parseInt(grpCount.rows[0].cnt) || 1;
+      if (cnt > 1) serviceLabelCheckout = `${cnt} prestations`;
+    }
+
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       payment_method_types: ['card', 'bancontact'],
@@ -92,7 +103,7 @@ router.post('/deposit/:token/checkout', depositLimiter, async (req, res, next) =
           currency: 'eur',
           unit_amount: amountCents,
           product_data: {
-            name: `Acompte — ${bk.service_category ? bk.service_category + ' - ' : ''}${bk.service_name || 'Rendez-vous'}`,
+            name: `Acompte — ${bk.service_category ? bk.service_category + ' - ' : ''}${serviceLabelCheckout}`,
             description: `${bk.business_name} · ${dateStr}`
           }
         },
@@ -142,7 +153,7 @@ router.get('/deposit/:token/pay', depositLimiter, async (req, res, next) => {
     const result = await query(
       `SELECT b.id, b.business_id, b.status, b.deposit_required, b.deposit_status,
               b.deposit_amount_cents, b.deposit_deadline, b.public_token,
-              b.start_at, b.deposit_payment_intent_id,
+              b.start_at, b.deposit_payment_intent_id, b.group_id,
               c.email AS client_email,
               CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
                   s.category AS service_category,
@@ -200,6 +211,17 @@ router.get('/deposit/:token/pay', depositLimiter, async (req, res, next) => {
       timeZone: 'Europe/Brussels', day: 'numeric', month: 'short'
     });
 
+    // Multi-service: show count instead of single service name
+    let serviceLabelCheckout2 = bk.service_name || 'Rendez-vous';
+    if (bk.group_id) {
+      const grpCount2 = await query(
+        `SELECT COUNT(*) AS cnt FROM bookings WHERE group_id = $1 AND business_id = $2 AND status NOT IN ('cancelled')`,
+        [bk.group_id, bk.business_id]
+      );
+      const cnt2 = parseInt(grpCount2.rows[0].cnt) || 1;
+      if (cnt2 > 1) serviceLabelCheckout2 = `${cnt2} prestations`;
+    }
+
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       payment_method_types: ['card', 'bancontact'],
@@ -208,7 +230,7 @@ router.get('/deposit/:token/pay', depositLimiter, async (req, res, next) => {
           currency: 'eur',
           unit_amount: amountCents,
           product_data: {
-            name: `Acompte — ${bk.service_category ? bk.service_category + ' - ' : ''}${bk.service_name || 'Rendez-vous'}`,
+            name: `Acompte — ${bk.service_category ? bk.service_category + ' - ' : ''}${serviceLabelCheckout2}`,
             description: `${bk.business_name} · ${dateStr}`
           }
         },

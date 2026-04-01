@@ -617,7 +617,7 @@ async function handleStripeWebhook(req, res) {
 
             // Send email
             try {
-              const bizRes = await query(`SELECT name, slug, email, theme FROM businesses WHERE id = $1`, [business_id]);
+              const bizRes = await query(`SELECT name, slug, email, theme, phone, address FROM businesses WHERE id = $1`, [business_id]);
               const biz = bizRes.rows[0];
               if (biz && buyer_email) {
                 const { sendPassPurchaseEmail } = require('../../services/email');
