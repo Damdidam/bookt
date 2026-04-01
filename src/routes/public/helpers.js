@@ -43,9 +43,11 @@ async function stripeRefundDeposit(depositPaymentIntentId, label) {
  * @param {number} noShowCount - client's no-show count (0 for new clients)
  * @param {boolean} [isVip=false] - VIP clients are exempt from deposits
  */
-function shouldRequireDeposit(bizSettings, totalPriceCents, totalDurationMin, noShowCount, isVip) {
+function shouldRequireDeposit(bizSettings, totalPriceCents, totalDurationMin, noShowCount, isVip, stripeConnectStatus) {
   if (!bizSettings?.deposit_enabled) return { required: false };
   if (isVip) return { required: false };
+  // Deposits require active Stripe Connect — funds go to the merchant
+  if (stripeConnectStatus !== 'active') return { required: false };
 
   // Check price/duration thresholds
   const priceThresh = bizSettings.deposit_price_threshold_cents || 0;

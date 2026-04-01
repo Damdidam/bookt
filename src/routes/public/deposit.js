@@ -23,7 +23,8 @@ router.post('/deposit/:token/checkout', depositLimiter, async (req, res, next) =
               c.full_name AS client_name, c.email AS client_email,
               CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
                   s.category AS service_category,
-              biz.name AS business_name, biz.stripe_customer_id
+              biz.name AS business_name, biz.stripe_customer_id,
+              biz.stripe_connect_id, biz.stripe_connect_status
        FROM bookings b
        LEFT JOIN clients c ON c.id = b.client_id
        LEFT JOIN services s ON s.id = b.service_id
@@ -34,6 +35,11 @@ router.post('/deposit/:token/checkout', depositLimiter, async (req, res, next) =
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Rendez-vous introuvable' });
     const bk = result.rows[0];
+
+    // Verify merchant has active Stripe Connect
+    if (!bk.stripe_connect_id || bk.stripe_connect_status !== 'active') {
+      return res.status(503).json({ error: 'Le paiement en ligne n\'est pas encore configuré par ce commerce' });
+    }
 
     // 2. Validate deposit is still pending
     if (!bk.deposit_required || bk.status !== 'pending_deposit') {
@@ -92,6 +98,9 @@ router.post('/deposit/:token/checkout', depositLimiter, async (req, res, next) =
         },
         quantity: 1
       }],
+      payment_intent_data: {
+        transfer_data: { destination: bk.stripe_connect_id }
+      },
       customer_email: bk.client_email || undefined,
       metadata: {
         type: 'deposit',
@@ -137,7 +146,8 @@ router.get('/deposit/:token/pay', depositLimiter, async (req, res, next) => {
               c.email AS client_email,
               CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
                   s.category AS service_category,
-              biz.name AS business_name
+              biz.name AS business_name,
+              biz.stripe_connect_id, biz.stripe_connect_status
        FROM bookings b
        LEFT JOIN clients c ON c.id = b.client_id
        LEFT JOIN services s ON s.id = b.service_id
@@ -148,6 +158,11 @@ router.get('/deposit/:token/pay', depositLimiter, async (req, res, next) => {
     );
     if (result.rows.length === 0) return res.redirect(depositPageUrl + '?error=not_found');
     const bk = result.rows[0];
+
+    // Verify merchant has active Stripe Connect
+    if (!bk.stripe_connect_id || bk.stripe_connect_status !== 'active') {
+      return res.redirect(depositPageUrl + '?error=stripe');
+    }
 
     // Already paid or not pending → redirect to deposit page with status
     if (!bk.deposit_required || bk.status !== 'pending_deposit' || bk.deposit_status !== 'pending') {
@@ -199,6 +214,9 @@ router.get('/deposit/:token/pay', depositLimiter, async (req, res, next) => {
         },
         quantity: 1
       }],
+      payment_intent_data: {
+        transfer_data: { destination: bk.stripe_connect_id }
+      },
       customer_email: bk.client_email || undefined,
       metadata: {
         type: 'deposit',

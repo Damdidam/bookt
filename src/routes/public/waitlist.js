@@ -309,8 +309,9 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
       );
 
       // H10: Check deposit requirement (same as normal booking flow)
-      const bizSettingsWl = await client.query(`SELECT settings FROM businesses WHERE id = $1`, [e.business_id]);
+      const bizSettingsWl = await client.query(`SELECT settings, stripe_connect_status FROM businesses WHERE id = $1`, [e.business_id]);
       const wlBizSettings = bizSettingsWl.rows[0]?.settings || {};
+      const wlStripeConnectStatus = bizSettingsWl.rows[0]?.stripe_connect_status;
       const svcPriceWl = await client.query(
         `SELECT COALESCE(price_cents, 0) AS price, COALESCE(duration_min, 0) AS duration FROM services WHERE id = $1`, [e.service_id]
       );
@@ -322,7 +323,7 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
         wlNoShow = nsWl.rows[0]?.no_show_count || 0;
         wlIsVip = !!nsWl.rows[0]?.is_vip;
       }
-      const wlDepResult = shouldRequireDeposit(wlBizSettings, wlPrice, wlDuration, wlNoShow, wlIsVip);
+      const wlDepResult = shouldRequireDeposit(wlBizSettings, wlPrice, wlDuration, wlNoShow, wlIsVip, wlStripeConnectStatus);
       if (wlDepResult.required) {
         const startWl = new Date(e.offer_booking_start);
         const hoursUntilWlRdv = (startWl.getTime() - Date.now()) / 3600000;

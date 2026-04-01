@@ -134,12 +134,13 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
     const safeLang = VALID_LANGS.includes(client_language) ? client_language : 'unknown';
 
     const bizResult = await query(
-      `SELECT id, settings FROM businesses WHERE slug = $1 AND is_active = true`, [slug]
+      `SELECT id, settings, stripe_connect_status FROM businesses WHERE slug = $1 AND is_active = true`, [slug]
     );
     if (bizResult.rows.length === 0) return res.status(404).json({ error: 'Cabinet introuvable' });
 
     const businessId = bizResult.rows[0].id;
     const bizSettings = bizResult.rows[0].settings || {};
+    const stripeConnectStatus = bizResult.rows[0].stripe_connect_status;
     const { transactionWithRLS } = require('../../services/db');
 
     // Multi-service: check if enabled
@@ -560,7 +561,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
               clientIsVip = !!nsRow.rows[0]?.is_vip;
             }
 
-            const depResult = shouldRequireDeposit(bizSettings, totalPrice, totalDuration, noShowCount, clientIsVip);
+            const depResult = shouldRequireDeposit(bizSettings, totalPrice, totalDuration, noShowCount, clientIsVip, stripeConnectStatus);
 
             // Recalculate deposit amount on reduced price (LM + promo + pass)
             const promoDiscountCents = promoResult.valid ? promoResult.discount_cents : 0;
@@ -1155,7 +1156,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
             clientIsVip = !!nsRow.rows[0]?.is_vip;
           }
 
-          const depResult = shouldRequireDeposit(bizSettings, svcPrice, svcDuration, noShowCount, clientIsVip);
+          const depResult = shouldRequireDeposit(bizSettings, svcPrice, svcDuration, noShowCount, clientIsVip, stripeConnectStatus);
 
           // Recalculate deposit amount on reduced price (LM + promo + pass)
           const promoDiscountCents = promoResult.valid ? promoResult.discount_cents : 0;
