@@ -501,10 +501,13 @@ async function sendModificationRejectedProEmail(bk, groupServices) {
 async function processNotifications() {
   const stats = { processed: 0, sent: 0, failed: 0, errors: 0 };
 
+  const client = await pool.connect();
   try {
+    await client.query('BEGIN');
+
     // Fetch queued pro notifications (LIMIT 50 to avoid overload)
     // email_post_rdv uses metadata.delay_until for deferred sending
-    const { rows: notifications } = await pool.query(
+    const { rows: notifications } = await client.query(
       `SELECT id, business_id, booking_id, type, metadata, created_at
        FROM notifications
        WHERE status = 'queued'
@@ -515,7 +518,10 @@ async function processNotifications() {
        FOR UPDATE SKIP LOCKED`
     );
 
-    if (notifications.length === 0) return stats;
+    if (notifications.length === 0) {
+      await client.query('COMMIT');
+      return stats;
+    }
 
     for (const notif of notifications) {
       stats.processed++;
@@ -524,7 +530,7 @@ async function processNotifications() {
         const bk = await fetchBookingData(notif.booking_id);
         if (!bk) {
           // Booking deleted — mark as failed
-          await pool.query(
+          await client.query(
             `UPDATE notifications SET status = 'failed', error = 'booking_not_found', sent_at = NOW() WHERE id = $1`,
             [notif.id]
           );
@@ -534,7 +540,7 @@ async function processNotifications() {
 
         // Check if business has an email (not needed for client-facing review emails)
         if (!bk.biz_email && notif.type !== 'email_post_rdv') {
-          await pool.query(
+          await client.query(
             `UPDATE notifications SET status = 'failed', error = 'no_business_email', sent_at = NOW() WHERE id = $1`,
             [notif.id]
           );
@@ -571,13 +577,13 @@ async function processNotifications() {
         }
 
         if (result.success) {
-          await pool.query(
+          await client.query(
             `UPDATE notifications SET status = 'sent', sent_at = NOW(), error = NULL WHERE id = $1`,
             [notif.id]
           );
           stats.sent++;
         } else {
-          await pool.query(
+          await client.query(
             `UPDATE notifications SET status = 'failed', error = $2, sent_at = NOW() WHERE id = $1`,
             [notif.id, (result.error || 'unknown_error').substring(0, 500)]
           );
@@ -587,16 +593,21 @@ async function processNotifications() {
         stats.errors++;
         console.error(`[NOTIF PROCESSOR] Error processing notification ${notif.id}:`, err.message);
         try {
-          await pool.query(
+          await client.query(
             `UPDATE notifications SET status = 'failed', error = $2, sent_at = NOW() WHERE id = $1`,
             [notif.id, (err.message || 'exception').substring(0, 500)]
           );
         } catch (_) { /* best-effort status update */ }
       }
     }
+
+    await client.query('COMMIT');
   } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
     console.error('[NOTIF PROCESSOR] Fatal error:', err.message);
     stats.errors++;
+  } finally {
+    client.release();
   }
 
   return stats;

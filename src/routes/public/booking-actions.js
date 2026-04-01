@@ -957,7 +957,7 @@ router.get('/booking/:token/cancel-booking', async (req, res, next) => {
     }
 
     // Completed or other non-cancellable status
-    if (!['pending', 'confirmed', 'pending_deposit'].includes(bk.status)) {
+    if (!['pending', 'confirmed', 'pending_deposit', 'modified_pending'].includes(bk.status)) {
       return res.send(confirmationPage('Action impossible', 'Ce rendez-vous ne peut plus être annulé.', '#A68B3C', bk.business_name));
     }
 

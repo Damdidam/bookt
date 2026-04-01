@@ -421,18 +421,18 @@ async function fcOpenDetail(bookingId) {
       svcCard.style.borderLeftColor = accentColor;
       const dur = b.variant_duration_min || b.duration_min || Math.round((e - s) / 60000);
       const catalogPrice = b.variant_price_cents ?? b.price_cents;
+      const effectivePrice = b.booked_price_cents ?? catalogPrice;
       const svcDisplayName = fmtSvcLabel(b.service_category, b.service_name, b.variant_name);
       let priceHtml = '';
-      if (catalogPrice) {
-        // Compute final price: LM discount first, then promo
-        let finalPrice = catalogPrice;
-        if (b.discount_pct) finalPrice = Math.round(catalogPrice * (100 - b.discount_pct) / 100);
+      if (catalogPrice || effectivePrice) {
+        // Use booked_price_cents as post-LM price; apply promo on top
+        let finalPrice = effectivePrice;
         if (b.promotion_discount_cents > 0) finalPrice = finalPrice - b.promotion_discount_cents;
         if (finalPrice < 0) finalPrice = 0;
         if (finalPrice !== catalogPrice) {
           priceHtml = '<div class="m-svc-price"><s style="font-size:.7rem;opacity:.5">' + (catalogPrice / 100).toFixed(2).replace(".",",") + ' \u20ac</s> ' + (finalPrice / 100).toFixed(2).replace(".",",") + ' \u20ac</div>';
         } else {
-          priceHtml = '<div class="m-svc-price">' + (catalogPrice / 100).toFixed(2).replace(".",",") + ' \u20ac</div>';
+          priceHtml = '<div class="m-svc-price">' + (finalPrice / 100).toFixed(2).replace(".",",") + ' \u20ac</div>';
         }
       }
       const canAddSvc = !['cancelled', 'no_show'].includes(b.status) && userRole !== 'practitioner' && b.service_id;
@@ -548,9 +548,10 @@ async function fcOpenDetail(bookingId) {
       const billPromoLabel = billPromoSource?.promotion_label || '';
       const billPromoPct = billPromoSource?.promotion_discount_pct || null;
       const billNet = billTotal - billPromoDisc;
-      const billDepPaid = (b.deposit_status === 'paid' || b.deposit_status === 'waived') ? (b.deposit_amount_cents || 0) : 0;
+      const billDepPaid = b.deposit_status === 'paid' ? (b.deposit_amount_cents || 0) : 0;
       const billDepPending = b.deposit_status === 'pending' ? (b.deposit_amount_cents || 0) : 0;
-      const billDue = billNet - billDepPaid;
+      const billGcPaid = b.gc_paid_cents || 0;
+      const billDue = billNet - billDepPaid - billGcPaid;
       const fmtP = c => (c / 100).toFixed(2).replace('.', ',') + ' \u20ac';
 
       let bh = '<div class="m-sec"><div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg> Facturation</span><span class="m-sec-line"></span></div>';
@@ -586,8 +587,12 @@ async function fcOpenDetail(bookingId) {
       if (billDepPending > 0) {
         bh += '<div style="display:flex;justify-content:space-between;color:var(--amber)"><span>Acompte en attente</span><span>' + fmtP(billDepPending) + '</span></div>';
       }
+      // Gift card
+      if (billGcPaid > 0) {
+        bh += '<div style="display:flex;justify-content:space-between;color:var(--green)"><span>Carte cadeau</span><span>-' + fmtP(billGcPaid) + '</span></div>';
+      }
       // Balance due
-      if (billCatalogTotal > 0 && billDepPaid > 0) {
+      if (billCatalogTotal > 0 && (billDepPaid > 0 || billGcPaid > 0)) {
         const isDue = billDue > 0;
         const isSolde = billDue <= 0;
         bh += '<div style="display:flex;justify-content:space-between;border-top:1px solid var(--border-light);padding-top:4px;margin-top:2px;font-weight:700;color:' + (isSolde ? 'var(--green)' : 'var(--text)') + '"><span>' + (isSolde ? 'Sold\u00e9' : 'Reste d\u00fb') + '</span><span>' + (isSolde ? '0,00 \u20ac' : fmtP(billDue)) + '</span></div>';

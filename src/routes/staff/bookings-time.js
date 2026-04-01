@@ -449,6 +449,8 @@ router.patch('/:id/move', async (req, res, next) => {
             const siblingsRes = await queryWithRLS(bid,
               `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS name,
                       COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                      COALESCE(sv.price_cents, s.price_cents) AS price_cents,
+                      b.discount_pct,
                       p.display_name AS practitioner_name
                FROM bookings b
                LEFT JOIN services s ON s.id = b.service_id
@@ -499,6 +501,9 @@ router.patch('/:id/move', async (req, res, next) => {
                   promotion_label: bk.promotion_label,
                   promotion_discount_cents: bk.promotion_discount_cents,
                   promotion_discount_pct: bk.promotion_discount_pct,
+                  deposit_status: bk.deposit_status,
+                  deposit_amount_cents: bk.deposit_amount_cents,
+                  deposit_paid_at: bk.deposit_paid_at,
                   old_start_at: old_start_at || draggedBooking.start_at,
                   old_end_at: old_end_at || draggedBooking.end_at,
                   new_start_at: gt.group_start,
@@ -775,6 +780,9 @@ router.patch('/:id/move', async (req, res, next) => {
                   promotion_label: bk.promotion_label,
                   promotion_discount_cents: bk.promotion_discount_cents,
                   promotion_discount_pct: bk.promotion_discount_pct,
+                  deposit_status: bk.deposit_status,
+                  deposit_amount_cents: bk.deposit_amount_cents,
+                  deposit_paid_at: bk.deposit_paid_at,
                   old_start_at: old_start_at || draggedBooking.start_at,
                   old_end_at: old_end_at || draggedBooking.end_at,
                   new_start_at: bk.start_at,
@@ -896,35 +904,44 @@ router.patch('/:id/edit', async (req, res, next) => {
       } else {
         if (!UUID_RE.test(service_id)) return res.status(400).json({ error: 'service_id invalide' });
         const svcCheck = await queryWithRLS(bid,
-          `SELECT id, duration_min, buffer_before_min, buffer_after_min, processing_time, processing_start
+          `SELECT id, duration_min, buffer_before_min, buffer_after_min, processing_time, processing_start, price_cents
            FROM services WHERE id = $1 AND business_id = $2 AND is_active = true`,
           [service_id, bid]);
         if (svcCheck.rows.length === 0) return res.status(400).json({ error: 'Service introuvable ou inactif' });
         const svc = svcCheck.rows[0];
         let dur = svc.duration_min, pt = svc.processing_time || 0, ps = svc.processing_start || 0;
+        let varPriceCents = null;
 
         if (service_variant_id) {
           if (!UUID_RE.test(service_variant_id)) return res.status(400).json({ error: 'variant_id invalide' });
           const varCheck = await queryWithRLS(bid,
-            `SELECT duration_min, processing_time, processing_start
+            `SELECT duration_min, processing_time, processing_start, price_cents
              FROM service_variants WHERE id = $1 AND service_id = $2`,
             [service_variant_id, service_id]);
           if (varCheck.rows.length > 0) {
             dur = varCheck.rows[0].duration_min || dur;
             pt = varCheck.rows[0].processing_time ?? pt;
             ps = varCheck.rows[0].processing_start ?? ps;
+            varPriceCents = varCheck.rows[0].price_cents;
           }
         }
 
+        // Compute new booked_price_cents from service/variant price + booking discount_pct
+        let newPriceCents = varPriceCents != null ? varPriceCents : (svc.price_cents || 0);
         const bkForEnd = await queryWithRLS(bid,
-          `SELECT start_at FROM bookings WHERE id = $1 AND business_id = $2`, [id, bid]);
-        const startAt = new Date(bkForEnd.rows[0].start_at);
+          `SELECT start_at, discount_pct FROM bookings WHERE id = $1 AND business_id = $2`, [id, bid]);
+        const bkRow = bkForEnd.rows[0];
+        const startAt = new Date(bkRow.start_at);
+        if (bkRow.discount_pct) {
+          newPriceCents = Math.round(newPriceCents * (100 - bkRow.discount_pct) / 100);
+        }
         const totalMin = (svc.buffer_before_min || 0) + dur + (svc.buffer_after_min || 0);
         const newEnd = new Date(startAt.getTime() + totalMin * 60000);
 
         serviceConversion = {
           toService: true, service_id, service_variant_id: service_variant_id || null,
-          processing_time: pt, processing_start: ps, end_at: newEnd.toISOString()
+          processing_time: pt, processing_start: ps, end_at: newEnd.toISOString(),
+          booked_price_cents: newPriceCents
         };
       }
     }
@@ -990,13 +1007,14 @@ router.patch('/:id/edit', async (req, res, next) => {
     // Service conversion SET clauses
     if (serviceConversion) {
       if (serviceConversion.toFree) {
-        sets.push(`service_id = NULL`, `service_variant_id = NULL`, `processing_time = 0`, `processing_start = 0`);
+        sets.push(`service_id = NULL`, `service_variant_id = NULL`, `processing_time = 0`, `processing_start = 0`, `booked_price_cents = NULL`);
       } else {
         sets.push(`service_id = $${idx++}`); params.push(serviceConversion.service_id);
         sets.push(`service_variant_id = $${idx++}`); params.push(serviceConversion.service_variant_id);
         sets.push(`processing_time = $${idx++}`); params.push(serviceConversion.processing_time);
         sets.push(`processing_start = $${idx++}`); params.push(serviceConversion.processing_start);
         sets.push(`end_at = $${idx++}`); params.push(serviceConversion.end_at);
+        sets.push(`booked_price_cents = $${idx++}`); params.push(serviceConversion.booked_price_cents);
         sets.push(`custom_label = NULL`);
       }
     }

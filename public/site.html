@@ -1659,7 +1659,7 @@ body.tpl-funky .cart-chip { border-radius: 100px; }
     var aboutImg = b.about_image_url || b.cover_image_url;
     if (sec.about !== false && (b.description || aboutImg)) {
       document.getElementById('about').style.display = '';
-      if (b.description) document.getElementById('aboutText').innerHTML = b.description;
+      if (b.description) document.getElementById('aboutText').innerHTML = esc(b.description).replace(/\n/g, '<br>');
       if (aboutImg) {
         var ai = document.getElementById('aboutImage');
         ai.style.backgroundImage = 'url(' + esc(aboutImg) + ')';

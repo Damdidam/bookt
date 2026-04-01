@@ -817,39 +817,37 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           promotion_discount_pct: emailPromoBooking.promotion_discount_pct,
           promotion_discount_cents: emailPromoBooking.promotion_discount_cents || 0
         };
-        // Fetch practitioner names and fill groupSvcs (fire-and-forget wrapper handles errors)
-        (async () => {
-          try {
-            let pracDisplayName = '';
-            const splitPracNames = {};
-            if (isSplitMode) {
-              const uniquePIds = [...new Set(Object.values(splitPracMap))];
-              const pracRows = await query(`SELECT id, display_name FROM practitioners WHERE id = ANY($1)`, [uniquePIds]);
-              pracRows.rows.forEach(r => { splitPracNames[r.id] = r.display_name; });
-              pracDisplayName = pracRows.rows.map(r => r.display_name).filter(Boolean).join(', ');
-              // Fill practitioner names in groupSvcs
-              multiServices.forEach((s, _i) => { groupSvcs[_i].practitioner_name = splitPracNames[splitPracMap[s.id]] || null; });
-            } else {
-              const pracRow = await query(`SELECT display_name FROM practitioners WHERE id = $1`, [practitioner_id]);
-              pracDisplayName = pracRow.rows[0]?.display_name || '';
-            }
-            sendPostBookingComms({
-              businessId, createdBooking: multiEmailBooking,
-              clientName: client_name, clientEmail: client_email,
-              clientPhone: client_phone, clientComment: client_comment,
-              needsConfirmation: multiNeedsConfirm, confirmTimeoutMin: multiConfTimeout,
-              confirmChannel: multiConfChannel, gcPartialCents: multiGcPartial || 0,
-              practitionerName: pracDisplayName,
-              serviceName: null, serviceCategory: multiServices[0]?.category || null,
-              servicePriceCents: multiBookings[0]?.discount_pct
-                ? Math.round(_rawSvcPrice0 * (100 - multiBookings[0].discount_pct) / 100)
-                : _rawSvcPrice0,
-              durationMin: multiServices[0]?.duration_min || 0,
-              groupServices: groupSvcs,
-              logPrefix: 'Multi-service confirmation'
-            });
-          } catch (e) { console.warn('[EMAIL] Multi-service confirmation error:', e.message); }
-        })();
+        // Fetch practitioner names and fill groupSvcs BEFORE sending comms
+        try {
+          let pracDisplayName = '';
+          const splitPracNames = {};
+          if (isSplitMode) {
+            const uniquePIds = [...new Set(Object.values(splitPracMap))];
+            const pracRows = await query(`SELECT id, display_name FROM practitioners WHERE id = ANY($1)`, [uniquePIds]);
+            pracRows.rows.forEach(r => { splitPracNames[r.id] = r.display_name; });
+            pracDisplayName = pracRows.rows.map(r => r.display_name).filter(Boolean).join(', ');
+            // Fill practitioner names in groupSvcs
+            multiServices.forEach((s, _i) => { groupSvcs[_i].practitioner_name = splitPracNames[splitPracMap[s.id]] || null; });
+          } else {
+            const pracRow = await query(`SELECT display_name FROM practitioners WHERE id = $1`, [practitioner_id]);
+            pracDisplayName = pracRow.rows[0]?.display_name || '';
+          }
+          sendPostBookingComms({
+            businessId, createdBooking: multiEmailBooking,
+            clientName: client_name, clientEmail: client_email,
+            clientPhone: client_phone, clientComment: client_comment,
+            needsConfirmation: multiNeedsConfirm, confirmTimeoutMin: multiConfTimeout,
+            confirmChannel: multiConfChannel, gcPartialCents: multiGcPartial || 0,
+            practitionerName: pracDisplayName,
+            serviceName: null, serviceCategory: multiServices[0]?.category || null,
+            servicePriceCents: multiBookings[0]?.discount_pct
+              ? Math.round(_rawSvcPrice0 * (100 - multiBookings[0].discount_pct) / 100)
+              : _rawSvcPrice0,
+            durationMin: multiServices[0]?.duration_min || 0,
+            groupServices: groupSvcs,
+            logPrefix: 'Multi-service confirmation'
+          });
+        } catch (e) { console.warn('[EMAIL] Multi-service confirmation error:', e.message); }
       }
 
       // Find the booking that carries the promo (could be on any group_order for specific_service promos)
