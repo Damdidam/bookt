@@ -274,10 +274,15 @@ function renderBooking(data) {
   document.getElementById('bizAddress').textContent = business.address || '';
   document.getElementById('bizContact').textContent = [business.phone, business.email].filter(Boolean).join(' · ');
 
-  // Apply business theme color if available
+  // Apply business theme color
   const themeColor = business.theme?.primary_color;
   if (themeColor) {
     document.getElementById('bizLogo').style.background = themeColor;
+    document.documentElement.style.setProperty('--primary', themeColor);
+    // Derive hover/light/soft from primary
+    document.documentElement.style.setProperty('--primary-hover', themeColor);
+    document.documentElement.style.setProperty('--primary-light', themeColor + '12');
+    document.documentElement.style.setProperty('--primary-soft', themeColor + '25');
   }
 
   // Status
@@ -421,6 +426,12 @@ function renderBooking(data) {
     actionsEl.innerHTML = `
       <a href="/deposit/${booking.token}" class="btn btn-confirm" style="text-decoration:none;text-align:center">Payer l'acompte <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></a>
       ${cancellation.allowed ? '<button class="btn btn-cancel" onclick="showCancelConfirm()">Annuler</button>' : ''}`;
+    actionsEl.style.display = 'flex';
+  } else if (booking.status === 'pending') {
+    actionsEl.innerHTML = `
+      <div style="font-size:.82rem;color:var(--text-3);margin-bottom:8px">En attente de votre confirmation</div>
+      <button class="btn btn-confirm" onclick="confirmBooking()">Confirmer mon rendez-vous <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button>
+      <button class="btn btn-cancel" onclick="showCancelConfirm()">Annuler</button>`;
     actionsEl.style.display = 'flex';
   } else if (booking.status === 'confirmed' && cancellation.allowed) {
     actionsEl.innerHTML = `
