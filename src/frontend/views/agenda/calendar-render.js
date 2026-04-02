@@ -92,7 +92,8 @@ function buildEventContent() {
       const grpNote = grpHasNote ? '<span class="ev-badge-note" title="Note">' + IC.note + '</span>' : '';
       const grpDep = members.some(m => m.deposit_required) ? (members.some(m => m.deposit_status === 'paid') ? '<span class="ev-badge-dep paid" title="Acompte pay\u00e9">' + IC.dollar + '</span>' : '<span class="ev-badge-dep" title="Acompte en attente">' + IC.dollar + '</span>') : '';
       const grpStDot = '<span class="ev-badge ev-badge-st" style="background:' + grpStC + '"></span>';
-      return { html: `<div class="ev-inner" style="color:${darkAccent}"><span class="ev-client"${clientDim}>${esc(p.client_name || 'Groupe')} ${timeSpan} <span style="font-size:.68rem;${iconDim}">${gi(IC.chain)}${members.length}</span></span><span class="ev-service">${svcs}</span><div class="ev-badges">${grpVip}${grpLock}${grpDep}${grpPromo}${grpNote}${grpStDot}</div></div>` };
+      const grpBadges = grpStDot + grpVip + grpLock + grpDep + grpPromo + grpNote;
+      return { html: `<div class="ev-inner" style="color:${darkAccent}"><span class="ev-client"${clientDim}>${esc(p.client_name || 'Groupe')} ${timeSpan} <span style="font-size:.68rem;${iconDim}">${gi(IC.chain)}${members.length}</span></span><div class="ev-badges">${grpBadges}</div><span class="ev-service">${svcs}</span></div>` };
     }
 
     // -- Week/Day: single event --
@@ -109,7 +110,8 @@ function buildEventContent() {
     const stColor = ST_COLORS[p.status] || ST_COLORS.confirmed;
     const stDot = '<span class="ev-badge ev-badge-st" style="background:' + stColor + '"></span>';
     const freeTag = !p.service_name ? '<span style="font-size:.68rem;opacity:.85;margin-left:3px">' + gi(IC.sparkle) + '</span>' : '';
-    return { html: `<div class="ev-inner" style="color:${darkAccent}"><span class="ev-client">${esc(p.client_name || arg.event.title)} ${sTimeSpan}${freeTag}</span><span class="ev-service">${svcLabel}</span><div class="ev-badges">${vipBadge}${depBadge}${promoBadge}${lockBadge}${noteBadge}${stDot}</div></div>` };
+    const sBadges = stDot + vipBadge + lockBadge + depBadge + promoBadge + noteBadge;
+    return { html: `<div class="ev-inner" style="color:${darkAccent}"><span class="ev-client">${esc(p.client_name || arg.event.title)} ${sTimeSpan}${freeTag}</span><div class="ev-badges">${sBadges}</div><span class="ev-service">${svcLabel}</span></div>` };
   };
 }
 
