@@ -222,36 +222,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
         <div id="teamList"></div>
         <button class="add-btn" onclick="addTeamMember()">+ Ajouter un(e) praticien(ne)</button>
         <div class="clo info" style="margin-top:10px">Bio, photo, compétences et services par praticien se configurent dans Dashboard › Équipe.</div>
-        <div class="snav"><button class="btn-back" onclick="go(2)">← Retour</button><div><button class="btn-skip" onclick="saveOnboardingStep('team',5)">Plus tard, je gère seul(e)</button><button class="btn-next" onclick="saveTeam()">Continuer →</button></div></div>
+        <div class="snav"><button class="btn-back" onclick="go(2)">← Retour</button><div><button class="btn-skip" onclick="saveOnboardingStep('team',8)">Plus tard, je gère seul(e)</button><button class="btn-next" onclick="saveTeam()">Continuer →</button></div></div>
       </div>
 
-      <!-- ===== STEP 5: BIO ===== -->
-      <div class="step" data-step="5">
-        <div class="step-hdr"><div class="lbl">Étape 5 · À propos</div><h2>Présentez votre salon</h2><p>Texte visible sur votre page publique.</p></div>
-        <div class="fg"><label class="fl">Tagline</label><input class="fi" id="f_tagline" placeholder="Votre slogan en une phrase"></div>
-        <div class="fg"><label class="fl">Description</label><textarea class="fi ft" id="f_desc" rows="4" placeholder="Ouvert depuis 2015, notre salon vous accueille dans une ambiance chaleureuse..."></textarea><div class="fh">2-3 phrases suffisent. Enrichissable depuis le dashboard.</div></div>
-        <div class="fr">
-          <div class="fg"><label class="fl">Label / Certification <span class="opt">(opt.)</span></label><input class="fi" id="f_accred" placeholder="L'Oréal Professionnel"></div>
-          <div class="fg"><label class="fl">Année de fondation <span class="opt">(opt.)</span></label><input class="fi" type="number" id="f_founded" placeholder="2008"></div>
-        </div>
-        <div class="snav"><button class="btn-back" onclick="go(4)">← Retour</button><div><button class="btn-skip" onclick="go(6)">Plus tard</button><button class="btn-next" onclick="saveBio()">Continuer →</button></div></div>
-      </div>
-
-      <!-- ===== STEP 6: SPECIALIZATIONS ===== -->
-      <div class="step" data-step="6">
-        <div class="step-hdr"><div class="lbl">Étape 6 · Spécialisations</div><h2>Vos domaines d'expertise</h2><p>Sélectionnez ou personnalisez.</p></div>
-        <div class="stags" id="specTags"></div>
-        <div class="snav"><button class="btn-back" onclick="go(5)">← Retour</button><div><button class="btn-skip" onclick="go(7)">Plus tard</button><button class="btn-next" onclick="saveOnboardingStep('specializations',7)">Continuer →</button></div></div>
-      </div>
-
-      <!-- ===== STEP 7: TESTIMONIALS ===== -->
-      <div class="step" data-step="7">
-        <div class="step-hdr"><div class="lbl">Étape 7 · Témoignages</div><h2>Avis de vos clients</h2><p>Renforcent la confiance. Ajoutez-en ou passez.</p></div>
-        <div id="testimonialList"></div>
-        <button class="add-btn" onclick="addTestimonialForm()">+ Ajouter un témoignage</button>
-        <div class="clo tip" style="margin-top:10px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg> Pas de témoignage ? Pas de souci, ajoutez-en plus tard.</div>
-        <div class="snav"><button class="btn-back" onclick="go(6)">← Retour</button><div><button class="btn-skip" onclick="go(8)">Plus tard</button><button class="btn-next" onclick="saveOnboardingStep('testimonials',8)">Continuer →</button></div></div>
-      </div>
+      <!-- STEPS 5, 6, 7 removed: bio/specializations/testimonials configurable in dashboard -->
 
       <!-- ===== STEP 8: NOTIFICATIONS ===== -->
       <div class="step" data-step="8">
@@ -260,7 +234,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
         <div class="trow"><div class="tlbl">Rappel email J-1<span class="sub">24h avant</span></div><div class="tog on" onclick="this.classList.toggle('on')"></div></div>
         <div class="trow"><div class="tlbl">Rappel SMS J-1 <span style="padding:1px 5px;background:var(--gold-bg);border-radius:3px;font-size:.6rem;font-weight:700;color:var(--gold)">PRO</span><span class="sub">~0.05€/SMS</span></div><div class="tog on" onclick="this.classList.toggle('on')"></div></div>
         <div class="trow"><div class="tlbl">Notification nouveau RDV<span class="sub">Vous recevez un email</span></div><div class="tog on" onclick="this.classList.toggle('on')"></div></div>
-        <div class="snav"><button class="btn-back" onclick="go(7)">← Retour</button><button class="btn-next" onclick="saveOnboardingStep('notifications',9)">Continuer →</button></div>
+        <div class="snav"><button class="btn-back" onclick="go(4)">← Retour</button><button class="btn-next" onclick="saveOnboardingStep('notifications',9)">Continuer →</button></div>
       </div>
 
       <!-- ===== STEP 9: CALL FILTER ===== -->
@@ -475,9 +449,6 @@ async function doSignup() {
 
     bizData = result;
 
-    // Pre-fill tagline from sector
-    document.getElementById('f_tagline').value = '';
-
     // Pre-fill owner info
     const initials = name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2);
     document.getElementById('ownerAvatar').textContent = initials;
@@ -485,7 +456,6 @@ async function doSignup() {
 
     // Build sector-specific UI
     buildScheduleGrid();
-    buildSpecTags();
 
     GendaUI.toast('Compte créé ! Configurons votre moteur de planning.', 'success');
     go(2);
@@ -601,7 +571,7 @@ async function saveTeam() {
   if (cards.length === 0) {
     await api.updateOnboarding('team');
     GendaUI.toast('Équipe confirmée', 'success');
-    go(5);
+    go(8);
     return;
   }
 
@@ -642,68 +612,12 @@ async function saveTeam() {
 
     await api.updateOnboarding('team');
     GendaUI.toast('Équipe enregistrée', 'success');
-    go(5);
+    go(8);
   } catch (err) {
     showError(err.message);
   } finally {
     GendaUI.btnLoading(btn, false);
   }
-}
-
-// ============================================================
-// STEP 5: BIO → PATCH /api/business
-// ============================================================
-async function saveBio() {
-  const tagline = document.getElementById('f_tagline').value.trim();
-  const desc = document.getElementById('f_desc').value.trim();
-  const accred = document.getElementById('f_accred').value.trim();
-  const founded = document.getElementById('f_founded').value;
-
-  try {
-    await api.updateSettings({
-      tagline: tagline || undefined,
-      description: desc || undefined,
-      accreditation: accred || undefined,
-      founded_year: founded ? parseInt(founded) : undefined
-    });
-    await api.updateOnboarding('bio_description');
-    GendaUI.toast('Description enregistrée', 'success');
-    go(6);
-  } catch (err) { showError(err.message); }
-}
-
-// ============================================================
-// STEP 6: SPECIALIZATIONS (display template, already created)
-// ============================================================
-function buildSpecTags() {
-  const specTemplates = {
-    coiffeur: ['<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg> Coupe femme','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg> Coupe homme','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="0.5" fill="currentColor"/><circle cx="17.5" cy="10.5" r="0.5" fill="currentColor"/><circle cx="8.5" cy="7.5" r="0.5" fill="currentColor"/><circle cx="6.5" cy="12.5" r="0.5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2Z"/></svg> Coloriste','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg> Balayage & Mèches','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 2v4"/><path d="M18 10v4"/><path d="M18 18v4"/><circle cx="18" cy="8" r="2"/><circle cx="18" cy="16" r="2"/><path d="M6 6v12"/><circle cx="6" cy="12" r="4"/></svg> Barbier','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c6-3.5 8-10 8-14 0-.5 0-1-.5-1.5C18 5 14 3 12 2c-2 1-6 3-7.5 4.5C4 7 4 7.5 4 8c0 4 2 10.5 8 14z"/><path d="M5 8.5c2.5 2 4.5 4.5 5 8.5"/><path d="M19 8.5c-2.5 2-4.5 4.5-5 8.5"/></svg> Soins capillaires','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg> Coiffure événement','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg> Extensions'],
-    esthetique: ['<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c6-3.5 8-10 8-14 0-.5 0-1-.5-1.5C18 5 14 3 12 2c-2 1-6 3-7.5 4.5C4 7 4 7.5 4 8c0 4 2 10.5 8 14z"/><path d="M5 8.5c2.5 2 4.5 4.5 5 8.5"/><path d="M19 8.5c-2.5 2-4.5 4.5-5 8.5"/></svg> Soins visage','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2v14a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V2"/><path d="M6 8h12"/><path d="M10 18v4"/><path d="M14 18v4"/></svg> Onglerie','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4l2-4 2 4h4"/><path d="M8 16l-3-5h14l-3 5"/><circle cx="12" cy="4" r="2"/></svg> Épilation','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Regard (cils & sourcils)','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 4v4"/><path d="M12 16v4"/></svg> Maquillage','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg> Beauté des mains','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16v-2.38C4 11.5 2.97 10.5 3 8c.03-2.72 1.49-6 4.5-6C9.37 2 10 3.8 10 5.5 10 7.3 10 8 9 10c-1.5 3-2 3.5-2 5v1"/><path d="M20 20v-2.38c0-2.12 1.03-3.12 1-5.62-.03-2.72-1.49-6-4.5-6C14.63 6 14 7.8 14 9.5c0 1.8 0 2.5 1 4.5 1.5 3 2 3.5 2 5v1"/><path d="M6 18a2 2 0 1 0 4 0"/><path d="M14 22a2 2 0 1 0 4 0"/></svg> Pédicure spa'],
-    barbier: ['<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg> Coupe classique','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 2v4"/><path d="M18 10v4"/><path d="M18 18v4"/><circle cx="18" cy="8" r="2"/><circle cx="18" cy="16" r="2"/><path d="M6 6v12"/><circle cx="6" cy="12" r="4"/></svg> Taille de barbe','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg> Rasage traditionnel','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="0.5" fill="currentColor"/><circle cx="17.5" cy="10.5" r="0.5" fill="currentColor"/><circle cx="8.5" cy="7.5" r="0.5" fill="currentColor"/><circle cx="6.5" cy="12.5" r="0.5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2Z"/></svg> Coloration','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c6-3.5 8-10 8-14 0-.5 0-1-.5-1.5C18 5 14 3 12 2c-2 1-6 3-7.5 4.5C4 7 4 7.5 4 8c0 4 2 10.5 8 14z"/><path d="M5 8.5c2.5 2 4.5 4.5 5 8.5"/><path d="M19 8.5c-2.5 2-4.5 4.5-5 8.5"/></svg> Soin visage homme','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg> Serviette chaude'],
-    massage: ['<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c6-3.5 8-10 8-14 0-.5 0-1-.5-1.5C18 5 14 3 12 2c-2 1-6 3-7.5 4.5C4 7 4 7.5 4 8c0 4 2 10.5 8 14z"/><path d="M5 8.5c2.5 2 4.5 4.5 5 8.5"/><path d="M19 8.5c-2.5 2-4.5 4.5-5 8.5"/></svg> Relaxation','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="18" r="3"/><path d="M11 4a1 1 0 1 0 2 0 1 1 0 0 0-2 0"/><path d="m6 18 4-8h4l3 5"/></svg> Massage sportif','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16v-2.38C4 11.5 2.97 10.5 3 8c.03-2.72 1.49-6 4.5-6C9.37 2 10 3.8 10 5.5 10 7.3 10 8 9 10c-1.5 3-2 3.5-2 5v1"/><path d="M20 20v-2.38c0-2.12 1.03-3.12 1-5.62-.03-2.72-1.49-6-4.5-6C14.63 6 14 7.8 14 9.5c0 1.8 0 2.5 1 4.5 1.5 3 2 3.5 2 5v1"/><path d="M6 18a2 2 0 1 0 4 0"/><path d="M14 22a2 2 0 1 0 4 0"/></svg> Réflexologie','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.9C15.5 4.9 17 3.5 19 2c1 2 2 4.5 1 8-1.5 5-4.5 8-9 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></svg> Aromathérapie','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"/><path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg> Shiatsu','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg> Pierres chaudes','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4" r="2"/><path d="M4 20h4l2-4 2 4h4"/><path d="M8 16l-3-5h14l-3 5"/></svg> Ayurvéda','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12h.01"/><path d="M15 12h.01"/><path d="M10 16c.5.3 1.2.5 2 .5s1.5-.2 2-.5"/><path d="M19 6.3a9 9 0 0 1 1.8 3.9 2 2 0 0 1 0 3.6 9 9 0 0 1-17.6 0 2 2 0 0 1 0-3.6A9 9 0 0 1 12 3c2 0 3.5 1.1 3.5 2.5s-.9 2.5-2 2.5c-.8 0-1.5-.4-1.5-1"/></svg> Massage prénatal'],
-    onglerie: ['<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2v14a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V2"/><path d="M6 8h12"/><path d="M10 18v4"/><path d="M14 18v4"/></svg> Manucure','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="0.5" fill="currentColor"/><circle cx="17.5" cy="10.5" r="0.5" fill="currentColor"/><circle cx="8.5" cy="7.5" r="0.5" fill="currentColor"/><circle cx="6.5" cy="12.5" r="0.5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2Z"/></svg> Nail art','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg> Gel / Semi-permanent','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16v-2.38C4 11.5 2.97 10.5 3 8c.03-2.72 1.49-6 4.5-6C9.37 2 10 3.8 10 5.5 10 7.3 10 8 9 10c-1.5 3-2 3.5-2 5v1"/><path d="M20 20v-2.38c0-2.12 1.03-3.12 1-5.62-.03-2.72-1.49-6-4.5-6C14.63 6 14 7.8 14 9.5c0 1.8 0 2.5 1 4.5 1.5 3 2 3.5 2 5v1"/><path d="M6 18a2 2 0 1 0 4 0"/><path d="M14 22a2 2 0 1 0 4 0"/></svg> Pédicure','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c6-3.5 8-10 8-14 0-.5 0-1-.5-1.5C18 5 14 3 12 2c-2 1-6 3-7.5 4.5C4 7 4 7.5 4 8c0 4 2 10.5 8 14z"/><path d="M5 8.5c2.5 2 4.5 4.5 5 8.5"/><path d="M19 8.5c-2.5 2-4.5 4.5-5 8.5"/></svg> Soin des mains','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"/><path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg> Prothèse ongulaire'],
-    tatouage: ['<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg> Ornemental','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="0.5" fill="currentColor"/><circle cx="17.5" cy="10.5" r="0.5" fill="currentColor"/><circle cx="8.5" cy="7.5" r="0.5" fill="currentColor"/><circle cx="6.5" cy="12.5" r="0.5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2Z"/></svg> Réaliste','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c6-3.5 8-10 8-14 0-.5 0-1-.5-1.5C18 5 14 3 12 2c-2 1-6 3-7.5 4.5C4 7 4 7.5 4 8c0 4 2 10.5 8 14z"/><path d="M5 8.5c2.5 2 4.5 4.5 5 8.5"/><path d="M19 8.5c-2.5 2-4.5 4.5-5 8.5"/></svg> Minimaliste','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"/><path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg> Old school','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg> Aquarelle','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2v14a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V2"/><path d="M6 8h12"/><path d="M10 18v4"/><path d="M14 18v4"/></svg> Piercing'],
-    bienetre: ['<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c6-3.5 8-10 8-14 0-.5 0-1-.5-1.5C18 5 14 3 12 2c-2 1-6 3-7.5 4.5C4 7 4 7.5 4 8c0 4 2 10.5 8 14z"/><path d="M5 8.5c2.5 2 4.5 4.5 5 8.5"/><path d="M19 8.5c-2.5 2-4.5 4.5-5 8.5"/></svg> Sophrologie','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.9C15.5 4.9 17 3.5 19 2c1 2 2 4.5 1 8-1.5 5-4.5 8-9 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></svg> Naturopathie','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"/><path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg> Réflexologie','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg> Yoga','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 4v4"/><path d="M12 16v4"/></svg> Méditation','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12h.01"/><path d="M15 12h.01"/><path d="M10 16c.5.3 1.2.5 2 .5s1.5-.2 2-.5"/><path d="M19 6.3a9 9 0 0 1 1.8 3.9 2 2 0 0 1 0 3.6 9 9 0 0 1-17.6 0 2 2 0 0 1 0-3.6A9 9 0 0 1 12 3c2 0 3.5 1.1 3.5 2.5s-.9 2.5-2 2.5c-.8 0-1.5-.4-1.5-1"/></svg> Hypnose'],
-    autre: ['<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg> Prestation','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"/><path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg> Accompagnement','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg> Conseil']
-  };
-  const specs = specTemplates[sector] || specTemplates.autre;
-  const el = document.getElementById('specTags');
-  el.innerHTML = '';
-  specs.forEach((s, i) => {
-    el.innerHTML += `<div class="stag ${i<4?'sel':''}" onclick="this.classList.toggle('sel')">${s}</div>`;
-  });
-}
-
-// ============================================================
-// STEP 7: TESTIMONIALS (empty by default)
-// ============================================================
-function addTestimonialForm() {
-  const el = document.getElementById('testimonialList');
-  const n = el.children.length + 1;
-  el.innerHTML += `<div style="background:var(--white);border:1px solid var(--border-light);border-radius:var(--radius);padding:14px;margin-bottom:8px">
-    <div class="fr"><div class="fg"><label class="fl">Nom</label><input class="fi" placeholder="Julie Marchand"></div><div class="fg"><label class="fl">Rôle</label><input class="fi" placeholder="Cliente fidèle"></div></div>
-    <div class="fg"><label class="fl">Témoignage</label><textarea class="fi ft" rows="2" placeholder="Un accueil toujours chaleureux, je recommande..."></textarea></div>
-  </div>`;
 }
 
 // ============================================================
@@ -800,7 +714,7 @@ function copyUrl() {
 // Expose functions to inline onclick handlers
 Object.assign(window, {
   selSec, updSlug, go, doSignup, toggleDay, saveSchedule,
-  saveOnboardingStep, addTeamMember, saveTeam, saveBio, addTestimonialForm,
+  saveOnboardingStep, addTeamMember, saveTeam,
   selectCalendar, saveCalendarChoice, goLive, copyUrl
 });
 </script>
