@@ -973,15 +973,21 @@ router.patch('/:id/deposit-refund', async (req, res, next) => {
       }
 
       // ===== Stripe refund: actually refund the money =====
-      const piId = bk.rows[0].deposit_payment_intent_id;
-      if (piId && piId.startsWith('pi_')) {
+      let piId = bk.rows[0].deposit_payment_intent_id;
+      if (piId && (piId.startsWith('pi_') || piId.startsWith('cs_'))) {
         const key = process.env.STRIPE_SECRET_KEY;
         if (!key) return { error: 500, message: 'Stripe non configuré — remboursement impossible' };
         const stripe = require('stripe')(key);
         try {
-          await stripe.refunds.create({ payment_intent: piId });
+          // Resolve cs_ checkout session to pi_ payment intent
+          if (piId.startsWith('cs_')) {
+            const session = await stripe.checkout.sessions.retrieve(piId);
+            piId = session.payment_intent;
+          }
+          if (piId && piId.startsWith('pi_')) {
+            await stripe.refunds.create({ payment_intent: piId });
+          }
         } catch (stripeErr) {
-          // If already refunded on Stripe, continue (idempotent)
           if (stripeErr.code !== 'charge_already_refunded') {
             console.error('[DEPOSIT REFUND] Stripe refund failed:', stripeErr.message);
             return { error: 500, message: 'Erreur Stripe lors du remboursement' };
