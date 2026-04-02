@@ -773,3 +773,13 @@
 .toggle-label{font-size:var(--text-base);font-weight:500;color:var(--text)}
 .toggle.disabled{opacity:.5;cursor:not-allowed}
 @media(max-width:1280px){.toggle-track{width:48px;height:28px}.toggle-track::after{width:24px;height:24px}.toggle input:checked+.toggle-track::after{left:22px}}
+
+/* ===== BADGE VARIANTS ===== */
+.badge{font-size:.68rem;font-weight:700;padding:3px 10px;border-radius:var(--radius-pill);display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.badge-success{background:var(--green-bg);color:var(--green)}
+.badge-warning{background:var(--gold-bg);color:var(--gold)}
+.badge-danger{background:var(--red-bg);color:var(--red)}
+.badge-info{background:var(--blue-bg);color:var(--blue)}
+.badge-neutral{background:var(--surface);color:var(--text-3)}
+.badge-amber{background:var(--amber-bg);color:var(--amber-dark)}
+.badge-purple{background:var(--purple-bg);color:var(--purple)}
