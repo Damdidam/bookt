@@ -311,7 +311,7 @@ async function loadSettings(){
 
     // Fixed amount
     h+=`<div id="depFixedRow" class="field" style="display:${depType==='fixed'?'flex':'none'};align-items:center;gap:8px">
-      <input type="number" id="s_dep_fixed" value="${(depFixed/100).toFixed(0)}" min="1" step="5" style="width:100px;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem;text-align:right">
+      <input type="number" id="s_dep_fixed" value="${(depFixed/100).toFixed(2)}" min="1" step="0.5" style="width:100px;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem;text-align:right">
       <span style="font-size:.85rem;font-weight:600;color:var(--text-3)">EUR</span>
     </div>`;
 

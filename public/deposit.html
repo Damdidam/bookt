@@ -71,6 +71,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:
   <div class="footer-link" id="footerLink" style="display:none"></div>
 </div>
 
+<script src="/genda-ui-lite.js"></script>
 <script>
 const token = window.location.pathname.split('/').pop();
 let _businessId = null;
@@ -281,10 +282,10 @@ async function startPayment() {
   try {
     const res = await fetch(`/api/public/deposit/${token}/checkout`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
     const data = await res.json();
-    if (!res.ok) { alert(data.error || 'Erreur'); btn.disabled = false; btn.innerHTML = 'Réessayer'; return; }
+    if (!res.ok) { showToast(data.error || 'Erreur', 'error'); btn.disabled = false; btn.innerHTML = 'Réessayer'; return; }
     if (data.url) window.location.href = data.url;
   } catch (err) {
-    alert('Erreur de connexion');
+    showToast('Erreur de connexion', 'error');
     btn.disabled = false;
     btn.innerHTML = 'Réessayer';
   }

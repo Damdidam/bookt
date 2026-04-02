@@ -94,6 +94,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:
   <div class="footer-link" id="footerLink" style="display:none"></div>
 </div>
 
+<script src="/genda-ui-lite.js"></script>
 <script>
 const token = window.location.pathname.split('/review/')[1];
 let reviewData = null;
@@ -300,7 +301,7 @@ async function submitReview() {
 
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      alert(data.error || 'Une erreur est survenue. Veuillez réessayer.');
+      showToast(data.error || 'Une erreur est survenue. Veuillez réessayer.', 'error');
       btn.disabled = false;
       btn.innerHTML = originalText;
       return;
@@ -308,7 +309,7 @@ async function submitReview() {
 
     showSuccess();
   } catch (err) {
-    alert('Erreur de connexion. Veuillez réessayer.');
+    showToast('Erreur de connexion. Veuillez réessayer.', 'error');
     btn.disabled = false;
     btn.innerHTML = originalText;
   }

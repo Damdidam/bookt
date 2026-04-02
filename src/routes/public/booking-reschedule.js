@@ -246,24 +246,31 @@ router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) 
       }
     } else if (bk.group_id && groupMembers.length > 0) {
       // ── Same-practitioner group: shift all members by the same delta ──
-      // Practitioner availability
-      const avail = await checkPracAvailability(bk.business_id, bk.practitioner_id, start_at, end_at);
+      // Compute full group range after shift (last member's end_at)
+      const lastMember = groupMembers[groupMembers.length - 1];
+      const groupEndAfterShift = new Date(new Date(lastMember.end_at).getTime() + delta).toISOString();
+
+      // Practitioner availability for full group range
+      const avail = await checkPracAvailability(bk.business_id, bk.practitioner_id, start_at, groupEndAfterShift);
       if (!avail.ok) { await client.query('ROLLBACK'); return res.status(409).json({ error: 'Le praticien n\'est pas disponible à cet horaire.' }); }
 
+      // Conflict check covers the ENTIRE group range, not just the first member
       const conflicts = await checkBookingConflicts(client, {
         bid: bk.business_id,
         pracId: bk.practitioner_id,
         newStart: start_at,
-        newEnd: end_at,
+        newEnd: groupEndAfterShift,
         excludeIds: groupMembers.map(m => m.id)
       });
       if (conflicts.length > 0) { await client.query('ROLLBACK'); return res.status(409).json({ error: 'Ce créneau n\'est plus disponible.' }); }
 
-      for (const m of groupMembers) {
+      // Increment reschedule_count only on the primary booking (first member)
+      for (let gi = 0; gi < groupMembers.length; gi++) {
+        const m = groupMembers[gi];
         const mNewStart = new Date(new Date(m.start_at).getTime() + delta);
         const mNewEnd = new Date(new Date(m.end_at).getTime() + delta);
         await client.query(
-          `UPDATE bookings SET start_at = $1, end_at = $2, reschedule_count = reschedule_count + 1, updated_at = NOW()
+          `UPDATE bookings SET start_at = $1, end_at = $2, ${gi === 0 ? 'reschedule_count = reschedule_count + 1, ' : ''}updated_at = NOW()
            WHERE id = $3`,
           [mNewStart.toISOString(), mNewEnd.toISOString(), m.id]
         );

@@ -497,17 +497,22 @@ router.post('/booking/:token/reject', async (req, res, next) => {
           [rejBk.group_id, rejBk.business_id, rejBk.id, cancelWindowHours * 60, graceMin]
         );
       }
-      // Refund gift card debits inside transaction
+      // Refund gift card debits inside transaction — only if deposit was refunded or no deposit
       const rejBkTx = result.rows[0];
+      const shouldRefundGcReject = !rejBkTx.deposit_required || rejBkTx.deposit_status === 'refunded';
       const { refundGiftCardForBooking } = require('../../services/gift-card-refund');
-      try { await refundGiftCardForBooking(rejBkTx.id, txClient); } catch (e) { console.error('[GC REFUND] reject error:', e.message); }
-      // Refund pass sessions inside transaction
+      if (shouldRefundGcReject) {
+        try { await refundGiftCardForBooking(rejBkTx.id, txClient); } catch (e) { console.error('[GC REFUND] reject error:', e.message); }
+      }
+      // Refund pass sessions inside transaction (pass = entitlement, always refund)
       await refundPassForBooking(rejBkTx.id, txClient).catch(e => console.warn('[PASS REFUND]', e.message));
       // Refund GC debits + pass sessions for group siblings inside transaction
       if (rejBkTx.group_id) {
         try {
           const sibs = await txClient.query(`SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2 AND id != $3`, [rejBkTx.group_id, rejBkTx.business_id, rejBkTx.id]);
-          for (const sib of sibs.rows) { await refundGiftCardForBooking(sib.id, txClient); }
+          if (shouldRefundGcReject) {
+            for (const sib of sibs.rows) { await refundGiftCardForBooking(sib.id, txClient); }
+          }
           for (const sib of sibs.rows) { await refundPassForBooking(sib.id, txClient).catch(e => console.warn('[PASS REFUND]', e.message)); }
         } catch (e) { console.error('[GC REFUND] sibling reject error:', e.message); }
       }

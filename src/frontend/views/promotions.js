@@ -216,7 +216,7 @@ async function openPromoModal(id) {
 function buildConditionFields(type, promo, serviceOpts) {
   switch (type) {
     case 'min_amount':
-      var minVal = promo?.condition_min_cents ? (promo.condition_min_cents / 100).toFixed(0) : '';
+      var minVal = promo?.condition_min_cents ? (promo.condition_min_cents / 100).toFixed(2) : '';
       return `<label style="font-size:.78rem;font-weight:600;color:var(--text-2);display:block;margin-bottom:6px">Montant minimum (\u20AC)</label>
         <input type="number" id="promoConditionValue" min="0" step="1" value="${esc(minVal)}" placeholder="50" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.85rem;box-sizing:border-box">`;
     case 'specific_service':
@@ -254,7 +254,7 @@ function buildRewardFields(type, promo, serviceOpts) {
       return `<label style="font-size:.78rem;font-weight:600;color:var(--text-2);display:block;margin-bottom:6px">Pourcentage de r\u00E9duction</label>
         <input type="number" id="promoRewardValue" min="1" max="100" value="${esc(pctVal)}" placeholder="20" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.85rem;box-sizing:border-box">`;
     case 'discount_fixed':
-      var fixVal = promo?.reward_value ? (promo.reward_value / 100).toFixed(0) : '';
+      var fixVal = promo?.reward_value ? (promo.reward_value / 100).toFixed(2) : '';
       return `<label style="font-size:.78rem;font-weight:600;color:var(--text-2);display:block;margin-bottom:6px">Montant de r\u00E9duction (\u20AC)</label>
         <input type="number" id="promoRewardValue" min="0" step="1" value="${esc(fixVal)}" placeholder="10" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.85rem;box-sizing:border-box">`;
     default:

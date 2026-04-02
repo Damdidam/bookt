@@ -613,6 +613,7 @@ body.theme-dark .promo-banner-arrow{background:rgba(30,30,30,.9);border-color:va
   </div>
 </div>
 
+<script src="/genda-ui-lite.js"></script>
 <script>
 const DAYS_SHORT=['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
 const DAYS_FULL=['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
@@ -2822,7 +2823,7 @@ async function submitBooking(){
 
     // Annuler — POST via fetch (jamais GET pour une action destructrice)
     if(data.booking&&data.booking.token){
-      confirmHtml+='<div style="margin-top:12px;padding:10px 14px;background:var(--surface);border-radius:8px;font-size:.78rem;color:var(--text-3)">Besoin d\'annuler ? <a href="#" onclick="event.preventDefault();if(confirm(\'\u00cates-vous s\u00fbr de vouloir annuler ce rendez-vous ?\')){fetch(\'/api/public/booking/'+data.booking.token+'/cancel\',{method:\'POST\',headers:{\'Content-Type\':\'application/json\'},body:JSON.stringify({})}).then(function(r){if(r.ok){alert(\'Rendez-vous annul\u00e9.\');location.reload();}else{r.json().then(function(d){alert(d.error||\'Erreur\');}).catch(function(){alert(\'Erreur\');});}}).catch(function(){alert(\'Erreur r\u00e9seau\');});}" style="color:#C62828;font-weight:600">Annuler le rendez-vous</a></div>';
+      confirmHtml+='<div style="margin-top:12px;padding:10px 14px;background:var(--surface);border-radius:8px;font-size:.78rem;color:var(--text-3)">Besoin d\'annuler ? <a href="#" onclick="event.preventDefault();cancelFromConfirm(\''+data.booking.token+'\')" style="color:#C62828;font-weight:600">Annuler le rendez-vous</a></div>';
     }
 
     // Mentions légales / acompte / prestations
@@ -2862,6 +2863,23 @@ async function submitBooking(){
     showError(err.message);
     btn.disabled=false;btn.textContent='Confirmer le rendez-vous →';
     _submitting=false;
+  }
+}
+
+// ──────── CANCEL FROM CONFIRM ────────
+async function cancelFromConfirm(token){
+  var ok=await showConfirm('Êtes-vous sûr de vouloir annuler ce rendez-vous ?',{okLabel:'Oui, annuler'});
+  if(!ok)return;
+  try{
+    var r=await fetch('/api/public/booking/'+token+'/cancel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
+    if(r.ok){
+      showToast('Rendez-vous annulé.','success');
+      setTimeout(function(){location.reload();},1500);
+    }else{
+      try{var d=await r.json();showToast(d.error||'Erreur','error');}catch(e){showToast('Erreur','error');}
+    }
+  }catch(e){
+    showToast('Erreur réseau','error');
   }
 }
 

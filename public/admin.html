@@ -221,6 +221,7 @@ tr:hover td{background:rgba(224,122,95,.02)}
 
 <div class="toast" id="toast"></div>
 
+<script src="/genda-ui-lite.js"></script>
 <script>
 const API = '/api/admin';
 let token = localStorage.getItem('genda_admin_token');
@@ -494,8 +495,9 @@ function toggleAnnouncement(id, active) {
     .catch(err => toast(err.message));
 }
 
-function deleteAnnouncement(id) {
-  if (!confirm('Supprimer cette annonce ?')) return;
+async function deleteAnnouncement(id) {
+  const confirmed = await showConfirm('Supprimer cette annonce ?', { okLabel: 'Supprimer' });
+  if (!confirmed) return;
   apiFetch('/announcements/' + id, { method: 'DELETE' })
     .then(() => { toast('Annonce supprimée', 'success'); loadAnnouncements(); })
     .catch(err => toast(err.message));

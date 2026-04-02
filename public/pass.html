@@ -169,6 +169,7 @@ body.ready{opacity:1}
 
 </div>
 
+<script src="/genda-ui-lite.js"></script>
 <script>
 // ── Theme presets (same as booking page) ──
 var THEMES={
@@ -437,7 +438,7 @@ var PASS_ICON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" str
 
 async function checkout() {
   if (!selectedTemplate) {
-    alert('Veuillez choisir une formule');
+    showToast('Veuillez choisir une formule', 'error');
     return;
   }
   var nameEl = document.getElementById('buyerName');
@@ -489,14 +490,14 @@ async function checkout() {
     });
     var data = await res.json();
     if (!res.ok) {
-      alert(data.error || 'Une erreur est survenue');
+      showToast(data.error || 'Une erreur est survenue', 'error');
       btn.disabled = false;
       btn.innerHTML = PASS_ICON + ' Continuer vers le paiement \u2192';
       return;
     }
     if (data.url) window.location.href = data.url;
   } catch (err) {
-    alert('Erreur de connexion');
+    showToast('Erreur de connexion', 'error');
     btn.disabled = false;
     btn.innerHTML = PASS_ICON + ' Continuer vers le paiement \u2192';
   }
@@ -649,7 +650,7 @@ async function initPassOauth() {
     var cleanUrl = window.location.pathname;
     window.history.replaceState({}, '', cleanUrl);
   } else if (_oauthError) {
-    alert('Erreur d\'authentification: ' + _oauthError);
+    showToast('Erreur d\'authentification: ' + _oauthError, 'error');
     var cleanUrl = window.location.pathname;
     window.history.replaceState({}, '', cleanUrl);
   }

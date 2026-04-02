@@ -155,6 +155,7 @@ body.ready{opacity:1}
 
 </div>
 
+<script src="/genda-ui-lite.js"></script>
 <script>
 // ── Theme presets (same as booking page) ──
 var THEMES={
@@ -480,7 +481,7 @@ async function submitGiftCard() {
     });
     var data = await res.json();
     if (!res.ok) {
-      alert(data.error || 'Une erreur est survenue');
+      showToast(data.error || 'Une erreur est survenue', 'error');
       btn.disabled = false;
       btn.innerHTML = GIFT_ICON + ' Offrir cette carte cadeau \u2192';
       return;
@@ -494,7 +495,7 @@ async function submitGiftCard() {
       window.location.href = data.url;
     }
   } catch (err) {
-    alert('Erreur de connexion');
+    showToast('Erreur de connexion', 'error');
     btn.disabled = false;
     btn.innerHTML = GIFT_ICON + ' Offrir cette carte cadeau \u2192';
   }

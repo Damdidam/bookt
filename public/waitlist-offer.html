@@ -130,6 +130,7 @@ body{font-family:var(--sans);background:var(--surface);min-height:100vh;display:
   </div>
 </div>
 
+<script src="/genda-ui-lite.js"></script>
 <script>
 const token = window.location.pathname.split('/').pop();
 let offerData = null;
@@ -232,7 +233,7 @@ async function acceptOffer() {
       } else {
         btn.disabled = false;
         btn.innerHTML = '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Je réserve ce créneau';
-        alert(data.error || 'Erreur lors de la réservation');
+        showToast(data.error || 'Erreur lors de la réservation', 'error');
       }
       return;
     }
@@ -247,19 +248,20 @@ async function acceptOffer() {
   } catch (e) {
     btn.disabled = false;
     btn.innerHTML = '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Je réserve ce créneau';
-    alert('Erreur réseau. Réessayez.');
+    showToast('Erreur réseau. Réessayez.', 'error');
   }
 }
 
 async function declineOffer() {
-  if (!confirm('Refuser ce créneau ? Il sera proposé à la personne suivante.')) return;
+  const confirmed = await showConfirm('Refuser ce créneau ? Il sera proposé à la personne suivante.', { okLabel: 'Oui, refuser' });
+  if (!confirmed) return;
 
   try {
     await fetch(`/api/public/waitlist/${token}/decline`, { method: 'POST' });
     clearInterval(countdownInterval);
     showState('declinedState');
   } catch (e) {
-    alert('Erreur réseau');
+    showToast('Erreur réseau', 'error');
   }
 }
 

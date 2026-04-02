@@ -245,6 +245,7 @@ body { background: var(--bg); font-family: var(--sans); color: var(--text); min-
   </div>
 </div>
 
+<script src="/genda-ui-lite.js"></script>
 <script>
 const token = window.location.pathname.split('/').pop();
 let bookingData = null;
@@ -465,7 +466,7 @@ async function confirmBooking() {
   } catch (e) {
     btn.disabled = false;
     btn.innerHTML = 'Ça me convient <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
-    alert('Erreur lors de la confirmation. Veuillez réessayer.');
+    showToast('Erreur lors de la confirmation. Veuillez réessayer.', 'error');
   }
 }
 
@@ -502,7 +503,7 @@ async function confirmCancel() {
     document.getElementById('alertBanner').style.display = 'none';
   } catch (e) {
     btns.forEach(b => b.disabled = false);
-    alert(e.message || 'Erreur lors de l\'annulation.');
+    showToast(e.message || 'Erreur lors de l\'annulation.', 'error');
   }
 }
 
