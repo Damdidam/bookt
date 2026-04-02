@@ -210,13 +210,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
         <div class="snav"><button class="btn-back" onclick="go(0)">← Retour</button><button class="btn-next" onclick="saveSchedule()">Continuer →</button></div>
       </div>
 
-      <!-- ===== STEP 3: SERVICES ===== -->
-      <div class="step" data-step="3">
-        <div class="step-hdr"><div class="lbl">Étape 3 · Prestations</div><h2>Vos prestations</h2><p>Pré-remplies pour votre secteur.</p></div>
-        <div id="svcList"></div>
-        <div class="clo info" style="margin-top:10px">Le moteur optimise les temps de pose entre prestations. Personnalisez durées et tarifs depuis le dashboard.</div>
-        <div class="snav"><button class="btn-back" onclick="go(2)">← Retour</button><button class="btn-next" onclick="saveOnboardingStep('services',4)">Continuer →</button></div>
-      </div>
+      <!-- STEP 3 removed: services already created at signup, editable in dashboard -->
 
       <!-- ===== STEP 4: TEAM ===== -->
       <div class="step" data-step="4">
@@ -233,7 +227,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
           </div>
         </div>
         <button class="add-btn">+ Ajouter un(e) collaborateur(rice)</button>
-        <div class="snav"><button class="btn-back" onclick="go(3)">← Retour</button><div><button class="btn-skip" onclick="go(5)">Plus tard</button><button class="btn-next" onclick="saveTeam()">Continuer →</button></div></div>
+        <div class="snav"><button class="btn-back" onclick="go(2)">← Retour</button><div><button class="btn-skip" onclick="go(5)">Plus tard</button><button class="btn-next" onclick="saveTeam()">Continuer →</button></div></div>
       </div>
 
       <!-- ===== STEP 5: BIO ===== -->
@@ -496,7 +490,6 @@ async function doSignup() {
 
     // Build sector-specific UI
     buildScheduleGrid();
-    buildServiceList();
     buildSpecTags();
 
     GendaUI.toast('Compte créé ! Configurons votre moteur de planning.', 'success');
@@ -564,37 +557,11 @@ async function saveSchedule() {
     await api.put('/api/business-hours', { schedule });
     await api.updateOnboarding('schedule');
     GendaUI.toast('Horaires enregistrés', 'success');
-    go(3);
+    go(4);
   } catch (err) { showError(err.message); }
 }
 
-// ============================================================
-// STEP 3: SERVICES (display template, already created by signup)
-// ============================================================
-function buildServiceList() {
-  const colors = ['#15803D','#E07A5F','#E07A5F','#B45309','#1D4ED8','#78716C'];
-  // Services were already created by signup — just show them
-  const svcTemplates = {
-    coiffeur: [{n:'Coupe femme',m:'45 min · 35 €'},{n:'Coupe homme',m:'25 min · 22 €'},{n:'Coloration',m:'60 min · 55 €'},{n:'Mèches / Balayage',m:'90 min · 85 €'},{n:'Brushing',m:'30 min · 25 €'},{n:'Soin kératine',m:'90 min · 95 €'}],
-    esthetique: [{n:'Soin visage complet',m:'60 min · 65 €'},{n:'Manucure',m:'30 min · 28 €'},{n:'Pédicure',m:'45 min · 35 €'},{n:'Épilation jambes',m:'30 min · 30 €'},{n:'Extension cils',m:'90 min · 75 €'},{n:'Maquillage',m:'45 min · 45 €'}],
-    barbier: [{n:'Coupe classique',m:'30 min · 25 €'},{n:'Coupe + barbe',m:'45 min · 35 €'},{n:'Taille de barbe',m:'20 min · 15 €'},{n:'Rasage traditionnel',m:'30 min · 28 €'},{n:'Coloration barbe',m:'20 min · 18 €'},{n:'Soin visage homme',m:'30 min · 30 €'}],
-    massage: [{n:'Massage relaxant',m:'60 min · 65 €'},{n:'Massage sportif',m:'45 min · 55 €'},{n:'Réflexologie plantaire',m:'45 min · 50 €'},{n:'Massage duo',m:'60 min · 120 €'},{n:'Aromathérapie',m:'75 min · 80 €'}],
-    onglerie: [{n:'Manucure classique',m:'30 min · 25 €'},{n:'Manucure semi-permanent',m:'45 min · 38 €'},{n:'Pose gel complète',m:'75 min · 55 €'},{n:'Remplissage gel',m:'45 min · 38 €'},{n:'Nail art',m:'15 min · 10 €'},{n:'Pédicure spa',m:'50 min · 40 €'}],
-    tatouage: [{n:'Consultation design',m:'30 min · Gratuit'},{n:'Petit tatouage',m:'60 min · 80 €'},{n:'Tatouage moyen',m:'120 min · 180 €'},{n:'Grande pièce (session)',m:'180 min · 350 €'},{n:'Retouche',m:'30 min · 40 €'}],
-    bienetre: [{n:'Soin énergétique',m:'60 min · 65 €'},{n:'Sophrologie',m:'45 min · 50 €'},{n:'Réflexologie',m:'45 min · 50 €'},{n:'Shiatsu',m:'60 min · 70 €'},{n:'Hypnose',m:'60 min · 65 €'}],
-    autre: [{n:'Prestation standard',m:'45 min · 50 €'},{n:'Prestation longue',m:'90 min · 85 €'},{n:'Retouche / Suivi',m:'20 min · 25 €'}]
-  };
-  const svcs = svcTemplates[sector] || svcTemplates.autre;
-  const el = document.getElementById('svcList');
-  el.innerHTML = '';
-  svcs.forEach((s, i) => {
-    el.innerHTML += `<div class="svc">
-      <div class="dot" style="background:${colors[i%colors.length]}"></div>
-      <div class="inf"><div class="nm">${s.n}</div><div class="mt">${s.m}</div></div>
-      <div class="tog on" onclick="this.classList.toggle('on')"></div>
-    </div>`;
-  });
-}
+// STEP 3 removed: services already created at signup, editable in dashboard
 
 // ============================================================
 // STEP 4: TEAM → PATCH /api/site/practitioners/:id
