@@ -112,7 +112,7 @@ async function loadTeam() {
 
     let h = `<div class="tm-list-header">
       <h3>${practs.length} membre${practs.length > 1 ? 's' : ''} de l'équipe</h3>
-      <button class="btn-primary" onclick="openPractModal()">+ Ajouter</button>
+      <button class="btn-primary btn-sm" onclick="openPractModal()">+ Ajouter</button>
     </div>`;
 
     if (practs.length === 0) {

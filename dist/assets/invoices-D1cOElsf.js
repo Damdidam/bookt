@@ -1,11 +1,11 @@
-import{s as k,a as x,G as u,l as z,d as T}from"./dashboard-lFL52qqi.js";let p="all",y="all",h=[];function b(i){return String(i||"").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}function f(i){return((i||0)/100).toFixed(2).replace(".",",")+" €"}async function _(){const i=document.getElementById("contentArea");i.innerHTML='<div class="loading"><div class="spinner"></div></div>';try{const t=new URLSearchParams;p!=="all"&&t.set("status",p),y!=="all"&&t.set("type",y);const e=await x.get(`/api/invoices?${t}`),o=e.invoices||[],s=e.stats||{};let r="";r+=`<div class="stats" style="grid-template-columns:repeat(4,1fr)">
+import{s as k,a as x,G as u,l as z,d as T}from"./dashboard-pPJhZMxu.js";let p="all",y="all",h=[];function b(i){return String(i||"").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}function f(i){return((i||0)/100).toFixed(2).replace(".",",")+" €"}async function _(){const i=document.getElementById("contentArea");i.innerHTML='<div class="loading"><div class="spinner"></div></div>';try{const t=new URLSearchParams;p!=="all"&&t.set("status",p),y!=="all"&&t.set("type",y);const e=await x.get(`/api/invoices?${t}`),o=e.invoices||[],s=e.stats||{};let r="";r+=`<div class="stats" style="grid-template-columns:repeat(4,1fr)">
       <div class="stat-card"><div class="label">Brouillons</div><div class="val">${s.drafts||0}</div></div>
       <div class="stat-card"><div class="label">En attente</div><div class="val" style="color:var(--gold)">${f(parseInt(s.total_pending||0))}</div><div class="sub">${parseInt(s.sent||0)+parseInt(s.overdue||0)} factures</div></div>
       <div class="stat-card"><div class="label">Payées</div><div class="val" style="color:var(--green)">${f(parseInt(s.total_paid||0))}</div><div class="sub">${s.paid||0} factures</div></div>
       <div class="stat-card"><div class="label">En retard</div><div class="val" style="color:var(--red)">${s.overdue||0}</div></div>
     </div>`,r+=`<div class="card" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 16px">
-      <button onclick="openInvoiceModal()" class="btn-primary">+ Nouvelle facture</button>
-      <button onclick="openInvoiceModal('quote')" class="btn-primary" style="background:var(--gold)">+ Devis</button>
+      <button onclick="openInvoiceModal()" class="btn-primary btn-sm">+ Nouvelle facture</button>
+      <button onclick="openInvoiceModal('quote')" class="btn-primary btn-sm" style="background:var(--gold)">+ Devis</button>
       <div style="flex:1"></div>
       <select onchange="invoiceType=this.value;loadInvoices()" style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.78rem">
         <option value="all" ${y==="all"?"selected":""}>Tous types</option>

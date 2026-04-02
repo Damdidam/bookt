@@ -48,7 +48,7 @@ async function loadDeposits(){
       <input type="date" value="${esc(depositTo)}" onchange="depositTo=this.value;loadDeposits()" style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.78rem" title="Date fin">
       ${(depositFilter!=='all'||depositFrom||depositTo)?`<button onclick="depositFilter='all';depositFrom='';depositTo='';loadDeposits()" class="btn-outline btn-sm">Effacer filtres</button>`:''}
       <div style="flex:1"></div>
-      <button onclick="exportDepositsCSV()" class="btn-primary"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px;margin-right:4px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export CSV</button>
+      <button onclick="exportDepositsCSV()" class="btn-outline btn-sm"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px;margin-right:4px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export CSV</button>
     </div>`;
 
     // ── TABLE ──

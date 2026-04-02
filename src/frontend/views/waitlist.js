@@ -53,7 +53,7 @@ async function loadWaitlist(){
       pracs.forEach(p=>{h+=`<option value="${p.id}" ${viewState.wlPracFilter===p.id?'selected':''}>${p.display_name}</option>`;});
       h+=`</select>`;
     }
-    h+=`<button class="btn-primary" onclick="wlOpenAdd()" style="margin-left:auto">+ Ajouter</button>`;
+    h+=`<button class="btn-primary btn-sm" onclick="wlOpenAdd()" style="margin-left:auto">+ Ajouter</button>`;
     h+=`</div>`;
 
     // Entries list

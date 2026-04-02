@@ -202,7 +202,7 @@ function buildHTML() {
     <div style="display:flex;gap:8px;margin-left:auto">
       <button class="btn-outline btn-sm" onclick="planExportCSV()" style="display:flex;align-items:center;gap:4px">${ICONS.download} Export</button>
       <button class="btn-outline btn-sm" onclick="planOpenSendModal()" style="display:flex;align-items:center;gap:4px">${ICONS.send} Envoyer</button>
-      <button class="btn-primary" onclick="planOpenModal()">${ICONS.plus} Nouvelle absence</button>
+      <button class="btn-primary btn-sm" onclick="planOpenModal()">${ICONS.plus} Nouvelle absence</button>
     </div>
   </div>`;
 

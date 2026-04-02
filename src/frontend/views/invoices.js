@@ -33,8 +33,8 @@ async function loadInvoices(){
 
     // Actions bar
     h+=`<div class="card" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 16px">
-      <button onclick="openInvoiceModal()" class="btn-primary">+ Nouvelle facture</button>
-      <button onclick="openInvoiceModal('quote')" class="btn-primary" style="background:var(--gold)">+ Devis</button>
+      <button onclick="openInvoiceModal()" class="btn-primary btn-sm">+ Nouvelle facture</button>
+      <button onclick="openInvoiceModal('quote')" class="btn-primary btn-sm" style="background:var(--gold)">+ Devis</button>
       <div style="flex:1"></div>
       <select onchange="invoiceType=this.value;loadInvoices()" style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.78rem">
         <option value="all" ${invoiceType==='all'?'selected':''}>Tous types</option>
