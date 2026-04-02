@@ -129,7 +129,7 @@ async function sendPostBookingComms({
           );
         } catch (_) { /* best-effort audit */ }
         // SMS with deposit payment link
-        if (clientPhone && ['pro', 'premium'].includes(bizRow.rows[0].plan)) {
+        if (clientPhone && bizRow.rows[0].plan !== 'free') {
           try {
             const { sendSMS } = require('../../services/sms');
             const _sd = new Date(emailBooking.start_at);
@@ -194,8 +194,8 @@ async function sendPostBookingComms({
         if (groupServices) emailOpts.groupServices = groupServices;
         await sendBookingConfirmation(emailOpts);
 
-        // SMS confirmation (pro/premium plans)
-        if (clientPhone && ['pro', 'premium'].includes(bizRow.rows[0].plan)) {
+        // SMS confirmation (pro plan)
+        if (clientPhone && bizRow.rows[0].plan !== 'free') {
           try {
             const { sendSMS } = require('../../services/sms');
             const baseUrl = BASE_URL;

@@ -1,12 +1,11 @@
 /**
  * Stripe Subscription Management
  * Handles: checkout, webhooks, customer portal, plan sync
- * 
+ *
  * ENV vars needed:
  *   STRIPE_SECRET_KEY        — sk_live_... or sk_test_...
  *   STRIPE_WEBHOOK_SECRET    — whsec_...
- *   STRIPE_PRICE_PRO         — price_... (39€/month)
- *   STRIPE_PRICE_PREMIUM     — price_... (79€/month)
+ *   STRIPE_PRICE_PRO         — price_... (60€/month)
  *   APP_BASE_URL             — https://genda.be
  */
 
@@ -21,8 +20,7 @@ function getStripe() {
 }
 
 const PLAN_PRICES = {
-  pro: () => process.env.STRIPE_PRICE_PRO,
-  premium: () => process.env.STRIPE_PRICE_PREMIUM
+  pro: () => process.env.STRIPE_PRICE_PRO
 };
 
 const PRICE_TO_PLAN = {};
@@ -30,16 +28,14 @@ const PRICE_TO_PLAN = {};
 function getPriceToPlan() {
   if (Object.keys(PRICE_TO_PLAN).length === 0) {
     const pro = process.env.STRIPE_PRICE_PRO;
-    const premium = process.env.STRIPE_PRICE_PREMIUM;
     if (pro) PRICE_TO_PLAN[pro] = 'pro';
-    if (premium) PRICE_TO_PLAN[premium] = 'premium';
   }
   return PRICE_TO_PLAN;
 }
 
 // ============================================================
 // POST /api/stripe/checkout — Create Stripe Checkout Session
-// Body: { plan: 'pro' | 'premium' }
+// Body: { plan: 'pro' }
 // ============================================================
 router.post('/checkout', requireAuth, requireOwner, async (req, res, next) => {
   try {
@@ -50,7 +46,7 @@ router.post('/checkout', requireAuth, requireOwner, async (req, res, next) => {
     const { plan } = req.body;
 
     if (!plan || !PLAN_PRICES[plan]) {
-      return res.status(400).json({ error: 'Plan invalide. Choisissez pro ou premium.' });
+      return res.status(400).json({ error: 'Plan invalide.' });
     }
 
     const priceId = PLAN_PRICES[plan]();
@@ -104,7 +100,6 @@ router.post('/checkout', requireAuth, requireOwner, async (req, res, next) => {
         quantity: 1
       }],
       subscription_data: {
-        trial_period_days: 14,
         metadata: { business_id: bid, plan }
       },
       success_url: `${baseUrl}/dashboard?subscription=success&plan=${plan}`,
@@ -115,11 +110,6 @@ router.post('/checkout', requireAuth, requireOwner, async (req, res, next) => {
       tax_id_collection: { enabled: true },
       metadata: { business_id: bid, plan }
     };
-
-    // If upgrading from pro → premium, no trial
-    if (biz.current_plan === 'pro' && plan === 'premium') {
-      delete sessionParams.subscription_data.trial_period_days;
-    }
 
     const session = await stripe.checkout.sessions.create(sessionParams);
 

@@ -470,7 +470,7 @@ router.patch('/dev/plan', requireOwner, async (req, res, next) => {
   try {
     if (process.env.NODE_ENV === 'production') return res.status(403).json({ error: 'Non disponible en production' });
     const { plan } = req.body;
-    const allowed = ['free', 'pro', 'premium'];
+    const allowed = ['free', 'pro'];
     if (!allowed.includes(plan)) {
       return res.status(400).json({ error: 'Plan invalide. Valeurs: ' + allowed.join(', ') });
     }

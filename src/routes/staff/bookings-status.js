@@ -1359,7 +1359,7 @@ router.post('/:id/send-deposit-request', async (req, res, next) => {
     for (const ch of channels) {
       if (ch === 'email' && !bk.client_email) { skipped.push('email (pas d\'adresse email)'); continue; }
       if (ch === 'sms' && !bk.client_phone) { skipped.push('sms (pas de numéro)'); continue; }
-      if (ch === 'sms' && !['pro', 'premium'].includes(bk.plan)) { skipped.push('sms (plan Pro requis)'); continue; }
+      if (ch === 'sms' && bk.plan === 'free') { skipped.push('sms (plan Pro requis)'); continue; }
       validChannels.push(ch);
     }
     if (validChannels.length === 0) {

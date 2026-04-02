@@ -147,7 +147,7 @@ router.patch('/businesses/:id', async (req, res, next) => {
       sets.push(`is_active = $${idx++}`);
       params.push(is_active);
     }
-    if (plan && ['free', 'pro', 'premium'].includes(plan)) {
+    if (plan && ['free', 'pro'].includes(plan)) {
       sets.push(`plan = $${idx++}`);
       params.push(plan);
     }

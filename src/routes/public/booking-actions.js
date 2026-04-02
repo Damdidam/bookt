@@ -852,8 +852,8 @@ router.get('/booking/:token/confirm-booking', async (req, res, next) => {
             if (groupServices && groupServices.length > 1) emailBk.end_at = groupServices[groupServices.length - 1].end_at;
             await sendBookingConfirmation({ booking: emailBk, business: bizRow.rows[0], groupServices });
 
-            // SMS confirmation (pro/premium)
-            if (emailBk.client_phone && ['pro', 'premium'].includes(bizRow.rows[0].plan)) {
+            // SMS confirmation (pro plan)
+            if (emailBk.client_phone && bizRow.rows[0].plan !== 'free') {
               try {
                 const { sendSMS } = require('../../services/sms');
                 const { BASE_URL } = require('./helpers');
@@ -1397,8 +1397,8 @@ router.post('/booking/:token/confirm-booking', async (req, res, next) => {
             groupServices
           });
 
-          // SMS confirmation (pro/premium)
-          if (row.client_phone && ['pro', 'premium'].includes(row.biz_plan)) {
+          // SMS confirmation (pro plan)
+          if (row.client_phone && row.biz_plan !== 'free') {
             try {
               const { sendSMS } = require('../../services/sms');
               const { BASE_URL } = require('./helpers');

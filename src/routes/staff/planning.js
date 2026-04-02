@@ -981,7 +981,7 @@ router.post('/notify-impacted', requireOwner, async (req, res, next) => {
       `SELECT name, email, phone, address, plan, theme, settings, slug FROM businesses WHERE id = $1`, [bid]
     );
     const business = bizResult.rows[0] || { name: 'Genda' };
-    const hasSms = ['pro', 'premium'].includes(business.plan);
+    const hasSms = business.plan !== 'free';
     const primaryColor = business.theme?.primary_color;
 
     const pracName = filtered[0]?.practitioner_name || 'votre praticien';

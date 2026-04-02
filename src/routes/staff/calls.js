@@ -396,8 +396,7 @@ router.delete('/blacklist/:id', requireRole('owner', 'manager'), async (req, res
 
 const PLAN_QUOTAS = {
   free: { units: 0, extra_price_cents: 0, voicemail: false },
-  pro: { units: 100, extra_price_cents: 15, voicemail: false },
-  premium: { units: 300, extra_price_cents: 10, voicemail: true }
+  pro: { units: 200, extra_price_cents: 15, voicemail: true }
 };
 
 // GET /api/calls/usage

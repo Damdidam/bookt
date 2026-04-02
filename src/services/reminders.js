@@ -15,7 +15,7 @@ const { query, queryWithRLS, pool } = require('../services/db');
 const { sendEmail, buildEmailHTML, escHtml } = require('../services/email');
 const { sendSMS } = require('../services/sms');
 
-const PLANS_WITH_SMS = ['pro', 'premium'];
+const PLANS_WITH_SMS = ['pro'];
 
 /**
  * Process all pending reminders
