@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const { query, queryWithRLS } = require('../../services/db');
-const { requireAuth, requireOwner, requireRole } = require('../../middleware/auth');
+const { requireAuth, requireOwner } = require('../../middleware/auth');
 
 // V11-025: Strip HTML tags from text fields to prevent injection
 function stripHtml(str) {
@@ -597,7 +597,7 @@ router.get('/sector-categories', requireAuth, async (req, res) => {
 });
 
 // POST /api/business/categories — create a custom category
-router.post('/categories', requireRole('owner', 'manager'), async (req, res, next) => {
+router.post('/categories', requireOwner, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { label, description, icon_svg, color } = req.body;
@@ -631,7 +631,7 @@ router.post('/categories', requireRole('owner', 'manager'), async (req, res, nex
 });
 
 // PATCH /api/business/categories/reorder — batch update sort_order (MUST be before /:id)
-router.patch('/categories/reorder', requireRole('owner', 'manager'), async (req, res, next) => {
+router.patch('/categories/reorder', requireOwner, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { order } = req.body;
@@ -647,7 +647,7 @@ router.patch('/categories/reorder', requireRole('owner', 'manager'), async (req,
 });
 
 // PATCH /api/business/categories/:id — update a custom category
-router.patch('/categories/:id', requireRole('owner', 'manager'), async (req, res, next) => {
+router.patch('/categories/:id', requireOwner, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const allowed = ['label', 'description', 'icon_svg', 'sort_order', 'color'];
@@ -670,7 +670,7 @@ router.patch('/categories/:id', requireRole('owner', 'manager'), async (req, res
 });
 
 // DELETE /api/business/categories/:id — delete a custom category
-router.delete('/categories/:id', requireRole('owner', 'manager'), async (req, res, next) => {
+router.delete('/categories/:id', requireOwner, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const result = await queryWithRLS(bid,

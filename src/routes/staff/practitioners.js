@@ -754,7 +754,7 @@ router.post('/:id/invite', requireOwner, async (req, res, next) => {
     if (!password) return res.status(400).json({ error: 'Mot de passe requis' });
     if (password.length < 8) return res.status(400).json({ error: 'Mot de passe trop court (minimum 8 caractères)' });
 
-    const validRoles = ['manager', 'practitioner', 'receptionist'];
+    const validRoles = ['owner', 'practitioner'];
     const userRole = validRoles.includes(role) ? role : 'practitioner';
 
     const pract = await queryWithRLS(bid,
@@ -802,7 +802,7 @@ router.patch('/:id/role', requireOwner, async (req, res, next) => {
     const { id } = req.params;
     const { role } = req.body;
 
-    const validRoles = ['manager', 'practitioner', 'receptionist'];
+    const validRoles = ['owner', 'practitioner'];
     if (!validRoles.includes(role)) {
       return res.status(400).json({ error: `Rôle invalide. Valeurs acceptées : ${validRoles.join(', ')}` });
     }

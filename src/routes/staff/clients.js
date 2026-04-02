@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const { queryWithRLS } = require('../../services/db');
-const { requireAuth, requireRole, resolvePractitionerScope } = require('../../middleware/auth');
+const { requireAuth, requireOwner, resolvePractitionerScope } = require('../../middleware/auth');
 
 router.use(requireAuth);
 router.use(resolvePractitionerScope);
@@ -287,8 +287,8 @@ router.get('/:id', async (req, res, next) => {
 });
 
 // PATCH /api/clients/:id — update client
-// V11-013: Only owner/manager can edit client details
-router.patch('/:id', requireRole('owner', 'manager'), async (req, res, next) => {
+// V11-013: Only owner can edit client details
+router.patch('/:id', requireOwner, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const sets = [];
@@ -328,7 +328,7 @@ router.patch('/:id', requireRole('owner', 'manager'), async (req, res, next) => 
 // ============================================================
 // POST /api/clients/:id/block — block client from online booking
 // ============================================================
-router.post('/:id/block', requireRole('owner', 'manager'), async (req, res, next) => {
+router.post('/:id/block', requireOwner, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { reason } = req.body;
@@ -352,7 +352,7 @@ router.post('/:id/block', requireRole('owner', 'manager'), async (req, res, next
 // ============================================================
 // POST /api/clients/:id/unblock — unblock client
 // ============================================================
-router.post('/:id/unblock', requireRole('owner', 'manager'), async (req, res, next) => {
+router.post('/:id/unblock', requireOwner, async (req, res, next) => {
   try {
     const bid = req.businessId;
 
@@ -375,7 +375,7 @@ router.post('/:id/unblock', requireRole('owner', 'manager'), async (req, res, ne
 // ============================================================
 // POST /api/clients/:id/reset-noshow — reset no-show counter
 // ============================================================
-router.post('/:id/reset-noshow', requireRole('owner', 'manager'), async (req, res, next) => {
+router.post('/:id/reset-noshow', requireOwner, async (req, res, next) => {
   try {
     const bid = req.businessId;
 
@@ -400,7 +400,7 @@ router.post('/:id/reset-noshow', requireRole('owner', 'manager'), async (req, re
 // ============================================================
 // POST /api/clients/:id/reset-expired — reset expired pending counter
 // ============================================================
-router.post('/:id/reset-expired', requireRole('owner', 'manager'), async (req, res, next) => {
+router.post('/:id/reset-expired', requireOwner, async (req, res, next) => {
   try {
     const bid = req.businessId;
 

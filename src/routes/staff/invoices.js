@@ -1,10 +1,10 @@
 const router = require('express').Router();
 const { queryWithRLS, query, transactionWithRLS } = require('../../services/db');
-const { requireAuth, requireOwner, requireRole } = require('../../middleware/auth');
+const { requireAuth, requireOwner } = require('../../middleware/auth');
 const { generateInvoicePDF, generateStructuredComm, getNextInvoiceNumber } = require('../../services/invoice-pdf');
 
 router.use(requireAuth);
-router.use(requireRole('owner'));
+router.use(requireOwner);
 
 // ============================================================
 // GET /api/invoices — list invoices with filters

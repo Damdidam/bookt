@@ -1,10 +1,10 @@
 const router = require('express').Router();
 const crypto = require('crypto');
 const { queryWithRLS, transactionWithRLS } = require('../../services/db');
-const { requireAuth, requireRole } = require('../../middleware/auth');
+const { requireAuth, requireOwner } = require('../../middleware/auth');
 
 router.use(requireAuth);
-router.use(requireRole('owner', 'manager'));
+router.use(requireOwner);
 
 /** Generate unique pass code: PS-XXXX-XXXX */
 function generateCode() {

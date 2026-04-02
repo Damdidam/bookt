@@ -1,9 +1,9 @@
 const router = require('express').Router();
 const { queryWithRLS } = require('../../services/db');
-const { requireAuth, requireRole } = require('../../middleware/auth');
+const { requireAuth, requireOwner } = require('../../middleware/auth');
 
 router.use(requireAuth);
-router.use(requireRole('owner', 'manager'));
+router.use(requireOwner);
 
 // ============================================================
 // GET /api/deposits — list deposit transactions + stats

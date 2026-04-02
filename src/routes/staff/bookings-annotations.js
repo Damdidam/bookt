@@ -269,7 +269,7 @@ router.delete('/:bookingId/notes/:noteId', async (req, res, next) => {
     if (!(await checkPracScope(req, res, bid, req.params.bookingId))) return;
 
     const result = await queryWithRLS(bid,
-      `DELETE FROM booking_notes WHERE id = $1 AND booking_id = $2 AND business_id = $3 AND (author_id = $4 OR $5 IN ('owner', 'manager')) RETURNING id`,
+      `DELETE FROM booking_notes WHERE id = $1 AND booking_id = $2 AND business_id = $3 AND (author_id = $4 OR $5 = 'owner') RETURNING id`,
       [req.params.noteId, req.params.bookingId, bid, req.user.id, req.user.role]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Note introuvable' });
@@ -358,7 +358,7 @@ router.patch('/:bookingId/todos/:todoId', async (req, res, next) => {
     const result = await queryWithRLS(bid,
       `UPDATE practitioner_todos SET ${sets.join(', ')}
        WHERE id = $${idx} AND booking_id = $${idx + 1} AND business_id = $${idx + 2}
-       AND (user_id = $${idx + 3} OR $${idx + 4} IN ('owner', 'manager'))
+       AND (user_id = $${idx + 3} OR $${idx + 4} = 'owner')
        RETURNING *`,
       params
     );
@@ -378,7 +378,7 @@ router.delete('/:bookingId/todos/:todoId', async (req, res, next) => {
     if (!(await checkPracScope(req, res, bid, req.params.bookingId))) return;
 
     const result = await queryWithRLS(bid,
-      `DELETE FROM practitioner_todos WHERE id = $1 AND booking_id = $2 AND business_id = $3 AND (user_id = $4 OR $5 IN ('owner', 'manager')) RETURNING id`,
+      `DELETE FROM practitioner_todos WHERE id = $1 AND booking_id = $2 AND business_id = $3 AND (user_id = $4 OR $5 = 'owner') RETURNING id`,
       [req.params.todoId, req.params.bookingId, bid, req.user.id, req.user.role]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Tâche introuvable' });

@@ -1,9 +1,9 @@
 const router = require('express').Router();
 const { queryWithRLS, query } = require('../../services/db');
-const { requireAuth, requireOwner, requireRole } = require('../../middleware/auth');
+const { requireAuth, requireOwner } = require('../../middleware/auth');
 
 router.use(requireAuth);
-router.use(requireRole('owner'));
+router.use(requireOwner);
 
 // ============================================================
 // TESTIMONIALS

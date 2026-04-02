@@ -4,7 +4,7 @@
  */
 const router = require('express').Router();
 const { queryWithRLS } = require('../../services/db');
-const { requireAuth, requireRole } = require('../../middleware/auth');
+const { requireAuth, requireOwner } = require('../../middleware/auth');
 
 // List news posts
 router.get('/', requireAuth, async (req, res, next) => {
@@ -21,7 +21,7 @@ router.get('/', requireAuth, async (req, res, next) => {
 });
 
 // Create news post
-router.post('/', requireAuth, requireRole('owner','manager'), async (req, res, next) => {
+router.post('/', requireAuth, requireOwner, async (req, res, next) => {
   try {
     const { title, content, tag, tag_type, image_url, published_at } = req.body;
     if (!title || !content) return res.status(400).json({ error: 'title and content required' });
@@ -36,7 +36,7 @@ router.post('/', requireAuth, requireRole('owner','manager'), async (req, res, n
 });
 
 // Update news post
-router.put('/:id', requireAuth, requireRole('owner','manager'), async (req, res, next) => {
+router.put('/:id', requireAuth, requireOwner, async (req, res, next) => {
   try {
     const { title, content, tag, tag_type, image_url, published_at, is_active } = req.body;
 
@@ -73,7 +73,7 @@ router.put('/:id', requireAuth, requireRole('owner','manager'), async (req, res,
 });
 
 // Delete news post
-router.delete('/:id', requireAuth, requireRole('owner','manager'), async (req, res, next) => {
+router.delete('/:id', requireAuth, requireOwner, async (req, res, next) => {
   try {
     await queryWithRLS(req.businessId,
       `DELETE FROM news_posts WHERE id = $1 AND business_id = $2`,

@@ -75,13 +75,10 @@ function requireOwner(req, res, next) {
 
 /**
  * Require one of the specified roles.
- * Usage: requireRole('owner', 'manager')
- *        requireRole('owner', 'manager', 'receptionist')
+ * Usage: requireRole('owner')
  *
- * Role hierarchy (for reference, NOT auto-inherited):
+ * Roles (v64 simplified):
  *   owner        → full access
- *   manager      → agenda all, clients, documents, waitlist
- *   receptionist → agenda all (read/create/modify), clients
  *   practitioner → own agenda, own clients (read only mostly)
  */
 function requireRole(...roles) {

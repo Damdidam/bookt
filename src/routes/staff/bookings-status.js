@@ -1716,9 +1716,9 @@ router.delete('/:id', async (req, res, next) => {
       );
       if (check.rows.length === 0) return { error: 404, message: 'RDV introuvable' };
 
-      // Only owner/manager can permanently delete bookings
+      // Only owner can permanently delete bookings
       if (req.user.role === 'practitioner') {
-        return { error: 403, message: 'Seuls les propriétaires et managers peuvent supprimer des RDV' };
+        return { error: 403, message: 'Seuls les propriétaires peuvent supprimer des RDV' };
       }
 
       // Practitioner scope: can only delete own bookings

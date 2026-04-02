@@ -4,7 +4,7 @@
  */
 const router = require('express').Router();
 const { queryWithRLS } = require('../../services/db');
-const { requireAuth, requireRole } = require('../../middleware/auth');
+const { requireAuth, requireOwner } = require('../../middleware/auth');
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -91,7 +91,7 @@ router.get('/', requireAuth, async (req, res, next) => {
 });
 
 // POST / — create promo
-router.post('/', requireAuth, requireRole('owner', 'manager'), async (req, res, next) => {
+router.post('/', requireAuth, requireOwner, async (req, res, next) => {
   try {
     const {
       title, description, condition_type, condition_service_id, condition_min_cents,
@@ -163,7 +163,7 @@ router.post('/', requireAuth, requireRole('owner', 'manager'), async (req, res, 
 });
 
 // PATCH /reorder — reorder promos
-router.patch('/reorder', requireAuth, requireRole('owner', 'manager'), async (req, res, next) => {
+router.patch('/reorder', requireAuth, requireOwner, async (req, res, next) => {
   try {
     const { ordered_ids } = req.body;
     if (!Array.isArray(ordered_ids) || !ordered_ids.length) {
@@ -187,7 +187,7 @@ router.patch('/reorder', requireAuth, requireRole('owner', 'manager'), async (re
 });
 
 // PATCH /:id — update promo
-router.patch('/:id', requireAuth, requireRole('owner', 'manager'), async (req, res, next) => {
+router.patch('/:id', requireAuth, requireOwner, async (req, res, next) => {
   try {
     if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid promotion ID' });
 
@@ -282,7 +282,7 @@ router.patch('/:id', requireAuth, requireRole('owner', 'manager'), async (req, r
 });
 
 // DELETE /:id — delete promo
-router.delete('/:id', requireAuth, requireRole('owner', 'manager'), async (req, res, next) => {
+router.delete('/:id', requireAuth, requireOwner, async (req, res, next) => {
   try {
     if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid promotion ID' });
 

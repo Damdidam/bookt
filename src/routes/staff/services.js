@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const { queryWithRLS, transactionWithRLS } = require('../../services/db');
-const { requireAuth, requireRole } = require('../../middleware/auth');
+const { requireAuth, requireOwner } = require('../../middleware/auth');
 
 router.use(requireAuth);
 
@@ -52,7 +52,7 @@ router.get('/', async (req, res, next) => {
 });
 
 // POST /api/services — create a service
-router.post('/', requireRole('owner', 'manager'), async (req, res, next) => {
+router.post('/', requireOwner, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { name, category, duration_min, buffer_before_min, buffer_after_min,
@@ -145,7 +145,7 @@ router.post('/', requireRole('owner', 'manager'), async (req, res, next) => {
 });
 
 // PATCH /api/services/reorder — batch update sort_order (MUST be before /:id)
-router.patch('/reorder', requireRole('owner', 'manager'), async (req, res, next) => {
+router.patch('/reorder', requireOwner, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { order } = req.body;
@@ -170,7 +170,7 @@ router.patch('/reorder', requireRole('owner', 'manager'), async (req, res, next)
 });
 
 // PATCH /api/services/:id — update a service
-router.patch('/:id', requireRole('owner', 'manager'), async (req, res, next) => {
+router.patch('/:id', requireOwner, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
@@ -350,7 +350,7 @@ router.patch('/:id', requireRole('owner', 'manager'), async (req, res, next) => 
 });
 
 // PATCH /api/services/:id/deactivate — soft delete (set inactive)
-router.patch('/:id/deactivate', requireRole('owner', 'manager'), async (req, res, next) => {
+router.patch('/:id/deactivate', requireOwner, async (req, res, next) => {
   try {
     await queryWithRLS(req.businessId,
       `UPDATE services SET is_active = false, updated_at = NOW()
@@ -371,7 +371,7 @@ router.patch('/:id/deactivate', requireRole('owner', 'manager'), async (req, res
 });
 
 // PATCH /api/services/category-toggle — bulk activate/deactivate all services in a category
-router.patch('/category-toggle', requireRole('owner', 'manager'), async (req, res, next) => {
+router.patch('/category-toggle', requireOwner, async (req, res, next) => {
   try {
     const { category, is_active } = req.body;
     if (!category || typeof is_active !== 'boolean') return res.status(400).json({ error: 'category and is_active required' });
@@ -400,7 +400,7 @@ router.patch('/category-toggle', requireRole('owner', 'manager'), async (req, re
 
 // DELETE /api/services/:id — permanent delete (blocked only if active bookings exist)
 // M7: Wrapped in transaction to prevent TOCTOU race (booking created between check & delete)
-router.delete('/:id', requireRole('owner', 'manager'), async (req, res, next) => {
+router.delete('/:id', requireOwner, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
@@ -471,7 +471,7 @@ router.get('/:serviceId/variants', async (req, res, next) => {
 });
 
 // POST /api/services/:serviceId/variants
-router.post('/:serviceId/variants', requireRole('owner', 'manager'), async (req, res, next) => {
+router.post('/:serviceId/variants', requireOwner, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { serviceId } = req.params;
@@ -497,7 +497,7 @@ router.post('/:serviceId/variants', requireRole('owner', 'manager'), async (req,
 });
 
 // PATCH /api/services/:serviceId/variants/:variantId
-router.patch('/:serviceId/variants/:variantId', requireRole('owner', 'manager'), async (req, res, next) => {
+router.patch('/:serviceId/variants/:variantId', requireOwner, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { variantId } = req.params;
@@ -547,7 +547,7 @@ router.patch('/:serviceId/variants/:variantId', requireRole('owner', 'manager'),
 });
 
 // DELETE /api/services/:serviceId/variants/:variantId — soft delete
-router.delete('/:serviceId/variants/:variantId', requireRole('owner', 'manager'), async (req, res, next) => {
+router.delete('/:serviceId/variants/:variantId', requireOwner, async (req, res, next) => {
   try {
     await queryWithRLS(req.businessId,
       `UPDATE service_variants SET is_active = false, updated_at = NOW()

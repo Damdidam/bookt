@@ -26,7 +26,7 @@ router.patch('/:id/ungroup', async (req, res, next) => {
 
     const { practitioner_id, service_id } = req.body;
 
-    // Only owner/manager/staff can ungroup — not practitioners
+    // Only owner can ungroup — not practitioners
     if (req.user.role === 'practitioner') {
       return res.status(403).json({ error: 'Seuls les gestionnaires peuvent détacher une prestation du groupe' });
     }
@@ -271,7 +271,7 @@ router.delete('/:id/group-remove', async (req, res, next) => {
     const { id } = req.params;
     if (!UUID_RE.test(id)) return res.status(400).json({ error: 'ID invalide' });
 
-    // Only owner/manager/staff can remove — not practitioners
+    // Only owner can remove — not practitioners
     if (req.user.role === 'practitioner') {
       return res.status(403).json({ error: 'Seuls les gestionnaires peuvent supprimer une prestation du groupe' });
     }
@@ -669,7 +669,7 @@ router.post('/:id/group-add', async (req, res, next) => {
 
     const { service_id, variant_id, force } = req.body;
 
-    // Only owner/manager/staff can add to group — not practitioners
+    // Only owner can add to group — not practitioners
     if (req.user.role === 'practitioner') {
       return res.status(403).json({ error: 'Seuls les gestionnaires peuvent ajouter une prestation au groupe' });
     }
