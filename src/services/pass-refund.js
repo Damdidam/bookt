@@ -18,7 +18,7 @@ async function refundPassForBooking(bookingId, dbClient) {
     );
     if (existing.rows.length > 0) continue;
     await q(
-      `UPDATE passes SET sessions_remaining = sessions_remaining + ABS($1), status = CASE WHEN status = 'used' THEN 'active' ELSE status END, updated_at = NOW() WHERE id = $2`,
+      `UPDATE passes SET sessions_remaining = sessions_remaining + ABS($1), status = CASE WHEN status IN ('used', 'expired') THEN 'active' ELSE status END, updated_at = NOW() WHERE id = $2`,
       [debit.sessions, debit.pass_id]
     );
     await q(

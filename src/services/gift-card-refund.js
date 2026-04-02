@@ -41,7 +41,7 @@ async function refundGiftCardForBooking(bookingId, dbClient) {
 
     // Credit back to gift card
     await q(
-      `UPDATE gift_cards SET balance_cents = balance_cents + $1, status = CASE WHEN status = 'used' THEN 'active' ELSE status END, updated_at = NOW()
+      `UPDATE gift_cards SET balance_cents = balance_cents + $1, status = CASE WHEN status IN ('used', 'expired') THEN 'active' ELSE status END, updated_at = NOW()
        WHERE id = $2`,
       [debit.amount_cents, debit.gift_card_id]
     );
