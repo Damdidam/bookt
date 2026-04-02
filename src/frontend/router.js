@@ -21,6 +21,8 @@ const SECTION_TITLES = {
   invoices: 'Facturation',
   deposits: 'Acomptes',
   passes: 'Abonnements',
+  promotions: 'Promotions',
+  'gift-cards': 'Cartes cadeau',
   reviews: 'Avis clients',
   settings: 'Paramètres',
   analytics: 'Statistiques',
@@ -134,6 +136,10 @@ async function loadSection(section) {
       case 'promotions':
         mod = await import('./views/promotions.js');
         mod.loadPromotions();
+        break;
+      case 'gift-cards':
+        mod = await import('./views/gift-cards.js');
+        mod.loadGiftCards();
         break;
       case 'reviews':
         mod = await import('./views/reviews.js');
