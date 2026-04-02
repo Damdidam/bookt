@@ -404,7 +404,13 @@ router.delete('/:id/group-remove', async (req, res, next) => {
           );
           if (promoRes.rows.length > 0) {
             const promo = promoRes.rows[0];
-            if (promo.reward_type === 'discount_pct') {
+            // Re-validate promo condition before recalculating amount
+            if (
+              (promo.condition_type === 'min_amount' && promo.condition_min_cents && newGroupTotal < promo.condition_min_cents) ||
+              (promo.condition_type === 'specific_service' && promo.condition_service_id && !remaining.some(m => m.service_id === promo.condition_service_id))
+            ) {
+              // Condition no longer met — newPromoCents stays 0 → invalidation below
+            } else if (promo.reward_type === 'discount_pct') {
               if (promo.condition_type === 'specific_service') {
                 // Discount applies to the specific service's price in remaining
                 const targetMember = remaining.find(m => m.service_id === promo.condition_service_id);
@@ -820,6 +826,69 @@ router.post('/:id/group-add', async (req, res, next) => {
            JSON.stringify({ group_id: booking.group_id, added_to_group: true }),
            JSON.stringify({ service_id, group_order: newGroupOrder })]
         );
+
+        // Recalculate promo if group has one
+        const promoCarrier = await client.query(
+          `SELECT id, promotion_id FROM bookings
+           WHERE group_id = $1 AND business_id = $2 AND promotion_id IS NOT NULL LIMIT 1`,
+          [booking.group_id, bid]
+        );
+        if (promoCarrier.rows.length > 0) {
+          const promoId = promoCarrier.rows[0].promotion_id;
+          const promoRes = await client.query(`SELECT * FROM promotions WHERE id = $1`, [promoId]);
+          if (promoRes.rows.length > 0) {
+            const promo = promoRes.rows[0];
+            const grpTotal = await client.query(
+              `SELECT COALESCE(SUM(COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents, 0)), 0) AS total
+               FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+               LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+               WHERE b.group_id = $1 AND b.business_id = $2 AND b.status NOT IN ('cancelled')`,
+              [booking.group_id, bid]
+            );
+            const newTotal = parseInt(grpTotal.rows[0].total) || 0;
+            let newDisc = 0;
+            if (promo.reward_type === 'discount_pct') {
+              newDisc = Math.round(newTotal * promo.reward_value / 100);
+            } else if (promo.reward_type === 'discount_fixed') {
+              newDisc = Math.min(promo.reward_value, newTotal);
+            }
+            if (newDisc > 0) {
+              await client.query(
+                `UPDATE bookings SET promotion_discount_cents = $1, updated_at = NOW()
+                 WHERE id = $2 AND business_id = $3`,
+                [newDisc, promoCarrier.rows[0].id, bid]
+              );
+            }
+          }
+        }
+
+        // Recalculate deposit if still pending
+        if (booking.deposit_required && booking.deposit_status === 'pending') {
+          const grpTotalDep = await client.query(
+            `SELECT COALESCE(SUM(COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents, 0)), 0) AS total
+             FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+             LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+             WHERE b.group_id = $1 AND b.business_id = $2 AND b.status NOT IN ('cancelled')`,
+            [booking.group_id, bid]
+          );
+          const newTotalDep = parseInt(grpTotalDep.rows[0].total) || 0;
+          const bizForDep = await client.query(`SELECT settings FROM businesses WHERE id = $1`, [bid]);
+          const depSettings = bizForDep.rows[0]?.settings || {};
+          let newDepCents;
+          if (depSettings.deposit_type === 'fixed') {
+            newDepCents = Math.min(depSettings.deposit_fixed_cents || 2500, newTotalDep);
+          } else {
+            newDepCents = Math.round(newTotalDep * (depSettings.deposit_percent || 50) / 100);
+            newDepCents = Math.min(newDepCents, newTotalDep);
+          }
+          if (newDepCents > 0) {
+            await client.query(
+              `UPDATE bookings SET deposit_amount_cents = $1, updated_at = NOW()
+               WHERE group_id = $2 AND business_id = $3 AND deposit_required = true`,
+              [newDepCents, booking.group_id, bid]
+            );
+          }
+        }
 
         return ins.rows[0];
       });

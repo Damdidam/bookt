@@ -83,8 +83,8 @@ router.get('/summary', async (req, res, next) => {
     // Active clients count
     const clientCount = await queryWithRLS(bid,
       pracFilter
-        ? `SELECT COUNT(DISTINCT b.client_id) AS total FROM bookings b WHERE b.business_id = $1 AND b.practitioner_id = $2`
-        : `SELECT COUNT(*) AS total FROM clients WHERE business_id = $1`,
+        ? `SELECT COUNT(DISTINCT b.client_id) AS total FROM bookings b WHERE b.business_id = $1 AND b.practitioner_id = $2 AND b.status IN ('confirmed', 'completed')`
+        : `SELECT COUNT(DISTINCT b.client_id) AS total FROM bookings b WHERE b.business_id = $1 AND b.status IN ('confirmed', 'completed')`,
       pracFilter ? [bid, pracFilter] : [bid]
     );
 

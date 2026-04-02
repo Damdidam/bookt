@@ -113,6 +113,18 @@ router.post('/', async (req, res, next) => {
       return res.status(400).json({ error: 'Prestation invalide pour ce salon' });
     }
 
+    // Duplicate check: same email already waiting for this practitioner+service
+    const dupCheck = await queryWithRLS(bid,
+      `SELECT 1 FROM waitlist_entries
+       WHERE business_id = $1 AND practitioner_id = $2 AND service_id = $3
+         AND client_email = $4 AND status = 'waiting'
+       LIMIT 1`,
+      [bid, finalPracId, service_id, client_email.toLowerCase().trim()]
+    );
+    if (dupCheck.rows.length > 0) {
+      return res.status(409).json({ error: 'Ce client est déjà en liste d\'attente pour cette prestation' });
+    }
+
     // Validate preferred_days: must be an array of integers 0-6
     let validatedDays = [0,1,2,3,4];
     if (preferred_days !== undefined) {
@@ -238,6 +250,32 @@ router.post('/:id/offer', async (req, res, next) => {
     const entry = await queryWithRLS(bid, offerSql, offerParams);
     if (entry.rows.length === 0) {
       return res.status(404).json({ error: 'Entrée introuvable ou déjà traitée' });
+    }
+
+    // Validate dates
+    const offerStart = new Date(start_at);
+    const offerEnd = new Date(end_at);
+    if (isNaN(offerStart.getTime()) || isNaN(offerEnd.getTime())) {
+      return res.status(400).json({ error: 'Dates invalides' });
+    }
+    if (offerStart >= offerEnd) {
+      return res.status(400).json({ error: 'La date de début doit être avant la date de fin' });
+    }
+    if (offerStart.getTime() < Date.now() + 3600000) {
+      return res.status(400).json({ error: 'Le créneau doit être au moins 1h dans le futur' });
+    }
+
+    // Check slot availability (read-only, no advisory lock needed)
+    const wlPracId = entry.rows[0].practitioner_id;
+    const conflictCheck = await queryWithRLS(bid,
+      `SELECT COUNT(*)::int AS cnt FROM bookings
+       WHERE business_id = $1 AND practitioner_id = $2
+         AND status NOT IN ('cancelled', 'no_show')
+         AND start_at < $4 AND end_at > $3`,
+      [bid, wlPracId, start_at, end_at]
+    );
+    if (conflictCheck.rows[0].cnt > 0) {
+      return res.status(409).json({ error: 'Conflit : un rendez-vous existe déjà sur ce créneau' });
     }
 
     const token = require('crypto').randomBytes(20).toString('hex');

@@ -341,6 +341,43 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
         }
       }
 
+      // Apply last-minute discount + snapshot booked_price_cents
+      if (wlBizSettings.last_minute_enabled) {
+        const { isWithinLastMinuteWindow } = require('./helpers');
+        const wlStartBrussels = new Date(e.offer_booking_start).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+        const wlTodayBrussels = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+        const wlLmDeadline = wlBizSettings.last_minute_deadline || 'j-1';
+        if (isWithinLastMinuteWindow(wlStartBrussels, wlTodayBrussels, wlLmDeadline)) {
+          const wlLmPct = wlBizSettings.last_minute_discount_pct || 10;
+          const wlBookedPrice = Math.round(wlPrice * (100 - wlLmPct) / 100);
+          await client.query(
+            `UPDATE bookings SET discount_pct = $1, booked_price_cents = $2 WHERE id = $3`,
+            [wlLmPct, wlBookedPrice, bk.rows[0].id]
+          );
+          // Recalculate deposit on discounted price if deposit was set above
+          if (wlDepResult.required && bk.rows[0].status === 'pending_deposit') {
+            let wlNewDep;
+            if (wlBizSettings.deposit_type === 'fixed') {
+              wlNewDep = Math.min(wlDepResult.depCents, wlBookedPrice);
+            } else {
+              wlNewDep = Math.round(wlBookedPrice * (wlBizSettings.deposit_percent || 50) / 100);
+            }
+            if (wlNewDep > 0 && wlNewDep !== wlDepResult.depCents) {
+              await client.query(
+                `UPDATE bookings SET deposit_amount_cents = $1 WHERE id = $2`,
+                [wlNewDep, bk.rows[0].id]
+              );
+            }
+          }
+        } else {
+          // No LM discount — just snapshot the price
+          await client.query(`UPDATE bookings SET booked_price_cents = $1 WHERE id = $2`, [wlPrice, bk.rows[0].id]);
+        }
+      } else {
+        // LM not enabled — just snapshot the price
+        await client.query(`UPDATE bookings SET booked_price_cents = $1 WHERE id = $2`, [wlPrice, bk.rows[0].id]);
+      }
+
       // Update waitlist entry (TOCTOU fix: require status = 'offered' to prevent double-accept)
       const wlUpdate = await client.query(
         `UPDATE waitlist_entries SET

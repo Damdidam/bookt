@@ -605,6 +605,20 @@ app.listen(PORT, async () => {
     }
   }, notifInterval);
 
+  // ===== FEATURED SLOTS CLEANUP — purge old featured slots daily =====
+  setInterval(async () => {
+    try {
+      const result = await pool.query(
+        `DELETE FROM featured_slots WHERE date < CURRENT_DATE - INTERVAL '7 days' RETURNING id`
+      );
+      if (result.rows.length > 0) {
+        console.log(`[FEATURED CLEANUP] Purged ${result.rows.length} old featured slots`);
+      }
+    } catch (e) {
+      console.error('[FEATURED CLEANUP] Error:', e.message);
+    }
+  }, 24 * 60 * 60 * 1000); // 24h
+
   // ===== SLOT CALIBRATION CRON — nightly recalibration of slot granularity from booking data =====
   const calibrationInterval = 24 * 60 * 60 * 1000; // 24h
   let calibrationRunning = false;

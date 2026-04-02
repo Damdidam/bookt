@@ -584,6 +584,28 @@ router.patch('/:id/status', async (req, res, next) => {
       }
     }
 
+    // Reset active waitlist offers when un-cancelling (cancelled → confirmed/pending_deposit)
+    // Offers sent for the freed slot are no longer valid — reset to 'waiting' for re-offer later
+    if (txResult.oldStatus === 'cancelled' && (status === 'confirmed' || status === 'pending_deposit')) {
+      try {
+        const bkTime = await queryWithRLS(bid,
+          `SELECT start_at, end_at, practitioner_id FROM bookings WHERE id = $1 AND business_id = $2`,
+          [id, bid]
+        );
+        if (bkTime.rows.length > 0) {
+          const { start_at: bkStart, end_at: bkEnd, practitioner_id: bkPrac } = bkTime.rows[0];
+          await queryWithRLS(bid,
+            `UPDATE waitlist_entries SET status = 'waiting', offer_token = NULL,
+              offer_booking_start = NULL, offer_booking_end = NULL,
+              offer_sent_at = NULL, offer_expires_at = NULL, updated_at = NOW()
+             WHERE business_id = $1 AND practitioner_id = $2 AND status = 'offered'
+               AND offer_booking_start < $4 AND offer_booking_end > $3`,
+            [bid, bkPrac, bkStart, bkEnd]
+          );
+        }
+      } catch (e) { console.warn('[WAITLIST] Reset offers on un-cancel error:', e.message); }
+    }
+
     // Send cancellation confirmation email to client (non-blocking, always send even if deposit refund email is also sent)
     if (status === 'cancelled') {
       try {
