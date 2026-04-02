@@ -65,6 +65,26 @@ async function sendSMS(opts) {
     const msg = await twilio.messages.create(createOpts);
 
     console.log(`[SMS] Sent to ${masked}: ${msg.sid}`);
+
+    // Track SMS usage for billing
+    try {
+      await query(
+        `UPDATE businesses SET
+           sms_count_month = CASE
+             WHEN sms_month_reset_at IS NULL OR sms_month_reset_at < date_trunc('month', NOW())
+             THEN 1
+             ELSE COALESCE(sms_count_month, 0) + 1
+           END,
+           sms_month_reset_at = CASE
+             WHEN sms_month_reset_at IS NULL OR sms_month_reset_at < date_trunc('month', NOW())
+             THEN date_trunc('month', NOW())
+             ELSE sms_month_reset_at
+           END
+         WHERE id = $1`,
+        [businessId]
+      );
+    } catch (e) { console.warn('[SMS] Usage tracking error:', e.message); }
+
     return { success: true, sid: msg.sid };
   } catch (err) {
     console.error('[SMS] Error:', err.message);
