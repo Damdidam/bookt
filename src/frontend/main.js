@@ -45,7 +45,6 @@ if (avatarEl && user) {
   const initials = name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
   avatarEl.textContent = initials;
 }
-
 // ── Admin impersonation banner ──
 if (window.__genda_impersonated) {
   const banner = document.createElement('div');

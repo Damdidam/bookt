@@ -39,7 +39,7 @@ export const biz = api.getBusiness();
 // ── RBAC ──
 export const ROLE_ACCESS = {
   owner: ['home','bookings','clients','services','hours','waitlist','cal-sync','team','planning','site','invoices','deposits','analytics','promotions','settings','gift-cards','passes','reviews','featured-slots'],
-  practitioner: ['home','bookings','clients','profile']
+  practitioner: ['home','bookings','clients']
 };
 
 export const SECTOR_LABELS = {

@@ -26,8 +26,7 @@ const SECTION_TITLES = {
   reviews: 'Avis clients',
   settings: 'Paramètres',
   analytics: 'Statistiques',
-  'cal-sync': 'Calendrier externe',
-  profile: 'Mon profil'
+  'cal-sync': 'Calendrier externe'
 };
 
 /**
@@ -156,10 +155,6 @@ async function loadSection(section) {
       case 'cal-sync':
         mod = await import('./views/cal-sync.js');
         mod.loadCalSync();
-        break;
-      case 'profile':
-        mod = await import('./views/profile.js');
-        mod.loadProfile();
         break;
       default:
         c.innerHTML = `<div class="empty">Section "${esc(section)}" — Bientôt disponible</div>`;
