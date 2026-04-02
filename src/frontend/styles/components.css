@@ -761,3 +761,15 @@
 .page-tab.active{color:var(--primary);border-bottom-color:var(--primary)}
 @media(max-width:1280px){.page-tab{padding:14px 18px;min-height:44px}}
 @media(max-width:600px){.page-tab{padding:12px 14px;font-size:var(--text-sm)}}
+
+/* ===== TOGGLE SWITCH ===== */
+.toggle{position:relative;display:inline-flex;align-items:center;cursor:pointer;gap:10px}
+.toggle input{position:absolute;opacity:0;width:0;height:0}
+.toggle-track{width:44px;height:24px;border-radius:var(--radius-pill);background:var(--surface-2);transition:background .2s;flex-shrink:0;position:relative}
+.toggle-track::after{content:'';position:absolute;left:2px;top:2px;width:20px;height:20px;border-radius:50%;background:var(--white);transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.toggle input:checked+.toggle-track{background:var(--primary)}
+.toggle input:checked+.toggle-track::after{left:22px}
+.toggle input:focus-visible+.toggle-track{outline:2px solid var(--primary);outline-offset:2px}
+.toggle-label{font-size:var(--text-base);font-weight:500;color:var(--text)}
+.toggle.disabled{opacity:.5;cursor:not-allowed}
+@media(max-width:1280px){.toggle-track{width:48px;height:28px}.toggle-track::after{width:24px;height:24px}.toggle input:checked+.toggle-track::after{left:22px}}
