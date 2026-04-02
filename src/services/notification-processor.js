@@ -205,7 +205,7 @@ async function sendNewBookingProEmail(bk, groupServices) {
       ${clientPhone ? `<div style="font-size:13px;color:#6B6560">${clientPhone}</div>` : ''}
     </div>
     ${depositHTML}
-    ${bk.client_notes ? `<div style="background:#FFFBEB;border-radius:8px;padding:10px 14px;margin:12px 0;border-left:3px solid #F59E0B"><div style="font-size:13px;color:#92700C"><strong>Note du client :</strong> ${escHtml(bk.client_notes)}</div></div>` : ''}`;
+    ${bk.comment_client ? `<div style="background:#FFFBEB;border-radius:8px;padding:10px 14px;margin:12px 0;border-left:3px solid #F59E0B"><div style="font-size:13px;color:#92700C"><strong>Note du client :</strong> ${escHtml(bk.comment_client)}</div></div>` : ''}`;
 
   const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
   const html = buildEmailHTML({
