@@ -728,6 +728,43 @@ router.delete('/:id', requireOwner, async (req, res, next) => {
       cancelledCount = cancelRes.rowCount;
     }
 
+    if (req.query.permanent === 'true') {
+      // Permanent delete: remove linked user account + practitioner record
+      const pracData = await queryWithRLS(bid,
+        `SELECT user_id FROM practitioners WHERE id = $1 AND business_id = $2`,
+        [pracId, bid]
+      );
+
+      // Remove linked user account if exists
+      if (pracData.rows[0]?.user_id) {
+        await query(
+          `DELETE FROM users WHERE id = $1 AND business_id = $2`,
+          [pracData.rows[0].user_id, bid]
+        );
+      }
+
+      // Clean up related data
+      await queryWithRLS(bid,
+        `DELETE FROM practitioner_services WHERE practitioner_id = $1 AND business_id = $2`,
+        [pracId, bid]
+      );
+
+      // Unassign bookings (set practitioner_id to NULL) instead of deleting them
+      await queryWithRLS(bid,
+        `UPDATE bookings SET practitioner_id = NULL, updated_at = NOW()
+         WHERE practitioner_id = $1 AND business_id = $2`,
+        [pracId, bid]
+      );
+
+      // Delete the practitioner record
+      await queryWithRLS(bid,
+        `DELETE FROM practitioners WHERE id = $1 AND business_id = $2`,
+        [pracId, bid]
+      );
+
+      return res.json({ deleted: true, permanent: true, cancelled_count: cancelledCount });
+    }
+
     // Deactivate the practitioner
     await queryWithRLS(bid,
       `UPDATE practitioners SET is_active = false, booking_enabled = false, updated_at = NOW()
