@@ -498,7 +498,7 @@ router.patch('/onboarding', async (req, res, next) => {
     const { step, completed } = req.body;
 
     // V13-020: Validate onboarding step
-    const VALID_STEPS = ['cabinet_info', 'schedule', 'services', 'team', 'bio_description', 'specializations', 'testimonials', 'notifications', 'call_filter', 'go_live'];
+    const VALID_STEPS = ['cabinet_info', 'schedule', 'services', 'team', 'bio_description', 'specializations', 'testimonials', 'notifications', 'go_live'];
     if (!VALID_STEPS.includes(step)) return res.status(400).json({ error: 'Étape invalide' });
 
     // Get current

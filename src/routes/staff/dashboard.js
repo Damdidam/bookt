@@ -91,26 +91,6 @@ router.get('/summary', async (req, res, next) => {
       pracFilter ? [bid, pracFilter] : [bid]
     );
 
-    // Call stats this month (if module active)
-    const callStats = await queryWithRLS(bid,
-      `SELECT
-        COUNT(*) AS total_calls,
-        COUNT(*) FILTER (WHERE action = 'sent_sms') AS filtered,
-        COUNT(*) FILTER (WHERE action = 'whitelist_pass') AS vip_passed,
-        COUNT(*) FILTER (WHERE action = 'urgent_key') AS urgent,
-        COUNT(*) FILTER (WHERE booking_id IS NOT NULL) AS converted
-       FROM call_logs
-       WHERE business_id = $1
-       AND created_at >= $2`,
-      [bid, monthStart]
-    );
-
-    // Call filter status
-    const filterStatus = await queryWithRLS(bid,
-      `SELECT filter_mode, twilio_number FROM call_settings WHERE business_id = $1`,
-      [bid]
-    );
-
     // Next upcoming booking
     const nextBooking = await queryWithRLS(bid,
       `SELECT b.id, b.start_at, b.status,
@@ -205,7 +185,6 @@ router.get('/summary', async (req, res, next) => {
       [bid]);
 
     const stats = monthStats.rows[0];
-    const calls = callStats.rows[0];
     const nb = nextBooking.rows[0] || null;
 
     res.json({
@@ -239,19 +218,6 @@ router.get('/summary', async (req, res, next) => {
       clients: {
         total: parseInt(clientCount.rows[0].total)
       },
-      calls: {
-        total: parseInt(calls.total_calls),
-        filtered: parseInt(calls.filtered),
-        vip_passed: parseInt(calls.vip_passed),
-        urgent: parseInt(calls.urgent),
-        converted: parseInt(calls.converted),
-        conversion_rate: calls.filtered > 0
-          ? Math.round((parseInt(calls.converted) / parseInt(calls.filtered)) * 100)
-          : 0
-      },
-      call_filter: filterStatus.rows.length > 0
-        ? { active: filterStatus.rows[0].filter_mode !== 'off', mode: filterStatus.rows[0].filter_mode, number: filterStatus.rows[0].twilio_number }
-        : { active: false },
       next_booking: nb ? { id: nb.id, start_at: nb.start_at, status: nb.status, client_name: nb.client_name, service_name: nb.service_name, duration_min: nb.duration_min, practitioner_name: nb.practitioner_name } : null,
       pending_todos: pendingTodos.rows.map(t => ({ id: t.id, content: t.content, booking_id: t.booking_id, created_at: t.created_at, booking_start: t.booking_start, service_name: t.service_name, client_name: t.client_name })),
       prac_hours: Object.entries(pracHoursMap).map(([id, h]) => ({

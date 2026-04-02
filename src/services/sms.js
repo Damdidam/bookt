@@ -1,6 +1,6 @@
 /**
  * SMS service using Twilio
- * Shared across: call filter, reminders, notifications
+ * Shared across: reminders, notifications
  */
 const { query } = require('./db');
 
@@ -32,15 +32,7 @@ async function sendSMS(opts) {
   }
 
   try {
-    // Get Twilio number for this business
     let fromNumber = from;
-    if (!fromNumber && businessId) {
-      const csResult = await query(
-        `SELECT twilio_number FROM call_settings WHERE business_id = $1`,
-        [businessId]
-      );
-      fromNumber = csResult.rows[0]?.twilio_number;
-    }
 
     if (!fromNumber) {
       // Fallback to env var

@@ -255,25 +255,6 @@ class GendaAPI {
   }
 
   // ============================================================
-  // CALLS (staff)
-  // ============================================================
-
-  async getCallSettings() {
-    return this.get('/api/calls/settings');
-  }
-
-  async updateCallSettings(data) {
-    return this.patch('/api/calls/settings', data);
-  }
-
-  async getCallLogs(params = {}) {
-    const qs = new URLSearchParams(params).toString();
-    return this.get(`/api/calls/logs${qs ? '?' + qs : ''}`);
-  }
-
-
-
-  // ============================================================
   // SITE MANAGEMENT (staff)
   // ============================================================
 

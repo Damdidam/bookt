@@ -13,7 +13,6 @@ const { authLimiter } = require('../../middleware/rate-limiter');
 //          + default services (sector template)
 //          + default availability (Lun-Ven 9-17)
 //          + onboarding_progress
-//          + call_settings (off by default)
 // ============================================================
 router.post('/signup', authLimiter, async (req, res, next) => {
   try {
@@ -208,14 +207,8 @@ router.post('/signup', authLimiter, async (req, res, next) => {
         [businessId, JSON.stringify({
           cabinet_info: true, schedule: false, services: false, team: false,
           bio_description: false, specializations: false, testimonials: false,
-          notifications: false, call_filter: false, go_live: false
+          notifications: false, go_live: false
         })]
-      );
-
-      // 9. Call settings (off by default)
-      await client.query(
-        `INSERT INTO call_settings (business_id, filter_mode) VALUES ($1, 'off')`,
-        [businessId]
       );
 
       await client.query('COMMIT');
