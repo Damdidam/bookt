@@ -37,14 +37,7 @@ if (userRole === 'practitioner') {
   document.getElementById('userName').textContent = user?.business_name || user?.email || '—';
 }
 document.getElementById('userRole').textContent = sectorLabels[userRole] || userRole;
-const avatarEl = document.getElementById('userAvatar');
-if (avatarEl && user) {
-  const name = userRole === 'practitioner'
-    ? (user.practitioner_name || user.email || '')
-    : (user.business_name || user.email || '');
-  const initials = name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
-  avatarEl.textContent = initials;
-}
+
 // ── Admin impersonation banner ──
 if (window.__genda_impersonated) {
   const banner = document.createElement('div');
