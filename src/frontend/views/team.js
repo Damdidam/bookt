@@ -354,13 +354,33 @@ function renderPractModal(p) {
           <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" style="width:12px;height:12px" ${ICONS.calendar.slice(4)}> Synchronisation calendrier</span><span class="m-sec-line"></span></div>
           <div id="p_cal_area" style="font-size:.82rem;color:var(--text-4)">Chargement...</div>
         </div>` : ''}
+
+        ${isEdit ? `<div class="m-sec" style="margin-top:16px">
+          <div class="m-sec-head"><span class="m-sec-title">${ICONS.key} Accès dashboard</span><span class="m-sec-line"></span></div>
+          ${p.user_id
+            ? `<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--surface);border-radius:8px">
+                <div style="flex:1">
+                  <div style="font-size:.82rem;font-weight:600;color:var(--text-1)">${esc(p.login_email || p.user_email || '')}</div>
+                  <div style="font-size:.72rem;color:var(--text-4);margin-top:2px">Rôle : ${p.role === 'owner' || p.user_role === 'owner' ? 'Propriétaire' : sectorLabels.practitioner}${p.last_login_at ? ' · Dernière connexion : ' + new Date(p.last_login_at).toLocaleDateString('fr-BE', {day:'numeric',month:'short',timeZone:'Europe/Brussels'}) : ' · Jamais connecté'}</div>
+                </div>
+                <button class="m-btn m-btn-ghost" style="font-size:.72rem" onclick="closeTeamModal();openRoleModal('${p.id}','${esc(p.display_name)}','${p.role || p.user_role || 'practitioner'}')">Changer le rôle</button>
+              </div>`
+            : `<div style="padding:10px 14px;background:var(--surface);border-radius:8px;display:flex;align-items:center;justify-content:space-between">
+                <span style="font-size:.82rem;color:var(--text-3)">Aucun accès au dashboard</span>
+                <button class="m-btn m-btn-primary" style="font-size:.72rem" onclick="closeTeamModal();openInviteModal('${p.id}','${esc(p.display_name)}')">Créer un accès</button>
+              </div>`
+          }
+        </div>` : ''}
       </div>
 
     </div>
 
     <!-- BOTTOM BAR -->
     <div class="m-bottom">
-      ${isEdit ? `<button class="m-btn m-btn-danger" onclick="confirmDeactivatePract('${p.id}','${esc(p.display_name)}')">Désactiver</button>` : ''}
+      ${isEdit ? `<div style="display:flex;gap:8px">
+        <button class="m-btn m-btn-danger" onclick="confirmDeactivatePract('${p.id}','${esc(p.display_name)}')">Désactiver</button>
+        <button class="m-btn m-btn-ghost" style="color:var(--red);font-size:.72rem" onclick="confirmDeletePract('${p.id}','${esc(p.display_name)}')">Supprimer</button>
+      </div>` : ''}
       <div style="flex:1"></div>
       <button class="m-btn m-btn-ghost" onclick="closeTeamModal()">Annuler</button>
       <button class="m-btn m-btn-primary" onclick="savePract(${isEdit ? "'" + p.id + "'" : 'null'})">${isEdit ? 'Enregistrer' : 'Créer'}</button>
@@ -888,6 +908,40 @@ async function reactivatePract(id) {
   } catch (e) { GendaUI.toast('Erreur: ' + e.message, 'error'); }
 }
 
+async function confirmDeletePract(id, name) {
+  const confirmed = await showConfirmDialog(
+    'Supprimer définitivement',
+    'Supprimer définitivement ' + name + ' ? Cette action est irréversible. Toutes ses données (horaires, services assignés) seront perdues. Les RDV existants seront conservés mais non assignés.',
+    'Supprimer définitivement',
+    'danger'
+  );
+  if (!confirmed) return;
+  closeTeamModal();
+  deletePractPermanent(id);
+}
+
+async function deletePractPermanent(id) {
+  try {
+    const r = await fetch('/api/practitioners/' + id + '?permanent=true', { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + api.getToken() } });
+    if (r.status === 409) {
+      const data = await r.json();
+      const cancelThem = await showConfirmDialog(
+        'RDV à venir',
+        data.error + ' Voulez-vous les annuler ?',
+        'Annuler les RDV et supprimer',
+        'danger'
+      );
+      if (!cancelThem) return;
+      const r2 = await fetch('/api/practitioners/' + id + '?permanent=true&cancel_bookings=true', { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + api.getToken() } });
+      if (!r2.ok) throw new Error((await r2.json()).error);
+    } else if (!r.ok) {
+      throw new Error((await r.json()).error);
+    }
+    GendaUI.toast(sectorLabels.practitioner + ' supprimé définitivement', 'success');
+    loadTeam();
+  } catch (e) { GendaUI.toast('Erreur: ' + e.message, 'error'); }
+}
+
 // ============================================================
 // Tasks modal (unchanged from v1)
 // ============================================================
@@ -1270,7 +1324,7 @@ async function generateIcalFeed(pracId){
 // ============================================================
 
 bridge({
-  loadTeam, openPractModal, savePract, deactivatePract, reactivatePract, confirmDeactivatePract,
+  loadTeam, openPractModal, savePract, deactivatePract, reactivatePract, confirmDeactivatePract, confirmDeletePract, deletePractPermanent,
   openPracTasks, togglePracTodo, closeTasksModal,
   openInviteModal, generateTempPwd, sendInvite, closeInviteModal,
   openRoleModal, saveRole, closeRoleModal,
@@ -1283,7 +1337,7 @@ bridge({
 });
 
 export {
-  loadTeam, openPractModal, savePract, deactivatePract, reactivatePract, confirmDeactivatePract,
+  loadTeam, openPractModal, savePract, deactivatePract, reactivatePract, confirmDeactivatePract, confirmDeletePract, deletePractPermanent,
   openPracTasks, togglePracTodo, closeTasksModal,
   openInviteModal, sendInvite, closeInviteModal, openRoleModal, saveRole, closeRoleModal,
   pPhotoPreview, pRemovePhoto, closeTeamModal,
