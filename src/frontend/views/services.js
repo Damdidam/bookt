@@ -111,7 +111,7 @@ async function loadServices(){
       h+=`<div class="svc-top-bar">
         <div class="svc-section-label">${catCount} catégorie${catCount>1?'s':''} · ${svcCount} prestation${svcCount>1?'s':''}</div>
         <div style="display:flex;gap:8px">`;
-      if(showQS) h+=`<button class="btn-outline btn-sm" onclick="openQuickStart()" style="display:flex;align-items:center;gap:4px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg> Rapide</button>`;
+      if(showQS) h+=`<button class="btn-outline btn-sm" onclick="openQuickStart()" style="display:flex;align-items:center;gap:4px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg> Rapide</button>`;
       h+=`<button class="btn-primary btn-sm" onclick="openCategoryModal()" style="display:flex;align-items:center;gap:5px">${PLUS_SVG} Nouvelle catégorie</button>`;
       h+=`</div></div>`;
 
