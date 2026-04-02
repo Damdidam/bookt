@@ -222,89 +222,12 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
         <div id="teamList"></div>
         <button class="add-btn" onclick="addTeamMember()">+ Ajouter un(e) praticien(ne)</button>
         <div class="clo info" style="margin-top:10px">Bio, photo, compétences et services par praticien se configurent dans Dashboard › Équipe.</div>
-        <div class="snav"><button class="btn-back" onclick="go(2)">← Retour</button><div><button class="btn-skip" onclick="saveOnboardingStep('team',8)">Plus tard, je gère seul(e)</button><button class="btn-next" onclick="saveTeam()">Continuer →</button></div></div>
+        <div class="snav"><button class="btn-back" onclick="go(2)">← Retour</button><div><button class="btn-skip" onclick="saveOnboardingStep('team',11)">Plus tard, je gère seul(e)</button><button class="btn-next" onclick="saveTeam()">Continuer →</button></div></div>
       </div>
 
       <!-- STEPS 5, 6, 7 removed: bio/specializations/testimonials configurable in dashboard -->
 
-      <!-- ===== STEP 8: NOTIFICATIONS ===== -->
-      <div class="step" data-step="8">
-        <div class="step-hdr"><div class="lbl">Étape 8 · Notifications</div><h2>Rappels automatiques</h2><p>-60% de no-shows grâce aux rappels email et SMS.</p></div>
-        <div class="trow"><div class="tlbl">Confirmation email<span class="sub">Dès la réservation</span></div><div class="tog on" onclick="this.classList.toggle('on')"></div></div>
-        <div class="trow"><div class="tlbl">Rappel email J-1<span class="sub">24h avant</span></div><div class="tog on" onclick="this.classList.toggle('on')"></div></div>
-        <div class="trow"><div class="tlbl">Rappel SMS J-1 <span style="padding:1px 5px;background:var(--gold-bg);border-radius:3px;font-size:.6rem;font-weight:700;color:var(--gold)">PRO</span><span class="sub">~0.05€/SMS</span></div><div class="tog on" onclick="this.classList.toggle('on')"></div></div>
-        <div class="trow"><div class="tlbl">Notification nouveau RDV<span class="sub">Vous recevez un email</span></div><div class="tog on" onclick="this.classList.toggle('on')"></div></div>
-        <div class="snav"><button class="btn-back" onclick="go(4)">← Retour</button><button class="btn-next" onclick="saveOnboardingStep('notifications',9)">Continuer →</button></div>
-      </div>
-
-      <!-- ===== STEP 9: CALL FILTER ===== -->
-      <div class="step" data-step="9">
-        <div class="step-hdr"><div class="lbl">Étape 9 · Filtre d'appels</div><h2>Arrêtez de décrocher</h2><p>Un numéro belge filtre vos appels.</p></div>
-        <div style="background:var(--surface);border-radius:var(--radius);padding:16px;margin:10px 0">
-          <div style="display:flex;flex-direction:column;gap:6px">
-            <div style="display:flex;align-items:center;gap:8px;font-size:.8rem;color:var(--text-2)"><span style="width:22px;height:22px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700">1</span> Client appelle votre numéro Genda</div>
-            <div style="margin-left:30px;font-size:.7rem;color:var(--text-4)">↓</div>
-            <div style="display:flex;align-items:center;gap:8px;font-size:.8rem;color:var(--text-2)"><span style="width:22px;height:22px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700">2</span> VIP → Transféré · Autres → SMS booking</div>
-            <div style="margin-left:30px;font-size:.7rem;color:var(--text-4)">↓</div>
-            <div style="display:flex;align-items:center;gap:8px;font-size:.8rem;color:var(--text-2)"><span style="width:22px;height:22px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700">3</span> Urgence ? Tape 1 → Transféré</div>
-          </div>
-        </div>
-        <div class="clo info"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg> Numéro activé après passage au plan Pro.</div>
-        <div class="snav"><button class="btn-back" onclick="go(8)">← Retour</button><div><button class="btn-skip" onclick="saveOnboardingStep('call_filter',10)">Plus tard</button><button class="btn-next" onclick="saveOnboardingStep('call_filter',10)">Continuer →</button></div></div>
-      </div>
-
-      <!-- ===== STEP 10: AGENDA / CALENDRIER ===== -->
-      <div class="step" data-step="10">
-        <div class="step-hdr"><div class="lbl">Étape 10 · Agenda</div><h2>Synchronisez votre agenda</h2><p>Vos créneaux occupés seront automatiquement bloqués.</p></div>
-
-        <div style="display:flex;flex-direction:column;gap:10px;margin:12px 0">
-          <!-- Google Calendar -->
-          <div class="cal-opt" id="calOptGoogle" onclick="selectCalendar('google')" style="display:flex;align-items:center;gap:14px;padding:16px;background:var(--surface);border:2px solid var(--border-light);border-radius:var(--radius);cursor:pointer;transition:border-color .2s">
-            <div style="width:40px;height:40px;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:1.4rem"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
-            <div style="flex:1">
-              <div style="font-weight:600;font-size:.9rem;color:var(--text-1)">Google Calendar</div>
-              <div style="font-size:.75rem;color:var(--text-3)">Gmail, Google Workspace</div>
-            </div>
-            <div class="cal-check" style="width:24px;height:24px;border-radius:50%;border:2px solid var(--border-light);display:flex;align-items:center;justify-content:center;font-size:.7rem;transition:all .2s"></div>
-          </div>
-
-          <!-- Outlook -->
-          <div class="cal-opt" id="calOptOutlook" onclick="selectCalendar('outlook')" style="display:flex;align-items:center;gap:14px;padding:16px;background:var(--surface);border:2px solid var(--border-light);border-radius:var(--radius);cursor:pointer;transition:border-color .2s">
-            <div style="width:40px;height:40px;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:1.4rem"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg></div>
-            <div style="flex:1">
-              <div style="font-weight:600;font-size:.9rem;color:var(--text-1)">Outlook / Microsoft 365</div>
-              <div style="font-size:.75rem;color:var(--text-3)">Hotmail, Office 365, Exchange</div>
-            </div>
-            <div class="cal-check" style="width:24px;height:24px;border-radius:50%;border:2px solid var(--border-light);display:flex;align-items:center;justify-content:center;font-size:.7rem;transition:all .2s"></div>
-          </div>
-
-          <!-- Apple Calendar -->
-          <div class="cal-opt" id="calOptApple" onclick="selectCalendar('apple')" style="display:flex;align-items:center;gap:14px;padding:16px;background:var(--surface);border:2px solid var(--border-light);border-radius:var(--radius);cursor:pointer;transition:border-color .2s">
-            <div style="width:40px;height:40px;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:1.4rem"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c-1-1-3.5-1.5-5 0s-2 4 0 7c1.5 2.5 3.5 3 5 5 1.5-2 3.5-2.5 5-5 2-3 1.5-5.5 0-7s-4-1-5 0Z"/><path d="M12 3c0-1 .5-2 2-2"/></svg></div>
-            <div style="flex:1">
-              <div style="font-weight:600;font-size:.9rem;color:var(--text-1)">Apple Calendar (iCal)</div>
-              <div style="font-size:.75rem;color:var(--text-3)">Export ICS · Pas de sync en temps réel</div>
-            </div>
-            <div class="cal-check" style="width:24px;height:24px;border-radius:50%;border:2px solid var(--border-light);display:flex;align-items:center;justify-content:center;font-size:.7rem;transition:all .2s"></div>
-          </div>
-
-          <!-- Aucun -->
-          <div class="cal-opt" id="calOptNone" onclick="selectCalendar('none')" style="display:flex;align-items:center;gap:14px;padding:16px;background:var(--surface);border:2px solid var(--border-light);border-radius:var(--radius);cursor:pointer;transition:border-color .2s">
-            <div style="width:40px;height:40px;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:1.4rem"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div>
-            <div style="flex:1">
-              <div style="font-weight:600;font-size:.9rem;color:var(--text-1)">Je n'utilise pas d'agenda en ligne</div>
-              <div style="font-size:.75rem;color:var(--text-3)">Vous pourrez toujours en ajouter un plus tard</div>
-            </div>
-            <div class="cal-check" style="width:24px;height:24px;border-radius:50%;border:2px solid var(--border-light);display:flex;align-items:center;justify-content:center;font-size:.7rem;transition:all .2s"></div>
-          </div>
-        </div>
-
-        <div id="calConnectBox" style="display:none;margin:10px 0">
-          <div class="clo info" id="calConnectMsg"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> La connexion sera activée depuis votre dashboard après l'inscription.</div>
-        </div>
-
-        <div class="snav"><button class="btn-back" onclick="go(9)">← Retour</button><div><button class="btn-skip" onclick="goLive()">Plus tard</button><button class="btn-next" onclick="saveCalendarChoice()">Publier mon site →</button></div></div>
-      </div>
+      <!-- STEPS 8, 9, 10 removed: notifications/call-filter/calendar configurable in dashboard -->
 
       <!-- ===== STEP 11: GO LIVE ===== -->
       <div class="step" data-step="11">
@@ -571,7 +494,7 @@ async function saveTeam() {
   if (cards.length === 0) {
     await api.updateOnboarding('team');
     GendaUI.toast('Équipe confirmée', 'success');
-    go(8);
+    go(11);
     return;
   }
 
@@ -612,7 +535,7 @@ async function saveTeam() {
 
     await api.updateOnboarding('team');
     GendaUI.toast('Équipe enregistrée', 'success');
-    go(8);
+    go(11);
   } catch (err) {
     showError(err.message);
   } finally {
@@ -633,55 +556,7 @@ async function saveOnboardingStep(step, nextStep) {
 // ============================================================
 // STEP 10: CALENDAR CHOICE
 // ============================================================
-let selectedCalendar = null;
-
-function selectCalendar(type) {
-  selectedCalendar = type;
-  // Update visual selection
-  document.querySelectorAll('.cal-opt').forEach(el => {
-    el.style.borderColor = 'var(--border-light)';
-    el.querySelector('.cal-check').innerHTML = '';
-    el.querySelector('.cal-check').style.borderColor = 'var(--border-light)';
-    el.querySelector('.cal-check').style.background = 'transparent';
-  });
-  const sel = document.getElementById('calOpt' + type.charAt(0).toUpperCase() + type.slice(1));
-  if (sel) {
-    sel.style.borderColor = 'var(--primary)';
-    const check = sel.querySelector('.cal-check');
-    check.innerHTML = '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
-    check.style.borderColor = 'var(--primary)';
-    check.style.background = 'var(--primary)';
-    check.style.color = '#fff';
-  }
-
-  // Show info box
-  const box = document.getElementById('calConnectBox');
-  const msg = document.getElementById('calConnectMsg');
-  if (type === 'none') {
-    box.style.display = 'none';
-  } else if (type === 'apple') {
-    box.style.display = 'block';
-    msg.innerHTML = '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c-1-1-3.5-1.5-5 0s-2 4 0 7c1.5 2.5 3.5 3 5 5 1.5-2 3.5-2.5 5-5 2-3 1.5-5.5 0-7s-4-1-5 0Z"/><path d="M12 3c0-1 .5-2 2-2"/></svg> Apple Calendar ne supporte pas la sync en temps réel. Vos RDV seront exportables en fichier .ics depuis le dashboard.';
-  } else if (type === 'google') {
-    box.style.display = 'block';
-    msg.innerHTML = '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> Après l\'inscription, connectez votre Google Calendar en un clic depuis <strong>Paramètres → Synchronisation calendrier</strong>.';
-  } else if (type === 'outlook') {
-    box.style.display = 'block';
-    msg.innerHTML = '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg> Après l\'inscription, connectez votre Outlook en un clic depuis <strong>Paramètres → Synchronisation calendrier</strong>.';
-  }
-}
-
-async function saveCalendarChoice() {
-  try {
-    // Save calendar preference in business settings
-    if (selectedCalendar && selectedCalendar !== 'none') {
-      await api.updateSettings({
-        settings: { calendar_provider_preference: selectedCalendar }
-      });
-    }
-  } catch (e) { /* non-blocking */ }
-  goLive();
-}
+// Steps 8-10 removed: selectCalendar/saveCalendarChoice cleaned up
 
 // ============================================================
 // STEP 11: GO LIVE
@@ -715,7 +590,7 @@ function copyUrl() {
 Object.assign(window, {
   selSec, updSlug, go, doSignup, toggleDay, saveSchedule,
   saveOnboardingStep, addTeamMember, saveTeam,
-  selectCalendar, saveCalendarChoice, goLive, copyUrl
+  goLive, copyUrl
 });
 </script>
 
