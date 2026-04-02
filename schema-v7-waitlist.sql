@@ -40,6 +40,9 @@ CREATE TABLE IF NOT EXISTS waitlist_entries (
 
 ALTER TABLE waitlist_entries ENABLE ROW LEVEL SECURITY;
 
+-- Staff notes (added v7.1)
+ALTER TABLE waitlist_entries ADD COLUMN IF NOT EXISTS staff_notes text;
+
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_waitlist_business ON waitlist_entries (business_id, status);
 CREATE INDEX IF NOT EXISTS idx_waitlist_practitioner ON waitlist_entries (practitioner_id, status, priority);
