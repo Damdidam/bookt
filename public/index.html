@@ -537,7 +537,7 @@ section { max-width: var(--max-w); margin: 0 auto; padding: 100px 32px; }
   <div class="hero-visual">
     <!-- Float: pose optimization indicator -->
     <div class="hero-float hf1"><div class="hf-card"><div class="hf-row"><div class="hf-ico gold"><svg viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg></div><div><div class="hf-txt">Temps de pose optimisé</div><div class="hf-sub">+1 cliente pendant la pause</div></div></div></div></div>
-    <div class="hero-float hf2"><div class="hf-card"><div class="hf-row"><div class="hf-ico green"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div><div class="hf-txt">Split multi-praticien</div><div class="hf-sub">Lisa M. : V&eacute;ronique + Ashley</div></div></div></div></div>
+    <div class="hero-float hf2"><div class="hf-card"><div class="hf-row"><div class="hf-ico green"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div><div class="hf-txt">Split multi-praticien</div><div class="hf-sub">Lisa M. : Maeva + Joyce</div></div></div></div></div>
 
     <!-- Calendar mockup showing multi-practitioner + pose -->
     <div class="hv-cal">
@@ -546,28 +546,28 @@ section { max-width: var(--max-w); margin: 0 auto; padding: 100px 32px; }
         <div class="hero-timeline">
           <div class="ht-header">
             <div class="ht-prac-label"></div>
-            <div class="ht-prac-label active">Véronique</div>
-            <div class="ht-prac-label">Ashley</div>
+            <div class="ht-prac-label active">Maeva</div>
+            <div class="ht-prac-label">Joyce</div>
           </div>
-          <!-- 09:00 — Véronique: Coloration (client A), Ashley: Manucure (client B) -->
+          <!-- 09:00 — Maeva: Coloration (client A), Joyce: Manucure (client B) -->
           <div class="ht-row">
             <div class="ht-time">09:00</div>
             <div class="ht-cell booked">Coloration<div class="cl">Lisa M.</div></div>
             <div class="ht-cell booked2">Manucure<div class="cl">Sophie D.</div></div>
           </div>
-          <!-- 09:30 — Véronique: POSE (Lisa), Ashley: continues manucure -->
+          <!-- 09:30 — Maeva: POSE (Lisa), Joyce: continues manucure -->
           <div class="ht-row">
             <div class="ht-time">09:30</div>
             <div class="ht-cell pose">Pose coloration<div class="ht-pose-badge"><svg viewBox="0 0 24 24" width="7" height="7" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83"/></svg> Praticien libre</div></div>
             <div class="ht-cell booked2">Onglerie<div class="cl">Lisa M.</div></div>
           </div>
-          <!-- 10:00 — Véronique: Coupe EXPRESS (pendant la pose), Ashley: finishes onglerie -->
+          <!-- 10:00 — Maeva: Coupe EXPRESS (pendant la pose), Joyce: finishes onglerie -->
           <div class="ht-row">
             <div class="ht-time">10:00</div>
             <div class="ht-cell freed">Coupe homme<div class="cl">Marc W.</div><div class="ht-freed-badge"><svg viewBox="0 0 24 24" width="7" height="7" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Casé pendant la pose</div></div>
             <div class="ht-cell empty"></div>
           </div>
-          <!-- 10:30 — Véronique: finishes Lisa (rincage + coupe), Ashley: new client -->
+          <!-- 10:30 — Maeva: finishes Lisa (rincage + coupe), Joyce: new client -->
           <div class="ht-row">
             <div class="ht-time">10:30</div>
             <div class="ht-cell booked">Rinçage + Coupe<div class="cl">Lisa M.</div></div>
@@ -682,24 +682,24 @@ section { max-width: var(--max-w); margin: 0 auto; padding: 100px 32px; }
       <div class="engine-card rv d2">
         <div class="ec-num">02</div>
         <h3>Un RDV, plusieurs praticiens, zéro friction</h3>
-        <p>Votre cliente veut sourcils + onglerie. Véronique fait les sourcils, Ashley fait les ongles. Le moteur les assigne automatiquement et chaîne les créneaux. Le client ne voit qu'un seul RDV.</p>
+        <p>Votre cliente veut sourcils + onglerie. Maeva fait les sourcils, Joyce fait les ongles. Le moteur les assigne automatiquement et chaîne les créneaux. Le client ne voit qu'un seul RDV.</p>
         <div class="engine-demo">
           <div class="ed-title">Exemple : combo multi-praticien</div>
           <div class="ed-pracs">
-            <span class="ed-prac-label p1">Véronique</span>
-            <span class="ed-prac-label p2">Ashley</span>
+            <span class="ed-prac-label p1">Maeva</span>
+            <span class="ed-prac-label p2">Joyce</span>
           </div>
           <div class="ed-row">
             <div class="ed-time">14:00</div>
             <div class="ed-blocks">
-              <div class="ed-block work" style="flex:2;">Contour ombré<div class="sub">Véronique &middot; 1h</div></div>
+              <div class="ed-block work" style="flex:2;">Contour ombré<div class="sub">Maeva &middot; 1h</div></div>
             </div>
           </div>
           <div class="ed-arrow"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg></div>
           <div class="ed-row">
             <div class="ed-time">15:00</div>
             <div class="ed-blocks">
-              <div class="ed-block work2" style="flex:2;">Pose d'ongles<div class="sub">Ashley &middot; 1h30</div></div>
+              <div class="ed-block work2" style="flex:2;">Pose d'ongles<div class="sub">Joyce &middot; 1h30</div></div>
             </div>
           </div>
           <div class="ed-legend">
@@ -900,7 +900,7 @@ section { max-width: var(--max-w); margin: 0 auto; padding: 100px 32px; }
       </div>
       <div class="feat-visual">
         <div class="phone"><div class="phone-notch"></div><div class="phone-screen">
-          <div class="ps-header"><div class="ps-logo">VA</div><div class="ps-name">VA Institut</div><div class="ps-tag">Institut de beauté &middot; Charleroi</div></div>
+          <div class="ps-header"><div class="ps-logo">LB</div><div class="ps-name">La Belle Époque</div><div class="ps-tag">Salon de coiffure &middot; Bruxelles</div></div>
           <div class="ps-services">
             <div class="ps-svc"><span class="nm">Contour ombré</span><span class="pr">150&#8364;</span><span class="bk">Réserver</span></div>
             <div class="ps-svc"><span class="nm">Pose d'ongles</span><span class="pr">45&#8364;</span><span class="bk">Réserver</span></div>
@@ -1013,7 +1013,7 @@ section { max-width: var(--max-w); margin: 0 auto; padding: 100px 32px; }
   <div class="s-center rv"><div class="s-label">Questions fréquentes</div><div class="s-title">Tout ce que vous devez savoir</div></div>
   <div class="faq-list">
     <div class="faq-item open"><div class="faq-q" >Comment le moteur optimise les temps de pose ? <span class="arr">+</span></div><div class="faq-a">Quand vous configurez une prestation avec un temps de pose (ex: 30 min de pause pendant une coloration), le moteur sait que votre praticien est libre pendant cette periode. Il propose automatiquement ce créneau pour d'autres clients dont la prestation tient dans la fenetre. Résultat : plus de clients sans plus de stress.</div></div>
-    <div class="faq-item"><div class="faq-q" >Comment fonctionne le multi-praticien sur un meme RDV ? <span class="arr">+</span></div><div class="faq-a">Quand un client combine des prestations assignees a des praticiens differents (ex: sourcils par Véronique + ongles par Ashley), le moteur détecte automatiquement qu'aucun praticien ne couvre tout. Il passe en mode "split" : chaque prestation est assignée au bon praticien, les créneaux sont chaînés sans chevauchement, et le client ne voit qu'un seul RDV. Cote staff, chaque praticien voit sa partie sur son planning.</div></div>
+    <div class="faq-item"><div class="faq-q" >Comment fonctionne le multi-praticien sur un meme RDV ? <span class="arr">+</span></div><div class="faq-a">Quand un client combine des prestations assignees a des praticiens differents (ex: sourcils par Maeva + ongles par Joyce), le moteur détecte automatiquement qu'aucun praticien ne couvre tout. Il passe en mode "split" : chaque prestation est assignée au bon praticien, les créneaux sont chaînés sans chevauchement, et le client ne voit qu'un seul RDV. Cote staff, chaque praticien voit sa partie sur son planning.</div></div>
     <div class="faq-item"><div class="faq-q" >Est-ce que mes clients doivent creer un compte ? <span class="arr">+</span></div><div class="faq-a">Non. Vos clients remplissent simplement leur nom, email et telephone pour reserver. Pas de compte, pas de mot de passe, zéro friction.</div></div>
     <div class="faq-item"><div class="faq-q" >Comment fonctionne le systeme d'acomptes ? <span class="arr">+</span></div><div class="faq-a">Le client reçoit un lien de paiement Stripe avec le même délai que pour confirmer un RDV (30 min par defaut, configurable). Pas de paiement dans le délai = annulation automatique et créneau libéré. Les cartes cadeau sont applicables sur l'acompte.</div></div>
     <div class="faq-item"><div class="faq-q" >C'est quoi la liste d'attente intelligente ? <span class="arr">+</span></div><div class="faq-a">Quand un créneau est complet, votre client peut s'inscrire sur la liste d'attente avec ses preferences (jours, horaire, praticien). Dès qu'un créneau se libere, le premier de la liste reçoit une offre avec un timer de 2 heures. S'il ne repond pas, l'offre passe au suivant. Tout est automatique.</div></div>
