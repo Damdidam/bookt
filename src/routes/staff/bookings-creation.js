@@ -162,8 +162,8 @@ router.post('/manual', async (req, res, next) => {
             [client_id, bid]
           );
           const dc = depCheck.rows[0];
-          const noShowTriggered = dc.no_show_count >= (dc.settings.deposit_noshow_threshold || 2);
-          if (dc?.settings?.deposit_enabled && (noShowTriggered || force_deposit)) {
+          const noShowTriggered = dc && dc.no_show_count >= ((dc.settings || {}).deposit_noshow_threshold || 2);
+          if (dc && dc.settings?.deposit_enabled && (noShowTriggered || force_deposit)) {
             const depCents = (deposit_amount_cents > 0)
               ? deposit_amount_cents
               : (dc.settings.deposit_fixed_cents || 2500);
@@ -478,8 +478,8 @@ router.post('/manual', async (req, res, next) => {
           [client_id, bid]
         );
         const dc = depCheck.rows[0];
-        const noShowTriggered = dc.no_show_count >= (dc.settings.deposit_noshow_threshold || 2);
-        if (dc?.settings?.deposit_enabled && (noShowTriggered || force_deposit)) {
+        const noShowTriggered = dc && dc.no_show_count >= ((dc.settings || {}).deposit_noshow_threshold || 2);
+        if (dc && dc.settings?.deposit_enabled && (noShowTriggered || force_deposit)) {
           const svcPriceResult = await client.query(
             `SELECT COALESCE(SUM(COALESCE(sv.price_cents, s.price_cents)), 0) AS total_price
              FROM bookings b

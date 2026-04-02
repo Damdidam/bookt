@@ -239,7 +239,7 @@ router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) 
         if (conflicts.length > 0) { await client.query('ROLLBACK'); return res.status(409).json({ error: 'Ce créneau n\'est plus disponible.' }); }
 
         await client.query(
-          `UPDATE bookings SET start_at = $1, end_at = $2, practitioner_id = $3, reschedule_count = reschedule_count + 1, updated_at = NOW()
+          `UPDATE bookings SET start_at = $1, end_at = $2, practitioner_id = $3, ${i === 0 ? 'reschedule_count = reschedule_count + 1, ' : ''}updated_at = NOW()
            WHERE id = $4`,
           [sp.start_at, sp.end_at, sp.practitioner_id, m.id]
         );

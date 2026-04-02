@@ -247,6 +247,7 @@ body { background: var(--bg); font-family: var(--sans); color: var(--text); min-
 
 <script src="/genda-ui-lite.js"></script>
 <script>
+function escH(s){return s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'):''}
 const token = window.location.pathname.split('/').pop();
 let bookingData = null;
 
@@ -364,8 +365,8 @@ function renderBooking(data) {
     // Multi-service: show each member individually
     document.getElementById('lblPrestation').textContent = (catLabels.service || 'Prestation') + 's';
     let membersHtml = booking.service.members.map(function(m) {
-      const pracInfo = m.practitioner_name ? ' <span style="color:var(--text-4);font-size:.78rem">\u2014 ' + m.practitioner_name.replace(/</g,'&lt;') + '</span>' : '';
-      return '<div style="margin-bottom:2px">' + m.name.replace(/</g,'&lt;') + pracInfo + '</div>'
+      const pracInfo = m.practitioner_name ? ' <span style="color:var(--text-4);font-size:.78rem">\u2014 ' + escH(m.practitioner_name) + '</span>' : '';
+      return '<div style="margin-bottom:2px">' + escH(m.name) + pracInfo + '</div>'
         + '<div style="font-size:.82rem;color:var(--text-4)">' + m.duration_min + ' min' + (m.price_cents ? ' \u00b7 ' + (m.price_cents/100).toFixed(2).replace('.',',') + ' \u20ac' : '') + '</div>';
     }).join('');
     membersHtml += '<div style="margin-top:4px;font-weight:600;font-size:.82rem">Total : ' + booking.service.duration_min + ' min'
@@ -376,7 +377,7 @@ function renderBooking(data) {
       const originalPrice = (booking.service.price_cents / 100).toFixed(2).replace('.',',') + ' \u20ac';
       const discountedPrice = ((booking.service.price_cents - totalDiscount) / 100).toFixed(2).replace('.',',') + ' \u20ac';
       let discountLabels = '';
-      if (promoLabel) discountLabels += '<span style="color:#059669;font-size:.78rem;font-weight:600;margin-left:6px">' + promoLabel.replace(/</g,'&lt;') + '</span>';
+      if (promoLabel) discountLabels += '<span style="color:#059669;font-size:.78rem;font-weight:600;margin-left:6px">' + escH(promoLabel) + '</span>';
       if (lmDiscountPct > 0) discountLabels += '<span style="color:#059669;font-size:.78rem;font-weight:600;margin-left:6px">-' + lmDiscountPct + '% last-minute</span>';
       priceEl.innerHTML = '<s style="color:var(--text-4);font-weight:400">' + originalPrice + '</s> ' + discountedPrice + discountLabels;
     } else {
@@ -388,7 +389,7 @@ function renderBooking(data) {
       const originalPrice = (booking.service.price_cents / 100).toFixed(2).replace('.',',') + ' \u20ac';
       const discountedPrice = ((booking.service.price_cents - totalDiscount) / 100).toFixed(2).replace('.',',') + ' \u20ac';
       let discountLabels = '';
-      if (promoLabel) discountLabels += '<span style="color:#059669;font-size:.78rem;font-weight:600;margin-left:6px">' + promoLabel.replace(/</g,'&lt;') + '</span>';
+      if (promoLabel) discountLabels += '<span style="color:#059669;font-size:.78rem;font-weight:600;margin-left:6px">' + escH(promoLabel) + '</span>';
       if (lmDiscountPct > 0) discountLabels += '<span style="color:#059669;font-size:.78rem;font-weight:600;margin-left:6px">-' + lmDiscountPct + '% last-minute</span>';
       priceEl.innerHTML = '<s style="color:var(--text-4);font-weight:400">' + originalPrice + '</s> ' + discountedPrice + discountLabels;
     } else {

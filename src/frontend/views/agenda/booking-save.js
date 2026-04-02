@@ -19,13 +19,14 @@ async function calSaveAll() {
   try {
   if (_serverSlotUnavailable) {
     gToast('Créneau indisponible — modifiez l\'horaire', 'error');
+    calSaveAll._busy = false; if (_btn) { _btn.disabled = false; _btn.classList.remove('is-loading'); }
     return;
   }
   const nd = document.getElementById('calEditDate').value;
   const ns = document.getElementById('calEditStart').value;
   const ne = document.getElementById('calEditEnd').value;
-  if (!nd || !ns || !ne) return;
-  if (fcTimeDiffMin(ns, ne) <= 0) { gToast("Fin doit \u00eatre apr\u00e8s d\u00e9but", "error"); return; }
+  if (!nd || !ns || !ne) { calSaveAll._busy = false; if (_btn) { _btn.disabled = false; _btn.classList.remove('is-loading'); } return; }
+  if (fcTimeDiffMin(ns, ne) <= 0) { gToast("Fin doit \u00eatre apr\u00e8s d\u00e9but", "error"); calSaveAll._busy = false; if (_btn) { _btn.disabled = false; _btn.classList.remove('is-loading'); } return; }
 
   const newPrac = document.getElementById('uPracSelect').value;
   const newComment = document.getElementById('uComment').value.trim();

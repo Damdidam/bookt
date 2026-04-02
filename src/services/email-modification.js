@@ -40,7 +40,7 @@ async function sendModificationEmail({ booking, business, groupServices }) {
     : escHtml(fmtSvcLabel(booking.service_category, booking.service_name, null, booking.custom_label));
 
   let serviceDetailOld = `<div style="font-size:13px;color:#92700C;text-decoration:line-through;opacity:.6">${safeServiceName}</div>`;
-  let serviceDetailNew = `<div style="font-size:13px;color:#15613A;font-weight:600">${safeServiceName} \u00b7 ${safePracName}</div>`;
+  let serviceDetailNew = `<div style="font-size:13px;color:#15613A;font-weight:600">${safeServiceName}${safePracName ? ' \u00b7 ' + safePracName : ''}</div>`;
   if (isMulti) {
     serviceDetailOld = `<div style="font-size:13px;color:#92700C;text-decoration:line-through;opacity:.6;margin-top:4px">Prestations :</div>`;
     groupServices.forEach(s => {
