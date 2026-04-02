@@ -222,7 +222,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
         <div id="teamList"></div>
         <button class="add-btn" onclick="addTeamMember()">+ Ajouter un(e) praticien(ne)</button>
         <div class="clo info" style="margin-top:10px">Bio, photo, compétences et services par praticien se configurent dans Dashboard › Équipe.</div>
-        <div class="snav"><button class="btn-back" onclick="go(2)">← Retour</button><div><button class="btn-skip" onclick="saveOnboardingStep('team',11)">Plus tard, je gère seul(e)</button><button class="btn-next" onclick="saveTeam()">Continuer →</button></div></div>
+        <div class="snav"><button class="btn-back" onclick="go(2)">← Retour</button><div><button class="btn-skip" onclick="skipTeam()">Plus tard, je gère seul(e)</button><button class="btn-next" onclick="saveTeam()">Continuer →</button></div></div>
       </div>
 
       <!-- STEPS 5, 6, 7 removed: bio/specializations/testimonials configurable in dashboard -->
@@ -231,19 +231,29 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 
       <!-- ===== STEP 11: GO LIVE ===== -->
       <div class="step" data-step="11">
-        <div class="step-hdr"><div class="lbl"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5.8 11.3L2 22l10.7-3.79"/><path d="M4 3h.01"/><path d="M22 8h.01"/><path d="M15 2h.01"/><path d="M22 20h.01"/><path d="m22 2-2.24.75a2.9 2.9 0 0 0-1.96 3.12v0c.1.86-.57 1.63-1.45 1.63h-.38c-.86 0-1.6.6-1.76 1.44L14 10"/><path d="m22 13-.82-.33c-.86-.34-1.82.2-1.98 1.11v0c-.11.7-.72 1.22-1.43 1.22H17"/><path d="m11 2 .33.82c.34.86-.2 1.82-1.11 1.98v0C9.52 4.9 9 5.52 9 6.23V7"/><path d="M11 13c1.93 1.93 2.83 4.17 2 5-.83.83-3.07-.07-5-2-1.93-1.93-2.83-4.17-2-5 .83-.83 3.07.07 5 2z"/></svg> C'est prêt !</div><h2>Votre salon est en ligne</h2></div>
+        <div class="step-hdr"><div class="lbl"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Inscription terminée</div><h2>Merci pour votre inscription !</h2></div>
         <div class="golive">
-          <div class="icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:#22C55E"><circle cx="12" cy="12" r="4" fill="currentColor"/></svg></div>
+          <div class="icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:#A68B3C"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
           <h3 id="goliveName">Votre salon</h3>
-          <p>Le moteur de créneaux intelligent est activé. Vos clients peuvent réserver 24/7.</p>
+          <p style="color:var(--text-3);font-size:.88rem;line-height:1.6">Votre compte a bien été créé. <strong>Un administrateur Genda va vérifier votre inscription</strong> et activer votre salon. Vous recevrez un email de confirmation dès que tout sera prêt.</p>
           <div class="url" id="goliveUrl" onclick="copyUrl()">genda.be/votre-salon</div>
-          <div class="acts">
-            <a onclick="copyUrl()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg> Copier</a>
-            <a href="#" id="goliveLinkPreview" target="_blank"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2v7.527a2 2 0 0 1-.211.896L4.72 20.55a1 1 0 0 0 .9 1.45h12.76a1 1 0 0 0 .9-1.45l-5.069-10.127A2 2 0 0 1 14 9.527V2"/><path d="M8.5 2h7"/><path d="M7 16.5h10"/></svg> Tester</a>
-            <a href="/dashboard.html" class="pri">Mon dashboard →</a>
+        </div>
+
+        <div style="background:var(--gold-bg);border:1px solid var(--gold-border);border-radius:var(--radius);padding:16px;margin:16px 0">
+          <div style="font-size:.82rem;font-weight:700;color:var(--gold);margin-bottom:8px">En attendant l'activation, configurez votre salon :</div>
+          <div style="font-size:.8rem;color:var(--text-2);line-height:1.7">
+            <div style="margin-bottom:4px">• <strong>Prestations</strong> — ajustez les noms, durées, prix et temps de pose</div>
+            <div style="margin-bottom:4px">• <strong>Bio & minisite</strong> — description, galerie, témoignages, thème</div>
+            <div style="margin-bottom:4px">• <strong>Acomptes & paiements</strong> — connectez Stripe pour les acomptes en ligne</div>
+            <div>• <strong>Notifications</strong> — rappels email/SMS, confirmations</div>
           </div>
         </div>
-        <div class="clo tip" style="margin-top:16px"><strong>Prochaines étapes :</strong><br>• Partagez le lien sur vos réseaux sociaux et Google My Business<br>• Configurez les temps de pose par prestation dans le dashboard<br>• Ajoutez vos collaborateurs pour activer le multi-praticiens<br>• Testez une réservation vous-même</div>
+
+        <div class="golive" style="padding-top:0">
+          <div class="acts">
+            <a href="/dashboard" class="pri">Configurer mon salon →</a>
+          </div>
+        </div>
       </div>
 
     </div>
@@ -288,11 +298,13 @@ function go(n) {
   currentStep = n;
   hideError();
 
-  // Progress bar
-  if (n > 0 && n <= 11) {
-    const pct = Math.round((n / 11) * 100);
+  // Progress bar — real steps: 0(account) → 2(hours) → 4(team) → 11(done)
+  const stepMap = {0: 0, 2: 1, 4: 2, 11: 3};
+  const stepNum = stepMap[n];
+  if (stepNum !== undefined && stepNum > 0 && stepNum < 3) {
+    const pct = Math.round((stepNum / 3) * 100);
     document.getElementById('pFill').style.width = pct + '%';
-    document.getElementById('pLabel').textContent = `Étape ${n}/11`;
+    document.getElementById('pLabel').textContent = `Étape ${stepNum}/3`;
     document.getElementById('pPct').textContent = pct + '%';
     document.getElementById('prog').classList.add('show');
   } else {
@@ -314,17 +326,9 @@ function hideError() {
 
 const leftTexts = {
   0: ['Chaque minute <em>compte.</em>', 'Le moteur de planning le plus intelligent pour salons et instituts de beauté.'],
-  1: ['Votre <em>identité</em>', 'Visible sur votre page de réservation et vos confirmations.'],
   2: ['Vos <em>horaires,</em> optimisés', 'Le moteur maximise chaque créneau et gère les temps de pose.'],
-  3: ['Vos <em>prestations</em>', 'Pré-remplies pour votre secteur. Le moteur gère les durées et les poses.'],
   4: ['Votre <em>équipe</em>', 'Multi-praticiens sur un même RDV : le moteur assigne le bon créneau à chacun.'],
-  5: ['Racontez votre <em>histoire</em>', 'Un salon avec description inspire 3x plus confiance.'],
-  6: ['Votre <em>expertise</em>', 'Aide vos clients et votre référencement Google.'],
-  7: ['La preuve <em>sociale</em>', 'Témoignages = facteur #1 de conversion.'],
-  8: ['Zéro <em>no-show</em>', '-60% d\'absences grâce aux rappels automatiques.'],
-  9: ['Finies les <em>interruptions</em>', '78% des appels filtrés, redirigés vers la réservation en ligne.'],
-  10: ['Synchronisez votre <em>agenda</em>', 'Vos créneaux occupés bloquent les réservations. 0 conflit.'],
-  11: ['C\'est <em>prêt !</em>', 'Votre moteur de créneaux intelligent est activé. Partagez le lien.']
+  11: ['Presque <em>terminé !</em>', 'Encore quelques réglages dans le dashboard et vous êtes prêt.']
 };
 
 function updateLeftPanel(n) {
@@ -494,7 +498,7 @@ async function saveTeam() {
   if (cards.length === 0) {
     await api.updateOnboarding('team');
     GendaUI.toast('Équipe confirmée', 'success');
-    go(11);
+    goLive();
     return;
   }
 
@@ -535,12 +539,17 @@ async function saveTeam() {
 
     await api.updateOnboarding('team');
     GendaUI.toast('Équipe enregistrée', 'success');
-    go(11);
+    goLive();
   } catch (err) {
     showError(err.message);
   } finally {
     GendaUI.btnLoading(btn, false);
   }
+}
+
+async function skipTeam() {
+  try { await api.updateOnboarding('team'); } catch (e) {}
+  goLive();
 }
 
 // ============================================================
@@ -575,7 +584,7 @@ async function goLive() {
   document.getElementById('goliveLinkPreview').href = `/${slug}`;
 
   go(11);
-  GendaUI.toast('<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5.8 11.3L2 22l10.7-3.79"/><path d="M4 3h.01"/><path d="M22 8h.01"/><path d="M15 2h.01"/><path d="M22 20h.01"/><path d="m22 2-2.24.75a2.9 2.9 0 0 0-1.96 3.12v0c.1.86-.57 1.63-1.45 1.63h-.38c-.86 0-1.6.6-1.76 1.44L14 10"/><path d="m22 13-.82-.33c-.86-.34-1.82.2-1.98 1.11v0c-.11.7-.72 1.22-1.43 1.22H17"/><path d="m11 2 .33.82c.34.86-.2 1.82-1.11 1.98v0C9.52 4.9 9 5.52 9 6.23V7"/><path d="M11 13c1.93 1.93 2.83 4.17 2 5-.83.83-3.07-.07-5-2-1.93-1.93-2.83-4.17-2-5 .83-.83 3.07.07 5 2z"/></svg> Votre salon est en ligne !', 'success', 6000);
+  GendaUI.toast('Inscription terminée ! Un admin va vérifier votre salon.', 'success', 5000);
 }
 
 function copyUrl() {
@@ -589,7 +598,7 @@ function copyUrl() {
 // Expose functions to inline onclick handlers
 Object.assign(window, {
   selSec, updSlug, go, doSignup, toggleDay, saveSchedule,
-  saveOnboardingStep, addTeamMember, saveTeam,
+  saveOnboardingStep, addTeamMember, saveTeam, skipTeam,
   goLive, copyUrl
 });
 </script>
