@@ -301,7 +301,7 @@ router.post('/forgot-password', authLimiter, async (req, res, next) => {
     );
 
     // Send email
-    const baseUrl = process.env.BASE_URL || process.env.APP_BASE_URL || 'https://genda-qgm2.onrender.com';
+    const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
     const resetUrl = `${baseUrl}/reset-password.html?token=${token}`;
 
     const { sendPasswordResetEmail } = require('../../services/email');

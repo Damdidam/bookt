@@ -144,7 +144,7 @@ async function processWaitlistForCancellation(bookingId, businessId) {
     }
 
     // Send waitlist offer email
-    const offerUrl = `${process.env.BASE_URL || process.env.APP_BASE_URL || 'https://genda.be'}/waitlist/${token}`;
+    const offerUrl = `${process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be'}/waitlist/${token}`;
     const slotDateFmt = new Date(bk.start_at).toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Brussels' });
     const slotTimeFmt = new Date(bk.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
 
@@ -312,7 +312,7 @@ async function processExpiredOffers() {
           if (cascadeResult.rows.length === 0) continue;
 
           // Send cascade offer email to next person
-          const cascadeUrl = `${process.env.BASE_URL || process.env.APP_BASE_URL || 'https://genda.be'}/waitlist/${token}`;
+          const cascadeUrl = `${process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be'}/waitlist/${token}`;
           const cascadeDateFmt = new Date(entry.offer_booking_start).toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Brussels' });
           const cascadeTimeFmt = new Date(entry.offer_booking_start).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
 

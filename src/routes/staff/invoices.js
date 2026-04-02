@@ -184,6 +184,10 @@ router.post('/', requireOwner, async (req, res, next) => {
       );
       if (bkResult.rows.length > 0) {
         const bk = bkResult.rows[0];
+        // Guard: don't create invoice for cancelled bookings
+        if (bk.status === 'cancelled') {
+          return res.status(400).json({ error: 'Impossible de créer une facture pour un rendez-vous annulé' });
+        }
         if (!client) {
           client = { id: bk.c_id, full_name: bk.full_name, email: bk.email,
                      phone: bk.phone, bce_number: bk.bce_number };

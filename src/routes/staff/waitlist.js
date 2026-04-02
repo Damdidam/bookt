@@ -256,7 +256,7 @@ router.post('/:id/offer', async (req, res, next) => {
       [token, start_at, end_at, expiresAt.toISOString(), id, bid]
     );
 
-    const offerUrl = `${process.env.BASE_URL || process.env.APP_BASE_URL || 'https://genda.be'}/waitlist/${token}`;
+    const offerUrl = `${process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be'}/waitlist/${token}`;
     const wEntry = entry.rows[0];
 
     // Fetch practitioner, service, business info for the email

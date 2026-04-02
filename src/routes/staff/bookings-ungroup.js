@@ -708,7 +708,7 @@ router.post('/:id/group-add', async (req, res, next) => {
 
     // 2. Fetch service info + duration
     const svcRes = await queryWithRLS(bid,
-      `SELECT id, name, duration_min, buffer_before_min, buffer_after_min, is_active
+      `SELECT id, name, duration_min, buffer_before_min, buffer_after_min, price_cents, is_active
        FROM services WHERE id = $1 AND business_id = $2`,
       [service_id, bid]
     );
@@ -800,15 +800,16 @@ router.post('/:id/group-add', async (req, res, next) => {
         }
 
         // Insert the new group member
+        const _addBookedPrice = variantPrice != null ? variantPrice : (svc.price_cents || null);
         const ins = await client.query(
           `INSERT INTO bookings (business_id, practitioner_id, service_id, service_variant_id, client_id,
-            channel, appointment_mode, start_at, end_at, status, group_id, group_order)
-           VALUES ($1, $2, $3, $4, $5, 'manual', $6, $7, $8, 'confirmed', $9, $10)
+            channel, appointment_mode, start_at, end_at, status, locked, group_id, group_order, booked_price_cents)
+           VALUES ($1, $2, $3, $4, $5, 'manual', $6, $7, $8, 'confirmed', true, $9, $10, $11)
            RETURNING *`,
           [bid, booking.practitioner_id, service_id, variant_id || null, booking.client_id,
            booking.appointment_mode || 'cabinet',
            newStart.toISOString(), newEnd.toISOString(),
-           booking.group_id, newGroupOrder]
+           booking.group_id, newGroupOrder, _addBookedPrice]
         );
 
         // Audit log

@@ -68,10 +68,7 @@ router.get('/summary', async (req, res, next) => {
         COUNT(*) FILTER (WHERE status = 'no_show') AS no_shows,
         COUNT(*) FILTER (WHERE status = 'cancelled') AS cancellations,
         COALESCE(SUM(
-          CASE WHEN b.discount_pct > 0
-            THEN ROUND(COALESCE(sv.price_cents, s.price_cents, 0) * (100 - b.discount_pct) / 100.0)
-            ELSE COALESCE(sv.price_cents, s.price_cents, 0)
-          END
+          COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents, 0)
           - CASE WHEN b.group_order = 0 THEN COALESCE(b.promotion_discount_cents, 0) ELSE 0 END
         ) FILTER (WHERE b.status IN ('confirmed', 'completed')), 0) AS revenue_cents
        FROM bookings b
@@ -277,10 +274,7 @@ router.get('/analytics', async (req, res, next) => {
         COUNT(*) FILTER (WHERE b.status = 'no_show') AS no_shows,
         COUNT(*) FILTER (WHERE b.status = 'cancelled') AS cancellations,
         COALESCE(SUM(
-          CASE WHEN b.discount_pct > 0
-            THEN ROUND(COALESCE(sv.price_cents, s.price_cents, 0) * (100 - b.discount_pct) / 100.0)
-            ELSE COALESCE(sv.price_cents, s.price_cents, 0)
-          END
+          COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents, 0)
           - CASE WHEN b.group_order = 0 THEN COALESCE(b.promotion_discount_cents, 0) ELSE 0 END
         ) FILTER (WHERE b.status IN ('confirmed', 'completed')), 0) AS revenue
        FROM bookings b
@@ -311,10 +305,7 @@ router.get('/analytics', async (req, res, next) => {
     const topServices = await queryWithRLS(bid,
       `SELECT s.name, s.color, COUNT(b.id) AS count,
         COALESCE(SUM(
-          CASE WHEN b.discount_pct > 0
-            THEN ROUND(COALESCE(sv.price_cents, s.price_cents, 0) * (100 - b.discount_pct) / 100.0)
-            ELSE COALESCE(sv.price_cents, s.price_cents, 0)
-          END
+          COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents, 0)
           - CASE WHEN b.group_order = 0 THEN COALESCE(b.promotion_discount_cents, 0) ELSE 0 END
         ), 0) AS revenue
        FROM bookings b
@@ -347,10 +338,7 @@ router.get('/analytics', async (req, res, next) => {
         TO_CHAR(b.start_at AT TIME ZONE 'Europe/Brussels', 'YYYY-MM') AS month,
         COUNT(*) FILTER (WHERE b.status IN ('confirmed', 'completed')) AS bookings,
         COALESCE(SUM(
-          CASE WHEN b.discount_pct > 0
-            THEN ROUND(COALESCE(sv.price_cents, s.price_cents, 0) * (100 - b.discount_pct) / 100.0)
-            ELSE COALESCE(sv.price_cents, s.price_cents, 0)
-          END
+          COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents, 0)
           - CASE WHEN b.group_order = 0 THEN COALESCE(b.promotion_discount_cents, 0) ELSE 0 END
         ) FILTER (WHERE b.status IN ('confirmed', 'completed')), 0) AS revenue
        FROM bookings b

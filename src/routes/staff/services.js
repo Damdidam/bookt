@@ -424,9 +424,9 @@ router.delete('/:id', requireOwner, async (req, res, next) => {
         return { conflict: true, count: active.rows[0].cnt };
       }
 
-      // Remove terminal bookings (cancelled, completed, no_show) that would block FK
+      // Nullify service_id on terminal bookings to preserve history (service_id is nullable since v11)
       await txClient.query(
-        `DELETE FROM bookings
+        `UPDATE bookings SET service_id = NULL, service_variant_id = NULL, updated_at = NOW()
          WHERE service_id = $1 AND business_id = $2
          AND status IN ('cancelled', 'completed', 'no_show')`,
         [id, bid]
