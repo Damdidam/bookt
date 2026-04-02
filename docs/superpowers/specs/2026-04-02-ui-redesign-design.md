@@ -38,72 +38,23 @@ Le dashboard Genda souffre de plusieurs problèmes structurels :
 
 ## Sous-projet 1 : Design System / Fondations
 
-### Palette de couleurs
+### Design system existant (variables.css)
 
-```css
-:root {
-  --color-primary: #6C5CE7;
-  --color-primary-hover: #5A4BD1;
-  --color-primary-light: #F0EEFF;
+Le projet possède déjà un design system complet dans `src/frontend/styles/variables.css` + 10 fichiers CSS. On ne change PAS les valeurs existantes — on étend avec les composants manquants.
 
-  --color-success: #27AE60;
-  --color-warning: #F39C12;
-  --color-danger: #E74C3C;
-  --color-info: #3498DB;
+**Palette existante :** teal primary `#0D7377`, green `#1B7A42`, red `#C62828`, gold `#A68B3C`, amber, blue, purple, pink, orange + backgrounds
+**Fonts existantes :** Plus Jakarta Sans (sans) + Instrument Serif (serif)
+**Composants existants :** buttons (primary, outline, sm, danger), cards (stat-card, kpi, card), tables, modals (complet avec tabs, inputs, chips), sidebar, responsive
 
-  --color-bg: #F8F9FA;
-  --color-surface: #FFFFFF;
-  --color-border: #E9ECEF;
+### Composants manquants à ajouter
 
-  --color-text-1: #2D3436;
-  --color-text-2: #636E72;
-  --color-text-3: #B2BEC3;
-  --color-text-4: #DFE6E9;
-}
-```
-
-### Typographie
-
-```css
-:root {
-  --font-family: 'DM Sans', system-ui, sans-serif;
-  --font-size-xs: 0.75rem;    /* badges, labels */
-  --font-size-sm: 0.875rem;   /* body, inputs */
-  --font-size-md: 1rem;        /* sous-titres */
-  --font-size-lg: 1.25rem;     /* titres de section */
-  --font-size-xl: 1.5rem;      /* titres de page */
-}
-```
-
-### Spacing
-
-```css
-:root {
-  --space-1: 0.25rem;   /* 4px */
-  --space-2: 0.5rem;    /* 8px */
-  --space-3: 0.75rem;   /* 12px */
-  --space-4: 1rem;      /* 16px */
-  --space-5: 1.5rem;    /* 24px */
-  --space-6: 2rem;      /* 32px */
-  --space-8: 3rem;      /* 48px */
-}
-```
-
-### Composants de base
-
-- **Boutons** : `.btn-primary`, `.btn-secondary`, `.btn-outline`, `.btn-danger`, `.btn-ghost` — tailles sm/md/lg
-- **Cards** : `.card` avec `.card-header`, `.card-body`, `.card-footer`
-- **Badges/Tags** : `.badge-success`, `.badge-warning`, `.badge-danger`, `.badge-info`, `.badge-neutral`
-- **Inputs** : `.input`, `.select`, `.textarea`, `.toggle` — style unifié
-- **Tables** : `.table` avec `.table-header`, `.table-row`, `.table-cell`
-- **Modals** : `.modal`, `.modal-header`, `.modal-body`, `.modal-footer` (jamais de close on outside click)
-- **Tabs** : `.tabs`, `.tab-item`, `.tab-active`
-- **KPI tiles** : `.kpi-card` avec `.kpi-value`, `.kpi-label`
-- **Empty states** : `.empty-state` avec icône + texte + CTA
+- **Page-level tabs** : `.page-tabs`, `.page-tab`, `.page-tab.active` — pour les onglets Paramètres
+- **Toggle switch** : `.toggle`, `.toggle-track` — remplace les inline styles des toggles
+- **Badge variants** : `.badge-success`, `.badge-warning`, `.badge-danger`, `.badge-info`, `.badge-neutral`, `.badge-amber`, `.badge-purple`
 
 ### Migration
 
-Les inline styles seront remplacés progressivement fichier par fichier en utilisant les nouvelles classes. Pas de breaking change — on ajoute le design system, puis on migre.
+Les inline styles seront remplacés progressivement fichier par fichier en utilisant les classes existantes + nouvelles. Pas de breaking change.
 
 ---
 
