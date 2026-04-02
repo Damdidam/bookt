@@ -751,11 +751,7 @@ router.delete('/:id', requireOwner, async (req, res, next) => {
         );
       }
 
-      // Clean up related data
-      await queryWithRLS(bid,
-        `DELETE FROM practitioner_services WHERE practitioner_id = $1 AND business_id = $2`,
-        [pracId, bid]
-      );
+      // practitioner_services has ON DELETE CASCADE — cleaned up automatically
 
       // Nullify practitioner_id on past bookings to avoid FK violation on delete
       await queryWithRLS(bid,
