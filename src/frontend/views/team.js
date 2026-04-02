@@ -356,7 +356,7 @@ function renderPractModal(p) {
         </div>` : ''}
 
         ${isEdit ? `<div class="m-sec" style="margin-top:16px">
-          <div class="m-sec-head"><span class="m-sec-title">${ICONS.key} Accès dashboard</span><span class="m-sec-line"></span></div>
+          <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" style="width:14px;height:14px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg> Accès dashboard</span><span class="m-sec-line"></span></div>
           ${p.user_id
             ? `<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--surface);border-radius:8px">
                 <div style="flex:1">
