@@ -752,3 +752,12 @@
   .qs-price-wrap{order:3}
   .qs-cat-grid{grid-template-columns:repeat(2,1fr)}
 }
+
+/* ===== PAGE TABS ===== */
+.page-tabs{display:flex;gap:0;border-bottom:2px solid var(--border-light);margin-bottom:24px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.page-tabs::-webkit-scrollbar{display:none}
+.page-tab{padding:12px 20px;font-size:var(--text-base);font-weight:600;color:var(--text-4);cursor:pointer;border-bottom:2.5px solid transparent;transition:all .15s;white-space:nowrap;margin-bottom:-2px;background:none;border-top:none;border-left:none;border-right:none;font-family:var(--sans)}
+.page-tab:hover{color:var(--text-2)}
+.page-tab.active{color:var(--primary);border-bottom-color:var(--primary)}
+@media(max-width:1280px){.page-tab{padding:14px 18px;min-height:44px}}
+@media(max-width:600px){.page-tab{padding:12px 14px;font-size:var(--text-sm)}}
