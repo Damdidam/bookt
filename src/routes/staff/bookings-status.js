@@ -421,19 +421,10 @@ router.patch('/:id/status', async (req, res, next) => {
         );
         const dep = depInfo.rows[0];
         if (dep?.deposit_required) {
-          const cancelDeadlineH = dep.settings?.cancel_deadline_hours ?? 24;
-          const graceMin = dep.settings?.cancel_grace_minutes ?? 240;
           let newDepStatus;
           if (dep.deposit_status === 'paid') {
-            const hoursUntilRdv = (new Date(dep.start_at) - new Date()) / 3600000;
-            const minSinceCreated = (new Date() - new Date(dep.created_at)) / 60000;
-            if (minSinceCreated <= graceMin) {
-              newDepStatus = 'refunded';
-            } else if (hoursUntilRdv >= cancelDeadlineH) {
-              newDepStatus = 'refunded';
-            } else {
-              newDepStatus = 'cancelled';
-            }
+            // Staff cancel = ALWAYS refund the deposit to the client
+            newDepStatus = 'refunded';
           } else if (dep.deposit_status === 'pending') {
             newDepStatus = 'cancelled';
           }
