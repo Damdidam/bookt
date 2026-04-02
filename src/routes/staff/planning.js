@@ -1080,7 +1080,7 @@ router.post('/notify-impacted', requireOwner, async (req, res, next) => {
             cancelUrl: publicToken ? `${baseUrl}/booking/${publicToken}` : null,
             businessName: business.name,
             primaryColor,
-            footerText: `${business.name}${business.address ? ' \u00b7 ' + escHtml(business.address) : ''} \u2014 Via Genda.be`
+            footerText: `${business.name}${business.address ? ' \u00b7 ' + business.address : ''} \u2014 Via Genda.be`
           });
 
           const emailResult = await sendEmail({
@@ -1169,7 +1169,7 @@ router.post('/notify-impacted', requireOwner, async (req, res, next) => {
             businessName: business.name,
             primaryColor,
             ...(manageUrl ? { ctaText: 'Gérer mon rendez-vous', ctaUrl: manageUrl } : {}),
-            footerText: `${business.name}${business.address ? ' · ' + escHtml(business.address) : ''} — Via Genda.be`
+            footerText: `${business.name}${business.address ? ' · ' + business.address : ''} — Via Genda.be`
           });
 
           const emailResult = await sendEmail({
