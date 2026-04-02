@@ -132,6 +132,7 @@ class GendaAPI {
 
   get(path, options) { return this._fetch('GET', path, null, options); }
   post(path, body, options) { return this._fetch('POST', path, body, options); }
+  put(path, body, options) { return this._fetch('PUT', path, body, options); }
   patch(path, body, options) { return this._fetch('PATCH', path, body, options); }
   delete(path, options) { return this._fetch('DELETE', path, null, options); }
 

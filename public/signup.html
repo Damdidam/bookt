@@ -204,6 +204,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
       <!-- ===== STEP 2: SCHEDULE ===== -->
       <div class="step" data-step="2">
         <div class="step-hdr"><div class="lbl">Étape 2 · Horaires</div><h2>Horaires d'ouverture</h2><p>Les horaires de votre commerce. Les disponibilités de chaque praticien se configurent ensuite dans le dashboard.</p></div>
+        <div style="display:grid;grid-template-columns:90px 38px 1fr 1fr;gap:6px;padding:0 0 4px;margin-bottom:2px"><span></span><span></span><span style="font-size:.65rem;font-weight:600;color:var(--text-4);text-align:center;text-transform:uppercase;letter-spacing:1px">Matin</span><span style="font-size:.65rem;font-weight:600;color:var(--text-4);text-align:center;text-transform:uppercase;letter-spacing:1px">Après-midi</span></div>
         <div id="schedGrid"></div>
         <div class="clo tip" style="margin-top:12px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg> Pause midi pré-configurée. Le moteur gère les temps de pose et les gaps entre créneaux.</div>
         <div class="snav"><button class="btn-back" onclick="go(0)">← Retour</button><button class="btn-next" onclick="saveSchedule()">Continuer →</button></div>
@@ -514,31 +515,55 @@ async function doSignup() {
 function buildScheduleGrid() {
   const days = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
   const defaults = [
-    {on:true,am:'09:00 – 12:00',pm:'13:00 – 17:00'},
-    {on:true,am:'09:00 – 12:00',pm:'13:00 – 17:00'},
-    {on:true,am:'09:00 – 12:00',pm:'13:00 – 17:00'},
-    {on:true,am:'09:00 – 12:00',pm:'13:00 – 17:00'},
-    {on:true,am:'09:00 – 12:00',pm:'13:00 – 16:00'},
-    {on:false,am:'—',pm:'—'},
-    {on:false,am:'—',pm:'—'}
+    {on:true,s1:'09:00',e1:'12:00',s2:'13:00',e2:'17:00'},
+    {on:true,s1:'09:00',e1:'12:00',s2:'13:00',e2:'17:00'},
+    {on:true,s1:'09:00',e1:'12:00',s2:'13:00',e2:'17:00'},
+    {on:true,s1:'09:00',e1:'12:00',s2:'13:00',e2:'17:00'},
+    {on:true,s1:'09:00',e1:'12:00',s2:'13:00',e2:'16:00'},
+    {on:false,s1:'09:00',e1:'12:00',s2:'13:00',e2:'17:00'},
+    {on:false,s1:'09:00',e1:'12:00',s2:'13:00',e2:'17:00'}
   ];
   const grid = document.getElementById('schedGrid');
   grid.innerHTML = '';
   days.forEach((d, i) => {
     const r = defaults[i];
-    grid.innerHTML += `<div class="schrow">
+    const dis = r.on ? '' : 'disabled';
+    grid.innerHTML += `<div class="schrow" data-weekday="${i}">
       <span class="schday" ${!r.on?'style="color:var(--text-4)"':''}>${d}</span>
-      <div class="tog ${r.on?'on':''}" onclick="this.classList.toggle('on')"></div>
-      <input class="schi" value="${r.am}" ${!r.on?'disabled':''}>
-      <input class="schi" value="${r.pm}" ${!r.on?'disabled':''}>
+      <div class="tog ${r.on?'on':''}" onclick="toggleDay(this)"></div>
+      <div style="display:flex;align-items:center;gap:3px"><input class="schi" type="time" value="${r.s1}" ${dis} data-slot="s1"><span style="font-size:.7rem;color:var(--text-4)">–</span><input class="schi" type="time" value="${r.e1}" ${dis} data-slot="e1"></div>
+      <div style="display:flex;align-items:center;gap:3px"><input class="schi" type="time" value="${r.s2}" ${dis} data-slot="s2"><span style="font-size:.7rem;color:var(--text-4)">–</span><input class="schi" type="time" value="${r.e2}" ${dis} data-slot="e2"></div>
     </div>`;
   });
+}
+function toggleDay(tog) {
+  tog.classList.toggle('on');
+  const row = tog.closest('.schrow');
+  const inputs = row.querySelectorAll('input.schi');
+  const on = tog.classList.contains('on');
+  inputs.forEach(inp => { inp.disabled = !on; });
+  row.querySelector('.schday').style.color = on ? '' : 'var(--text-4)';
 }
 
 async function saveSchedule() {
   try {
+    const schedule = {};
+    document.querySelectorAll('.schrow').forEach(row => {
+      const weekday = row.dataset.weekday;
+      const on = row.querySelector('.tog').classList.contains('on');
+      if (!on) return;
+      const s1 = row.querySelector('[data-slot="s1"]').value;
+      const e1 = row.querySelector('[data-slot="e1"]').value;
+      const s2 = row.querySelector('[data-slot="s2"]').value;
+      const e2 = row.querySelector('[data-slot="e2"]').value;
+      const windows = [];
+      if (s1 && e1 && s1 < e1) windows.push({ start_time: s1, end_time: e1 });
+      if (s2 && e2 && s2 < e2) windows.push({ start_time: s2, end_time: e2 });
+      if (windows.length > 0) schedule[weekday] = windows;
+    });
+    await api.put('/api/business-hours', { schedule });
     await api.updateOnboarding('schedule');
-    GendaUI.toast('Horaires confirmés', 'success');
+    GendaUI.toast('Horaires enregistrés', 'success');
     go(3);
   } catch (err) { showError(err.message); }
 }
@@ -746,7 +771,7 @@ function copyUrl() {
 
 // Expose functions to inline onclick handlers
 Object.assign(window, {
-  selSec, updSlug, go, doSignup, saveSchedule,
+  selSec, updSlug, go, doSignup, toggleDay, saveSchedule,
   saveOnboardingStep, saveTeam, saveBio, addTestimonialForm,
   selectCalendar, saveCalendarChoice, goLive, copyUrl
 });
