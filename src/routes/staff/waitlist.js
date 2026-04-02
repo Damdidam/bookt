@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const { queryWithRLS } = require('../../services/db');
 const { requireAuth, resolvePractitionerScope } = require('../../middleware/auth');
+const { sendEmail, buildEmailHTML, escHtml } = require('../../services/email');
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -255,16 +256,69 @@ router.post('/:id/offer', async (req, res, next) => {
       [token, start_at, end_at, expiresAt.toISOString(), id, bid]
     );
 
-    // TODO: Send email via Brevo when connected
-    // For now, return the offer URL for manual sharing
-    const offerUrl = `${process.env.BASE_URL || process.env.APP_BASE_URL}/waitlist/${token}`;
+    const offerUrl = `${process.env.BASE_URL || process.env.APP_BASE_URL || 'https://genda.be'}/waitlist/${token}`;
+    const wEntry = entry.rows[0];
+
+    // Fetch practitioner, service, business info for the email
+    const detailsResult = await queryWithRLS(bid,
+      `SELECT p.display_name AS practitioner_name,
+              s.name AS service_name, s.duration_min, s.price_cents,
+              b.name AS business_name, b.theme, b.address, b.phone, b.email AS business_email
+       FROM practitioners p
+       JOIN services s ON s.id = $2 AND s.business_id = $3
+       JOIN businesses b ON b.id = $3
+       WHERE p.id = $1 AND p.business_id = $3`,
+      [wEntry.practitioner_id, wEntry.service_id, bid]
+    );
+    const details = detailsResult.rows[0];
+
+    if (details) {
+      const slotDateFmt = new Date(start_at).toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Brussels' });
+      const slotTimeFmt = new Date(start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
+      const slotEndTimeFmt = new Date(new Date(start_at).getTime() + (details.duration_min || 0) * 60000)
+        .toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
+
+      const contactParts = [];
+      if (details.phone) contactParts.push(escHtml(details.phone));
+      if (details.business_email) contactParts.push(escHtml(details.business_email));
+      const contactLine = contactParts.length > 0 ? `<p style="margin:8px 0 0;font-size:13px;color:#9C958E">${contactParts.join(' \u00b7 ')}</p>` : '';
+
+      const offerHtml = buildEmailHTML({
+        title: 'Un cr\u00e9neau s\'est lib\u00e9r\u00e9 !',
+        preheader: `${details.service_name} chez ${details.practitioner_name} \u2014 ${slotDateFmt} \u00e0 ${slotTimeFmt}`,
+        bodyHTML: `<p>Bonjour ${escHtml(wEntry.client_name)},</p>
+          <p>Bonne nouvelle ! Un cr\u00e9neau s'est lib\u00e9r\u00e9 pour votre demande :</p>
+          <div style="background:#F5F4F1;border-radius:8px;padding:16px;margin:16px 0">
+            <p style="margin:0 0 6px"><strong>${escHtml(details.service_name)}</strong> (${details.duration_min} min)</p>
+            ${details.price_cents ? `<p style="margin:0 0 4px;font-size:14px;color:#3D3832">${(details.price_cents / 100).toFixed(2).replace('.', ',')} \u20ac</p>` : ''}
+            <p style="margin:0 0 4px;font-size:14px;color:#3D3832">Avec ${escHtml(details.practitioner_name)}</p>
+            <p style="margin:0;font-size:14px;color:#3D3832">${escHtml(slotDateFmt)} \u00e0 ${escHtml(slotTimeFmt)} \u2013 ${slotEndTimeFmt}</p>
+            ${details.address ? `<p style="margin:4px 0 0;font-size:14px;color:#3D3832">\ud83d\udccd <a href="https://maps.google.com/?q=${encodeURIComponent(details.address)}" style="color:#3D3832">${escHtml(details.address)}</a></p>` : ''}
+          </div>${contactLine}
+          <p style="font-weight:600;color:#D97706">\u23f1 Vous avez 2 heures pour r\u00e9server ce cr\u00e9neau avant qu'il ne soit propos\u00e9 \u00e0 quelqu'un d'autre.</p>`,
+        ctaText: 'R\u00e9server maintenant',
+        ctaUrl: offerUrl,
+        businessName: details.business_name,
+        primaryColor: details.theme?.primary_color,
+        footerText: `${details.business_name}${details.address ? ' \u00b7 ' + details.address : ''} \u00b7 Via Genda.be`
+      });
+
+      sendEmail({
+        to: wEntry.client_email,
+        toName: wEntry.client_name,
+        subject: `Cr\u00e9neau disponible \u2014 ${details.service_name} le ${slotDateFmt}`,
+        html: offerHtml,
+        fromName: details.business_name,
+        replyTo: details.business_email || undefined
+      }).catch(e => console.warn('[WAITLIST] Manual offer email error:', e.message));
+    }
 
     res.json({
       offered: true,
       offer_url: offerUrl,
       offer_token: token,
       expires_at: expiresAt.toISOString(),
-      client_email: entry.rows[0].client_email
+      client_email: wEntry.client_email
     });
   } catch (err) { next(err); }
 });
