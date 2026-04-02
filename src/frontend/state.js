@@ -38,28 +38,26 @@ export const biz = api.getBusiness();
 
 // ── RBAC ──
 export const ROLE_ACCESS = {
-  owner: ['home','bookings','clients','services','hours','waitlist','cal-sync','team','planning','site','calls','invoices','deposits','documents','analytics','promotions','settings'],
-  manager: ['home','bookings','clients','services','hours','waitlist','cal-sync','documents','deposits','analytics'],
-  receptionist: ['home','bookings','clients','waitlist'],
+  owner: ['home','bookings','clients','services','hours','waitlist','cal-sync','team','planning','site','invoices','deposits','analytics','promotions','settings','gift-cards','passes','reviews','featured-slots'],
   practitioner: ['home','bookings','clients','profile']
 };
 
 export const SECTOR_LABELS = {
-  coiffeur: { owner:'Gérant·e', practitioner:'Coiffeur·se', manager:'Responsable salon', receptionist:'Réceptionniste' },
-  esthetique: { owner:'Gérant·e', practitioner:'Esthéticien·ne', manager:'Responsable', receptionist:'Réceptionniste' },
-  bien_etre: { owner:'Gérant·e', practitioner:'Praticien·ne', manager:'Responsable', receptionist:'Réceptionniste' },
-  osteopathe: { owner:'Gérant·e', practitioner:'Ostéopathe', manager:'Responsable', receptionist:'Secrétaire' },
-  veterinaire: { owner:'Gérant·e', practitioner:'Vétérinaire', manager:'Responsable', receptionist:'Secrétaire' },
-  photographe: { owner:'Gérant·e', practitioner:'Photographe', manager:'Responsable', receptionist:'Assistant·e' },
-  medecin: { owner:'Gérant·e', practitioner:'Médecin', manager:'Responsable', receptionist:'Secrétaire médicale' },
-  dentiste: { owner:'Gérant·e', practitioner:'Dentiste', manager:'Responsable', receptionist:'Secrétaire' },
-  kine: { owner:'Gérant·e', practitioner:'Kinésithérapeute', manager:'Responsable', receptionist:'Secrétaire' },
-  comptable: { owner:'Gérant·e', practitioner:'Collaborateur·rice', manager:'Office Manager', receptionist:'Secrétaire' },
-  avocat: { owner:'Associé·e gérant·e', practitioner:'Avocat·e', manager:'Office Manager', receptionist:'Secrétaire juridique' },
-  barbier: { owner:'Gérant·e', practitioner:'Barbier', manager:'Responsable', receptionist:'Réceptionniste' },
-  coaching: { owner:'Gérant·e', practitioner:'Coach', manager:'Responsable', receptionist:'Réceptionniste' },
-  garage: { owner:'Gérant·e', practitioner:'Mécanicien·ne', manager:'Chef d\'atelier', receptionist:'Réceptionniste' },
-  autre: { owner:'Gérant·e', practitioner:'Membre', manager:'Responsable', receptionist:'Réceptionniste' }
+  coiffeur: { owner:'Gérant·e', practitioner:'Coiffeur·se' },
+  esthetique: { owner:'Gérant·e', practitioner:'Esthéticien·ne' },
+  bien_etre: { owner:'Gérant·e', practitioner:'Praticien·ne' },
+  osteopathe: { owner:'Gérant·e', practitioner:'Ostéopathe' },
+  veterinaire: { owner:'Gérant·e', practitioner:'Vétérinaire' },
+  photographe: { owner:'Gérant·e', practitioner:'Photographe' },
+  medecin: { owner:'Gérant·e', practitioner:'Médecin' },
+  dentiste: { owner:'Gérant·e', practitioner:'Dentiste' },
+  kine: { owner:'Gérant·e', practitioner:'Kinésithérapeute' },
+  comptable: { owner:'Gérant·e', practitioner:'Collaborateur·rice' },
+  avocat: { owner:'Associé·e gérant·e', practitioner:'Avocat·e' },
+  barbier: { owner:'Gérant·e', practitioner:'Barbier' },
+  coaching: { owner:'Gérant·e', practitioner:'Coach' },
+  garage: { owner:'Gérant·e', practitioner:'Mécanicien·ne' },
+  autre: { owner:'Gérant·e', practitioner:'Membre' }
 };
 
 // ── Category-based terminology ──

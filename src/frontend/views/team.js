@@ -293,7 +293,7 @@ function renderPractModal(p) {
 
         <div class="m-sec">
           <div class="m-sec-head"><span class="m-sec-title">Notes internes</span><span class="m-sec-line"></span></div>
-          <textarea class="m-input" id="p_note" style="min-height:60px" placeholder="Notes privées (visibles par le manager uniquement)...">${esc(p?.internal_note || '')}</textarea>
+          <textarea class="m-input" id="p_note" style="min-height:60px" placeholder="Notes privées (visibles par le propriétaire uniquement)...">${esc(p?.internal_note || '')}</textarea>
         </div>
 
         ${isEdit && p?.photo_url ? `<div style="text-align:center;margin-top:8px"><button onclick="pRemovePhoto('${p.id}')" style="font-size:.7rem;color:var(--red);background:none;border:none;cursor:pointer">Supprimer la photo</button></div>` : ''}
@@ -1012,9 +1012,8 @@ function openInviteModal(practId, name) {
       <div class="m-sec" style="margin-top:12px">
         <div class="m-field-label">Rôle *</div>
         <select class="m-input" id="inv_role">
+          <option value="owner">Propriétaire / Manager — Accès complet au dashboard</option>
           <option value="practitioner">${sl.practitioner} — Voit uniquement son propre agenda et ses clients</option>
-          <option value="receptionist">${sl.receptionist} — Voit l'agenda de tous, gère les RDV et clients</option>
-          <option value="manager">${sl.manager} — Agenda de tous, clients, documents, statistiques</option>
         </select>
       </div>
     </div>
@@ -1058,9 +1057,8 @@ async function sendInvite(practId) {
 function openRoleModal(practId, name, currentRole) {
   const sl = SECTOR_LABELS[userSector] || SECTOR_LABELS.autre;
   const roles = [
-    { value: 'practitioner', label: sl.practitioner, desc: 'Voit uniquement son propre agenda et ses clients' },
-    { value: 'receptionist', label: sl.receptionist, desc: "Voit l'agenda de tous, gère les RDV et clients" },
-    { value: 'manager', label: sl.manager, desc: 'Agenda de tous, clients, documents, statistiques' }
+    { value: 'owner', label: 'Propriétaire / Manager', desc: 'Accès complet au dashboard' },
+    { value: 'practitioner', label: sl.practitioner, desc: 'Voit uniquement son propre agenda et ses clients' }
   ];
   let m = `<div class="m-overlay open" id="roleModalOverlay"><div class="m-dialog m-sm">
     <div class="m-header-simple">
