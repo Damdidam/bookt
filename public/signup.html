@@ -178,6 +178,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
         <div class="fg"><label class="fl">Email professionnel</label><input class="fi" type="email" id="f_email" placeholder="sarah@lestudio-coiffure.be"></div>
         <div class="fg"><label class="fl">Nom du salon</label><input class="fi" id="f_biz" placeholder="Le Studio Coiffure" oninput="updSlug()"></div>
         <div class="slug-prev"><span class="d">genda.be/</span><span class="s" id="slugPrev">votre-salon</span></div>
+        <div class="fg"><label class="fl">Téléphone</label><input class="fi" id="f_phone" type="tel" placeholder="+32 / +33..."></div>
+        <div class="fg"><label class="fl">Adresse</label><input class="fi" id="f_addr" placeholder="Rue du Midi 42, 1000 Bruxelles"></div>
         <div class="fg" style="margin-top:10px"><label class="fl">Mot de passe <span class="opt">(optionnel)</span></label><input class="fi" type="password" id="f_pass" placeholder="Min. 8 caractères"></div>
         <div class="fg"><label class="fl">Votre secteur</label>
           <div class="sectors">
@@ -197,24 +199,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
         </div>
       </div>
 
-      <!-- ===== STEP 1: SALON INFO ===== -->
-      <div class="step" data-step="1">
-        <div class="step-hdr"><div class="lbl">Étape 1 · Salon</div><h2>Informations du salon</h2><p>Visibles sur votre page de réservation.</p></div>
-        <div class="fr">
-          <div class="fg"><label class="fl">Téléphone</label><input class="fi" id="f_phone" placeholder="+32 / +33..."></div>
-          <div class="fg"><label class="fl">Langue</label><select class="fi" id="f_lang"><option value="fr">Français</option><option value="nl">Nederlands</option></select></div>
-        </div>
-        <div class="fg"><label class="fl">Adresse</label><input class="fi" id="f_addr" placeholder="Rue du Midi 42, 1000 Bruxelles"></div>
-        <div class="fg"><label class="fl">Info parking <span class="opt">(optionnel)</span></label><input class="fi" id="f_parking" placeholder="Parking gratuit derrière le bâtiment"></div>
-        <div class="snav"><button class="btn-back" onclick="go(0)">← Retour</button><button class="btn-next" onclick="saveSalonInfo()">Continuer →</button></div>
-      </div>
+      <!-- STEP 1 removed: fields merged into step 0 -->
 
       <!-- ===== STEP 2: SCHEDULE ===== -->
       <div class="step" data-step="2">
         <div class="step-hdr"><div class="lbl">Étape 2 · Horaires</div><h2>Horaires d'ouverture</h2><p>Les horaires de votre commerce. Les disponibilités de chaque praticien se configurent ensuite dans le dashboard.</p></div>
         <div id="schedGrid"></div>
         <div class="clo tip" style="margin-top:12px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg> Pause midi pré-configurée. Le moteur gère les temps de pose et les gaps entre créneaux.</div>
-        <div class="snav"><button class="btn-back" onclick="go(1)">← Retour</button><button class="btn-next" onclick="saveSchedule()">Continuer →</button></div>
+        <div class="snav"><button class="btn-back" onclick="go(0)">← Retour</button><button class="btn-next" onclick="saveSchedule()">Continuer →</button></div>
       </div>
 
       <!-- ===== STEP 3: SERVICES ===== -->
@@ -465,12 +457,15 @@ async function doSignup() {
   const name = document.getElementById('f_name').value.trim();
   const email = document.getElementById('f_email').value.trim();
   const bizName = document.getElementById('f_biz').value.trim();
+  const phone = document.getElementById('f_phone').value.trim();
+  const address = document.getElementById('f_addr').value.trim();
   const pass = document.getElementById('f_pass').value;
 
   if (!name) return showError('Votre nom est requis.');
   if (!email) return showError('Votre email est requis.');
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return showError('L\'adresse email n\'est pas valide.');
   if (!bizName) return showError('Le nom du salon est requis.');
+  if (phone && !/^\+?[\d\s\-().]{7,20}$/.test(phone)) return showError('Le numéro de téléphone n\'est pas valide.');
   if (!sector) return showError('Choisissez votre secteur d\'activité.');
   if (pass && pass.length < 8) return showError('Le mot de passe doit faire au moins 8 caractères.');
 
@@ -483,6 +478,8 @@ async function doSignup() {
       email,
       password: pass || undefined,
       business_name: bizName,
+      business_phone: phone || undefined,
+      business_address: address || undefined,
       sector
     });
 
@@ -502,38 +499,12 @@ async function doSignup() {
     buildSpecTags();
 
     GendaUI.toast('Compte créé ! Configurons votre moteur de planning.', 'success');
-    go(1);
+    go(2);
 
   } catch (err) {
     showError(err.message || 'Erreur lors de la création du compte');
   } finally {
     GendaUI.btnLoading(btn, false);
-  }
-}
-
-// ============================================================
-// STEP 1: SALON INFO → PATCH /api/business
-// ============================================================
-async function saveSalonInfo() {
-  const phone = document.getElementById('f_phone').value.trim();
-  const address = document.getElementById('f_addr').value.trim();
-  const parking = document.getElementById('f_parking').value.trim();
-  const lang = document.getElementById('f_lang').value;
-
-  if (phone && !/^\+?[\d\s\-().]{7,20}$/.test(phone)) return showError('Le numéro de téléphone n\'est pas valide.');
-
-  try {
-    await api.updateSettings({
-      phone: phone || undefined,
-      address: address || undefined,
-      parking_info: parking || undefined,
-      language_default: lang
-    });
-    await api.updateOnboarding('cabinet_info');
-    GendaUI.toast('Informations enregistrées', 'success');
-    go(2);
-  } catch (err) {
-    showError(err.message);
   }
 }
 
@@ -775,7 +746,7 @@ function copyUrl() {
 
 // Expose functions to inline onclick handlers
 Object.assign(window, {
-  selSec, updSlug, go, doSignup, saveSalonInfo, saveSchedule,
+  selSec, updSlug, go, doSignup, saveSchedule,
   saveOnboardingStep, saveTeam, saveBio, addTestimonialForm,
   selectCalendar, saveCalendarChoice, goLive, copyUrl
 });
