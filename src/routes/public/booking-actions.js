@@ -93,17 +93,23 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
           [reason || 'Annulé par le client', bk.group_id, bk.business_id, bk.id, cancelWindowHours * 60, graceMin]
         );
       }
-      // Refund gift card debits inside transaction
+      // Refund gift card debits + pass sessions inside transaction
+      // Only refund GC if deposit was refunded or no deposit was involved
       const postCancelBk = cancelResult.rows[0];
+      const shouldRefundGc = !postCancelBk.deposit_required || postCancelBk.deposit_status === 'refunded';
       const { refundGiftCardForBooking } = require('../../services/gift-card-refund');
-      try { await refundGiftCardForBooking(postCancelBk.id, txClient); } catch (e) { console.error('[GC REFUND] cancel error:', e.message); }
-      // Refund pass sessions inside transaction
+      if (shouldRefundGc) {
+        try { await refundGiftCardForBooking(postCancelBk.id, txClient); } catch (e) { console.error('[GC REFUND] cancel error:', e.message); }
+      }
+      // Pass sessions: always refund (pass is a prepaid entitlement, not money)
       await refundPassForBooking(postCancelBk.id, txClient).catch(e => console.warn('[PASS REFUND]', e.message));
-      // Refund GC debits + pass sessions for group siblings inside transaction
+      // Group siblings
       if (bk.group_id) {
         try {
           const sibs = await txClient.query(`SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2 AND id != $3`, [bk.group_id, bk.business_id, bk.id]);
-          for (const sib of sibs.rows) { await refundGiftCardForBooking(sib.id, txClient); }
+          if (shouldRefundGc) {
+            for (const sib of sibs.rows) { await refundGiftCardForBooking(sib.id, txClient); }
+          }
           for (const sib of sibs.rows) { await refundPassForBooking(sib.id, txClient).catch(e => console.warn('[PASS REFUND]', e.message)); }
         } catch (e) { console.error('[GC REFUND] sibling cancel error:', e.message); }
       }
@@ -1088,17 +1094,23 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
           [bk.group_id, bk.business_id, bk.id, cancelWindowHours * 60, graceMin]
         );
     }
-      // Refund gift card debits inside transaction
+      // Refund gift card debits + pass sessions inside transaction
+      // Only refund GC if deposit was refunded or no deposit was involved
       const postCancelBk2 = cancelResult.rows[0];
+      const shouldRefundGc2 = !postCancelBk2.deposit_required || postCancelBk2.deposit_status === 'refunded';
       const { refundGiftCardForBooking: refundGC2 } = require('../../services/gift-card-refund');
-      try { await refundGC2(postCancelBk2.id, txClient2); } catch (e) { console.error('[GC REFUND] cancel-booking error:', e.message); }
-      // Refund pass sessions inside transaction
+      if (shouldRefundGc2) {
+        try { await refundGC2(postCancelBk2.id, txClient2); } catch (e) { console.error('[GC REFUND] cancel-booking error:', e.message); }
+      }
+      // Pass sessions: always refund (pass is a prepaid entitlement, not money)
       await refundPassForBooking(postCancelBk2.id, txClient2).catch(e => console.warn('[PASS REFUND]', e.message));
-      // Refund GC debits + pass sessions for group siblings inside transaction
+      // Group siblings
       if (bk.group_id) {
         try {
           const sibs = await txClient2.query(`SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2 AND id != $3`, [bk.group_id, bk.business_id, bk.id]);
-          for (const sib of sibs.rows) { await refundGC2(sib.id, txClient2); }
+          if (shouldRefundGc2) {
+            for (const sib of sibs.rows) { await refundGC2(sib.id, txClient2); }
+          }
           for (const sib of sibs.rows) { await refundPassForBooking(sib.id, txClient2).catch(e => console.warn('[PASS REFUND]', e.message)); }
         } catch (e) { console.error('[GC REFUND] sibling cancel-booking error:', e.message); }
       }
