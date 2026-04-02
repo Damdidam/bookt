@@ -187,7 +187,7 @@ tr:hover td{background:rgba(224,122,95,.02)}
         <option value="">Tous les plans</option>
         <option value="free">Free</option>
         <option value="pro">Pro</option>
-        <option value="premium">Premium</option>
+
       </select>
       <select class="filter-sel" id="filterStatus" onchange="loadBusinesses()">
         <option value="">Tous les statuts</option>
@@ -364,7 +364,6 @@ function renderTable(businesses) {
 
   tbody.innerHTML = businesses.map(b => {
     const planBadge = b.plan === 'pro' ? '<span class="badge badge-gold">Pro</span>'
-      : b.plan === 'premium' ? '<span class="badge badge-green">Premium</span>'
       : '<span class="badge badge-gray">Free</span>';
     const statusBadge = b.is_active
       ? '<span class="badge badge-green">Actif</span>'

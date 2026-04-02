@@ -2,7 +2,7 @@
  * Planning v4 — Staff Absences (PRO)
  * Monthly grid with dynamic working days (from availabilities),
  * holiday support, CSV export, email planning, minimalist labels C/M/F/A,
- * premium modal, activity logs, email notification, per-practitioner counters.
+ * modal, activity logs, email notification, per-practitioner counters.
  */
 import { api, GendaUI, sectorLabels } from '../state.js';
 import { esc } from '../utils/dom.js';
