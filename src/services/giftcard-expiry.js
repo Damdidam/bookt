@@ -41,7 +41,7 @@ async function processExpiredGiftCards() {
         bodyHTML,
         businessName: biz_name,
         primaryColor: color,
-        footerText: `${escHtml(biz_name)}${biz_address ? ' \u00b7 ' + escHtml(biz_address) : ''} \u00b7 Via Genda.be`
+        footerText: `${biz_name}${biz_address ? ' \u00b7 ' + biz_address : ''} \u00b7 Via Genda.be`
       });
 
       await sendEmail({

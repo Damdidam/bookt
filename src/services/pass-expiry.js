@@ -5,7 +5,7 @@ async function processExpiredPasses() {
   const result = await pool.query(
     `UPDATE passes SET status = 'expired', updated_at = NOW()
      WHERE status = 'active' AND expires_at IS NOT NULL AND expires_at < NOW()
-     RETURNING id, business_id, buyer_email, name, sessions_total, sessions_remaining`
+     RETURNING id, business_id, buyer_email, buyer_name, name, sessions_total, sessions_remaining`
   );
 
   // Send expiry notification emails (non-blocking)
@@ -20,7 +20,8 @@ async function processExpiredPasses() {
       if (!rows[0]) continue;
       const { biz_name, theme, biz_email, biz_address, biz_phone } = rows[0];
       const client_email = pass.buyer_email;
-      const client_name = pass.name || 'Client';
+      if (!client_email) { console.warn('[PASS EXPIRY] No buyer_email for pass ' + pass.id); continue; }
+      const client_name = pass.buyer_name || 'Client';
       const color = safeColor(theme?.primary_color);
       const remaining = pass.sessions_remaining || 0;
 
@@ -38,7 +39,7 @@ async function processExpiredPasses() {
         bodyHTML,
         businessName: biz_name,
         primaryColor: color,
-        footerText: `${escHtml(biz_name)}${biz_address ? ' \u00b7 ' + escHtml(biz_address) : ''} \u00b7 Via Genda.be`
+        footerText: `${biz_name}${biz_address ? ' \u00b7 ' + biz_address : ''} \u00b7 Via Genda.be`
       });
 
       await sendEmail({

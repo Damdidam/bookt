@@ -94,8 +94,11 @@ router.get('/booking/:token', async (req, res, next) => {
     const depositAtRisk = depositPaid && new Date() >= deadline;
 
     // Build service info: use group members if available, otherwise single service
+    // For group total: use RAW prices (before LM) so frontend can apply discount_pct once.
+    // Individual members[].price_cents stay LM-adjusted for per-line display.
+    const groupRawTotal = grpRows ? grpRows.reduce((sum, r) => sum + (r.price_cents || 0), 0) : 0;
     const serviceInfo = groupServices
-      ? { name: groupServices.map(s => s.name).join(' + '), duration_min: groupServices.reduce((sum, s) => sum + (s.duration_min || 0), 0), price_cents: groupServices.reduce((sum, s) => sum + (s.price_cents || 0), 0), color: bk.service_color, members: groupServices }
+      ? { name: groupServices.map(s => s.name).join(' + '), duration_min: groupServices.reduce((sum, s) => sum + (s.duration_min || 0), 0), price_cents: groupRawTotal, color: bk.service_color, members: groupServices }
       : { name: (bk.service_category ? bk.service_category + ' - ' : '') + (bk.service_name || ''), duration_min: bk.duration_min, price_cents: bk.price_cents, color: bk.service_color };
 
     // Resolve promotion: for grouped bookings, find the sibling carrying the promo (group_order=0)
@@ -277,8 +280,10 @@ router.get('/manage/:token', async (req, res, next) => {
 
     // Split bookings: reschedule IS allowed — we'll use multi-practitioner slot engine
 
+    // For group total: use RAW prices (before LM) so frontend can apply discount_pct once.
+    const groupRawTotal2 = grpRows2 ? grpRows2.reduce((sum, r) => sum + (r.price_cents || 0), 0) : 0;
     const serviceInfo = groupServices
-      ? { name: groupServices.map(s => s.name).join(' + '), duration_min: groupServices.reduce((sum, s) => sum + (s.duration_min || 0), 0), price_cents: groupServices.reduce((sum, s) => sum + (s.price_cents || 0), 0), color: bk.service_color, members: groupServices }
+      ? { name: groupServices.map(s => s.name).join(' + '), duration_min: groupServices.reduce((sum, s) => sum + (s.duration_min || 0), 0), price_cents: groupRawTotal2, color: bk.service_color, members: groupServices }
       : { name: (bk.service_category ? bk.service_category + ' - ' : '') + (bk.service_name || ''), duration_min: bk.duration_min, price_cents: bk.price_cents, color: bk.service_color };
 
     // Resolve promotion: for grouped bookings, find the sibling carrying the promo

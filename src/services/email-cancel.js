@@ -145,7 +145,7 @@ async function sendCancellationEmail({ booking, business, groupServices }) {
     ctaUrl: bookingUrl,
     businessName: business.name,
     primaryColor: color,
-    footerText: `${safeBizName}${business.address ? ' \u00b7 ' + escHtml(business.address) : ''} \u00b7 Via Genda.be`
+    footerText: `${business.name}${business.address ? ' \u00b7 ' + business.address : ''} \u00b7 Via Genda.be`
   });
 
   return sendEmail({

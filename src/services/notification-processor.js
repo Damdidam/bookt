@@ -216,7 +216,7 @@ async function sendNewBookingProEmail(bk, groupServices) {
     ctaUrl: `${baseUrl}/dashboard`,
     businessName: bk.biz_name,
     primaryColor: color,
-    footerText: `${escHtml(bk.biz_name)} \u00b7 Via Genda.be`
+    footerText: `${bk.biz_name} \u00b7 Via Genda.be`
   });
 
   return sendEmail({
@@ -279,7 +279,7 @@ async function sendCancellationProEmail(bk, groupServices) {
     ctaUrl: `${baseUrl}/dashboard`,
     businessName: bk.biz_name,
     primaryColor: color,
-    footerText: `${escHtml(bk.biz_name)} \u00b7 Via Genda.be`
+    footerText: `${bk.biz_name} \u00b7 Via Genda.be`
   });
 
   return sendEmail({
@@ -351,7 +351,7 @@ async function sendRescheduleProEmail(bk, groupServices, metadata) {
     ctaUrl: `${baseUrl}/dashboard`,
     businessName: bk.biz_name,
     primaryColor: color,
-    footerText: `${escHtml(bk.biz_name)} \u00b7 Via Genda.be`
+    footerText: `${bk.biz_name} \u00b7 Via Genda.be`
   });
 
   return sendEmail({
@@ -409,7 +409,7 @@ async function sendModificationConfirmedProEmail(bk, groupServices) {
     ctaUrl: `${baseUrl}/dashboard`,
     businessName: bk.biz_name,
     primaryColor: color,
-    footerText: `${escHtml(bk.biz_name)} \u00b7 Via Genda.be`
+    footerText: `${bk.biz_name} \u00b7 Via Genda.be`
   });
 
   return sendEmail({
@@ -480,7 +480,7 @@ async function sendModificationRejectedProEmail(bk, groupServices) {
     ctaUrl: `${baseUrl}/dashboard`,
     businessName: bk.biz_name,
     primaryColor: color,
-    footerText: `${escHtml(bk.biz_name)} \u00b7 Via Genda.be`
+    footerText: `${bk.biz_name} \u00b7 Via Genda.be`
   });
 
   return sendEmail({

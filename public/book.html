@@ -2813,7 +2813,8 @@ async function submitBooking(){
       var confirmDiscAmt=calcPromoDiscAmount(confirmAp.id,confirmCartSvcs);
       if(confirmAp.type!=='info_only'&&confirmDiscAmt>0){
         confirmHtml+='<div class="row"><span class="l" style="color:#059669;font-weight:600">'+escH(confirmAp.title||'Promotion')+'</span><span class="v" style="color:#059669;font-weight:600">'+(confirmAp.type==='discount_pct'?'-'+confirmAp.value+'% ':'')+'-'+(confirmDiscAmt/100).toFixed(2).replace(".",",")+' \u20ac</span></div>';
-        var confirmNewTotal2=confirmCartTotal-confirmDiscAmt;
+        var confirmBaseForFallback=(data.booking&&data.booking.discount_pct)?Math.round(confirmCartTotal*(100-data.booking.discount_pct)/100):confirmCartTotal;
+        var confirmNewTotal2=confirmBaseForFallback-confirmDiscAmt;
         confirmHtml+='<div class="row"><span class="l" style="font-weight:700">Total apr\u00e8s r\u00e9duction</span><span class="v" style="color:#059669;font-weight:700">'+(confirmNewTotal2/100).toFixed(2).replace(".",",")+' \u20ac</span></div>';
       }
     }

@@ -162,7 +162,7 @@ router.post('/deposit/:token/gift-card', depositLimiter, async (req, res, next) 
           });
         }
       } catch (e) { console.error('[GC DEPOSIT] Email error:', e.message); }
-      try { const { broadcast } = require('../../services/sse'); if (broadcast) broadcast(bk.business_id, { type: 'booking', action: 'updated', booking_id: bk.id }); } catch (e) {}
+      try { const { broadcast } = require('../../services/sse'); if (broadcast) broadcast(bk.business_id, 'booking_update', { action: 'deposit_paid', booking_id: bk.id }); } catch (e) {}
       return res.json({ success: true, fully_paid: true, gc_amount_used: gcDebit, remaining: 0, gc_balance: newBalance });
     } else {
       await client.query('COMMIT');

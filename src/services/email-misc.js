@@ -98,7 +98,7 @@ async function sendReviewRequestEmail({ booking, business }) {
     rdvDateStr = ` du ${datePart} \u00e0 ${timePart}`;
   }
 
-  const reviewUrl = `${process.env.BASE_URL || 'https://genda.be'}/review/${booking.review_token}`;
+  const reviewUrl = `${process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be'}/review/${booking.review_token}`;
 
   // Star rating buttons (1-5)
   const starsHTML = [1, 2, 3, 4, 5].map(n => {

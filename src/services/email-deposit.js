@@ -126,7 +126,7 @@ async function sendDepositRequestEmail({ booking, business, depositUrl, payUrl, 
     cancelUrl: manageUrl,
     businessName: business.name,
     primaryColor: color,
-    footerText: `${safeBizName}${business.address ? ' \u00b7 ' + escHtml(business.address) : ''} \u00b7 Via Genda.be`
+    footerText: `${business.name}${business.address ? ' \u00b7 ' + business.address : ''} \u00b7 Via Genda.be`
   });
 
   return sendEmail({
@@ -275,7 +275,7 @@ async function sendDepositReminderEmail({ booking, business, depositUrl, payUrl,
     cancelUrl: manageUrl,
     businessName: business.name,
     primaryColor: color,
-    footerText: `${safeBizName}${business.address ? ' \u00b7 ' + escHtml(business.address) : ''} \u00b7 Via Genda.be`
+    footerText: `${business.name}${business.address ? ' \u00b7 ' + business.address : ''} \u00b7 Via Genda.be`
   });
 
   return sendEmail({
@@ -420,7 +420,7 @@ async function sendDepositPaidEmail({ booking, business, groupServices }) {
     cancelUrl: booking.public_token ? `${baseUrl}/booking/${booking.public_token}` : null,
     businessName: business.name,
     primaryColor: color,
-    footerText: `${safeBizName}${business.address ? ' · ' + escHtml(business.address) : ''} · Via Genda.be`
+    footerText: `${business.name}${business.address ? ' · ' + business.address : ''} · Via Genda.be`
   });
 
   return sendEmail({
@@ -568,7 +568,7 @@ async function sendDepositRefundEmail({ booking, business, groupServices }) {
     ctaUrl: bookingUrl,
     businessName: business.name,
     primaryColor: color,
-    footerText: `${safeBizName}${business.address ? ' \u00b7 ' + escHtml(business.address) : ''} \u00b7 Via Genda.be`
+    footerText: `${business.name}${business.address ? ' \u00b7 ' + business.address : ''} \u00b7 Via Genda.be`
   });
 
   return sendEmail({

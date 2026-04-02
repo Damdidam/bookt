@@ -342,10 +342,10 @@ function _nextWorkingDay(fromDate, delta) {
   const d = new Date(fromDate + 'T12:00:00');
   for (let i = 0; i < 14; i++) {
     d.setDate(d.getDate() + delta);
-    const ds = d.toLocaleDateString('en-CA');
+    const ds = d.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
     if (_isWorkingDay(ds)) return ds;
   }
-  return d.toLocaleDateString('en-CA'); // fallback
+  return d.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' }); // fallback
 }
 
 function showRescheduleUI() {

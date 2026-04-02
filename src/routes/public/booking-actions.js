@@ -96,7 +96,8 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
       // Refund gift card debits + pass sessions inside transaction
       // Only refund GC if deposit was refunded or no deposit was involved
       const postCancelBk = cancelResult.rows[0];
-      const shouldRefundGc = !postCancelBk.deposit_required || postCancelBk.deposit_status === 'refunded';
+      // Always refund GC debits on cancellation — GC is a client asset, not deposit retention
+      const shouldRefundGc = true;
       const { refundGiftCardForBooking } = require('../../services/gift-card-refund');
       if (shouldRefundGc) {
         try { await refundGiftCardForBooking(postCancelBk.id, txClient); } catch (e) { console.error('[GC REFUND] cancel error:', e.message); }
@@ -499,7 +500,8 @@ router.post('/booking/:token/reject', async (req, res, next) => {
       }
       // Refund gift card debits inside transaction — only if deposit was refunded or no deposit
       const rejBkTx = result.rows[0];
-      const shouldRefundGcReject = !rejBkTx.deposit_required || rejBkTx.deposit_status === 'refunded';
+      // Always refund GC debits on rejection — GC is a client asset, not deposit retention
+      const shouldRefundGcReject = true;
       const { refundGiftCardForBooking } = require('../../services/gift-card-refund');
       if (shouldRefundGcReject) {
         try { await refundGiftCardForBooking(rejBkTx.id, txClient); } catch (e) { console.error('[GC REFUND] reject error:', e.message); }
@@ -1102,7 +1104,8 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
       // Refund gift card debits + pass sessions inside transaction
       // Only refund GC if deposit was refunded or no deposit was involved
       const postCancelBk2 = cancelResult.rows[0];
-      const shouldRefundGc2 = !postCancelBk2.deposit_required || postCancelBk2.deposit_status === 'refunded';
+      // Always refund GC debits on cancellation — GC is a client asset, not deposit retention
+      const shouldRefundGc2 = true;
       const { refundGiftCardForBooking: refundGC2 } = require('../../services/gift-card-refund');
       if (shouldRefundGc2) {
         try { await refundGC2(postCancelBk2.id, txClient2); } catch (e) { console.error('[GC REFUND] cancel-booking error:', e.message); }
@@ -1185,7 +1188,7 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
     // H3: Notify pro about client cancellation
     try { await query(`INSERT INTO notifications (business_id, booking_id, type, status) VALUES ($1, $2, 'email_cancellation_pro', 'queued')`, [bk.business_id, bk.id]); } catch (_) {}
 
-    // Send cancellation email + SMS + waitlist (non-blocking)
+    // Send cancellation email + waitlist (non-blocking — no SMS for cancellations)
     (async () => {
       try {
         const fullBk = await query(

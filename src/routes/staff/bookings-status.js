@@ -510,6 +510,21 @@ router.patch('/:id/status', async (req, res, next) => {
             }
           }
         }
+
+        // ===== PASS/GC REFUND: for bookings WITHOUT deposit (e.g. pass-covered) =====
+        if (!dep?.deposit_required) {
+          await refundGiftCardForBooking(id, client);
+          await refundPassForBooking(id, client).catch(e => console.warn('[PASS REFUND]', e.message));
+          // Group siblings
+          if (old.rows[0].group_id) {
+            const sibIds = await client.query(
+              `SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2 AND id != $3`,
+              [old.rows[0].group_id, bid, id]
+            );
+            for (const sib of sibIds.rows) { await refundGiftCardForBooking(sib.id, client); }
+            for (const sib of sibIds.rows) { await refundPassForBooking(sib.id, client).catch(e => console.warn('[PASS REFUND]', e.message)); }
+          }
+        }
       }
 
       // Audit log (inside transaction for consistency, enriched with deposit state)
