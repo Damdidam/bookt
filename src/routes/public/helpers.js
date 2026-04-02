@@ -221,7 +221,7 @@ async function validateAndCalcPromo(txClient, businessId, promotionId, serviceId
     case 'date_range': {
       const now = new Date();
       if (promo.condition_start_date && now < new Date(promo.condition_start_date)) return { valid: false };
-      if (promo.condition_end_date && now > new Date(promo.condition_end_date + 'T23:59:59')) return { valid: false };
+      if (promo.condition_end_date && now > new Date(promo.condition_end_date + 'T23:59:59+02:00')) return { valid: false };
       break;
     }
     case 'none':

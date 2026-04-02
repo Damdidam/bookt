@@ -207,14 +207,14 @@ function render(d) {
   // Pay online button (for pending deposits)
   if (depStatus === 'pending') {
     html += `<div id="gcSection" style="margin:0 28px 16px;display:none"></div>`;
-    html += `<button class="pay-btn" id="payBtn" onclick="startPayment()">
+    html += `<button class="pay-btn" id="payBtn" onclick="startPayment()" aria-label="Payer l'acompte de ${depAmountStr} € en ligne">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
       Payer ${depAmountStr} € en ligne
     </button>`;
     html += `<div class="pay-or">ou entrez un code carte cadeau</div>`;
     html += `<div style="margin:0 28px 20px;display:flex;gap:8px">
       <input type="text" id="gcCode" placeholder="GC-XXXX-XXXX" style="flex:1;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-family:var(--sans);font-size:.88rem;text-transform:uppercase;outline:none" onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='var(--border)'">
-      <button onclick="applyGiftCard()" id="gcApplyBtn" style="padding:12px 20px;border:none;border-radius:var(--radius-sm);background:var(--text);color:#fff;font-family:var(--sans);font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">Appliquer</button>
+      <button onclick="applyGiftCard()" id="gcApplyBtn" aria-label="Appliquer le code carte cadeau" style="padding:12px 20px;border:none;border-radius:var(--radius-sm);background:var(--text);color:#fff;font-family:var(--sans);font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">Appliquer</button>
     </div>`;
     html += `<div id="gcResult" style="margin:0 28px 20px;display:none"></div>`;
     html += `<div class="pay-or">ou</div>`;

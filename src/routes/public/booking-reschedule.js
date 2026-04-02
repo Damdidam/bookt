@@ -69,7 +69,7 @@ router.get('/manage/:token/slots', slotsLimiter, async (req, res, next) => {
     const reschDeadline = new Date(new Date(bk.start_at).getTime() - reschDeadlineHours * 3600000);
 
     if (!reschEnabled) return res.status(403).json({ error: 'La modification en ligne n\'est pas activée.' });
-    if (!['confirmed', 'pending_deposit'].includes(bk.status)) return res.status(403).json({ error: 'Ce rendez-vous ne peut pas être modifié.' });
+    if (!['confirmed', 'pending_deposit', 'modified_pending'].includes(bk.status)) return res.status(403).json({ error: 'Ce rendez-vous ne peut pas être modifié.' });
     // locked flag no longer blocks client reschedule
     if ((bk.reschedule_count || 0) >= reschMaxCount) return res.status(403).json({ error: 'Nombre maximum de modifications atteint.' });
     if (new Date(bk.start_at) <= now) return res.status(403).json({ error: 'Ce rendez-vous est déjà passé.' });

@@ -70,7 +70,8 @@ async function process24hReminders(stats) {
       b.phone AS business_phone, b.address AS business_address,
       b.plan, b.settings, b.theme, b.email AS business_email,
       bk.promotion_label, bk.promotion_discount_cents,
-      bk.discount_pct
+      bk.discount_pct,
+      bk.deposit_required, bk.deposit_status, bk.deposit_amount_cents
     FROM bookings bk
     JOIN clients c ON c.id = bk.client_id
     JOIN practitioners p ON p.id = bk.practitioner_id
@@ -201,6 +202,7 @@ async function process24hReminders(stats) {
               <tr><td style="padding:8px 0;color:#7A7470"> Praticien</td><td style="padding:8px 0;font-weight:600">${escHtml(bk.practitioner_name)}</td></tr>
               ${bk.appointment_mode === 'cabinet' && bk.business_address ? `<tr><td style="padding:8px 0;color:#7A7470"> Adresse</td><td style="padding:8px 0"><a href="https://maps.google.com/?q=${encodeURIComponent(bk.business_address)}" style="color:inherit;text-decoration:underline">${escHtml(bk.business_address)}</a></td></tr>` : ''}
             </table>
+            ${bk.deposit_required && bk.deposit_status === 'paid' && bk.deposit_amount_cents ? `<div style="background:#F0FDF4;border-radius:8px;padding:10px 14px;margin:12px 0;font-size:13px;color:#15803D"><strong>Acompte payé :</strong> ${(bk.deposit_amount_cents / 100).toFixed(2).replace('.', ',')} €${(() => { const totalCents = isMulti ? groupServices.reduce((s, sv) => s + (sv.price_cents || 0), 0) : (adjPriceCents || 0); const promoD = parseInt(bk.promotion_discount_cents) || 0; const finalTotal = totalCents - promoD; const reste = finalTotal - bk.deposit_amount_cents; return reste > 0 ? ' — Reste à régler sur place : ' + (reste / 100).toFixed(2).replace('.', ',') + ' €' : ''; })()}</div>` : ''}${bk.deposit_required && bk.deposit_status === 'pending' && bk.deposit_amount_cents ? `<div style="background:#FEF3C7;border-radius:8px;padding:10px 14px;margin:12px 0;font-size:13px;color:#92400E"><strong>⚠ Acompte en attente :</strong> ${(bk.deposit_amount_cents / 100).toFixed(2).replace('.', ',')} € — Pensez à le régler avant votre rendez-vous.</div>` : ''}
             ${(() => { const cp = []; if (bk.business_phone) cp.push('📞 ' + escHtml(bk.business_phone)); if (bk.business_email) cp.push('✉️ ' + escHtml(bk.business_email)); return cp.length > 0 ? '<p style="font-size:13px;color:#7A7470;margin:12px 0">' + cp.join(' · ') + '</p>' : ''; })()}
             <p style="font-size:13px;color:#9C958E;margin-top:16px">Besoin de modifier ou annuler ? Utilisez le bouton ci-dessous.</p>
           `,
@@ -230,12 +232,16 @@ async function process24hReminders(stats) {
         }
       }
 
-      // SMS 24h
+      // SMS 24h — keep under 160 chars to avoid double-segment Twilio billing
       if (reminderSmsEnabled && bk.client_phone && bk.consent_sms) {
         const _svcLabel24 = (Array.isArray(groupServices) && groupServices.length > 1)
           ? `${groupServices[0].name} +${groupServices.length - 1}`
           : bk.service_name;
-        const smsBody = `Rappel ${bk.business_name}: RDV "${_svcLabel24}" le ${dateShort} à ${timeShort} avec ${bk.practitioner_name}. Modifier: ${manageUrl}`;
+        const _biz24 = bk.business_name.length > 20 ? bk.business_name.slice(0, 18) + '..' : bk.business_name;
+        const _svc24 = _svcLabel24.length > 30 ? _svcLabel24.slice(0, 28) + '..' : _svcLabel24;
+        const _prac24 = (bk.practitioner_name || '').length > 20 ? bk.practitioner_name.slice(0, 18) + '..' : (bk.practitioner_name || '');
+        let smsBody = `Rappel ${_biz24}: RDV "${_svc24}" le ${dateShort} à ${timeShort}${_prac24 ? ' avec ' + _prac24 : ''}. Modifier: ${manageUrl}`;
+        if (smsBody.length > 160) smsBody = `Rappel: RDV "${_svc24}" le ${dateShort} à ${timeShort}. Modifier: ${manageUrl}`;
 
         const result = await sendSMS({
           to: bk.client_phone,
@@ -293,6 +299,7 @@ async function process2hReminders(stats) {
       bk.appointment_mode,
       bk.promotion_label, bk.promotion_discount_cents,
       bk.discount_pct,
+      bk.deposit_required, bk.deposit_status, bk.deposit_amount_cents,
       b.id AS business_id, b.name AS business_name,
       b.phone AS business_phone, b.address AS business_address,
       b.plan, b.settings, b.theme, b.email AS business_email
@@ -368,16 +375,21 @@ async function process2hReminders(stats) {
       // Apply last-minute discount to single booking price (2h)
       const adjPriceCents2h = bk.discount_pct && bk.price_cents ? Math.round(bk.price_cents * (100 - bk.discount_pct) / 100) : bk.price_cents;
 
-      // SMS 2h
+      // SMS 2h — keep under 160 chars
       const manageUrl2hSms = `${process.env.APP_BASE_URL || 'https://genda.be'}/booking/${bk.public_token}`;
       if (smsEnabled && bk.client_phone && bk.consent_sms) {
+        const _biz2h = bk.business_name.length > 20 ? bk.business_name.slice(0, 18) + '..' : bk.business_name;
+        const _prac2h = (bk.practitioner_name || '').length > 20 ? bk.practitioner_name.slice(0, 18) + '..' : (bk.practitioner_name || '');
         let smsBody;
         if (isMulti) {
-          const serviceNames = groupServices.map(s => s.name).join(' + ');
-          smsBody = `${bk.business_name}: Rappel, votre RDV est dans 2h (${timeShort}) — ${serviceNames}${bk.practitioner_name ? ' avec ' + bk.practitioner_name : ''}. Détails : ${manageUrl2hSms}`;
+          const _svcNames = groupServices.map(s => s.name).join(' + ');
+          const _svcShort = _svcNames.length > 40 ? _svcNames.slice(0, 38) + '..' : _svcNames;
+          smsBody = `${_biz2h}: Rappel, RDV dans 2h (${timeShort}) — ${_svcShort}${_prac2h ? ' avec ' + _prac2h : ''}. Détails : ${manageUrl2hSms}`;
         } else {
-          smsBody = `${bk.business_name}: Rappel, votre RDV "${bk.service_name}" est dans 2h (${timeShort}) avec ${bk.practitioner_name}. Détails : ${manageUrl2hSms}`;
+          const _svc2h = bk.service_name.length > 30 ? bk.service_name.slice(0, 28) + '..' : bk.service_name;
+          smsBody = `${_biz2h}: Rappel, RDV "${_svc2h}" dans 2h (${timeShort})${_prac2h ? ' avec ' + _prac2h : ''}. Détails : ${manageUrl2hSms}`;
         }
+        if (smsBody.length > 160) smsBody = `Rappel: RDV dans 2h (${timeShort}). Détails : ${manageUrl2hSms}`;
 
         const result = await sendSMS({
           to: bk.client_phone,
@@ -445,9 +457,22 @@ async function process2hReminders(stats) {
         const promoLine2h = (!isMulti && promoDiscount2h > 0 && promoLabel2h) ? `<p style="font-size:12px;color:#7A7470;margin:4px 0 0">${escHtml(promoLabel2h)} : -${(promoDiscount2h / 100).toFixed(2).replace('.', ',')} \u20ac</p>` : '';
         const endTimeSuffix2h = endTimeStr2h ? ' \u2013 ' + endTimeStr2h : '';
         const contactBlock2h = (() => { const cp = []; if (bk.business_phone) cp.push('📞 ' + escHtml(bk.business_phone)); if (bk.business_email) cp.push('✉️ ' + escHtml(bk.business_email)); return cp.length > 0 ? '<p style="font-size:13px;color:#7A7470;margin:12px 0">' + cp.join(' · ') + '</p>' : ''; })();
+        const depositBlock2h = (() => {
+          if (bk.deposit_required && bk.deposit_status === 'paid' && bk.deposit_amount_cents) {
+            const totalCents2 = isMulti ? groupServices.reduce((s, sv) => s + (sv.price_cents || 0), 0) : (adjPriceCents2h || 0);
+            const promoD2 = parseInt(bk.promotion_discount_cents) || 0;
+            const reste2 = totalCents2 - promoD2 - bk.deposit_amount_cents;
+            const resteStr = reste2 > 0 ? ' — Reste à régler sur place : ' + (reste2 / 100).toFixed(2).replace('.', ',') + ' €' : '';
+            return `<div style="background:#F0FDF4;border-radius:8px;padding:10px 14px;margin:12px 0;font-size:13px;color:#15803D"><strong>Acompte payé :</strong> ${(bk.deposit_amount_cents / 100).toFixed(2).replace('.', ',')} €${resteStr}</div>`;
+          }
+          if (bk.deposit_required && bk.deposit_status === 'pending' && bk.deposit_amount_cents) {
+            return `<div style="background:#FEF3C7;border-radius:8px;padding:10px 14px;margin:12px 0;font-size:13px;color:#92400E"><strong>⚠ Acompte en attente :</strong> ${(bk.deposit_amount_cents / 100).toFixed(2).replace('.', ',')} € — Pensez à le régler avant votre rendez-vous.</div>`;
+          }
+          return '';
+        })();
         const bodyHTML = isMulti
-          ? `<p>Bonjour ${escHtml(bk.client_name)},</p><p>Vos rendez-vous approchent, le <strong>${dateStr2h}</strong> \u00e0 <strong>${timeShort}${endTimeSuffix2h}</strong> :</p><div style="margin:12px 0">${serviceHTML}</div>${addressHTML}${contactBlock2h}<p>\u00c0 bient\u00f4t !</p>`
-          : `<p>Bonjour ${escHtml(bk.client_name)},</p><p>Votre rendez-vous avec <strong>${escHtml(bk.practitioner_name)}</strong> est dans 2 heures, le <strong>${dateStr2h}</strong> \u00e0 <strong>${timeShort}${endTimeSuffix2h}</strong>.</p><p style="font-size:14px;margin:8px 0"><strong>${escHtml(bk.service_name)}</strong> (${bk.duration_min} min${singlePriceBody2h})</p>${promoLine2h}${addressHTML}${contactBlock2h}<p>\u00c0 bient\u00f4t !</p>`;
+          ? `<p>Bonjour ${escHtml(bk.client_name)},</p><p>Vos rendez-vous approchent, le <strong>${dateStr2h}</strong> \u00e0 <strong>${timeShort}${endTimeSuffix2h}</strong> :</p><div style="margin:12px 0">${serviceHTML}</div>${depositBlock2h}${addressHTML}${contactBlock2h}<p>\u00c0 bient\u00f4t !</p>`
+          : `<p>Bonjour ${escHtml(bk.client_name)},</p><p>Votre rendez-vous avec <strong>${escHtml(bk.practitioner_name)}</strong> est dans 2 heures, le <strong>${dateStr2h}</strong> \u00e0 <strong>${timeShort}${endTimeSuffix2h}</strong>.</p><p style="font-size:14px;margin:8px 0"><strong>${escHtml(bk.service_name)}</strong> (${bk.duration_min} min${singlePriceBody2h})</p>${promoLine2h}${depositBlock2h}${addressHTML}${contactBlock2h}<p>\u00c0 bient\u00f4t !</p>`;
 
         const result = await sendEmail({
           to: bk.client_email,

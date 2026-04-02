@@ -32,8 +32,9 @@ router.get('/', async (req, res, next) => {
     }
 
     if (search) {
+      const escapedSearch = search.replace(/[%_\\]/g, '\\$&');
       sql += ` AND (c.full_name ILIKE $${idx} OR c.phone ILIKE $${idx} OR c.email ILIKE $${idx})`;
-      params.push(`%${search}%`);
+      params.push(`%${escapedSearch}%`);
       idx++;
     }
 

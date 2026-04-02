@@ -569,8 +569,8 @@ router.patch('/:id/status', async (req, res, next) => {
       }
     }
 
-    // Send cancellation confirmation email to client (non-blocking, skip if deposit refund email will be sent)
-    if (status === 'cancelled' && !txResult.depositRefunded) {
+    // Send cancellation confirmation email to client (non-blocking, always send even if deposit refund email is also sent)
+    if (status === 'cancelled') {
       try {
         const emailData = await queryWithRLS(bid,
           `SELECT b.start_at, b.end_at, b.client_id, b.group_id, b.public_token,
