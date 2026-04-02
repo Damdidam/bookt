@@ -278,6 +278,14 @@ router.get('/summary', async (req, res, next) => {
 router.get('/analytics', async (req, res, next) => {
   try {
     const bid = req.businessId;
+
+    // Plan guard: analytics restricted to paid plans
+    const bizPlanA = await queryWithRLS(bid,
+      `SELECT plan FROM businesses WHERE id = $1`, [bid]);
+    if (bizPlanA.rows[0]?.plan === 'free') {
+      return res.status(403).json({ error: 'upgrade_required', message: 'Les statistiques avancées sont disponibles avec le plan Pro.' });
+    }
+
     const { period } = req.query; // '30d' (default), '7d', '90d'
     const days = period === '7d' ? 7 : period === '90d' ? 90 : 30;
     const startDate = new Date();
