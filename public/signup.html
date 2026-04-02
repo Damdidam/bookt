@@ -214,20 +214,15 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 
       <!-- ===== STEP 4: TEAM ===== -->
       <div class="step" data-step="4">
-        <div class="step-hdr"><div class="lbl">Étape 4 · Équipe</div><h2>Votre équipe</h2><p>Chaque praticien a son agenda. Le moteur assigne automatiquement les bons créneaux.</p></div>
-        <div style="background:var(--white);border:1px solid var(--border-light);border-radius:var(--radius);padding:18px;margin-bottom:10px">
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
-            <div style="width:42px;height:42px;border-radius:11px;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:.9rem" id="ownerAvatar">PD</div>
-            <div><div style="font-size:.88rem;font-weight:700" id="ownerName">Votre nom</div><div style="font-size:.7rem;color:var(--text-4)" id="ownerTitle">Propriétaire</div></div>
-          </div>
-          <div class="fg"><label class="fl">Bio courte</label><textarea class="fi ft" id="f_bio" rows="3" placeholder="Coiffeuse passionnée depuis 12 ans, spécialisée en coloration..."></textarea></div>
-          <div class="fr">
-            <div class="fg"><label class="fl">Années d'exp.</label><input class="fi" type="number" id="f_exp" placeholder="16"></div>
-            <div class="fg"><label class="fl">LinkedIn <span class="opt">(opt.)</span></label><input class="fi" id="f_linkedin" placeholder="https://linkedin.com/in/..."></div>
-          </div>
+        <div class="step-hdr"><div class="lbl">Étape 4 · Équipe</div><h2>Vos praticiens</h2><p>Ajoutez les membres de votre équipe et leurs horaires. Le moteur assigne automatiquement les bons créneaux.</p></div>
+        <div style="background:var(--white);border:1px solid var(--border-light);border-radius:var(--radius);padding:14px 18px;margin-bottom:10px;display:flex;align-items:center;gap:10px">
+          <div style="width:36px;height:36px;border-radius:10px;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:.8rem" id="ownerAvatar">PD</div>
+          <div><div style="font-size:.85rem;font-weight:700" id="ownerName">Votre nom</div><div style="font-size:.68rem;color:var(--text-4)">Propriétaire · horaires définis à l'étape précédente</div></div>
         </div>
-        <button class="add-btn">+ Ajouter un(e) collaborateur(rice)</button>
-        <div class="snav"><button class="btn-back" onclick="go(2)">← Retour</button><div><button class="btn-skip" onclick="go(5)">Plus tard</button><button class="btn-next" onclick="saveTeam()">Continuer →</button></div></div>
+        <div id="teamList"></div>
+        <button class="add-btn" onclick="addTeamMember()">+ Ajouter un(e) praticien(ne)</button>
+        <div class="clo info" style="margin-top:10px">Bio, photo, compétences et services par praticien se configurent dans Dashboard › Équipe.</div>
+        <div class="snav"><button class="btn-back" onclick="go(2)">← Retour</button><div><button class="btn-skip" onclick="saveOnboardingStep('team',5)">Plus tard, je gère seul(e)</button><button class="btn-next" onclick="saveTeam()">Continuer →</button></div></div>
       </div>
 
       <!-- ===== STEP 5: BIO ===== -->
@@ -564,29 +559,95 @@ async function saveSchedule() {
 // STEP 3 removed: services already created at signup, editable in dashboard
 
 // ============================================================
-// STEP 4: TEAM → PATCH /api/site/practitioners/:id
+// STEP 4: TEAM — add practitioners + schedules
 // ============================================================
+let teamCounter = 0;
+const teamColors = ['#1D4ED8','#B45309','#15803D','#9333EA','#DC2626','#0D7377'];
+
+function addTeamMember() {
+  teamCounter++;
+  const color = teamColors[(teamCounter - 1) % teamColors.length];
+  const initials = '?';
+  const el = document.getElementById('teamList');
+  const card = document.createElement('div');
+  card.className = 'team-card';
+  card.dataset.idx = teamCounter;
+  card.style.cssText = 'background:var(--white);border:1px solid var(--border-light);border-radius:var(--radius);padding:18px;margin-bottom:10px';
+  card.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:36px;height:36px;border-radius:10px;background:${color};color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:.8rem" class="tc-avatar">${initials}</div>
+        <div class="fg" style="margin:0"><input class="fi tc-name" placeholder="Nom du praticien" style="font-weight:600;font-size:.88rem" oninput="var i=this.value.split(' ').map(w=>w[0]||'').join('').toUpperCase().slice(0,2);this.closest('.team-card').querySelector('.tc-avatar').textContent=i||'?'"></div>
+      </div>
+      <button onclick="this.closest('.team-card').remove()" style="background:none;border:none;cursor:pointer;color:var(--text-4);font-size:1.1rem;padding:4px 8px" title="Supprimer">&times;</button>
+    </div>
+    <div style="font-size:.72rem;font-weight:600;color:var(--text-3);margin-bottom:6px">Horaires de ce praticien</div>
+    <div class="tc-sched">
+      ${['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'].map((d,i) => {
+        const on = i < 5;
+        return `<div class="schrow" data-weekday="${i}" style="grid-template-columns:50px 34px 1fr 1fr;gap:4px;padding:3px 0">
+          <span class="schday" style="font-size:.72rem;${!on?'color:var(--text-4)':''}">${d}</span>
+          <div class="tog ${on?'on':''}" style="width:32px;height:18px" onclick="toggleDay(this)"></div>
+          <div style="display:flex;align-items:center;gap:2px"><input class="schi" type="time" value="${on?'09:00':''}" ${!on?'disabled':''} data-slot="s1" style="font-size:.68rem;padding:4px"><span style="font-size:.6rem;color:var(--text-4)">–</span><input class="schi" type="time" value="${on?'17:00':''}" ${!on?'disabled':''} data-slot="e1" style="font-size:.68rem;padding:4px"></div>
+          <div style="display:flex;align-items:center;gap:2px"><input class="schi" type="time" value="" ${!on?'disabled':''} data-slot="s2" style="font-size:.68rem;padding:4px"><span style="font-size:.6rem;color:var(--text-4)">–</span><input class="schi" type="time" value="" ${!on?'disabled':''} data-slot="e2" style="font-size:.68rem;padding:4px"></div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  el.appendChild(card);
+}
+
 async function saveTeam() {
-  const bio = document.getElementById('f_bio').value.trim();
-  const exp = document.getElementById('f_exp').value;
-  const linkedin = document.getElementById('f_linkedin').value.trim();
+  const cards = document.querySelectorAll('.team-card');
+  if (cards.length === 0) {
+    await api.updateOnboarding('team');
+    GendaUI.toast('Équipe confirmée', 'success');
+    go(5);
+    return;
+  }
+
+  const btn = document.querySelector('.step[data-step="4"] .btn-next');
+  GendaUI.btnLoading(btn, true);
 
   try {
-    // We need the practitioner ID — get it from /api/auth/me or store it
-    // For now, the first practitioner is the owner, get it from dashboard
-    const dashboard = await api.getDashboard();
-    const pracId = dashboard.practitioners?.[0]?.id;
-    if (pracId) {
-      await api.updatePractitioner(pracId, {
-        bio: bio || undefined,
-        years_experience: exp ? parseInt(exp) : undefined,
-        linkedin_url: linkedin || undefined
+    for (const card of cards) {
+      const name = card.querySelector('.tc-name').value.trim();
+      if (!name) continue;
+
+      // Create practitioner
+      const result = await api.post('/api/practitioners', { display_name: name });
+      const pracId = result.practitioner?.id;
+      if (!pracId) continue;
+
+      // Build schedule from card
+      const schedule = {};
+      card.querySelectorAll('.schrow').forEach(row => {
+        const weekday = row.dataset.weekday;
+        const on = row.querySelector('.tog').classList.contains('on');
+        if (!on) return;
+        const s1 = row.querySelector('[data-slot="s1"]').value;
+        const e1 = row.querySelector('[data-slot="e1"]').value;
+        const s2 = row.querySelector('[data-slot="s2"]').value;
+        const e2 = row.querySelector('[data-slot="e2"]').value;
+        const windows = [];
+        if (s1 && e1 && s1 < e1) windows.push({ start_time: s1, end_time: e1 });
+        if (s2 && e2 && s2 < e2) windows.push({ start_time: s2, end_time: e2 });
+        if (windows.length > 0) schedule[weekday] = windows;
       });
+
+      // Save availability
+      if (Object.keys(schedule).length > 0) {
+        await api.put('/api/availabilities', { practitioner_id: pracId, schedule });
+      }
     }
+
     await api.updateOnboarding('team');
-    GendaUI.toast('Profil mis à jour', 'success');
+    GendaUI.toast('Équipe enregistrée', 'success');
     go(5);
-  } catch (err) { showError(err.message); }
+  } catch (err) {
+    showError(err.message);
+  } finally {
+    GendaUI.btnLoading(btn, false);
+  }
 }
 
 // ============================================================
@@ -739,7 +800,7 @@ function copyUrl() {
 // Expose functions to inline onclick handlers
 Object.assign(window, {
   selSec, updSlug, go, doSignup, toggleDay, saveSchedule,
-  saveOnboardingStep, saveTeam, saveBio, addTestimonialForm,
+  saveOnboardingStep, addTeamMember, saveTeam, saveBio, addTestimonialForm,
   selectCalendar, saveCalendarChoice, goLive, copyUrl
 });
 </script>
