@@ -350,7 +350,7 @@ async function handleStripeWebhook(req, res) {
                   const grp = await query(
                     `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' \u2014 ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
                             COALESCE(sv.duration_min, s.duration_min) AS duration_min,
-                            COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at,
+                            COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.discount_pct, b.end_at,
                             b.practitioner_id, p.display_name AS practitioner_name
                      FROM bookings b
                      LEFT JOIN services s ON s.id = b.service_id
@@ -364,12 +364,13 @@ async function handleStripeWebhook(req, res) {
                     const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
                     if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
                     groupServices = grp.rows;
+                    groupServices.forEach(r => { if (r.discount_pct && r.price_cents) r.price_cents = Math.round(r.price_cents * (100 - r.discount_pct) / 100); });
                   }
                 } else if (d.group_id) {
                   const grp = await query(
                     `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' \u2014 ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
                             COALESCE(sv.duration_min, s.duration_min) AS duration_min,
-                            COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at,
+                            COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.discount_pct, b.end_at,
                             b.practitioner_id, p.display_name AS practitioner_name
                      FROM bookings b
                      LEFT JOIN services s ON s.id = b.service_id
@@ -383,6 +384,7 @@ async function handleStripeWebhook(req, res) {
                     const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
                     if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
                     groupServices = grp.rows;
+                    groupServices.forEach(r => { if (r.discount_pct && r.price_cents) r.price_cents = Math.round(r.price_cents * (100 - r.discount_pct) / 100); });
                   }
                 }
                 if (groupServices) d.end_at = groupServices[groupServices.length - 1].end_at;
