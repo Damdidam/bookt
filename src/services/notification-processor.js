@@ -267,6 +267,7 @@ async function sendCancellationProEmail(bk, groupServices) {
       ${bk.client_phone ? `<div style="font-size:13px;color:#6B6560">${escHtml(bk.client_phone)}</div>` : ''}
     </div>
     ${depositHTML}
+    ${bk.cancel_reason ? `<div style="background:#F5F4F1;border-radius:8px;padding:10px 14px;margin:12px 0"><div style="font-size:13px;color:#6B6560"><strong>Raison :</strong> ${escHtml(bk.cancel_reason)}</div></div>` : ''}
     <p style="font-size:14px;color:#3D3832">Ce cr\u00e9neau est \u00e0 nouveau disponible pour d'autres clients.</p>`;
 
   const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
