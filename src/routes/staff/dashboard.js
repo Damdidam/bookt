@@ -195,11 +195,21 @@ router.get('/summary', async (req, res, next) => {
          ORDER BY a.date_from LIMIT 5`, [bid])
     ]);
 
+    // Weekly booking count for free tier bandeau
+    const weekCountRes = await queryWithRLS(bid,
+      `SELECT COUNT(*)::int AS cnt FROM bookings
+       WHERE business_id = $1
+         AND status IN ('confirmed', 'pending', 'pending_deposit', 'modified_pending')
+         AND start_at >= date_trunc('week', NOW() AT TIME ZONE 'Europe/Brussels')
+         AND start_at < date_trunc('week', NOW() AT TIME ZONE 'Europe/Brussels') + INTERVAL '1 week'`,
+      [bid]);
+
     const stats = monthStats.rows[0];
     const calls = callStats.rows[0];
     const nb = nextBooking.rows[0] || null;
 
     res.json({
+      weekly_booking_count: weekCountRes.rows[0].cnt,
       today: {
         date: today,
         bookings: todayBookings.rows.map(b => ({

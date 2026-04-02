@@ -166,6 +166,14 @@ async function loadTeam() {
 // ============================================================
 
 function openPractModal(editId) {
+  // Plan guard: free tier limited to 1 practitioner
+  if (!editId && window._businessPlan === 'free') {
+    const existingPracs = document.querySelectorAll('.tm-card:not(.tm-add)').length;
+    if (existingPracs >= 1) {
+      GendaUI.toast('Passez au Pro pour ajouter des praticiens', 'error');
+      return;
+    }
+  }
   const hdrs = { 'Authorization': 'Bearer ' + api.getToken() };
   if (editId) {
     Promise.all([

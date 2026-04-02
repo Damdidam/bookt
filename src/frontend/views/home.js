@@ -22,6 +22,7 @@ async function loadDashboard(){
   const isPrac=userRole==='practitioner';
   try{
     const plan=biz?.plan||'free';
+    window._businessPlan=plan;
     const fetchList=[api.getDashboard(),api.get('/api/dashboard/summary'),api.get('/api/dashboard/announcements')];
     if(plan!=='free')fetchList.push(api.get('/api/calls/usage'));
     const[dd,sd,ad,ud]=await Promise.allSettled(fetchList);
@@ -48,6 +49,17 @@ async function loadDashboard(){
         if(dateStr)h+=`<div style="font-size:.68rem;color:var(--text-4);margin-top:4px">${dateStr}</div>`;
         h+=`</div></div>`;
       });
+    }
+
+    // Weekly booking bandeau for free tier
+    if(plan==='free'&&sum){
+      const weekCount=sum?.weekly_booking_count||0;
+      if(weekCount>=20){
+        h+=`<div style="background:#FEF3C7;border:1px solid #F59E0B;border-radius:10px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:12px;font-size:.85rem;color:#92400E">
+          <strong>${weekCount}/25</strong> RDV cette semaine
+          <a href="#settings" style="margin-left:auto;color:#92400E;font-weight:600;text-decoration:underline">Passer au Pro \u2192</a>
+        </div>`;
+      }
     }
 
     if(!isPrac){
