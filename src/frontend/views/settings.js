@@ -557,7 +557,7 @@ async function loadSettings(){
       ${plan==='pro'?'<span class="current-badge">Actuel</span>':'<span style="position:absolute;top:-10px;right:12px;background:var(--primary);color:#fff;font-size:.68rem;padding:2px 8px;border-radius:10px;font-weight:700">RECOMMAND\u00c9</span>'}
       <div class="plan-name">Pro</div>
       <div class="plan-price">60 \u20ac<span>/mois</span></div>
-      <ul><li>Praticiens illimit\u00e9s</li><li>RDV illimit\u00e9s</li><li>Tous les th\u00e8mes + couleur</li><li>Rappels email + SMS (200/mois)</li><li>Filtre d'appels (200 unit\u00e9s)</li><li>Messagerie vocale</li><li>Statistiques avanc\u00e9es</li><li>Support prioritaire</li></ul>
+      <ul><li>Praticiens illimit\u00e9s</li><li>RDV illimit\u00e9s</li><li>Tous les th\u00e8mes + couleur</li><li>Rappels email + SMS (200/mois)</li><li>Statistiques avanc\u00e9es</li><li>Support prioritaire</li></ul>
       ${plan==='free'?'<button class="btn-primary" style="width:100%;margin-top:8px" onclick="startCheckout(\'pro\')">Passer au Pro \u2192</button>':''}
       ${plan==='pro'&&subStatus.has_subscription?'<button class="btn-outline" style="width:100%;margin-top:8px" onclick="openStripePortal()">G\u00e9rer l\'abonnement</button>':''}
     </div>

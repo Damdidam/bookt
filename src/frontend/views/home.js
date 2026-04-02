@@ -24,9 +24,8 @@ async function loadDashboard(){
     const plan=biz?.plan||'free';
     window._businessPlan=plan;
     const fetchList=[api.getDashboard(),api.get('/api/dashboard/summary'),api.get('/api/dashboard/announcements')];
-    if(plan!=='free')fetchList.push(api.get('/api/calls/usage'));
-    const[dd,sd,ad,ud]=await Promise.allSettled(fetchList);
-    const dash=dd.status==='fulfilled'?dd.value:{},sum=sd.status==='fulfilled'?sd.value:null,announcements=(ad.status==='fulfilled'?ad.value?.announcements:null)||[],usage=ud?.status==='fulfilled'?ud.value:null;
+    const[dd,sd,ad]=await Promise.allSettled(fetchList);
+    const dash=dd.status==='fulfilled'?dd.value:{},sum=sd.status==='fulfilled'?sd.value:null,announcements=(ad.status==='fulfilled'?ad.value?.announcements:null)||[];
     const slug=dash.business?.slug||biz?.slug||'';
     let h='';
 
@@ -66,7 +65,6 @@ async function loadDashboard(){
       h+=`<div class="qlink"><div class="info"><h4>Votre page publique</h4><p>${slug}</p></div><div><a href="/${slug}?preview" target="_blank">Voir ma page</a></div></div>`;
     }
     if(sum){
-      const ca=sum.calls||{};
       const nb=sum.next_booking;
       const todos=sum.pending_todos||[];
 
@@ -77,7 +75,6 @@ async function loadDashboard(){
       h+=`<div class="stat-card"><div class="label">RDV aujourd'hui</div><div class="val">${sum.today?.count||0}</div></div>`;
       h+=`<div class="stat-card${nb?' stat-card-link':''}"${nb?` onclick="openBookingDetail('${nb.id}')"`:''}><div class="label">Prochain RDV</div>${nb?`<div class="val" style="font-size:1.2rem">${nbTime}</div><div class="sub">${esc(nb.client_name||'—')} · ${nbDate}</div>`:`<div class="val" style="font-size:.9rem;color:var(--text-4)">—</div><div class="sub">Aucun prévu</div>`}</div>`;
       h+=`<div class="stat-card"><div class="label">Tâches</div><div class="val">${todos.length}</div><div class="sub">à faire</div></div>`;
-      if(!isPrac) h+=`<div class="stat-card"><div class="label">Appels → RDV</div><div class="val">${ca.conversion_rate||0}%</div></div>`;
       h+=`</div>`;
 
       // ── Prochain RDV card ──
@@ -164,23 +161,6 @@ async function loadDashboard(){
         h+=`</div>`;
       }
 
-      // ── SMS / Appels usage widget (Pro/Premium only) ──
-      if(usage&&!isPrac){
-        const pct=usage.percent||0;
-        const total=usage.total||0;
-        const quota=usage.billing?.included_units||0;
-        const sms=usage.sms||0;
-        const calls=usage.calls||0;
-        const overage=usage.billing?.overage||0;
-        const overageCents=usage.billing?.overage_total_cents||0;
-        const barColor=pct>=100?'var(--red)':pct>=80?'var(--amber)':'var(--green)';
-        h+=`<div class="card" style="cursor:pointer" onclick="document.querySelector('[data-section=calls]').click()"><div class="card-h"><h3>${IC.phone} Consommation</h3><span class="badge badge-teal">${total}/${quota}</span></div>`;
-        h+=`<div style="padding:14px 20px">`;
-        h+=`<div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--text-3);margin-bottom:6px"><span>${calls} appel${calls>1?'s':''} · ${sms} SMS</span><span style="font-weight:700;color:${barColor}">${pct}%</span></div>`;
-        h+=`<div style="height:6px;background:var(--surface);border-radius:var(--radius-pill);overflow:hidden"><div style="height:100%;width:${Math.min(pct,100)}%;background:${barColor};border-radius:var(--radius-pill);transition:width .3s"></div></div>`;
-        if(overage>0)h+=`<div style="font-size:.68rem;color:var(--red);margin-top:6px">${IC.alertTriangle} ${overage} unité${overage>1?'s':''} en dépassement (${(overageCents/100).toFixed(2)}€)</div>`;
-        h+=`</div></div>`;
-      }
 
       // ── Tâches à faire ──
       h+=`<div class="card"><div class="card-h"><h3>Tâches à faire</h3><span class="badge badge-teal">${todos.length}</span></div>`;
@@ -203,7 +183,7 @@ async function loadDashboard(){
       h+=`</div>`;
 
     }else{
-      h+=`<div class="stats"><div class="stat-card"><div class="label">RDV</div><div class="val">0</div></div><div class="stat-card"><div class="label">Prochain RDV</div><div class="val" style="font-size:.9rem;color:var(--text-4)">—</div></div><div class="stat-card"><div class="label">Tâches</div><div class="val">0</div></div>${isPrac?'':`<div class="stat-card"><div class="label">Appels</div><div class="val">—</div></div>`}</div><div class="card"><div class="card-h"><h3>RDV du jour</h3></div><div class="empty">Aucun RDV</div></div>`;
+      h+=`<div class="stats"><div class="stat-card"><div class="label">RDV</div><div class="val">0</div></div><div class="stat-card"><div class="label">Prochain RDV</div><div class="val" style="font-size:.9rem;color:var(--text-4)">—</div></div><div class="stat-card"><div class="label">Tâches</div><div class="val">0</div></div></div><div class="card"><div class="card-h"><h3>RDV du jour</h3></div><div class="empty">Aucun RDV</div></div>`;
     }
     c.innerHTML=h;
   }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${esc(e.message)}<br><button class="btn-outline btn-sm" onclick="loadDashboard()" style="margin-top:8px">Réessayer</button></div>`;}

@@ -18,7 +18,6 @@ const SECTION_TITLES = {
   team: 'Équipe',
   planning: 'Planning',
   site: 'Mon site',
-  calls: 'Appels',
   invoices: 'Facturation',
   deposits: 'Acomptes',
   passes: 'Abonnements',
@@ -119,10 +118,6 @@ async function loadSection(section) {
       case 'site':
         mod = await import('./views/site.js');
         mod.loadSiteSection();
-        break;
-      case 'calls':
-        mod = await import('./views/calls.js');
-        mod.loadCalls();
         break;
       case 'invoices':
         mod = await import('./views/invoices.js');
