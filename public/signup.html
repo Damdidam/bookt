@@ -211,7 +211,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 
       <!-- ===== STEP 2: SCHEDULE ===== -->
       <div class="step" data-step="2">
-        <div class="step-hdr"><div class="lbl">Étape 2 · Horaires</div><h2>Vos disponibilités</h2><p>Le moteur optimise automatiquement vos créneaux.</p></div>
+        <div class="step-hdr"><div class="lbl">Étape 2 · Horaires</div><h2>Horaires d'ouverture</h2><p>Les horaires de votre commerce. Les disponibilités de chaque praticien se configurent ensuite dans le dashboard.</p></div>
         <div id="schedGrid"></div>
         <div class="clo tip" style="margin-top:12px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg> Pause midi pré-configurée. Le moteur gère les temps de pose et les gaps entre créneaux.</div>
         <div class="snav"><button class="btn-back" onclick="go(1)">← Retour</button><button class="btn-next" onclick="saveSchedule()">Continuer →</button></div>
@@ -469,6 +469,7 @@ async function doSignup() {
 
   if (!name) return showError('Votre nom est requis.');
   if (!email) return showError('Votre email est requis.');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return showError('L\'adresse email n\'est pas valide.');
   if (!bizName) return showError('Le nom du salon est requis.');
   if (!sector) return showError('Choisissez votre secteur d\'activité.');
   if (pass && pass.length < 8) return showError('Le mot de passe doit faire au moins 8 caractères.');
@@ -518,6 +519,8 @@ async function saveSalonInfo() {
   const address = document.getElementById('f_addr').value.trim();
   const parking = document.getElementById('f_parking').value.trim();
   const lang = document.getElementById('f_lang').value;
+
+  if (phone && !/^\+?[\d\s\-().]{7,20}$/.test(phone)) return showError('Le numéro de téléphone n\'est pas valide.');
 
   try {
     await api.updateSettings({
