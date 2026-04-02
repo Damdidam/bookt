@@ -618,6 +618,14 @@ router.post('/', requireOwner, async (req, res, next) => {
 
     if (!display_name) return res.status(400).json({ error: 'Nom requis' });
 
+    // Plan guard: free tier limited to 1 practitioner
+    const bizPlanCheck = await queryWithRLS(bid,
+      `SELECT b.plan, (SELECT COUNT(*)::int FROM practitioners WHERE business_id = b.id AND is_active = true) AS prac_count
+       FROM businesses b WHERE b.id = $1`, [bid]);
+    if (bizPlanCheck.rows[0]?.plan === 'free' && bizPlanCheck.rows[0]?.prac_count >= 1) {
+      return res.status(403).json({ error: 'Le plan gratuit est limité à 1 praticien. Passez au Pro pour en ajouter.' });
+    }
+
     const result = await queryWithRLS(bid,
       `INSERT INTO practitioners (business_id, display_name, title, bio, color,
         email, phone, years_experience, linkedin_url, booking_enabled, featured_enabled, max_concurrent,
