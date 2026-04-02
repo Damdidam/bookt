@@ -134,14 +134,32 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
     const safeLang = VALID_LANGS.includes(client_language) ? client_language : 'unknown';
 
     const bizResult = await query(
-      `SELECT id, settings, stripe_connect_status FROM businesses WHERE slug = $1 AND is_active = true`, [slug]
+      `SELECT id, plan, settings, stripe_connect_status FROM businesses WHERE slug = $1 AND is_active = true`, [slug]
     );
     if (bizResult.rows.length === 0) return res.status(404).json({ error: 'Cabinet introuvable' });
 
     const businessId = bizResult.rows[0].id;
+    const businessPlan = bizResult.rows[0].plan || 'free';
     const bizSettings = bizResult.rows[0].settings || {};
     const stripeConnectStatus = bizResult.rows[0].stripe_connect_status;
     const { transactionWithRLS } = require('../../services/db');
+
+    // Plan guard: free tier limited to 25 online bookings per week
+    if (businessPlan === 'free') {
+      const weekCount = await query(
+        `SELECT COUNT(*)::int AS cnt FROM bookings
+         WHERE business_id = $1
+           AND status IN ('confirmed', 'pending', 'pending_deposit', 'modified_pending')
+           AND start_at >= date_trunc('week', NOW() AT TIME ZONE 'Europe/Brussels')
+           AND start_at < date_trunc('week', NOW() AT TIME ZONE 'Europe/Brussels') + INTERVAL '1 week'`,
+        [businessId]
+      );
+      if (weekCount.rows[0].cnt >= 25) {
+        return res.status(403).json({
+          error: 'Ce professionnel est complet pour cette semaine. Réessayez la semaine prochaine ou contactez directement le salon.'
+        });
+      }
+    }
 
     // Multi-service: check if enabled
     if (isMultiService && !bizSettings.multi_service_enabled) {
