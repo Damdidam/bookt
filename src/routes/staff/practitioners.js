@@ -729,6 +729,14 @@ router.delete('/:id', requireOwner, async (req, res, next) => {
     }
 
     if (req.query.permanent === 'true') {
+      // Block if future bookings still exist (must cancel them first)
+      if (futureCount > 0 && !cancelBookings) {
+        return res.status(409).json({
+          error: `Ce praticien a encore ${futureCount} RDV à venir. Annulez-les d'abord pour pouvoir supprimer.`,
+          future_bookings_count: futureCount
+        });
+      }
+
       // Permanent delete: remove linked user account + practitioner record
       const pracData = await queryWithRLS(bid,
         `SELECT user_id FROM practitioners WHERE id = $1 AND business_id = $2`,
@@ -749,10 +757,11 @@ router.delete('/:id', requireOwner, async (req, res, next) => {
         [pracId, bid]
       );
 
-      // Unassign bookings (set practitioner_id to NULL) instead of deleting them
+      // Nullify practitioner_id on past bookings to avoid FK violation on delete
       await queryWithRLS(bid,
         `UPDATE bookings SET practitioner_id = NULL, updated_at = NOW()
-         WHERE practitioner_id = $1 AND business_id = $2`,
+         WHERE practitioner_id = $1 AND business_id = $2
+           AND (start_at <= NOW() OR status IN ('cancelled', 'no_show', 'completed'))`,
         [pracId, bid]
       );
 
