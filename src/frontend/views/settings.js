@@ -214,7 +214,7 @@ async function loadSettings(){
     const rs24=b.settings?.reminder_sms_24h===true;
     const rs2=b.settings?.reminder_sms_2h===true;
     const re2=b.settings?.reminder_email_2h===true;
-    const hasSms=plan==='pro'||plan==='premium';
+    const hasSms=plan!=='free';
     h+=`<div class="settings-card"><div class="sc-h"><h3>${IC.bell} Rappels clients</h3></div><div class="sc-body">`;
     h+=`<p style="font-size:.82rem;color:var(--text-3);margin-bottom:16px">Les rappels sont envoyés automatiquement aux clients avant leur rendez-vous. Réduisez les no-shows jusqu'à 50%.</p>`;
 
@@ -223,10 +223,10 @@ async function loadSettings(){
     // Email 24h — all plans
     h+=buildReminderToggle('s_rem_email_24h', re24, IC.mail+' Email — 24h avant', 'Rappel par email la veille du RDV', true);
 
-    // SMS 24h — Pro/Premium
+    // SMS 24h — Pro
     h+=buildReminderToggle('s_rem_sms_24h', rs24, '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg> SMS — 24h avant', hasSms?'SMS de rappel la veille du RDV':'<span style="color:var(--coral)">Disponible avec le plan Pro</span>', hasSms);
 
-    // SMS 2h — Pro/Premium
+    // SMS 2h — Pro
     h+=buildReminderToggle('s_rem_sms_2h', rs2, '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg> SMS — 2h avant', hasSms?'Rappel de dernière minute le jour même':'<span style="color:var(--coral)">Disponible avec le plan Pro</span>', hasSms);
 
     // Email 2h — optional
@@ -546,30 +546,22 @@ async function loadSettings(){
       </div>`;
     }
 
-    h+=`<div class="plan-card">
-        <div class="plan-box${plan==='free'?' current':''}">
-          ${plan==='free'?'<span class="current-badge">Actuel</span>':''}
-          <div class="plan-name">Gratuit</div>
-          <div class="plan-price">0 \u20ac<span>/mois</span></div>
-          <ul><li>Mini-site public</li><li>1 thème (Classique)</li><li>Booking en ligne</li><li>Agenda basique</li><li>5 clients max</li></ul>
-        </div>
-        <div class="plan-box${plan==='pro'?' current':''}">
-          ${plan==='pro'?'<span class="current-badge">Actuel</span>':''}
-          <div class="plan-name">Pro</div>
-          <div class="plan-price">39 \u20ac<span>/mois</span></div>
-          <ul><li>Tout du Gratuit +</li><li>6 thèmes + couleur custom</li><li>Clients illimités</li><li>Filtre d'appels (100 unités)</li><li>Rappels email + SMS</li><li>Statistiques avancées</li></ul>
-          ${plan==='free'?'<button class="btn-primary" style="width:100%;margin-top:8px" onclick="startCheckout(\'pro\')">Essai gratuit 14 jours \u2192</button>':''}
-          ${plan==='pro'&&subStatus.has_subscription?'<button class="btn-outline" style="width:100%;margin-top:8px" onclick="openStripePortal()">Gérer l\'abonnement</button>':''}
-        </div>
-        <div class="plan-box${plan==='premium'?' current':''}">
-          ${plan==='premium'?'<span class="current-badge">Actuel</span>':''}
-          <div class="plan-name">Premium</div>
-          <div class="plan-price">79 \u20ac<span>/mois</span></div>
-          <ul><li>Tout du Pro +</li><li>300 unités appels/SMS</li><li>Messagerie vocale</li><li>Domaine personnalisé</li><li>Support prioritaire</li></ul>
-          ${plan!=='premium'?'<button class="'+(plan==='free'?'btn-outline':'btn-primary')+'" style="width:100%;margin-top:8px" onclick="startCheckout(\'premium\')">'+(plan==='pro'?'Passer au Premium \u2192':'Essai gratuit 14 jours \u2192')+'</button>':''}
-          ${plan==='premium'&&subStatus.has_subscription?'<button class="btn-outline" style="width:100%;margin-top:8px" onclick="openStripePortal()">Gérer l\'abonnement</button>':''}
-        </div>
-      </div>`;
+    h+=`<div class="plan-card" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:640px">
+    <div class="plan-box${plan==='free'?' current':''}">
+      ${plan==='free'?'<span class="current-badge">Actuel</span>':''}
+      <div class="plan-name">Gratuit</div>
+      <div class="plan-price">0 \u20ac<span>/mois</span></div>
+      <ul><li>1 praticien</li><li>25 RDV/semaine en ligne</li><li>Mini-site public</li><li>1 th\u00e8me (Classique)</li><li>Clients illimit\u00e9s</li><li>Rappels email</li></ul>
+    </div>
+    <div class="plan-box${plan==='pro'?' current':''}" style="border-color:var(--primary)">
+      ${plan==='pro'?'<span class="current-badge">Actuel</span>':'<span style="position:absolute;top:-10px;right:12px;background:var(--primary);color:#fff;font-size:.68rem;padding:2px 8px;border-radius:10px;font-weight:700">RECOMMAND\u00c9</span>'}
+      <div class="plan-name">Pro</div>
+      <div class="plan-price">60 \u20ac<span>/mois</span></div>
+      <ul><li>Praticiens illimit\u00e9s</li><li>RDV illimit\u00e9s</li><li>Tous les th\u00e8mes + couleur</li><li>Rappels email + SMS (200/mois)</li><li>Filtre d'appels (200 unit\u00e9s)</li><li>Messagerie vocale</li><li>Statistiques avanc\u00e9es</li><li>Support prioritaire</li></ul>
+      ${plan==='free'?'<button class="btn-primary" style="width:100%;margin-top:8px" onclick="startCheckout(\'pro\')">Passer au Pro \u2192</button>':''}
+      ${plan==='pro'&&subStatus.has_subscription?'<button class="btn-outline" style="width:100%;margin-top:8px" onclick="openStripePortal()">G\u00e9rer l\'abonnement</button>':''}
+    </div>
+  </div>`;
 
     // Manage subscription link
     if(subStatus.has_subscription){
