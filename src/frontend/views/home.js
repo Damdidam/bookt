@@ -115,7 +115,7 @@ async function loadDashboard(){
             <div style="font-size:.85rem;font-weight:600;display:flex;align-items:center;gap:6px">${esc(b.client_name)}<span class="bk-badges">${badges}</span></div>
             <div style="font-size:.72rem;color:var(--text-4)">${esc(b.service_name||'RDV libre')} · ${b.duration_min||'—'}min${!isPrac&&b.practitioner_name?' · '+esc(b.practitioner_name):''}</div>
           </div>
-          <span class="bk-status ${b.status}">${b.status==='confirmed'?'Confirmé':b.status==='pending'?'En attente':b.status}</span>
+          <span class="bk-status ${b.status}">${({confirmed:'Confirmé',pending:'En attente',pending_deposit:'Acompte requis',modified_pending:'Modifié',completed:'Terminé',no_show:'Absent',cancelled:'Annulé'})[b.status]||b.status}</span>
         </div>`;
       });}
       else h+=`<div class="empty">Aucun RDV aujourd'hui</div>`;

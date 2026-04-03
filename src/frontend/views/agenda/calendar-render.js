@@ -90,7 +90,8 @@ function buildEventContent() {
       const grpPromo = members.some(m => m.discount_pct || m.promotion_discount_cents > 0 || m.promotion_id) ? '<span class="ev-badge-promo" title="Promo">' + IC.tag + '</span>' : '';
       const grpHasNote = members.some(m => m.internal_note || m.notes_count > 0 || m.client_notes || m.comment_client);
       const grpNote = grpHasNote ? '<span class="ev-badge-note" title="Note">' + IC.note + '</span>' : '';
-      const grpDep = members.some(m => m.deposit_required) ? (members.some(m => m.deposit_status === 'paid') ? '<span class="ev-badge-dep paid" title="Acompte pay\u00e9">' + IC.dollar + '</span>' : '<span class="ev-badge-dep" title="Acompte en attente">' + IC.dollar + '</span>') : '';
+      const _grpDepSt = members.find(m => m.deposit_required)?.deposit_status;
+      const grpDep = !_grpDepSt ? '' : _grpDepSt === 'paid' ? '<span class="ev-badge-dep paid" title="Acompte pay\u00e9">' + IC.dollar + '</span>' : ['refunded','waived'].includes(_grpDepSt) ? '<span class="ev-badge-dep" style="opacity:.4" title="Acompte ' + _grpDepSt + '">' + IC.dollar + '</span>' : _grpDepSt === 'cancelled' ? '<span class="ev-badge-dep" style="color:var(--red)" title="Acompte retenu">' + IC.dollar + '</span>' : '<span class="ev-badge-dep" title="Acompte en attente">' + IC.dollar + '</span>';
       const grpStDot = '<span class="ev-badge ev-badge-st" style="background:' + grpStC + '"></span>';
       const grpBadges = grpStDot + grpVip + grpLock + grpDep + grpPromo + grpNote;
       return { html: `<div class="ev-inner" style="color:${darkAccent}"><span class="ev-client"${clientDim}>${esc(p.client_name || 'Groupe')} ${timeSpan} <span style="font-size:.68rem;${iconDim}">${gi(IC.chain)}${members.length}</span></span><div class="ev-badges">${grpBadges}</div><span class="ev-service">${svcs}</span></div>` };
@@ -102,7 +103,7 @@ function buildEventContent() {
     const sEnd = arg.event.end ? arg.event.end.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' }).replace(':', 'h') : '';
     const sTimeSpan = sStart ? '<span class="ev-time">' + sStart + (sEnd ? ' \u2013 ' + sEnd : '') + '</span>' : '';
     const vipBadge = p.client_is_vip ? '<span class="ev-badge-vip" title="VIP">' + IC.crown + '</span>' : '';
-    const depBadge = p.deposit_required ? (p.deposit_status === 'paid' ? '<span class="ev-badge-dep paid" title="Acompte pay\u00e9">' + IC.dollar + '</span>' : '<span class="ev-badge-dep" title="Acompte en attente">' + IC.dollar + '</span>') : '';
+    const depBadge = !p.deposit_required ? '' : p.deposit_status === 'paid' ? '<span class="ev-badge-dep paid" title="Acompte pay\u00e9">' + IC.dollar + '</span>' : ['refunded','waived'].includes(p.deposit_status) ? '<span class="ev-badge-dep" style="opacity:.4" title="Acompte ' + p.deposit_status + '">' + IC.dollar + '</span>' : p.deposit_status === 'cancelled' ? '<span class="ev-badge-dep" style="color:var(--red)" title="Acompte retenu">' + IC.dollar + '</span>' : '<span class="ev-badge-dep" title="Acompte en attente">' + IC.dollar + '</span>';
     const promoBadge = (p.discount_pct || p.promotion_discount_cents > 0 || p.promotion_id) ? '<span class="ev-badge-promo" title="Promo' + (p.discount_pct ? ' -' + p.discount_pct + '%' : '') + '">' + IC.tag + '</span>' : '';
     const lockBadge = p.locked ? '<span class="ev-badge-lock" title="Verrouill\u00e9">' + IC.lock + '</span>' : '';
     const hasNote = p.internal_note || p.notes_count > 0 || p.client_notes || p.comment_client;

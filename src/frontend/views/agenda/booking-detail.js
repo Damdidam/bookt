@@ -343,7 +343,7 @@ async function fcOpenDetail(bookingId) {
     document.querySelectorAll('.m-lm-banner').forEach(el => el.remove());
     if (b.discount_pct) {
       const catalogPrice = b.variant_price_cents ?? b.price_cents ?? 0;
-      const lmPrice = catalogPrice > 0 ? Math.round(catalogPrice * (100 - b.discount_pct) / 100) : 0;
+      const lmPrice = b.booked_price_cents ?? (catalogPrice > 0 ? Math.round(catalogPrice * (100 - b.discount_pct) / 100) : 0);
       const priceHtml = catalogPrice > 0
         ? ' <s style="opacity:.5">' + (catalogPrice / 100).toFixed(2).replace(".",",") + ' €</s> → <strong>' + (lmPrice / 100).toFixed(2).replace(".",",") + ' €</strong>'
         : '';
