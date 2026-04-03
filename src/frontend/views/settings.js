@@ -552,13 +552,13 @@ async function loadSettings(){
       ${plan==='free'?'<span class="current-badge">Actuel</span>':''}
       <div class="plan-name">Gratuit</div>
       <div class="plan-price">0 \u20ac<span>/mois</span></div>
-      <ul><li>1 praticien</li><li>25 RDV/semaine en ligne</li><li>Mini-site public</li><li>1 th\u00e8me (Classique)</li><li>Clients illimit\u00e9s</li><li>Rappels email</li></ul>
+      <ul><li>1 praticien</li><li>25 RDV/semaine en ligne</li><li>Minisite sur genda.be</li><li>Rappels email (24h + 2h)</li><li>Gestion clients illimit\u00e9s</li><li>1 promotion</li><li>Cr\u00e9neaux vedettes</li></ul>
     </div>
     <div class="plan-box${plan==='pro'?' current':''}" style="border-color:var(--primary)">
       ${plan==='pro'?'<span class="current-badge">Actuel</span>':'<span style="position:absolute;top:-10px;right:12px;background:var(--primary);color:#fff;font-size:.68rem;padding:2px 8px;border-radius:10px;font-weight:700">RECOMMAND\u00c9</span>'}
       <div class="plan-name">Pro</div>
       <div class="plan-price">60 \u20ac<span>/mois</span></div>
-      <ul><li>Praticiens illimit\u00e9s</li><li>RDV illimit\u00e9s</li><li>Tous les th\u00e8mes + couleur</li><li>Rappels email + SMS (200/mois)</li><li>Statistiques avanc\u00e9es</li><li>Support prioritaire</li></ul>
+      <ul><li>Praticiens + RDV illimit\u00e9s</li><li>Rappels SMS (24h + 2h)</li><li>Acomptes Stripe</li><li>Cartes cadeau + abonnements</li><li>Promos illimit\u00e9es + last-minute</li><li>Analytics + heatmap</li><li>Liste d'attente</li><li>Facturation PDF</li><li>Sync Google/Outlook</li><li>Domaine personnalis\u00e9</li></ul>
       ${plan==='free'?'<button class="btn-primary" style="width:100%;margin-top:8px" onclick="startCheckout(\'pro\')">Passer au Pro \u2192</button>':''}
       ${plan==='pro'&&subStatus.has_subscription?'<button class="btn-outline" style="width:100%;margin-top:8px" onclick="openStripePortal()">G\u00e9rer l\'abonnement</button>':''}
     </div>
