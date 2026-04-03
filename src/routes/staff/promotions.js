@@ -224,12 +224,18 @@ router.patch('/:id', requireAuth, requireOwner, async (req, res, next) => {
     const errors = validatePromo(body, true);
     if (errors.length) return res.status(400).json({ error: errors.join('; ') });
 
-    // Max 5 active promos check (only if activating)
+    // Plan guard: Free plan limited to 1 active promotion (on toggle activation too)
     if (req.body.is_active === true && !current.is_active) {
+      if (req.businessPlan === 'free') {
+        const freeCountRes = await queryWithRLS(req.businessId,
+          `SELECT COUNT(*)::int AS cnt FROM promotions WHERE business_id = $1 AND is_active = true`, [req.businessId]);
+        if (freeCountRes.rows[0].cnt >= 1) {
+          return res.status(403).json({ error: 'upgrade_required', message: 'Le plan gratuit est limité à 1 promotion active.' });
+        }
+      }
+      // Max 5 active promos check (Pro)
       const countRes = await queryWithRLS(req.businessId,
-        `SELECT COUNT(*) FROM promotions WHERE business_id = $1 AND is_active = true`,
-        [req.businessId]
-      );
+        `SELECT COUNT(*) FROM promotions WHERE business_id = $1 AND is_active = true`, [req.businessId]);
       if (parseInt(countRes.rows[0].count) >= 5) {
         return res.status(400).json({ error: 'Maximum 5 active promotions allowed' });
       }

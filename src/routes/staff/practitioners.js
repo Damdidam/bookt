@@ -660,6 +660,16 @@ router.patch('/:id', requireOwner, async (req, res, next) => {
       'contract_type', 'weekly_hours_target', 'hire_date',
       'emergency_contact_name', 'emergency_contact_phone', 'internal_note'];
 
+    // Plan guard: Free tier cannot reactivate practitioners beyond limit of 1
+    if (fields.is_active === true || fields.is_active === 'true') {
+      const bizPlanCheck = await queryWithRLS(bid,
+        `SELECT b.plan, (SELECT COUNT(*) FROM practitioners p2 WHERE p2.business_id = b.id AND p2.is_active = true AND p2.id != $2) AS active_count
+         FROM businesses b WHERE b.id = $1`, [bid, id]);
+      if (bizPlanCheck.rows[0]?.plan === 'free' && bizPlanCheck.rows[0]?.active_count >= 1) {
+        return res.status(403).json({ error: 'Le plan gratuit est limité à 1 praticien actif. Passez au Pro pour en activer davantage.' });
+      }
+    }
+
     const sets = [];
     const params = [id, bid];
     let idx = 3;

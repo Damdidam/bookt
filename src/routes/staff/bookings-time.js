@@ -408,6 +408,26 @@ router.patch('/:id/move', async (req, res, next) => {
             }
           }
 
+          // Recalculate deposit_amount_cents for group after price changes
+          if (draggedBooking.deposit_required) {
+            const _gdRes = await client.query(`SELECT settings FROM businesses WHERE id = $1`, [bid]);
+            const _gds = _gdRes.rows[0]?.settings || {};
+            const _gdType = _gds.deposit_type || 'percent';
+            const _gdPct = parseInt(_gds.deposit_percent) || 0;
+            const _gdFixed = parseInt(_gds.deposit_fixed_cents) || 0;
+            if ((_gdType === 'percent' && _gdPct > 0) || (_gdType === 'fixed' && _gdFixed > 0)) {
+              const _gtRes = await client.query(
+                `SELECT COALESCE(SUM(booked_price_cents), 0) AS total,
+                        COALESCE(SUM(CASE WHEN group_order = 0 THEN promotion_discount_cents ELSE 0 END), 0) AS promo
+                 FROM bookings WHERE group_id = $1 AND business_id = $2`, [draggedBooking.group_id, bid]);
+              const _gEff = Math.max((parseInt(_gtRes.rows[0].total) || 0) - (parseInt(_gtRes.rows[0].promo) || 0), 0);
+              const _gNewDep = _gdType === 'fixed' ? Math.min(_gdFixed, _gEff) : Math.round(_gEff * _gdPct / 100);
+              await client.query(
+                `UPDATE bookings SET deposit_amount_cents = $1 WHERE group_id = $2 AND business_id = $3 AND deposit_status = 'pending'`,
+                [_gNewDep, draggedBooking.group_id, bid]);
+            }
+          }
+
           await client.query(
             `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
              VALUES ($1, $2, 'booking', $3, 'group_move', $4, $5)`,
@@ -709,18 +729,21 @@ router.patch('/:id/move', async (req, res, next) => {
           }
         }
 
-        // M2 fix: Recalculate deposit_amount_cents when price changed on move
+        // M2 fix: Recalculate deposit_amount_cents when price changed on move (handles both percent AND fixed)
         if (moved && moved.deposit_required) {
-          const _depPctRes = await client.query(
-            `SELECT biz.settings->>'deposit_percent' AS deposit_percent, b.booked_price_cents, b.promotion_discount_cents
+          const _depRes = await client.query(
+            `SELECT biz.settings AS biz_settings, b.booked_price_cents, b.promotion_discount_cents
              FROM bookings b JOIN businesses biz ON biz.id = b.business_id WHERE b.id = $1 AND b.business_id = $2`, [id, bid]
           );
-          const _dr = _depPctRes.rows[0];
+          const _dr = _depRes.rows[0];
           if (_dr) {
-            const _depPct = parseInt(_dr.deposit_percent) || 0;
-            if (_depPct > 0) {
+            const _ds = _dr.biz_settings || {};
+            const _depType = _ds.deposit_type || 'percent';
+            const _depPct = parseInt(_ds.deposit_percent) || 0;
+            const _depFixed = parseInt(_ds.deposit_fixed_cents) || 0;
+            if ((_depType === 'percent' && _depPct > 0) || (_depType === 'fixed' && _depFixed > 0)) {
               const _effPrice = Math.max((_dr.booked_price_cents || 0) - (_dr.promotion_discount_cents || 0), 0);
-              const _newDepAmt = Math.round(_effPrice * _depPct / 100);
+              const _newDepAmt = _depType === 'fixed' ? Math.min(_depFixed, _effPrice) : Math.round(_effPrice * _depPct / 100);
               await client.query(`UPDATE bookings SET deposit_amount_cents = $1 WHERE id = $2 AND business_id = $3 AND deposit_status = 'pending'`, [_newDepAmt, id, bid]);
             }
           }

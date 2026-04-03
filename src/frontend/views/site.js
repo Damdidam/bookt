@@ -140,7 +140,7 @@ async function loadSiteSection(){
               ${b.logo_url?'<img src="'+esc(b.logo_url)+'" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display=\'none\'">':'<div style="text-align:center;color:var(--text-4);font-size:.75rem"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin:0 auto 4px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg><br>Logo</div>'}
               ${b.logo_url?'<button onclick="event.stopPropagation();deleteBrandingImage(\'logo\')" style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center" title="Supprimer">'+IC.x+'</button>':''}
             </div>
-            <input type="file" id="logoFileInput" accept="image/jpeg,image/png,image/webp,image/svg+xml" style="display:none" onchange="handleBrandingFile(this.files[0],'logo')">
+            <input type="file" id="logoFileInput" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="handleBrandingFile(this.files[0],'logo')">
           </div>
           <div>
             <label class="fl" style="margin-bottom:8px;display:block">Bannière / Couverture</label>
@@ -793,7 +793,7 @@ async function saveSiteContent(){
 
 async function handleBrandingFile(file,type){
   if(!file)return;
-  const validTypes=type==='logo'?['image/jpeg','image/png','image/webp','image/svg+xml']:['image/jpeg','image/png','image/webp'];
+  const validTypes=['image/jpeg','image/png','image/webp'];
   if(!validTypes.includes(file.type)){GendaUI.toast('Format invalide','error');return;}
   const maxSize=type==='logo'?1*1024*1024:2*1024*1024;
   if(file.size>maxSize){GendaUI.toast(`Image trop lourde (max ${type==='logo'?'1':'2'} Mo)`,'error');return;}

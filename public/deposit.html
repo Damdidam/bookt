@@ -282,7 +282,7 @@ async function startPayment() {
   try {
     const res = await fetch(`/api/public/deposit/${token}/checkout`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
     const data = await res.json();
-    if (!res.ok) { showToast(data.error || 'Erreur', 'error'); btn.disabled = false; btn.innerHTML = 'Réessayer'; return; }
+    if (!res.ok) { showToast(data.error === 'upgrade_required' ? 'Le paiement en ligne n\'est pas disponible pour le moment. Contactez l\'\u00e9tablissement.' : (data.message || data.error || 'Erreur'), 'error'); btn.disabled = false; btn.innerHTML = 'R\u00e9essayer'; return; }
     if (data.url) window.location.href = data.url;
   } catch (err) {
     showToast('Erreur de connexion', 'error');
