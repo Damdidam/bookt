@@ -148,7 +148,8 @@ router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) 
               b.deposit_required, b.deposit_status, b.deposit_deadline,
               COALESCE(sv.duration_min, s.duration_min) AS duration_min,
               biz.settings AS business_settings,
-              biz.slug AS business_slug
+              biz.slug AS business_slug,
+              biz.plan AS business_plan
        FROM bookings b
        LEFT JOIN services s ON s.id = b.service_id
        LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
@@ -312,7 +313,7 @@ router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) 
     }
 
     // Recalculate last-minute discount after reschedule
-    if (settings.last_minute_enabled) {
+    if (settings.last_minute_enabled && (bk.business_plan || 'free') !== 'free') {
       const lmDeadline = settings.last_minute_deadline || 'j-1';
       const todayBrussels = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
       const lmMinPrice = settings.last_minute_min_price_cents || 0;

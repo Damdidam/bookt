@@ -27,12 +27,13 @@ router.get('/:slug/slots', slotsLimiter, async (req, res, next) => {
     }
 
     const bizResult = await query(
-      `SELECT id, settings FROM businesses WHERE slug = $1 AND is_active = true`,
+      `SELECT id, plan, settings FROM businesses WHERE slug = $1 AND is_active = true`,
       [slug]
     );
     if (bizResult.rows.length === 0) return res.status(404).json({ error: 'Cabinet introuvable' });
 
     const businessId = bizResult.rows[0].id;
+    const bizPlan = bizResult.rows[0].plan || 'free';
     const bizSettings = bizResult.rows[0].settings || {};
     const brusselsToday = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
     const from = date_from || brusselsToday;
@@ -57,7 +58,7 @@ router.get('/:slug/slots', slotsLimiter, async (req, res, next) => {
     });
 
     // ── Last-minute discount tagging ──
-    if (bizSettings.last_minute_enabled && slots.length > 0) {
+    if (bizSettings.last_minute_enabled && bizPlan !== 'free' && slots.length > 0) {
       const discountPct = bizSettings.last_minute_discount_pct || 10;
       const minPriceCents = bizSettings.last_minute_min_price_cents || 0;
       const deadline = bizSettings.last_minute_deadline || 'j-1';
@@ -142,12 +143,13 @@ router.get('/:slug/multi-slots', slotsLimiter, async (req, res, next) => {
     }
 
     const bizResult = await query(
-      `SELECT id, settings FROM businesses WHERE slug = $1 AND is_active = true`,
+      `SELECT id, plan, settings FROM businesses WHERE slug = $1 AND is_active = true`,
       [slug]
     );
     if (bizResult.rows.length === 0) return res.status(404).json({ error: 'Cabinet introuvable' });
 
     const businessId = bizResult.rows[0].id;
+    const bizPlan = bizResult.rows[0].plan || 'free';
     const bizSettings = bizResult.rows[0].settings || {};
 
     if (!bizSettings.multi_service_enabled) {

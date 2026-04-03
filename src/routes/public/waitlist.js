@@ -311,7 +311,8 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
       );
 
       // H10: Check deposit requirement (same as normal booking flow)
-      const bizSettingsWl = await client.query(`SELECT settings, stripe_connect_status FROM businesses WHERE id = $1`, [e.business_id]);
+      const bizSettingsWl = await client.query(`SELECT plan, settings, stripe_connect_status FROM businesses WHERE id = $1`, [e.business_id]);
+      const wlBizPlan = bizSettingsWl.rows[0]?.plan || 'free';
       const wlBizSettings = bizSettingsWl.rows[0]?.settings || {};
       const wlStripeConnectStatus = bizSettingsWl.rows[0]?.stripe_connect_status;
       const svcPriceWl = await client.query(
@@ -344,7 +345,7 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
       }
 
       // Apply last-minute discount + snapshot booked_price_cents
-      if (wlBizSettings.last_minute_enabled) {
+      if (wlBizSettings.last_minute_enabled && wlBizPlan !== 'free') {
         const { isWithinLastMinuteWindow } = require('./helpers');
         const wlStartBrussels = new Date(e.offer_booking_start).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
         const wlTodayBrussels = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });

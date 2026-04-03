@@ -297,9 +297,9 @@ router.patch('/:id/move', async (req, res, next) => {
           }
 
           // F7: Recalculate last-minute discount for each group member after move
-          const bizRes = await client.query(`SELECT settings FROM businesses WHERE id = $1`, [bid]);
+          const bizRes = await client.query(`SELECT plan, settings FROM businesses WHERE id = $1`, [bid]);
           const bizSettings = bizRes.rows[0]?.settings || {};
-          if (bizSettings.last_minute_enabled) {
+          if (bizSettings.last_minute_enabled && (bizRes.rows[0]?.plan || 'free') !== 'free') {
             const lmDeadline = bizSettings.last_minute_deadline || 'j-1';
             const todayBrussels = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
             for (const u of updates) {
@@ -616,9 +616,9 @@ router.patch('/:id/move', async (req, res, next) => {
 
         // F7: Recalculate last-minute discount after move
         if (moved) {
-          const bizRes = await client.query(`SELECT settings FROM businesses WHERE id = $1`, [bid]);
+          const bizRes = await client.query(`SELECT plan, settings FROM businesses WHERE id = $1`, [bid]);
           const bizSettings = bizRes.rows[0]?.settings || {};
-          if (bizSettings.last_minute_enabled) {
+          if (bizSettings.last_minute_enabled && (bizRes.rows[0]?.plan || 'free') !== 'free') {
             const lmDeadline = bizSettings.last_minute_deadline || 'j-1';
             const newStartBrussels = new Date(moved.start_at).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
             const todayBrussels = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });

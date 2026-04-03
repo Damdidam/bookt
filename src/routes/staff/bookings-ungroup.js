@@ -846,9 +846,9 @@ router.post('/:id/group-add', async (req, res, next) => {
         // Insert the new group member (M6 fix: apply LM discount if slot is in LM window)
         let _addBookedPrice = variantPrice != null ? variantPrice : (svc.price_cents || null);
         let _addDiscountPct = null;
-        const _addBizSettings = await client.query(`SELECT settings FROM businesses WHERE id = $1`, [bid]);
+        const _addBizSettings = await client.query(`SELECT plan, settings FROM businesses WHERE id = $1`, [bid]);
         const _addSettings = _addBizSettings.rows[0]?.settings || {};
-        if (_addSettings.last_minute_enabled && _addBookedPrice) {
+        if (_addSettings.last_minute_enabled && (_addBizSettings.rows[0]?.plan || 'free') !== 'free' && _addBookedPrice) {
           const { isWithinLastMinuteWindow } = require('../../routes/public/helpers');
           const _todayBxl = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
           const _slotBxl = new Date(newStart).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });

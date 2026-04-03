@@ -101,7 +101,7 @@ router.get('/:slug/guide', async (req, res, next) => {
   try {
     const { slug } = req.params;
     const biz = await query(
-      `SELECT id, name, slug, settings, logo_url, sector, category,
+      `SELECT id, name, slug, plan, settings, logo_url, sector, category,
               theme->>'primary' AS primary_color
        FROM businesses WHERE slug = $1 AND is_active = true LIMIT 1`,
       [slug]
@@ -137,8 +137,8 @@ router.get('/:slug/guide', async (req, res, next) => {
         passes_enabled: !!s.passes_enabled,
         multi_service_enabled: !!s.multi_service_enabled,
         waitlist_enabled: !!s.waitlist_enabled,
-        last_minute_enabled: !!s.last_minute_enabled,
-        last_minute_discount_pct: s.last_minute_discount_pct || 0,
+        last_minute_enabled: (b.plan || 'free') !== 'free' && !!s.last_minute_enabled,
+        last_minute_discount_pct: (b.plan || 'free') !== 'free' ? (s.last_minute_discount_pct || 0) : 0,
         last_minute_deadline: s.last_minute_deadline || 'j-1',
         payment_methods: s.payment_methods || []
       }
