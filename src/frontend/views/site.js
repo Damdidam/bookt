@@ -2,6 +2,7 @@
  * Site / Mini-site management view module.
  */
 import { api, GendaUI } from '../state.js';
+import { isPro, proInlineHint } from '../utils/plan-gate.js';
 import { bridge } from '../utils/window-bridge.js';
 import { cswHTML } from './agenda/color-swatches.js';
 import { guardModal, showConfirmDialog } from '../utils/dirty-guard.js';
@@ -92,6 +93,16 @@ async function loadSiteSection(){
     }
 
     let h=`<div class="qlink"><div class="info"><h4>Votre page publique</h4><p>${slug}</p></div><div style="display:flex;gap:8px"><a href="/${slug}?preview" target="_blank">Voir ma page</a><a href="/${slug}/book" target="_blank" style="background:rgba(255,255,255,.08)">Page booking</a></div></div>`;
+
+    // -- CUSTOM DOMAIN --
+    const _pro=isPro();
+    h+=`<div class="card" style="margin-bottom:24px">
+      <div class="card-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> Domaine personnalisé${!_pro?' '+proInlineHint():''}</h3></div>
+      <div style="padding:18px">
+        <p style="font-size:.82rem;color:var(--text-3);margin-bottom:14px">Connectez votre propre nom de domaine à votre page de réservation.</p>
+        <div class="fg"><label class="fl">Domaine</label><input class="fi" id="siteCustomDomain" value="${esc(b.custom_domain||'')}" placeholder="Ex: reservations.monsalon.com" ${!_pro?'disabled style="opacity:.5;cursor:not-allowed"':''}></div>
+      </div>
+    </div>`;
 
     // -- TEST MODE --
     h+=`<div class="card" style="margin-bottom:24px">

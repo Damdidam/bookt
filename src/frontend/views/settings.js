@@ -21,6 +21,7 @@ async function loadSettings(){
     const b=bd.business, u=ud.user, lk=ld;
     api.setBusiness(b);
     window._initialSector=b.sector;
+    const plan=b.plan||'free';
     let h='';
     // Inject save button into the topbar (next to page title)
     const topbar=document.querySelector('.topbar');
@@ -178,13 +179,14 @@ async function loadSettings(){
         <div class="hint" style="margin-top:4px;margin-left:46px">Met en avant les créneaux prioritaires à remplir sur le calendrier</div>
       </div>
       <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
-        <div style="display:flex;align-items:center;gap:10px;cursor:pointer">
+        <div style="display:flex;align-items:center;gap:10px;cursor:pointer${plan==='free'?';opacity:.5;pointer-events:none':''}">
           <span style="position:relative;display:inline-block;width:36px;height:20px">
-            <input type="checkbox" id="s_last_minute" style="opacity:0;width:0;height:0;position:absolute"${lmOn?' checked':''}>
-            <span style="position:absolute;inset:0;background:${lmOn?'var(--amber)':'#ccc'};border-radius:20px;transition:background .2s" onclick="const c=document.getElementById('s_last_minute');c.checked=!c.checked;this.style.background=c.checked?'var(--amber)':'#ccc';this.nextElementSibling.style.transform=c.checked?'translateX(16px)':'translateX(0)';document.getElementById('lm_details').style.display=c.checked?'grid':'none'"></span>
-            <span style="position:absolute;top:2px;left:2px;width:16px;height:16px;background:#fff;border-radius:50%;transition:transform .2s;transform:${lmOn?'translateX(16px)':'translateX(0)'};pointer-events:none"></span>
+            <input type="checkbox" id="s_last_minute" style="opacity:0;width:0;height:0;position:absolute"${lmOn&&plan!=='free'?' checked':''} ${plan==='free'?'disabled':''}>
+            <span style="position:absolute;inset:0;background:${lmOn&&plan!=='free'?'var(--amber)':'#ccc'};border-radius:20px;transition:background .2s" onclick="const c=document.getElementById('s_last_minute');c.checked=!c.checked;this.style.background=c.checked?'var(--amber)':'#ccc';this.nextElementSibling.style.transform=c.checked?'translateX(16px)':'translateX(0)';document.getElementById('lm_details').style.display=c.checked?'grid':'none'"></span>
+            <span style="position:absolute;top:2px;left:2px;width:16px;height:16px;background:#fff;border-radius:50%;transition:transform .2s;transform:${lmOn&&plan!=='free'?'translateX(16px)':'translateX(0)'};pointer-events:none"></span>
           </span>
           <span style="font-weight:600;font-size:.85rem">Promotions dernière minute</span>
+          ${plan==='free'?'<span style="font-size:.72rem;color:var(--primary);font-weight:500;margin-left:8px">Plan Pro requis</span>':''}
         </div>
         <div class="hint" style="margin-top:4px;margin-left:46px">Propose les créneaux restants avec une réduction pour maximiser le remplissage</div>
         <div id="lm_details" style="display:${lmOn?'grid':'none'};grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:12px;margin-left:46px">
@@ -209,7 +211,6 @@ async function loadSettings(){
     setTimeout(()=>loadConnectStatus(),100);
 
     // 3b. Rappels clients
-    const plan=b.plan||'free';
     const re24=b.settings?.reminder_email_24h!==false;
     const rs24=b.settings?.reminder_sms_24h===true;
     const rs2=b.settings?.reminder_sms_2h===true;
@@ -258,12 +259,12 @@ async function loadSettings(){
     h+=`<p style="font-size:.82rem;color:var(--text-3);margin-bottom:16px">Exigez un acompte des clients ayant un historique de no-shows. L'acompte sécurise le rendez-vous et réduit les pertes.</p>`;
 
     // Master toggle
-    h+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--surface);border-radius:10px;margin-bottom:16px">
-      <div><div style="font-size:.85rem;font-weight:600;color:var(--text)">Activer les acomptes</div><div style="font-size:.75rem;color:var(--text-4)">Demander un acompte aux clients récidivistes</div></div>
-      <label style="position:relative;width:44px;height:24px;cursor:pointer">
-        <input type="checkbox" id="s_dep_enabled" ${depOn?'checked':''} onchange="document.getElementById('depositOptions').style.display=this.checked?'block':'none'" style="display:none">
-        <span style="position:absolute;inset:0;background:${depOn?'var(--primary)':'var(--border)'};border-radius:12px;transition:all .2s"></span>
-        <span style="position:absolute;left:${depOn?'22px':'2px'};top:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,.15)"></span>
+    h+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--surface);border-radius:10px;margin-bottom:16px${plan==='free'?';opacity:.5':''}">
+      <div><div style="font-size:.85rem;font-weight:600;color:var(--text)">Activer les acomptes${plan==='free'?' <span style="font-size:.72rem;color:var(--primary);font-weight:500;margin-left:8px">Plan Pro requis</span>':''}</div><div style="font-size:.75rem;color:var(--text-4)">Demander un acompte aux clients récidivistes</div></div>
+      <label style="position:relative;width:44px;height:24px;cursor:${plan==='free'?'not-allowed':'pointer'}">
+        <input type="checkbox" id="s_dep_enabled" ${depOn&&plan!=='free'?'checked':''} ${plan==='free'?'disabled':''} onchange="document.getElementById('depositOptions').style.display=this.checked?'block':'none'" style="display:none">
+        <span style="position:absolute;inset:0;background:${depOn&&plan!=='free'?'var(--primary)':'var(--border)'};border-radius:12px;transition:all .2s"></span>
+        <span style="position:absolute;left:${depOn&&plan!=='free'?'22px':'2px'};top:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,.15)"></span>
       </label>
     </div>`;
 
