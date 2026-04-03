@@ -654,6 +654,7 @@ async function handleStripeWebhook(req, res) {
           const plan = getPriceToPlan()[priceId] || sub.metadata?.plan || 'pro';
           const trialEnd = sub.trial_end ? new Date(sub.trial_end * 1000) : null;
 
+          const periodEnd = sub.current_period_end ? new Date(sub.current_period_end * 1000) : null;
           await query(
             `UPDATE businesses SET
               plan = $1,
@@ -662,9 +663,11 @@ async function handleStripeWebhook(req, res) {
               subscription_status = $4,
               trial_ends_at = $5,
               stripe_customer_id = COALESCE(stripe_customer_id, $6),
+              plan_changed_at = COALESCE(plan_changed_at, NOW()),
+              subscription_current_period_end = $8,
               updated_at = NOW()
             WHERE id = $7`,
-            [plan, sub.id, priceId, sub.status, trialEnd, session.customer, businessId]
+            [plan, sub.id, priceId, sub.status, trialEnd, session.customer, businessId, periodEnd]
           );
 
           console.log(`[STRIPE WH] Business ${businessId} → plan ${plan} (${sub.status})`);
@@ -775,15 +778,17 @@ async function syncSubscription(sub, businessId) {
   const plan = getPriceToPlan()[priceId] || sub.metadata?.plan || 'pro';
   const trialEnd = sub.trial_end ? new Date(sub.trial_end * 1000) : null;
 
+  const periodEnd = sub.current_period_end ? new Date(sub.current_period_end * 1000) : null;
   await query(
     `UPDATE businesses SET
       plan = $1,
       stripe_price_id = $2,
       subscription_status = $3,
       trial_ends_at = $4,
+      subscription_current_period_end = $6,
       updated_at = NOW()
     WHERE id = $5`,
-    [plan, priceId, sub.status, trialEnd, businessId]
+    [plan, priceId, sub.status, trialEnd, businessId, periodEnd]
   );
   console.log(`[STRIPE WH] Business ${businessId} → plan ${plan} (${sub.status})`);
 }

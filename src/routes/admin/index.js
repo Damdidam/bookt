@@ -12,12 +12,16 @@ router.use(requireSuperadmin);
 // ─── GET /api/admin/stats ────────────────────────────────────────
 router.get('/stats', async (req, res, next) => {
   try {
-    const [totals, monthly, topSalons] = await Promise.all([
+    const [totals, monthly, topSalons, alerts] = await Promise.all([
       query(`
         SELECT
           COUNT(*) AS total,
           COUNT(*) FILTER (WHERE is_active = true) AS active,
-          COUNT(*) FILTER (WHERE created_at >= date_trunc('month', NOW())) AS created_this_month
+          COUNT(*) FILTER (WHERE created_at >= date_trunc('month', NOW())) AS created_this_month,
+          COUNT(*) FILTER (WHERE plan = 'free') AS free_count,
+          COUNT(*) FILTER (WHERE plan = 'pro') AS pro_count,
+          COUNT(*) FILTER (WHERE subscription_status IN ('past_due', 'unpaid')) AS past_due_count,
+          COUNT(*) FILTER (WHERE subscription_status = 'trialing') AS trialing_count
         FROM businesses
       `),
       query(`
@@ -26,22 +30,45 @@ router.get('/stats', async (req, res, next) => {
         WHERE created_at >= date_trunc('month', NOW())
       `),
       query(`
-        SELECT b.id, b.name, b.slug, COUNT(bk.id) AS bookings_30d
+        SELECT b.id, b.name, b.slug, b.plan, b.subscription_status, COUNT(bk.id) AS bookings_30d
         FROM businesses b
         LEFT JOIN bookings bk ON bk.business_id = b.id AND bk.created_at >= NOW() - INTERVAL '30 days'
         WHERE b.is_active = true
         GROUP BY b.id
         ORDER BY bookings_30d DESC
         LIMIT 5
+      `),
+      query(`
+        SELECT b.id, b.name, b.slug, b.plan, b.subscription_status, b.trial_ends_at,
+          (SELECT MAX(bk.created_at) FROM bookings bk WHERE bk.business_id = b.id) AS last_booking_at
+        FROM businesses b
+        WHERE b.is_active = true AND (
+          (b.subscription_status IN ('past_due', 'unpaid'))
+          OR (b.subscription_status = 'trialing' AND b.trial_ends_at < NOW() + INTERVAL '3 days')
+          OR (b.plan = 'pro' AND NOT EXISTS (SELECT 1 FROM bookings bk WHERE bk.business_id = b.id AND bk.created_at >= NOW() - INTERVAL '14 days'))
+        )
+        ORDER BY
+          CASE WHEN b.subscription_status IN ('past_due', 'unpaid') THEN 0
+               WHEN b.subscription_status = 'trialing' THEN 1
+               ELSE 2 END,
+          b.name
       `)
     ]);
 
+    const t = totals.rows[0];
+    const proCount = parseInt(t.pro_count);
     res.json({
-      total_businesses: parseInt(totals.rows[0].total),
-      active_businesses: parseInt(totals.rows[0].active),
-      created_this_month: parseInt(totals.rows[0].created_this_month),
+      total_businesses: parseInt(t.total),
+      active_businesses: parseInt(t.active),
+      created_this_month: parseInt(t.created_this_month),
       bookings_this_month: parseInt(monthly.rows[0].bookings_this_month),
-      top_salons: topSalons.rows
+      free_count: parseInt(t.free_count),
+      pro_count: proCount,
+      mrr_cents: proCount * 6000, // 60€ x Pro count
+      past_due_count: parseInt(t.past_due_count),
+      trialing_count: parseInt(t.trialing_count),
+      top_salons: topSalons.rows,
+      alerts: alerts.rows
     });
   } catch (err) { next(err); }
 });
@@ -49,7 +76,7 @@ router.get('/stats', async (req, res, next) => {
 // ─── GET /api/admin/businesses ───────────────────────────────────
 router.get('/businesses', async (req, res, next) => {
   try {
-    const { status, plan, search, sort = 'created_at', page = 1, limit = 50 } = req.query;
+    const { status, plan, search, sort = 'created_at', page = 1, limit = 50, sub_status } = req.query;
     const offset = (Math.max(1, parseInt(page)) - 1) * parseInt(limit);
     const params = [];
     const conditions = [];
@@ -61,6 +88,12 @@ router.get('/businesses', async (req, res, next) => {
     if (plan) {
       conditions.push(`b.plan = $${paramIdx}`);
       params.push(plan);
+      paramIdx++;
+    }
+
+    if (sub_status) {
+      conditions.push(`b.subscription_status = $${paramIdx}`);
+      params.push(sub_status);
       paramIdx++;
     }
 
@@ -83,12 +116,15 @@ router.get('/businesses', async (req, res, next) => {
     const sql = `
       SELECT
         b.id, b.name, b.slug, b.sector, b.plan, b.is_active, b.created_at,
+        b.subscription_status, b.trial_ends_at, b.plan_changed_at, b.subscription_current_period_end,
+        b.stripe_customer_id, b.stripe_subscription_id,
         owner_u.email AS owner_email,
         (SELECT COUNT(*) FROM bookings bk WHERE bk.business_id = b.id) AS bookings_count,
         (SELECT COUNT(*) FROM bookings bk WHERE bk.business_id = b.id AND bk.created_at >= NOW() - INTERVAL '30 days') AS bookings_30d,
         (SELECT MAX(bk.created_at) FROM bookings bk WHERE bk.business_id = b.id) AS last_booking_at,
         (SELECT COUNT(*) FROM services s WHERE s.business_id = b.id) AS services_count,
-        (SELECT COUNT(*) FROM practitioners p WHERE p.business_id = b.id AND p.is_active = true) AS practitioners_count
+        (SELECT COUNT(*) FROM practitioners p WHERE p.business_id = b.id AND p.is_active = true) AS practitioners_count,
+        (SELECT COALESCE(SUM(COALESCE(bk.booked_price_cents, 0) - COALESCE(bk.promotion_discount_cents, 0)), 0) FROM bookings bk WHERE bk.business_id = b.id AND bk.status IN ('confirmed', 'completed') AND bk.created_at >= NOW() - INTERVAL '30 days') AS revenue_30d_cents
       FROM businesses b
       LEFT JOIN users owner_u ON owner_u.business_id = b.id AND owner_u.role = 'owner'
       ${where}
@@ -150,6 +186,7 @@ router.patch('/businesses/:id', async (req, res, next) => {
     if (plan && ['free', 'pro'].includes(plan)) {
       sets.push(`plan = $${idx++}`);
       params.push(plan);
+      sets.push(`plan_changed_at = NOW()`);
     }
 
     if (sets.length === 0) return res.status(400).json({ error: 'Nothing to update' });

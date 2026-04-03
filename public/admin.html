@@ -153,11 +153,16 @@ tr:hover td{background:rgba(224,122,95,.02)}
 
   <div class="main">
     <!-- KPIs -->
-    <div class="kpis" id="kpis">
-      <div class="kpi"><div class="label">Total salons</div><div class="value" id="kTotal">-</div></div>
-      <div class="kpi"><div class="label">Actifs</div><div class="value" id="kActive">-</div></div>
-      <div class="kpi"><div class="label">Inscrits ce mois</div><div class="value" id="kNew">-</div></div>
-      <div class="kpi"><div class="label">Bookings ce mois</div><div class="value" id="kBookings">-</div></div>
+    <div class="kpis" id="kpis" style="grid-template-columns:repeat(3,1fr)">
+      <div class="kpi"><div class="label">Total salons</div><div class="value" id="kTotal">-</div><div class="sub"><span id="kFree">-</span> Free / <span id="kPro">-</span> Pro</div></div>
+      <div class="kpi"><div class="label">MRR</div><div class="value" id="kMrr" style="color:var(--green)">-</div><div class="sub"><span id="kPro2">-</span> abonnements Pro</div></div>
+      <div class="kpi"><div class="label">Bookings ce mois</div><div class="value" id="kBookings">-</div><div class="sub"><span id="kNew">-</span> nouveaux salons</div></div>
+    </div>
+
+    <!-- Alerts -->
+    <div id="alertsSection" style="display:none;margin-bottom:20px">
+      <div style="font-size:.82rem;font-weight:600;color:var(--red);margin-bottom:8px">Alertes</div>
+      <div id="alertsList" style="display:flex;flex-direction:column;gap:6px"></div>
     </div>
 
     <!-- Announcements -->
@@ -194,6 +199,14 @@ tr:hover td{background:rgba(224,122,95,.02)}
         <option value="active">Actif</option>
         <option value="inactive">Inactif</option>
       </select>
+      <select class="filter-sel" id="filterSubStatus" onchange="loadBusinesses()">
+        <option value="">Tous les abonnements</option>
+        <option value="active">Abo actif</option>
+        <option value="trialing">En essai</option>
+        <option value="past_due">Impay&#233;</option>
+        <option value="canceled">Annul&#233;</option>
+        <option value="none">Aucun</option>
+      </select>
     </div>
 
     <!-- Table -->
@@ -202,16 +215,17 @@ tr:hover td{background:rgba(224,122,95,.02)}
         <thead>
           <tr>
             <th>Salon</th>
-            <th>Secteur</th>
             <th>Plan</th>
+            <th>Abonnement</th>
+            <th>Depuis</th>
             <th>Bookings 30j</th>
-            <th>Dernière activité</th>
-            <th>Statut</th>
+            <th>CA 30j</th>
+            <th>Derni&#232;re activit&#233;</th>
             <th>Actions</th>
           </tr>
         </thead>
         <tbody id="tableBody">
-          <tr><td colspan="7"><div class="loading-center"><div class="spinner"></div></div></td></tr>
+          <tr><td colspan="8"><div class="loading-center"><div class="spinner"></div></div></td></tr>
         </tbody>
       </table>
       <div class="pagination" id="pagination"></div>
@@ -293,6 +307,7 @@ if (token) {
       document.getElementById('app').style.display = 'block';
       renderStats(stats);
       loadBusinesses();
+      loadAnnouncements();
     })
     .catch(() => {
       localStorage.removeItem('genda_admin_token');
@@ -323,9 +338,36 @@ function toast(msg, type) {
 // ─── Stats ───
 function renderStats(s) {
   document.getElementById('kTotal').textContent = s.total_businesses;
-  document.getElementById('kActive').textContent = s.active_businesses;
-  document.getElementById('kNew').textContent = s.created_this_month;
+  document.getElementById('kFree').textContent = s.free_count;
+  document.getElementById('kPro').textContent = s.pro_count;
+  document.getElementById('kPro2').textContent = s.pro_count;
+  document.getElementById('kMrr').textContent = (s.mrr_cents / 100).toFixed(0) + '\u202f\u20ac';
   document.getElementById('kBookings').textContent = s.bookings_this_month;
+  document.getElementById('kNew').textContent = s.created_this_month;
+
+  // Alerts
+  if (s.alerts && s.alerts.length > 0) {
+    document.getElementById('alertsSection').style.display = '';
+    document.getElementById('alertsList').innerHTML = s.alerts.map(function(a) {
+      var icon = '', color = '', label = '';
+      if (a.subscription_status === 'past_due' || a.subscription_status === 'unpaid') {
+        icon = '\u26a0\ufe0f'; color = 'var(--red)'; label = 'Paiement \u00e9chou\u00e9';
+      } else if (a.subscription_status === 'trialing' && a.trial_ends_at) {
+        var daysLeft = Math.ceil((new Date(a.trial_ends_at) - new Date()) / 86400000);
+        icon = '\u23f3'; color = 'var(--gold)'; label = 'Trial expire dans ' + daysLeft + 'j';
+      } else {
+        icon = '\ud83d\udca4'; color = 'var(--text-4)'; label = 'Inactif 14j+ (risque churn)';
+      }
+      return '<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--white);border:1px solid var(--border-light);border-left:3px solid ' + color + ';border-radius:var(--radius-xs);font-size:.82rem">' +
+        '<span>' + icon + '</span>' +
+        '<span style="font-weight:600">' + esc(a.name) + '</span>' +
+        '<span style="color:' + color + ';font-weight:500">' + label + '</span>' +
+        '<span style="margin-left:auto;font-size:.72rem;color:var(--text-4)">' + esc(a.slug) + '</span>' +
+      '</div>';
+    }).join('');
+  } else {
+    document.getElementById('alertsSection').style.display = 'none';
+  }
 }
 
 // ─── Businesses list ───
@@ -338,12 +380,14 @@ function loadBusinesses() {
   const search = document.getElementById('searchInput').value.trim();
   const plan = document.getElementById('filterPlan').value;
   const status = document.getElementById('filterStatus').value;
+  const subStatus = document.getElementById('filterSubStatus')?.value || '';
   const params = new URLSearchParams({ page: currentPage, limit: 30 });
   if (search) params.set('search', search);
   if (plan) params.set('plan', plan);
   if (status) params.set('status', status);
+  if (subStatus) params.set('sub_status', subStatus);
 
-  document.getElementById('tableBody').innerHTML = '<tr><td colspan="7"><div class="loading-center"><div class="spinner"></div></div></td></tr>';
+  document.getElementById('tableBody').innerHTML = '<tr><td colspan="8"><div class="loading-center"><div class="spinner"></div></div></td></tr>';
 
   apiFetch('/businesses?' + params.toString())
     .then(data => {
@@ -351,42 +395,69 @@ function loadBusinesses() {
       renderPagination(data.total, data.page, data.limit);
     })
     .catch(err => {
-      document.getElementById('tableBody').innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--red);padding:20px">' + esc(err.message) + '</td></tr>';
+      document.getElementById('tableBody').innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--red);padding:20px">' + esc(err.message) + '</td></tr>';
     });
 }
 
 function renderTable(businesses) {
   const tbody = document.getElementById('tableBody');
   if (!businesses.length) {
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-4);padding:30px">Aucun salon trouvé</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-4);padding:30px">Aucun salon trouvé</td></tr>';
     return;
   }
 
   tbody.innerHTML = businesses.map(b => {
     const planBadge = b.plan === 'pro' ? '<span class="badge badge-gold">Pro</span>'
       : '<span class="badge badge-gray">Free</span>';
-    const statusBadge = b.is_active
-      ? '<span class="badge badge-green">Actif</span>'
-      : '<span class="badge badge-red">Inactif</span>';
+
+    // Subscription status badge
+    var subBadge = '';
+    var ss = b.subscription_status || 'none';
+    if (ss === 'active') subBadge = '<span class="badge badge-green">Actif</span>';
+    else if (ss === 'trialing') {
+      var trialDays = b.trial_ends_at ? Math.ceil((new Date(b.trial_ends_at) - new Date()) / 86400000) : '?';
+      subBadge = '<span class="badge badge-gold">Essai J' + (trialDays >= 0 ? '-' + trialDays : '+' + Math.abs(trialDays)) + '</span>';
+    }
+    else if (ss === 'past_due' || ss === 'unpaid') subBadge = '<span class="badge badge-red">Impay\u00e9</span>';
+    else if (ss === 'canceled') subBadge = '<span class="badge badge-red">Annul\u00e9</span>';
+    else subBadge = '<span class="badge badge-gray">\u2014</span>';
+
+    // Period end
+    var periodEnd = b.subscription_current_period_end
+      ? new Date(b.subscription_current_period_end).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' })
+      : '';
+
+    // Since when
+    var since = b.plan_changed_at
+      ? new Date(b.plan_changed_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/Brussels' })
+      : new Date(b.created_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/Brussels' });
+
     const lastActivity = b.last_booking_at
       ? timeAgo(new Date(b.last_booking_at))
-      : '<span style="color:var(--text-4)">—</span>';
-    const sector = b.sector || '—';
+      : '<span style="color:var(--text-4)">\u2014</span>';
 
-    return '<tr>' +
-      '<td class="name-cell"><div class="name">' + esc(b.name) + '</div><div class="slug">' + esc(b.slug) + ' · ' + esc(b.owner_email || '') + '</div></td>' +
-      '<td>' + esc(sector) + '</td>' +
+    // Revenue 30d
+    var rev30d = parseInt(b.revenue_30d_cents) || 0;
+    var revStr = rev30d > 0 ? (rev30d / 100).toFixed(0) + '\u202f\u20ac' : '\u2014';
+
+    // Row highlight for past_due
+    var rowStyle = (ss === 'past_due' || ss === 'unpaid') ? 'background:var(--red-bg)' : '';
+
+    return '<tr style="' + rowStyle + '">' +
+      '<td class="name-cell"><div class="name">' + esc(b.name) + '</div><div class="slug">' + esc(b.slug) + ' \u00b7 ' + esc(b.owner_email || '') + '</div></td>' +
       '<td>' + planBadge + '</td>' +
+      '<td>' + subBadge + (periodEnd ? '<div style="font-size:.68rem;color:var(--text-4);margin-top:2px">\u2192 ' + periodEnd + '</div>' : '') + '</td>' +
+      '<td style="font-size:.78rem;color:var(--text-3)">' + since + '</td>' +
       '<td style="font-weight:600">' + (parseInt(b.bookings_30d) || 0) + '</td>' +
+      '<td style="font-weight:600;color:' + (rev30d > 0 ? 'var(--green)' : 'var(--text-4)') + '">' + revStr + '</td>' +
       '<td>' + lastActivity + '</td>' +
-      '<td>' + statusBadge + '</td>' +
       '<td><div class="actions">' +
-        '<button class="act-btn" onclick="impersonate(\'' + b.id + '\')" title="Impersonate">🔑</button>' +
+        '<button class="act-btn" onclick="impersonate(\'' + b.id + '\')" title="Impersonate">\ud83d\udd11</button>' +
         (b.is_active
-          ? '<button class="act-btn danger" onclick="toggleActive(\'' + b.id + '\',false)" title="Désactiver">🚫</button>'
-          : '<button class="act-btn" onclick="toggleActive(\'' + b.id + '\',true)" title="Activer">✅</button>'
+          ? '<button class="act-btn danger" onclick="toggleActive(\'' + b.id + '\',false)" title="D\u00e9sactiver">\ud83d\udeab</button>'
+          : '<button class="act-btn" onclick="toggleActive(\'' + b.id + '\',true)" title="Activer">\u2705</button>'
         ) +
-        '<button class="act-btn" onclick="copyUrl(\'' + esc(b.slug) + '\')" title="Copier URL">📋</button>' +
+        '<button class="act-btn" onclick="copyUrl(\'' + esc(b.slug) + '\')" title="Copier URL">\ud83d\udccb</button>' +
       '</div></td>' +
     '</tr>';
   }).join('');
