@@ -94,7 +94,7 @@ router.post('/checkout', requireAuth, requireOwner, async (req, res, next) => {
     const sessionParams = {
       customer: customerId,
       mode: 'subscription',
-      payment_method_types: ['card', 'bancontact'],
+      payment_method_types: ['card'],
       line_items: [{
         price: priceId,
         quantity: 1
