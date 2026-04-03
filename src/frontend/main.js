@@ -102,6 +102,17 @@ if (biz) {
   }).catch(() => {});
 }
 
+// ── Pro badges on sidebar nav items ──
+if (!biz?.plan || biz.plan === 'free') {
+  const proSections = ['invoices', 'deposits', 'waitlist', 'cal-sync', 'gift-cards', 'passes', 'analytics'];
+  proSections.forEach(sec => {
+    const el = document.querySelector(`.ni[data-section="${sec}"] span:last-child`);
+    if (el && !el.querySelector('.pro-tag')) {
+      el.insertAdjacentHTML('beforeend', '<span class="pro-tag" style="font-size:.55rem;font-weight:700;background:var(--primary);color:#fff;padding:1px 5px;border-radius:8px;margin-left:6px;vertical-align:1px">PRO</span>');
+    }
+  });
+}
+
 // ── Query param handlers (onboarding, subscription) ──
 const params = new URLSearchParams(location.search);
 if (params.get('onboarding')) {
