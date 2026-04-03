@@ -4,6 +4,7 @@
 import { api, GendaUI } from '../state.js';
 import { bridge } from '../utils/window-bridge.js';
 import { guardModal, closeModal, showConfirmDialog } from '../utils/dirty-guard.js';
+import { isPro, showProGate } from '../utils/plan-gate.js';
 
 let gcFilter='all',gcSearch='';
 let _lastCards=[];
@@ -12,6 +13,7 @@ function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;'
 function fmtEur(cents){return((cents||0)/100).toFixed(2).replace('.',',')+' \u20ac';}
 
 async function loadGiftCards(){
+  if (!isPro()) { showProGate(document.getElementById('contentArea'), 'Cartes cadeau'); return; }
   const c=document.getElementById('contentArea');
   c.innerHTML='<div class="loading"><div class="spinner"></div></div>';
   try{

@@ -4,6 +4,7 @@
 import { api, GendaUI } from '../state.js';
 import { bridge } from '../utils/window-bridge.js';
 import { showConfirmDialog } from '../utils/dirty-guard.js';
+import { isPro, showProGate } from '../utils/plan-gate.js';
 
 const gToast = GendaUI.toast.bind(GendaUI);
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
@@ -17,6 +18,7 @@ const PROVIDER_INFO = {
 const DIR_LABELS = { push: 'Genda → Calendrier', pull: 'Calendrier → Genda', both: 'Bidirectionnel' };
 
 async function loadCalSync() {
+  if (!isPro()) { showProGate(document.getElementById('contentArea'), 'Calendrier externe'); return; }
   const c = document.getElementById('contentArea');
   c.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
 

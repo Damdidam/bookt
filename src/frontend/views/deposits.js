@@ -5,6 +5,7 @@ import { api, GendaUI } from '../state.js';
 import { bridge } from '../utils/window-bridge.js';
 import { IC } from '../utils/icons.js';
 import { guardModal } from '../utils/dirty-guard.js';
+import { isPro, showProGate } from '../utils/plan-gate.js';
 
 let depositFilter='all',depositFrom='',depositTo='';
 let _lastDeps=[];
@@ -13,6 +14,7 @@ function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;'
 function fmtEur(cents){return((cents||0)/100).toFixed(2).replace('.',',')+' \u20ac';}
 
 async function loadDeposits(){
+  if (!isPro()) { showProGate(document.getElementById('contentArea'), 'Acomptes'); return; }
   const c=document.getElementById('contentArea');
   c.innerHTML='<div class="loading"><div class="spinner"></div></div>';
   try{

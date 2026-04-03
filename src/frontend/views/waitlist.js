@@ -6,8 +6,10 @@ import { esc } from '../utils/dom.js';
 import { bridge } from '../utils/window-bridge.js';
 import { IC } from '../utils/icons.js';
 import { closeModal, guardModal, showConfirmDialog } from '../utils/dirty-guard.js';
+import { isPro, showProGate } from '../utils/plan-gate.js';
 
 async function loadWaitlist(){
+  if (!isPro()) { showProGate(document.getElementById('contentArea'), "Liste d'attente"); return; }
   if(viewState.wlFilter===undefined)viewState.wlFilter='';
   const c=document.getElementById('contentArea');
   c.innerHTML=`<div class="loading"><div class="spinner"></div></div>`;
