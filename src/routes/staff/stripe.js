@@ -710,6 +710,29 @@ async function handleStripeWebhook(req, res) {
             [found.rows[0].id]
           );
           console.log(`[STRIPE WH] Business ${found.rows[0].id} → downgraded to free (canceled)`);
+
+          // Downgrade cleanup: deactivate excess promotions (free = max 1 active)
+          try {
+            const bizId = found.rows[0].id;
+            const activePromos = await query(
+              `SELECT id FROM promotions WHERE business_id = $1 AND is_active = true ORDER BY sort_order, created_at LIMIT 100`, [bizId]
+            );
+            if (activePromos.rows.length > 1) {
+              const keepId = activePromos.rows[0].id;
+              await query(
+                `UPDATE promotions SET is_active = false, updated_at = NOW() WHERE business_id = $1 AND is_active = true AND id != $2`,
+                [bizId, keepId]
+              );
+              console.log(`[STRIPE WH] Deactivated ${activePromos.rows.length - 1} excess promotions for business ${bizId}`);
+            }
+            // Disable LM auto-discount in settings
+            await query(
+              `UPDATE businesses SET settings = jsonb_set(COALESCE(settings, '{}'::jsonb), '{last_minute_enabled}', 'false') WHERE id = $1`,
+              [bizId]
+            );
+          } catch (cleanupErr) {
+            console.warn('[STRIPE WH] Downgrade cleanup error:', cleanupErr.message);
+          }
         }
         break;
       }

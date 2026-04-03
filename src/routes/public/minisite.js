@@ -68,6 +68,13 @@ router.get('/:slug', async (req, res, next) => {
     const biz = bizResult.rows[0];
     const bid = biz.id;
 
+    // Plan guard: free businesses cannot use custom domains — redirect to genda.be/slug
+    const accessedViaCustomDomain = slug !== biz.slug;
+    if ((biz.plan || 'free') === 'free' && accessedViaCustomDomain && biz.slug) {
+      const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+      return res.redirect(301, `${baseUrl}/${biz.slug}`);
+    }
+
     // Test mode protection
     const bizSettings = biz.settings || {};
     if (bizSettings.minisite_test_mode && bizSettings.minisite_test_password) {

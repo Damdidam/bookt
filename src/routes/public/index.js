@@ -424,7 +424,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
 
         // Resolve last-minute discount per service (multi-service)
         let multiDiscountPct = null;
-        if (is_last_minute && bizSettings.last_minute_enabled) {
+        if (is_last_minute && bizSettings.last_minute_enabled && businessPlan !== 'free') {
           const lmDeadline = bizSettings.last_minute_deadline || 'j-1';
           const todayBrussels = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
           if (isWithinLastMinuteWindow(startDateBrussels, todayBrussels, lmDeadline)) {
@@ -1037,7 +1037,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
 
       // Resolve last-minute discount (validate server-side to prevent abuse)
       let resolvedDiscountPct = null;
-      if (is_last_minute && bizSettings.last_minute_enabled) {
+      if (is_last_minute && bizSettings.last_minute_enabled && businessPlan !== 'free') {
         const lmDeadline = bizSettings.last_minute_deadline || 'j-1';
         const startBrussels = startDate.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
         const todayBrussels = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
