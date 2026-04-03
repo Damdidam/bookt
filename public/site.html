@@ -1612,16 +1612,16 @@ body.tpl-funky .cart-chip { border-radius: 100px; }
     // Navbar
     document.getElementById('navBrand').textContent = b.name;
     document.getElementById('navBookBtn').href = bookUrl;
-    // Gift card link
-    if (b.giftcard_enabled) {
+    // Gift card link (Pro only)
+    if (b.giftcard_enabled && b.plan !== 'free') {
       var gcUrl = '/' + b.slug + '/gift-card';
       document.getElementById('navGiftCardLi').style.display = '';
       document.getElementById('navGiftCardBtn').href = gcUrl;
       var ctaGcBtn = document.getElementById('ctaGiftCardBtn');
       if (ctaGcBtn) { ctaGcBtn.href = gcUrl; ctaGcBtn.style.display = ''; }
     }
-    // Pass / Abonnements link
-    if (b.passes_enabled) {
+    // Pass / Abonnements link (Pro only)
+    if (b.passes_enabled && b.plan !== 'free') {
       var passUrl = '/' + b.slug + '/pass';
       document.getElementById('navPassLi').style.display = '';
       document.getElementById('navPassBtn').href = passUrl;
