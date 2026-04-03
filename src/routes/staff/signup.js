@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { query } = require('../../services/db');
 const { authLimiter } = require('../../middleware/rate-limiter');
+const { sendEmail, buildEmailHTML } = require('../../services/email-utils');
 
 // ============================================================
 // POST /api/auth/signup
@@ -221,6 +222,34 @@ router.post('/signup', authLimiter, async (req, res, next) => {
       );
 
       console.log(`[SIGNUP] ${business_name} (${email}) → genda.be/${slug}`);
+
+      // Notify superadmin(s) — non-blocking
+      query(`SELECT email FROM users WHERE is_superadmin = true`).then(r => {
+        const baseUrl = process.env.BOOKING_BASE_URL || 'https://genda.be';
+        for (const sa of r.rows) {
+          sendEmail({
+            to: sa.email,
+            subject: `Nouveau commerce inscrit : ${business_name}`,
+            html: buildEmailHTML({
+              title: 'Nouvelle inscription',
+              businessName: 'Genda Admin',
+              primaryColor: '#0D7377',
+              bodyHTML: `
+                <p style="margin:0 0 12px"><strong>${business_name}</strong> vient de s'inscrire sur Genda.</p>
+                <table style="font-size:14px;line-height:1.8;color:#3D3832">
+                  <tr><td style="font-weight:600;padding-right:12px">Propriétaire</td><td>${full_name}</td></tr>
+                  <tr><td style="font-weight:600;padding-right:12px">Email</td><td>${email}</td></tr>
+                  <tr><td style="font-weight:600;padding-right:12px">Secteur</td><td>${sector || 'autre'}</td></tr>
+                  <tr><td style="font-weight:600;padding-right:12px">Téléphone</td><td>${business_phone || '—'}</td></tr>
+                  <tr><td style="font-weight:600;padding-right:12px">Adresse</td><td>${business_address || '—'}</td></tr>
+                  <tr><td style="font-weight:600;padding-right:12px">Minisite</td><td><a href="${baseUrl}/${slug}" style="color:#0D7377">${baseUrl}/${slug}</a></td></tr>
+                </table>`,
+              ctaText: 'Voir dans le panel admin',
+              ctaUrl: `${baseUrl}/superadmin.html`
+            })
+          }).catch(e => console.error('[SIGNUP] Admin notification failed:', e.message));
+        }
+      }).catch(() => {});
 
       res.status(201).json({
         token,
