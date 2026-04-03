@@ -2,12 +2,14 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const { query } = require('../../services/db');
 const { requireAuth, requireSuperadmin } = require('../../middleware/auth');
+const { adminLimiter } = require('../../middleware/rate-limiter');
 
 const router = express.Router();
 
-// All admin routes require superadmin
+// All admin routes require superadmin + rate limit
 router.use(requireAuth);
 router.use(requireSuperadmin);
+router.use(adminLimiter);
 
 // ─── GET /api/admin/stats ────────────────────────────────────────
 router.get('/stats', async (req, res, next) => {
@@ -76,8 +78,9 @@ router.get('/stats', async (req, res, next) => {
 // ─── GET /api/admin/businesses ───────────────────────────────────
 router.get('/businesses', async (req, res, next) => {
   try {
-    const { status, plan, search, sort = 'created_at', page = 1, limit = 50, sub_status } = req.query;
-    const offset = (Math.max(1, parseInt(page)) - 1) * parseInt(limit);
+    const { status, plan, search, sort = 'created_at', page = 1, limit: rawLimit = 50, sub_status } = req.query;
+    const limit = Math.min(Math.max(1, parseInt(rawLimit) || 50), 200);
+    const offset = (Math.max(1, parseInt(page)) - 1) * limit;
     const params = [];
     const conditions = [];
     let paramIdx = 1;

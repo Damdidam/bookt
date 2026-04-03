@@ -62,4 +62,28 @@ const depositLimiter = rateLimit({
   legacyHeaders: false
 });
 
-module.exports = { bookingLimiter, slotsLimiter, authLimiter, clientPhoneLimiter, depositLimiter };
+/**
+ * Rate limiter for booking action routes (cancel, confirm, reject).
+ * 20 requests per minute per IP to prevent brute-force token guessing.
+ */
+const bookingActionLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  message: { error: 'Trop de requêtes. Réessayez dans une minute.' },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+/**
+ * Rate limiter for admin routes.
+ * 60 requests per minute per IP.
+ */
+const adminLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  message: { error: 'Trop de requêtes admin.' },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+module.exports = { bookingLimiter, slotsLimiter, authLimiter, clientPhoneLimiter, depositLimiter, bookingActionLimiter, adminLimiter };

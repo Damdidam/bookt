@@ -394,10 +394,10 @@ router.post('/upload-image', requireOwner, async (req, res, next) => {
     if (!photo) return res.status(400).json({ error: 'Photo requise' });
     if (!['logo', 'cover', 'about'].includes(type)) return res.status(400).json({ error: 'Type invalide (logo, cover ou about)' });
 
-    const match = photo.match(/^data:image\/(jpeg|jpg|png|webp|svg\+xml);base64,(.+)$/);
-    if (!match) return res.status(400).json({ error: 'Format invalide (JPEG, PNG, WebP ou SVG)' });
+    const match = photo.match(/^data:image\/(jpeg|jpg|png|webp);base64,(.+)$/);
+    if (!match) return res.status(400).json({ error: 'Format invalide (JPEG, PNG ou WebP)' });
 
-    const ext = match[1] === 'jpg' ? 'jpeg' : match[1] === 'svg+xml' ? 'svg' : match[1];
+    const ext = match[1] === 'jpg' ? 'jpeg' : match[1];
     const buffer = Buffer.from(match[2], 'base64');
     const maxSize = type === 'logo' ? 1 * 1024 * 1024 : 2 * 1024 * 1024;
     if (buffer.length > maxSize) return res.status(400).json({ error: `Image trop lourde (max ${type === 'logo' ? '1' : '2'} Mo)` });

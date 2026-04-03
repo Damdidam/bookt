@@ -32,6 +32,23 @@ async function sendSMS(opts) {
   }
 
   try {
+    // S7: Monthly SMS cap per business (500/month) to prevent runaway costs
+    if (businessId) {
+      const usage = await query(
+        `SELECT sms_count_month, sms_month_reset_at FROM businesses WHERE id = $1`, [businessId]
+      );
+      const u = usage.rows[0];
+      if (u) {
+        const currentMonth = u.sms_month_reset_at && new Date(u.sms_month_reset_at) >= new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+        const count = currentMonth ? (u.sms_count_month || 0) : 0;
+        const cap = parseInt(process.env.SMS_MONTHLY_CAP) || 500;
+        if (count >= cap) {
+          console.warn(`[SMS] Monthly cap reached for business ${businessId}: ${count}/${cap}`);
+          return { success: false, error: 'SMS monthly cap reached' };
+        }
+      }
+    }
+
     let fromNumber = from;
 
     if (!fromNumber) {

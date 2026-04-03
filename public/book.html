@@ -2556,7 +2556,7 @@ function buildSummary(){
     }
   }else if(selectedService){
     var sv=selectedVariantsByIdx[0]||selectedVariants[selectedService.id];
-    var svcName=sv?selectedService.name+' \u2014 '+sv.name:selectedService.name;
+    var svcName=sv?escH(selectedService.name)+' \u2014 '+escH(sv.name):escH(selectedService.name);
     html+='<div class="sum-row"><span class="label">Prestation</span><span class="val">'+svcName+'</span></div>';
   }
   if(splitMode&&selectedSlot&&selectedSlot.practitioners){
@@ -2566,10 +2566,10 @@ function buildSummary(){
       var prac=siteData.practitioners.find(function(pp){return pp.id===sp.practitioner_id;});
       if(prac)uniqueSumPracs[sp.practitioner_id]=prac.display_name;
     });
-    var sumPracNames=Object.values(uniqueSumPracs).join(', ');
+    var sumPracNames=Object.values(uniqueSumPracs).map(function(n){return escH(n);}).join(', ');
     html+='<div class="sum-row"><span class="label">Praticiens</span><span class="val">'+sumPracNames+'</span></div>';
   }else{
-    var sumPracName=selectedPractitioner?selectedPractitioner.display_name:(selectedSlot&&selectedSlot.practitioner_id?(siteData.practitioners.find(function(p){return p.id===selectedSlot.practitioner_id;})||{}).display_name||'Praticien assigné':'Praticien assigné');
+    var sumPracName=selectedPractitioner?escH(selectedPractitioner.display_name):(selectedSlot&&selectedSlot.practitioner_id?escH((siteData.practitioners.find(function(p){return p.id===selectedSlot.practitioner_id;})||{}).display_name||'Praticien assigné'):'Praticien assigné');
     html+='<div class="sum-row"><span class="label">Praticien</span><span class="val">'+sumPracName+'</span></div>';
   }
   html+=''
