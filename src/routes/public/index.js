@@ -546,6 +546,11 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           bookings.push(bk.rows[0]);
         }
 
+        // M16 fix: Increment promo usage counter
+        if (promoResult.valid && promotion_id) {
+          await client.query(`UPDATE promotions SET current_uses = current_uses + 1 WHERE id = $1 AND business_id = $2`, [promotion_id, businessId]);
+        }
+
         // Deposit check (multi-service) — triggers: price/duration thresholds OR no-show recidivist
         let gcPartialCents = 0;
         let bizSettings = {};
@@ -1135,6 +1140,11 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
          promoResult.valid ? promoResult.discount_cents : 0,
          singlePriceAfterLm]
       );
+
+      // M16 fix: Increment promo usage counter
+      if (promoResult.valid && promotion_id) {
+        await client.query(`UPDATE promotions SET current_uses = current_uses + 1 WHERE id = $1 AND business_id = $2`, [promotion_id, businessId]);
+      }
 
       // ── Deposit check (single-service) — triggers: price/duration thresholds OR no-show recidivist ──
       let gcPartialCents = 0;

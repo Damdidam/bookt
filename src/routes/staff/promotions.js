@@ -143,8 +143,8 @@ router.post('/', requireAuth, requireOwner, async (req, res, next) => {
         business_id, title, description, condition_type, condition_service_id,
         condition_min_cents, condition_start_date, condition_end_date,
         reward_type, reward_service_id, reward_value,
-        is_active, display_style, sort_order
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+        is_active, display_style, sort_order, max_uses
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
       RETURNING *`,
       [
         req.businessId, title.trim(), description || null,
@@ -154,7 +154,8 @@ router.post('/', requireAuth, requireOwner, async (req, res, next) => {
         reward_type || 'info_only', reward_service_id || null,
         reward_value ? parseFloat(reward_value) : null,
         is_active !== false, display_style || 'cards',
-        maxSort.rows[0].next
+        maxSort.rows[0].next,
+        req.body.max_uses != null ? parseInt(req.body.max_uses) || null : null
       ]
     );
 
@@ -252,7 +253,7 @@ router.patch('/:id', requireAuth, requireOwner, async (req, res, next) => {
       'title', 'description', 'condition_type', 'condition_service_id',
       'condition_min_cents', 'condition_start_date', 'condition_end_date',
       'reward_type', 'reward_service_id', 'reward_value',
-      'is_active', 'display_style'
+      'is_active', 'display_style', 'max_uses'
     ];
 
     for (const field of fields) {

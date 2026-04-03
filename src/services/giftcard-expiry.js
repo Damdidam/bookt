@@ -27,6 +27,7 @@ async function processExpiredGiftCards() {
       const amountStr = ((gc.amount_cents || 0) / 100).toFixed(2).replace('.', ',') + ' \u20ac';
 
       const bodyHTML = `
+        <p>Bonjour${gc.recipient_name ? ' ' + escHtml(gc.recipient_name) : ''},</p>
         <p>Votre carte cadeau <strong>${escHtml(gc.code || '')}</strong> a expir\u00e9.</p>
         <div style="background:#FEF2F2;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #EF4444">
           <div style="font-size:14px;color:#DC2626;font-weight:600;margin-bottom:4px">Carte cadeau expir\u00e9e</div>

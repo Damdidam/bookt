@@ -267,6 +267,8 @@ router.post('/:id/offer', async (req, res, next) => {
 
     // Check slot availability (read-only, no advisory lock needed)
     const wlPracId = entry.rows[0].practitioner_id;
+    const { getMaxConcurrent } = require('./bookings-helpers');
+    const maxConc = await getMaxConcurrent(bid, wlPracId);
     const conflictCheck = await queryWithRLS(bid,
       `SELECT COUNT(*)::int AS cnt FROM bookings
        WHERE business_id = $1 AND practitioner_id = $2
@@ -274,7 +276,7 @@ router.post('/:id/offer', async (req, res, next) => {
          AND start_at < $4 AND end_at > $3`,
       [bid, wlPracId, start_at, end_at]
     );
-    if (conflictCheck.rows[0].cnt > 0) {
+    if (conflictCheck.rows[0].cnt >= maxConc) {
       return res.status(409).json({ error: 'Conflit : un rendez-vous existe déjà sur ce créneau' });
     }
 

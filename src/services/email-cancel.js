@@ -49,7 +49,7 @@ async function sendCancellationEmail({ booking, business, groupServices }) {
   } else {
     serviceDetailHTML = `<div style="font-size:14px;color:#3D3832">${safeServiceName}</div>`;
     // Single-service: show price + promo
-    const singlePriceCL = booking.service_price_cents || 0;
+    const singlePriceCL = booking.booked_price_cents || (booking.discount_pct ? Math.round((booking.service_price_cents || 0) * (100 - booking.discount_pct) / 100) : (booking.service_price_cents || 0));
     if (singlePriceCL > 0) {
       const singleDurCL = booking.duration_min || '';
       const promoDiscSingleCL = booking.promotion_discount_cents || 0;
@@ -119,6 +119,8 @@ async function sendCancellationEmail({ booking, business, groupServices }) {
       ${safePracName && !(isMulti && groupServices.some(s => s.practitioner_name)) ? `<div style="font-size:14px;color:#6B6560">${safePracName}</div>` : ''}
     </div>
     ${depositHTML}
+    ${booking.pass_refunded ? `<div style="background:#F0FDF4;border-radius:8px;padding:12px 16px;margin:12px 0;border-left:3px solid #22C55E"><div style="font-size:14px;color:#15803D;font-weight:600">${_ic('check')} Votre s\u00e9ance de pass a \u00e9t\u00e9 recr\u00e9dit\u00e9e.</div></div>` : ''}
+    ${booking.gc_refunded_cents ? `<div style="background:#F0FDF4;border-radius:8px;padding:12px 16px;margin:12px 0;border-left:3px solid #22C55E"><div style="font-size:14px;color:#15803D;font-weight:600">${_ic('check')} ${(booking.gc_refunded_cents / 100).toFixed(2).replace('.', ',')} \u20ac recr\u00e9dit\u00e9s sur votre carte cadeau.</div></div>` : ''}
     <p style="font-size:14px;color:#3D3832">N'h\u00e9sitez pas \u00e0 reprendre rendez-vous quand vous le souhaitez.</p>`;
 
   // Address + contact info so client can reach the salon
@@ -211,7 +213,7 @@ async function sendRescheduleConfirmationEmail({ booking, business, oldStartAt, 
   } else {
     detailLines = `<tr><td style="padding:4px 0;color:#7A7470;width:100px">Prestation</td><td style="padding:4px 0;font-weight:600">${escHtml(serviceName)}</td></tr>`;
     // Single-service: show price + promo
-    const singlePriceRS = booking.service_price_cents || 0;
+    const singlePriceRS = booking.booked_price_cents || (booking.discount_pct ? Math.round((booking.service_price_cents || 0) * (100 - booking.discount_pct) / 100) : (booking.service_price_cents || 0));
     if (singlePriceRS > 0) {
       const singleDurRS = booking.duration_min || '';
       const promoDiscSingleRS = booking.promotion_discount_cents || 0;

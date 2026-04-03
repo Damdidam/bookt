@@ -10,6 +10,7 @@ const { query, pool } = require('./db');
 const { broadcast } = require('./sse');
 const { refundGiftCardForBooking, getGcPaidCents } = require('./gift-card-refund');
 const { refundPassForBooking } = require('./pass-refund');
+const { calSyncDelete } = require('../routes/staff/bookings-helpers');
 
 /**
  * Process expired pending-deposit bookings.
@@ -86,6 +87,9 @@ async function processExpiredDeposits() {
         for (const sib of sibPass.rows) { await refundPassForBooking(sib.id, client).catch(e => console.warn('[PASS REFUND]', e.message)); }
       }
 
+      // M16: Decrement promo usage
+      try { const { decrementPromoUsage } = require('../routes/public/helpers'); await decrementPromoUsage(bk.id, client); } catch (_) {}
+
       // Auto-void draft/sent invoices
       try {
         const voidIds = [bk.id];
@@ -158,6 +162,18 @@ async function processExpiredDeposits() {
       } catch (wlErr) {
         console.warn('[DEPOSIT CRON] Waitlist processing error for booking', cancelled.id, ':', wlErr.message);
       }
+    }
+
+    // H3 fix: Delete external calendar events for cancelled bookings
+    for (const cancelled of cancelledBookingIds) {
+      try { calSyncDelete(cancelled.business_id, cancelled.id); } catch (_) {}
+    }
+
+    // M3 fix: Queue pro notification for auto-expired bookings
+    for (const cancelled of cancelledBookingIds) {
+      try {
+        await query(`INSERT INTO notifications (business_id, booking_id, type, status) VALUES ($1, $2, 'email_cancellation_pro', 'queued')`, [cancelled.business_id, cancelled.id]);
+      } catch (e) { console.warn('[DEPOSIT CRON] Pro notification queue error:', e.message); }
     }
 
     // Send cancellation emails AFTER commit (non-blocking)

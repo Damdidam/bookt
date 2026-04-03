@@ -60,8 +60,8 @@ async function sendBookingConfirmation({ booking, business, groupServices }) {
     }
   } else {
     detailLines += `<div style="font-size:14px;color:#15613A;margin-top:4px">${_ic('sparkle-grn')} ${serviceName}</div>`;
-    // Single-service: show price + promo
-    const singlePrice = booking.service_price_cents || 0;
+    // Single-service: show price + promo (use LM-adjusted price)
+    const singlePrice = booking.booked_price_cents || (booking.discount_pct ? Math.round((booking.service_price_cents || 0) * (100 - booking.discount_pct) / 100) : (booking.service_price_cents || 0));
     if (singlePrice > 0) {
       const singleDur = booking.duration_min || '';
       const promoDiscSingle = booking.promotion_discount_cents || 0;
@@ -119,7 +119,7 @@ async function sendBookingConfirmation({ booking, business, groupServices }) {
     // Reste à payer — compute total price minus deposit
     const totalCentsConf = isMulti
       ? groupServices.reduce((sum, s) => sum + (s.price_cents || 0), 0) - (booking.promotion_discount_cents || 0)
-      : (booking.service_price_cents || 0) - (booking.promotion_discount_cents || 0);
+      : (booking.booked_price_cents || (booking.discount_pct ? Math.round((booking.service_price_cents || 0) * (100 - booking.discount_pct) / 100) : (booking.service_price_cents || 0))) - (booking.promotion_discount_cents || 0);
     const resteCents = totalCentsConf - (booking.deposit_amount_cents || 0);
     if (resteCents > 0) {
       const resteStr = (resteCents / 100).toFixed(2).replace('.', ',');
@@ -223,8 +223,8 @@ async function sendBookingConfirmationRequest({ booking, business, timeoutMin, g
     }
   } else {
     detailLines += `<div style="font-size:14px;color:#92700C;margin-top:4px">${_ic('sparkle-amb')} ${serviceName}</div>`;
-    // Single-service: show price + promo
-    const singlePriceCR = booking.service_price_cents || 0;
+    // Single-service: show price + promo (use LM-adjusted price)
+    const singlePriceCR = booking.booked_price_cents || (booking.discount_pct ? Math.round((booking.service_price_cents || 0) * (100 - booking.discount_pct) / 100) : (booking.service_price_cents || 0));
     if (singlePriceCR > 0) {
       const singleDurCR = booking.duration_min || '';
       const promoDiscSingleCR = booking.promotion_discount_cents || 0;
@@ -283,7 +283,7 @@ async function sendBookingConfirmationRequest({ booking, business, timeoutMin, g
     // Reste a payer
     const totalCentsCR = isMulti
       ? groupServices.reduce((sum, s) => sum + (s.price_cents || 0), 0) - (booking.promotion_discount_cents || 0)
-      : (booking.service_price_cents || 0) - (booking.promotion_discount_cents || 0);
+      : (booking.booked_price_cents || (booking.discount_pct ? Math.round((booking.service_price_cents || 0) * (100 - booking.discount_pct) / 100) : (booking.service_price_cents || 0))) - (booking.promotion_discount_cents || 0);
     const resteCentsCR = totalCentsCR - (booking.deposit_amount_cents || 0);
     if (resteCentsCR > 0) {
       const resteStrCR = (resteCentsCR / 100).toFixed(2).replace('.', ',');
@@ -292,6 +292,10 @@ async function sendBookingConfirmationRequest({ booking, business, timeoutMin, g
       <div style="font-size:14px;color:#3D3832;font-weight:600">Reste \u00e0 payer sur place : ${resteStrCR}\u00a0\u20ac</div>
     </div>`;
     }
+  }
+
+  if (booking.comment) {
+    bodyHTML += `<p style="font-size:13px;color:#6B6560;margin-top:12px">${_ic('note-dk')} <em>${escHtml(booking.comment)}</em></p>`;
   }
 
   // Footer: address, contact, payment methods, calendar links

@@ -202,7 +202,7 @@ router.post('/', requireOwner, async (req, res, next) => {
              FROM bookings b
              JOIN services s ON s.id = b.service_id
              LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
-             WHERE b.group_id = $1 AND b.business_id = $2
+             WHERE b.group_id = $1 AND b.business_id = $2 AND b.status NOT IN ('cancelled')
              ORDER BY b.group_order, b.start_at`,
             [bk.group_id, bid]
           );

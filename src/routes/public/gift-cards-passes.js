@@ -40,7 +40,7 @@ router.post('/:slug/gift-card/checkout', async (req, res, next) => {
     if (!key) return res.status(500).json({ error: 'Paiement non configuré' });
     const stripe = require('stripe')(key);
     const { rows } = await query(
-      `SELECT id, name, slug, settings, theme FROM businesses WHERE slug = $1 AND is_active = true LIMIT 1`,
+      `SELECT id, name, slug, settings, theme, stripe_connect_id FROM businesses WHERE slug = $1 AND is_active = true LIMIT 1`,
       [req.params.slug]
     );
     if (rows.length === 0) return res.status(404).json({ error: 'Salon introuvable' });
@@ -52,7 +52,7 @@ router.post('/:slug/gift-card/checkout', async (req, res, next) => {
     if (amount_cents > (s.giftcard_max_amount_cents || 50000)) return res.status(400).json({ error: 'Montant trop élevé' });
     if (!buyer_email) return res.status(400).json({ error: 'Email acheteur requis' });
     const baseUrl = BASE_URL;
-    const session = await stripe.checkout.sessions.create({
+    const sessionOpts = {
       mode: 'payment', payment_method_types: ['card', 'bancontact'],
       line_items: [{ price_data: { currency: 'eur', unit_amount: amount_cents, product_data: { name: `Carte cadeau — ${biz.name}`, description: `Valeur : ${(amount_cents / 100).toFixed(2)}€` } }, quantity: 1 }],
       customer_email: buyer_email,
@@ -60,7 +60,9 @@ router.post('/:slug/gift-card/checkout', async (req, res, next) => {
       success_url: `${baseUrl}/${biz.slug}/gift-card?success=1`,
       cancel_url: `${baseUrl}/${biz.slug}/gift-card`,
       locale: 'fr', expires_at: Math.floor(Date.now() / 1000) + 1800
-    });
+    };
+    if (biz.stripe_connect_id) sessionOpts.payment_intent_data = { transfer_data: { destination: biz.stripe_connect_id } };
+    const session = await stripe.checkout.sessions.create(sessionOpts);
     res.json({ url: session.url, session_id: session.id });
   } catch (err) { console.error('[GIFT-CARD CHECKOUT] Error:', err); next(err); }
 });
@@ -251,7 +253,7 @@ router.post('/:slug/pass/checkout', async (req, res, next) => {
     if (!key) return res.status(500).json({ error: 'Paiement non configuré' });
     const stripe = require('stripe')(key);
     const { rows } = await query(
-      `SELECT id, name, slug, settings, theme FROM businesses WHERE slug = $1 AND is_active = true LIMIT 1`,
+      `SELECT id, name, slug, settings, theme, stripe_connect_id FROM businesses WHERE slug = $1 AND is_active = true LIMIT 1`,
       [req.params.slug]
     );
     if (rows.length === 0) return res.status(404).json({ error: 'Salon introuvable' });
@@ -267,7 +269,7 @@ router.post('/:slug/pass/checkout', async (req, res, next) => {
     if (tplRes.rows.length === 0) return res.status(404).json({ error: 'Formule introuvable' });
     const tpl = tplRes.rows[0];
     const baseUrl = BASE_URL;
-    const session = await stripe.checkout.sessions.create({
+    const passSessionOpts = {
       mode: 'payment', payment_method_types: ['card', 'bancontact'],
       line_items: [{ price_data: { currency: 'eur', unit_amount: tpl.price_cents, product_data: { name: `Pass ${tpl.name}`, description: `${tpl.sessions_count} séances — ${tpl.service_name}` } }, quantity: 1 }],
       metadata: { type: 'pass', business_id: biz.id, pass_template_id: tpl.id, buyer_name: buyer_name || '', buyer_email, buyer_phone: buyer_phone || '', oauth_provider: oauth_provider || '', oauth_provider_id: oauth_provider_id || '' },
@@ -275,7 +277,9 @@ router.post('/:slug/pass/checkout', async (req, res, next) => {
       success_url: `${baseUrl}/${biz.slug}/pass?success=1`,
       cancel_url: `${baseUrl}/${biz.slug}/pass`,
       expires_at: Math.floor(Date.now() / 1000) + 30 * 60
-    });
+    };
+    if (biz.stripe_connect_id) passSessionOpts.payment_intent_data = { transfer_data: { destination: biz.stripe_connect_id } };
+    const session = await stripe.checkout.sessions.create(passSessionOpts);
     res.json({ url: session.url, session_id: session.id });
   } catch (err) { next(err); }
 });

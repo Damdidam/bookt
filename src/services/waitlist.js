@@ -154,7 +154,7 @@ async function processWaitlistForCancellation(bookingId, businessId) {
     );
     const biz = bizRow.rows[0] || { name: 'Genda' };
 
-    const slotEndTimeFmt = new Date(new Date(bk.start_at).getTime() + (bk.duration_min || 0) * 60000)
+    const slotEndTimeFmt = (bk.end_at ? new Date(bk.end_at) : new Date(new Date(bk.start_at).getTime() + (bk.duration_min || 0) * 60000))
       .toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
     const contactParts = [];
     if (biz.phone) contactParts.push(escHtml(biz.phone));
@@ -321,7 +321,7 @@ async function processExpiredOffers() {
           );
           const cbiz = cascadeBiz.rows[0] || { name: 'Genda' };
 
-          const cascadeEndTimeFmt = new Date(new Date(entry.offer_booking_start).getTime() + (entry.duration_min || 0) * 60000)
+          const cascadeEndTimeFmt = (entry.offer_booking_end ? new Date(entry.offer_booking_end) : new Date(new Date(entry.offer_booking_start).getTime() + (entry.duration_min || 0) * 60000))
             .toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
           const cContactParts = [];
           if (cbiz.phone) cContactParts.push(escHtml(cbiz.phone));

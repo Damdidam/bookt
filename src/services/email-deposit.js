@@ -63,7 +63,7 @@ async function sendDepositRequestEmail({ booking, business, depositUrl, payUrl, 
   } else {
     serviceDetailHTML = `<div style="font-size:14px;color:#92700C">${safeServiceName}</div>`;
     // Single-service: show price + promo
-    const singlePriceDR = booking.service_price_cents || 0;
+    const singlePriceDR = booking.booked_price_cents || (booking.discount_pct ? Math.round((booking.service_price_cents || 0) * (100 - booking.discount_pct) / 100) : (booking.service_price_cents || 0));
     if (singlePriceDR > 0) {
       const singleDurDR = booking.duration_min || '';
       const promoDiscSingleDR = booking.promotion_discount_cents || 0;
@@ -208,7 +208,7 @@ async function sendDepositReminderEmail({ booking, business, depositUrl, payUrl,
   } else {
     serviceDetailHTML = `<div style="font-size:14px;color:#92700C">${safeServiceName}</div>`;
     // Single-service: show price + promo
-    const singlePriceDRem = booking.service_price_cents || 0;
+    const singlePriceDRem = booking.booked_price_cents || (booking.discount_pct ? Math.round((booking.service_price_cents || 0) * (100 - booking.discount_pct) / 100) : (booking.service_price_cents || 0));
     if (singlePriceDRem > 0) {
       const singleDurDRem = booking.duration_min || '';
       const promoDiscSingleDRem = booking.promotion_discount_cents || 0;
@@ -339,7 +339,7 @@ async function sendDepositPaidEmail({ booking, business, groupServices }) {
   } else {
     serviceDetailHTML = `<div style="font-size:14px;color:#3D3832">${safeServiceName}</div>`;
     // Single-service: show price + promo
-    const singlePriceDP = booking.service_price_cents || 0;
+    const singlePriceDP = booking.booked_price_cents || (booking.discount_pct ? Math.round((booking.service_price_cents || 0) * (100 - booking.discount_pct) / 100) : (booking.service_price_cents || 0));
     if (singlePriceDP > 0) {
       const singleDurDP = booking.duration_min || '';
       const promoDiscSingleDP = booking.promotion_discount_cents || 0;
@@ -386,7 +386,7 @@ async function sendDepositPaidEmail({ booking, business, groupServices }) {
   // Reste à payer — compute total price minus deposit
   const totalCentsDP = isMulti
     ? groupServices.reduce((sum, s) => sum + (s.price_cents || 0), 0) - (booking.promotion_discount_cents || 0)
-    : (booking.service_price_cents || 0) - (booking.promotion_discount_cents || 0);
+    : (booking.booked_price_cents || (booking.discount_pct ? Math.round((booking.service_price_cents || 0) * (100 - booking.discount_pct) / 100) : (booking.service_price_cents || 0))) - (booking.promotion_discount_cents || 0);
   const resteCentsDP = totalCentsDP - (booking.deposit_amount_cents || 0);
   if (resteCentsDP > 0) {
     const resteStrDP = (resteCentsDP / 100).toFixed(2).replace('.', ',');
@@ -479,7 +479,7 @@ async function sendDepositRefundEmail({ booking, business, groupServices }) {
   } else {
     serviceDetailHTML = `<div style="font-size:14px;color:#3D3832">${safeServiceName}</div>`;
     // Single-service: show price + promo
-    const singlePriceRF = booking.service_price_cents || 0;
+    const singlePriceRF = booking.booked_price_cents || (booking.discount_pct ? Math.round((booking.service_price_cents || 0) * (100 - booking.discount_pct) / 100) : (booking.service_price_cents || 0));
     if (singlePriceRF > 0) {
       const singleDurRF = booking.duration_min || '';
       const promoDiscSingleRF = booking.promotion_discount_cents || 0;

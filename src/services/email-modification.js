@@ -71,7 +71,7 @@ async function sendModificationEmail({ booking, business, groupServices }) {
     if (safePracName && !hasSplitPracMod) serviceDetailNew += `<div style="font-size:13px;color:#15613A;margin-top:4px">${safePracName}</div>`;
   } else {
     // Single-service: show price + promo
-    const singlePriceMod = booking.service_price_cents || 0;
+    const singlePriceMod = booking.booked_price_cents || (booking.discount_pct ? Math.round((booking.service_price_cents || 0) * (100 - booking.discount_pct) / 100) : (booking.service_price_cents || 0));
     if (singlePriceMod > 0) {
       const singleDurMod = booking.duration_min || '';
       const promoDiscSingleMod = booking.promotion_discount_cents || 0;

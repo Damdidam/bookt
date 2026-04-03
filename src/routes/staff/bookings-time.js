@@ -527,7 +527,7 @@ router.patch('/:id/move', async (req, res, next) => {
             }
             if ((effectiveChannel === 'sms' || effectiveChannel === 'both') && bk.client_phone) {
               try {
-                const baseUrl = process.env.PUBLIC_URL || 'https://genda.be';
+                const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
                 const manageLink = `${baseUrl}/booking/${bk.public_token}`;
                 const newDateStr = new Date(bk.start_at).toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
                 const newTimeStr = new Date(bk.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
@@ -709,6 +709,23 @@ router.patch('/:id/move', async (req, res, next) => {
           }
         }
 
+        // M2 fix: Recalculate deposit_amount_cents when price changed on move
+        if (moved && moved.deposit_required) {
+          const _depPctRes = await client.query(
+            `SELECT biz.settings->>'deposit_pct' AS deposit_pct, b.booked_price_cents, b.promotion_discount_cents
+             FROM bookings b JOIN businesses biz ON biz.id = b.business_id WHERE b.id = $1 AND b.business_id = $2`, [id, bid]
+          );
+          const _dr = _depPctRes.rows[0];
+          if (_dr) {
+            const _depPct = parseInt(_dr.deposit_pct) || 0;
+            if (_depPct > 0) {
+              const _effPrice = Math.max((_dr.booked_price_cents || 0) - (_dr.promotion_discount_cents || 0), 0);
+              const _newDepAmt = Math.round(_effPrice * _depPct / 100);
+              await client.query(`UPDATE bookings SET deposit_amount_cents = $1 WHERE id = $2 AND business_id = $3 AND deposit_status = 'pending'`, [_newDepAmt, id, bid]);
+            }
+          }
+        }
+
         await client.query(
           `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
            VALUES ($1, $2, 'booking', $3, 'move', $4, $5)`,
@@ -810,7 +827,7 @@ router.patch('/:id/move', async (req, res, next) => {
           }
           if ((effectiveChannel === 'sms' || effectiveChannel === 'both') && bk.client_phone) {
             try {
-              const baseUrl = process.env.PUBLIC_URL || 'https://genda.be';
+              const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
               const manageLink = `${baseUrl}/booking/${bk.public_token}`;
               const newDateStr = new Date(bk.start_at).toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
               const newTimeStr = new Date(bk.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
@@ -938,8 +955,20 @@ router.patch('/:id/edit', async (req, res, next) => {
           `SELECT start_at, discount_pct FROM bookings WHERE id = $1 AND business_id = $2`, [id, bid]);
         const bkRow = bkForEnd.rows[0];
         const startAt = new Date(bkRow.start_at);
+        // M5 fix: Re-check LM eligibility for the new service before applying discount
+        let newDiscountPct = null;
         if (bkRow.discount_pct) {
-          newPriceCents = Math.round(newPriceCents * (100 - bkRow.discount_pct) / 100);
+          const lmCheck = await queryWithRLS(bid,
+            `SELECT s.promo_eligible, biz.settings FROM services s, businesses biz WHERE s.id = $1 AND biz.id = $2`, [service_id, bid]);
+          const lmc = lmCheck.rows[0];
+          const lmMinPrice = lmc?.settings?.last_minute_min_price_cents || 0;
+          if (lmc?.promo_eligible !== false && newPriceCents >= lmMinPrice) {
+            newPriceCents = Math.round(newPriceCents * (100 - bkRow.discount_pct) / 100);
+            newDiscountPct = bkRow.discount_pct;
+          } else {
+            // New service not eligible for LM — clear discount
+            newDiscountPct = null;
+          }
         }
         const totalMin = (svc.buffer_before_min || 0) + dur + (svc.buffer_after_min || 0);
         const newEnd = new Date(startAt.getTime() + totalMin * 60000);
@@ -947,7 +976,7 @@ router.patch('/:id/edit', async (req, res, next) => {
         serviceConversion = {
           toService: true, service_id, service_variant_id: service_variant_id || null,
           processing_time: pt, processing_start: ps, end_at: newEnd.toISOString(),
-          booked_price_cents: newPriceCents
+          booked_price_cents: newPriceCents, discount_pct: newDiscountPct
         };
       }
     }
@@ -1021,6 +1050,7 @@ router.patch('/:id/edit', async (req, res, next) => {
         sets.push(`processing_start = $${idx++}`); params.push(serviceConversion.processing_start);
         sets.push(`end_at = $${idx++}`); params.push(serviceConversion.end_at);
         sets.push(`booked_price_cents = $${idx++}`); params.push(serviceConversion.booked_price_cents);
+        sets.push(`discount_pct = $${idx++}`); params.push(serviceConversion.discount_pct);
         sets.push(`custom_label = NULL`);
       }
     }
@@ -1459,7 +1489,7 @@ router.patch('/:id/modify', async (req, res, next) => {
     }
     if (shouldNotify && (effectiveChannel === 'sms' || effectiveChannel === 'both') && oldBooking.client_phone) {
       try {
-        const baseUrl = process.env.PUBLIC_URL || 'https://genda.be';
+        const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
         const manageLink = `${baseUrl}/booking/${oldBooking.public_token}`;
         const newDateStr = new Date(start_at).toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
         const newTimeStr = new Date(start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });

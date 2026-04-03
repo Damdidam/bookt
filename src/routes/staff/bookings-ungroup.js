@@ -491,6 +491,42 @@ router.delete('/:id/group-remove', async (req, res, next) => {
                JSON.stringify({ old_deposit_cents: oldDepositCents, deposit_status: 'paid' }),
                JSON.stringify({ new_deposit_cents: newDepositCents, overpayment_cents: overpayment, reason: 'group_member_removed' })]
             );
+            // M12 fix: Stripe partial refund for overpayment
+            if (overpayment > 0) {
+              try {
+                const _depPiRes = await client.query(
+                  `SELECT deposit_payment_intent_id FROM bookings WHERE group_id = $1 AND business_id = $2 AND deposit_payment_intent_id IS NOT NULL LIMIT 1`,
+                  [group_id, bid]
+                );
+                if (_depPiRes.rows.length > 0 && _depPiRes.rows[0].deposit_payment_intent_id) {
+                  const _stripeKey = process.env.STRIPE_SECRET_KEY;
+                  if (_stripeKey) {
+                    const _stripe = require('stripe')(_stripeKey);
+                    let _piId = _depPiRes.rows[0].deposit_payment_intent_id;
+                    if (_piId.startsWith('cs_')) {
+                      const _sess = await _stripe.checkout.sessions.retrieve(_piId);
+                      _piId = _sess.payment_intent;
+                    }
+                    if (_piId && _piId.startsWith('pi_')) {
+                      // Subtract GC partial from overpayment (only refund Stripe portion)
+                      const _gcPaidRes = await client.query(
+                        `SELECT COALESCE(SUM(amount_cents), 0) AS gc_paid FROM gift_card_transactions WHERE booking_id = $1 AND type = 'debit'`, [id]
+                      );
+                      const _gcPaid = parseInt(_gcPaidRes.rows[0]?.gc_paid) || 0;
+                      const _stripeRefundAmt = Math.max(overpayment - _gcPaid, 0);
+                      if (_stripeRefundAmt > 0) {
+                        await _stripe.refunds.create({ payment_intent: _piId, amount: _stripeRefundAmt });
+                        console.log(`[GROUP-REMOVE] Partial refund: ${_stripeRefundAmt}c for PI ${_piId}`);
+                      }
+                    }
+                  }
+                }
+              } catch (stripeErr) {
+                if (stripeErr.code !== 'charge_already_refunded') {
+                  console.warn('[GROUP-REMOVE] Stripe partial refund error:', stripeErr.message);
+                }
+              }
+            }
           }
         }
 
@@ -574,9 +610,11 @@ router.delete('/:id/group-remove', async (req, res, next) => {
       throw err;
     }
 
-    // Post-transaction: broadcast + calendar sync delete
+    // Post-transaction: broadcast + calendar sync delete + waitlist
     broadcast(bid, 'booking_update', { action: 'group_member_removed' });
     calSyncDelete(bid, id).catch(() => {});
+    // H4 fix: Trigger waitlist for the freed slot
+    try { const { processWaitlistForCancellation } = require('../../services/waitlist'); await processWaitlistForCancellation(id, bid); } catch (e) { console.warn('[GROUP-REMOVE] Waitlist error:', e.message); }
 
     // ===== BUG 3 FIX: Send client notification email =====
     if (result.emailData) {
@@ -805,17 +843,31 @@ router.post('/:id/group-add', async (req, res, next) => {
           throw Object.assign(new Error('Cette prestation existe déjà dans le groupe'), { type: 'duplicate' });
         }
 
-        // Insert the new group member
-        const _addBookedPrice = variantPrice != null ? variantPrice : (svc.price_cents || null);
+        // Insert the new group member (M6 fix: apply LM discount if slot is in LM window)
+        let _addBookedPrice = variantPrice != null ? variantPrice : (svc.price_cents || null);
+        let _addDiscountPct = null;
+        const _addBizSettings = await client.query(`SELECT settings FROM businesses WHERE id = $1`, [bid]);
+        const _addSettings = _addBizSettings.rows[0]?.settings || {};
+        if (_addSettings.last_minute_enabled && _addBookedPrice) {
+          const { isWithinLastMinuteWindow } = require('../../routes/public/helpers');
+          const _todayBxl = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+          const _slotBxl = new Date(newStart).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+          const _lmDl = _addSettings.last_minute_deadline || 'j-1';
+          const _lmMin = _addSettings.last_minute_min_price_cents || 0;
+          if (isWithinLastMinuteWindow(_slotBxl, _todayBxl, _lmDl) && svc.promo_eligible !== false && _addBookedPrice >= _lmMin) {
+            _addDiscountPct = _addSettings.last_minute_discount_pct || 10;
+            _addBookedPrice = Math.round(_addBookedPrice * (100 - _addDiscountPct) / 100);
+          }
+        }
         const ins = await client.query(
           `INSERT INTO bookings (business_id, practitioner_id, service_id, service_variant_id, client_id,
-            channel, appointment_mode, start_at, end_at, status, locked, group_id, group_order, booked_price_cents)
-           VALUES ($1, $2, $3, $4, $5, 'manual', $6, $7, $8, 'confirmed', true, $9, $10, $11)
+            channel, appointment_mode, start_at, end_at, status, locked, group_id, group_order, booked_price_cents, discount_pct)
+           VALUES ($1, $2, $3, $4, $5, 'manual', $6, $7, $8, 'confirmed', true, $9, $10, $11, $12)
            RETURNING *`,
           [bid, booking.practitioner_id, service_id, variant_id || null, booking.client_id,
            booking.appointment_mode || 'cabinet',
            newStart.toISOString(), newEnd.toISOString(),
-           booking.group_id, newGroupOrder, _addBookedPrice]
+           booking.group_id, newGroupOrder, _addBookedPrice, _addDiscountPct]
         );
 
         // Audit log

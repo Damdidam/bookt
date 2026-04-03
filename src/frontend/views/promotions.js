@@ -94,7 +94,7 @@ function renderPromotions(c, promos) {
 
       h += `<tr style="border-bottom:1px solid var(--border-light)">
         <td style="padding:10px 14px;font-weight:500">${esc(p.title)}</td>
-        <td style="padding:10px;color:var(--text-2);font-size:.78rem">${esc(conditionSummary(p))}</td>
+        <td style="padding:10px;color:var(--text-2);font-size:.78rem">${esc(conditionSummary(p))}${p.max_uses ? `<div style="font-size:.7rem;color:var(--text-4);margin-top:2px">${p.current_uses || 0}/${p.max_uses} utilis\u00E9es</div>` : ''}</td>
         <td style="padding:10px;color:var(--text-2);font-size:.78rem">${esc(rewardSummary(p))}</td>
         <td style="padding:10px;text-align:center">
           <label style="position:relative;display:inline-block;width:36px;height:20px;cursor:pointer">
@@ -201,6 +201,12 @@ async function openPromoModal(id) {
           </label>
         </div>
       </div>
+
+      <div style="margin-bottom:14px">
+        <label style="font-size:.78rem;font-weight:600;color:var(--text-2);display:block;margin-bottom:6px">Limite d'utilisation <span style="color:var(--text-4);font-weight:400">(optionnel)</span></label>
+        <input type="number" id="promoMaxUses" min="1" value="${promo?.max_uses || ''}" placeholder="Illimit\u00E9" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.85rem;box-sizing:border-box">
+        ${promo?.current_uses ? '<div style="font-size:.72rem;color:var(--text-4);margin-top:4px">' + promo.current_uses + ' utilisation(s) enregistr\u00E9e(s)</div>' : ''}
+      </div>
     </div>
     <div class="m-bottom">
       <div style="flex:1"></div>
@@ -302,7 +308,8 @@ async function savePromo(id) {
   const rewardType = document.getElementById('promoRewardType').value;
   const displayStyle = document.querySelector('input[name="promoDisplay"]:checked')?.value || 'banner';
 
-  const body = { title, description, condition_type: conditionType, reward_type: rewardType, display_style: displayStyle };
+  const maxUsesVal = document.getElementById('promoMaxUses')?.value;
+  const body = { title, description, condition_type: conditionType, reward_type: rewardType, display_style: displayStyle, max_uses: maxUsesVal ? parseInt(maxUsesVal) : null };
 
   // Condition fields
   if (conditionType === 'min_amount') {

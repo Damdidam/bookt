@@ -114,7 +114,7 @@ function buildServiceDetailHTML(bk, groupServices) {
   const serviceName = escHtml(bk.service_category ? bk.service_category + ' - ' + bk.service_name : (bk.service_name || 'Rendez-vous'));
   let html = `<div style="font-size:14px;color:#3D3832;font-weight:600">${serviceName}</div>`;
   const _rawPriceCents = bk.service_price_cents || 0;
-  const priceCents = bk.discount_pct ? Math.round(_rawPriceCents * (100 - bk.discount_pct) / 100) : _rawPriceCents;
+  const priceCents = bk.booked_price_cents || (bk.discount_pct ? Math.round(_rawPriceCents * (100 - bk.discount_pct) / 100) : _rawPriceCents);
   if (priceCents > 0) {
     const dur = bk.duration_min ? bk.duration_min + ' min \u00b7 ' : '';
     const promoDisc = bk.promotion_discount_cents || 0;
@@ -306,12 +306,14 @@ async function sendRescheduleProEmail(bk, groupServices, metadata) {
   // Show old date from notification metadata (stored at reschedule time)
   let oldDateHTML = '';
   const oldStartAt = metadata?.old_start_at;
+  const oldEndAt = metadata?.old_end_at;
   if (oldStartAt) {
     const oldDateStr = fmtDate(oldStartAt);
     const oldTimeStr = fmtTime(oldStartAt);
+    const oldEndTimeStr = oldEndAt ? fmtTime(oldEndAt) : null;
     oldDateHTML = `
     <div style="background:#FEF3E2;border-radius:8px;padding:10px 14px;margin:12px 0;border-left:3px solid #F59E0B">
-      <div style="font-size:13px;color:#92700C"><strong>Ancien cr\u00e9neau :</strong> ${oldDateStr} \u00e0 ${oldTimeStr}</div>
+      <div style="font-size:13px;color:#92700C"><strong>Ancien cr\u00e9neau :</strong> ${oldDateStr} \u00e0 ${oldTimeStr}${oldEndTimeStr ? ' \u2013 ' + oldEndTimeStr : ''}</div>
     </div>`;
   }
 

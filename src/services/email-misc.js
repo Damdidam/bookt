@@ -171,8 +171,8 @@ async function sendGiftCardEmail({ giftCard, business }) {
     title: 'Votre carte cadeau',
     preheader: `${buyerName} vous offre une carte cadeau de ${amtStr}\u20ac`,
     bodyHTML,
-    ctaText: 'R\u00e9server maintenant',
-    ctaUrl: `${baseUrl}/${business.slug}/book?gc=${giftCard.code}`,
+    ctaText: business.slug ? 'R\u00e9server maintenant' : null,
+    ctaUrl: business.slug ? `${baseUrl}/${business.slug}/book?gc=${giftCard.code}` : null,
     businessName: business.name,
     primaryColor: color,
     footerText: gcFooterParts.join(' \u00b7 ')
@@ -272,8 +272,8 @@ async function sendPassPurchaseEmail({ pass, business }) {
     title: 'Votre pass est activé',
     preheader: `${pass.sessions_total} séances — ${pass.name}`,
     bodyHTML,
-    ctaText: 'Réserver maintenant',
-    ctaUrl: `${baseUrl}/${business.slug}/book`,
+    ctaText: business.slug ? 'Réserver maintenant' : null,
+    ctaUrl: business.slug ? `${baseUrl}/${business.slug}/book` : null,
     businessName: business.name,
     primaryColor: color,
     footerText: [business.name, business.address, business.phone, business.email, 'Via Genda.be'].filter(Boolean).join(' \u00b7 ')

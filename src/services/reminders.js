@@ -111,7 +111,7 @@ async function process24hReminders(stats) {
 
       // Compute end time for display
       const totalDuration = bk.duration_min || 0;
-      const endTime24 = new Date(new Date(bk.start_at).getTime() + totalDuration * 60000);
+      const endTime24 = bk.end_at ? new Date(bk.end_at) : new Date(new Date(bk.start_at).getTime() + totalDuration * 60000);
       const endTimeStr24 = endTime24 ? new Date(endTime24).toLocaleTimeString('fr-BE', {
         timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit'
       }) : null;
@@ -200,7 +200,7 @@ async function process24hReminders(stats) {
               <tr><td style="padding:8px 0;color:#7A7470;width:100px"> Date</td><td style="padding:8px 0;font-weight:600">${startLocal}${(() => { const et = isMulti && groupEndAt ? new Date(groupEndAt) : endTime24; const ets = et ? new Date(et).toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' }) : null; return ets ? ' \u2013 ' + ets : ''; })()}</td></tr>
               <tr><td style="padding:8px 0;color:#7A7470">${isMulti ? ' Prestations' : ' Prestation'}</td><td style="padding:8px 0">${serviceHTML}</td></tr>
               <tr><td style="padding:8px 0;color:#7A7470"> Praticien</td><td style="padding:8px 0;font-weight:600">${escHtml(bk.practitioner_name)}</td></tr>
-              ${bk.appointment_mode === 'cabinet' && bk.business_address ? `<tr><td style="padding:8px 0;color:#7A7470"> Adresse</td><td style="padding:8px 0"><a href="https://maps.google.com/?q=${encodeURIComponent(bk.business_address)}" style="color:inherit;text-decoration:underline">${escHtml(bk.business_address)}</a></td></tr>` : ''}
+              ${bk.business_address ? `<tr><td style="padding:8px 0;color:#7A7470"> Adresse</td><td style="padding:8px 0"><a href="https://maps.google.com/?q=${encodeURIComponent(bk.business_address)}" style="color:inherit;text-decoration:underline">${escHtml(bk.business_address)}</a></td></tr>` : ''}
             </table>
             ${bk.deposit_required && bk.deposit_status === 'paid' && bk.deposit_amount_cents ? `<div style="background:#F0FDF4;border-radius:8px;padding:10px 14px;margin:12px 0;font-size:13px;color:#15803D"><strong>Acompte payé :</strong> ${(bk.deposit_amount_cents / 100).toFixed(2).replace('.', ',')} €${(() => { const totalCents = isMulti ? groupServices.reduce((s, sv) => s + (sv.price_cents || 0), 0) : (adjPriceCents || 0); const promoD = parseInt(bk.promotion_discount_cents) || 0; const finalTotal = totalCents - promoD; const reste = finalTotal - bk.deposit_amount_cents; return reste > 0 ? ' — Reste à régler sur place : ' + (reste / 100).toFixed(2).replace('.', ',') + ' €' : ''; })()}</div>` : ''}${bk.deposit_required && bk.deposit_status === 'pending' && bk.deposit_amount_cents ? `<div style="background:#FEF3C7;border-radius:8px;padding:10px 14px;margin:12px 0;font-size:13px;color:#92400E"><strong>⚠ Acompte en attente :</strong> ${(bk.deposit_amount_cents / 100).toFixed(2).replace('.', ',')} € — Pensez à le régler avant votre rendez-vous.</div>` : ''}
             ${(() => { const cp = []; if (bk.business_phone) cp.push('📞 ' + escHtml(bk.business_phone)); if (bk.business_email) cp.push('✉️ ' + escHtml(bk.business_email)); return cp.length > 0 ? '<p style="font-size:13px;color:#7A7470;margin:12px 0">' + cp.join(' · ') + '</p>' : ''; })()}
@@ -365,7 +365,7 @@ async function process2hReminders(stats) {
 
       // Compute end time for display
       const groupEndAt2h = groupServices ? groupServices[groupServices.length - 1].end_at : null;
-      const endTime2h = new Date(new Date(bk.start_at).getTime() + (bk.duration_min || 0) * 60000);
+      const endTime2h = bk.end_at ? new Date(bk.end_at) : new Date(new Date(bk.start_at).getTime() + (bk.duration_min || 0) * 60000);
       const actualEnd2h = (Array.isArray(groupServices) && groupServices.length > 1 && groupEndAt2h) ? new Date(groupEndAt2h) : endTime2h;
       const endTimeStr2h = actualEnd2h ? new Date(actualEnd2h).toLocaleTimeString('fr-BE', {
         timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit'
@@ -445,7 +445,7 @@ async function process2hReminders(stats) {
           }
         }
 
-        const addressHTML = bk.appointment_mode === 'cabinet' && bk.business_address
+        const addressHTML = bk.business_address
           ? `<p style="font-size:13px;color:#7A7470;margin:8px 0 0">\ud83d\udccd <a href="https://maps.google.com/?q=${encodeURIComponent(bk.business_address)}" style="color:#7A7470;text-decoration:underline">${escHtml(bk.business_address)}</a></p>` : '';
         let singlePriceBody2h;
         if (adjPriceCents2h && promoDiscount2h > 0 && promoLabel2h) {

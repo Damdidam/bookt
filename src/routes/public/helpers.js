@@ -180,6 +180,9 @@ async function validateAndCalcPromo(txClient, businessId, promotionId, serviceId
   if (promoRes.rows.length === 0) return { valid: false };
   const promo = promoRes.rows[0];
 
+  // M16 fix: Check usage limit
+  if (promo.max_uses != null && promo.current_uses >= promo.max_uses) return { valid: false, reason: 'limit_reached' };
+
   // BUG-M1: Check promo_eligible for regular promos (not just last-minute)
   if (!promoEligibleMap) {
     promoEligibleMap = {};
@@ -295,8 +298,20 @@ async function validateAndCalcPromo(txClient, businessId, promotionId, serviceId
   };
 }
 
+/**
+ * Decrement promo current_uses when a booking with a promo is cancelled.
+ * Safe to call multiple times — only decrements once per booking.
+ */
+async function decrementPromoUsage(bookingId, dbClient) {
+  const q = dbClient ? dbClient.query.bind(dbClient) : require('../../services/db').query;
+  const bk = await q(`SELECT promotion_id, business_id FROM bookings WHERE id = $1 AND promotion_id IS NOT NULL`, [bookingId]);
+  if (bk.rows.length === 0) return;
+  const { promotion_id, business_id } = bk.rows[0];
+  await q(`UPDATE promotions SET current_uses = GREATEST(current_uses - 1, 0) WHERE id = $1 AND business_id = $2`, [promotion_id, business_id]);
+}
+
 module.exports = {
   UUID_RE, escHtml, stripeRefundDeposit, shouldRequireDeposit,
   computeDepositDeadline, isWithinLastMinuteWindow, SECTOR_PRACTITIONER,
-  _nextSlotCache, _minisiteCache, BASE_URL, validateAndCalcPromo
+  _nextSlotCache, _minisiteCache, BASE_URL, validateAndCalcPromo, decrementPromoUsage
 };

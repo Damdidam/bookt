@@ -4,7 +4,7 @@
 const router = require('express').Router();
 const { queryWithRLS, transactionWithRLS } = require('../../services/db');
 const { broadcast } = require('../../services/sse');
-const { calSyncPush, calSyncDelete } = require('./bookings-helpers');
+const { calSyncPush, calSyncDelete, checkBookingConflicts, getMaxConcurrent } = require('./bookings-helpers');
 const { refundGiftCardForBooking, getGcPaidCents } = require('../../services/gift-card-refund');
 const { refundPassForBooking } = require('../../services/pass-refund');
 
@@ -165,6 +165,26 @@ router.patch('/:id/status', async (req, res, next) => {
         if (depSt === 'pending') {
           depositRestore = 'redeposit';
           status = 'pending_deposit';
+        }
+      }
+
+      // M7 fix: Check slot availability when un-cancelling
+      if (old.rows[0].status === 'cancelled' && !['cancelled', 'no_show', 'completed'].includes(status)) {
+        const bkSlot = await client.query(
+          `SELECT start_at, end_at, practitioner_id FROM bookings WHERE id = $1 AND business_id = $2`, [id, bid]
+        );
+        if (bkSlot.rows.length > 0) {
+          const slot = bkSlot.rows[0];
+          const maxConc = await getMaxConcurrent(bid, slot.practitioner_id);
+          const conflicts = await checkBookingConflicts(client, {
+            bid, pracId: slot.practitioner_id,
+            newStart: new Date(slot.start_at).toISOString(),
+            newEnd: new Date(slot.end_at).toISOString(),
+            excludeIds: id
+          });
+          if (conflicts.length >= maxConc) {
+            return { error: 409, message: 'Ce créneau n\'est plus disponible. Un autre RDV occupe déjà ce créneau.' };
+          }
         }
       }
 
@@ -523,6 +543,66 @@ router.patch('/:id/status', async (req, res, next) => {
             );
             for (const sib of sibIds.rows) { await refundGiftCardForBooking(sib.id, client); }
             for (const sib of sibIds.rows) { await refundPassForBooking(sib.id, client).catch(e => console.warn('[PASS REFUND]', e.message)); }
+          }
+        }
+      }
+
+      // M16: Decrement promo usage on cancel
+      if (status === 'cancelled') {
+        const { decrementPromoUsage } = require('../../routes/public/helpers');
+        await decrementPromoUsage(id, client).catch(e => console.warn('[PROMO DEC]', e.message));
+      }
+
+      // C1 fix: Re-consume pass credits + GC balance when restoring a cancelled booking
+      if (old.rows[0].status === 'cancelled' && status !== 'cancelled') {
+        // Re-debit pass sessions that were refunded
+        const _passRefunds = await client.query(
+          `SELECT pt.pass_id, pt.sessions, pt.booking_id FROM pass_transactions pt WHERE pt.booking_id = $1 AND pt.type = 'refund'`, [id]
+        );
+        for (const pr of _passRefunds.rows) {
+          const _existRd = await client.query(
+            `SELECT id FROM pass_transactions WHERE pass_id = $1 AND booking_id = $2 AND type = 'debit' AND note LIKE '%rétablissement%'`, [pr.pass_id, pr.booking_id]
+          );
+          if (_existRd.rows.length > 0) continue;
+          await client.query(`UPDATE passes SET sessions_remaining = GREATEST(sessions_remaining - $1, 0), updated_at = NOW() WHERE id = $2`, [Math.abs(pr.sessions), pr.pass_id]);
+          await client.query(
+            `INSERT INTO pass_transactions (id, pass_id, business_id, booking_id, sessions, type, note) VALUES (gen_random_uuid(), $1, $2, $3, $4, 'debit', 'Re-consommation — rétablissement RDV')`,
+            [pr.pass_id, bid, pr.booking_id, -Math.abs(pr.sessions)]
+          );
+        }
+        // Re-debit gift card balance that was refunded
+        const _gcRefunds = await client.query(
+          `SELECT gct.gift_card_id, gct.amount_cents, gct.booking_id FROM gift_card_transactions gct WHERE gct.booking_id = $1 AND gct.type = 'refund'`, [id]
+        );
+        for (const gr of _gcRefunds.rows) {
+          const _existRd = await client.query(
+            `SELECT id FROM gift_card_transactions WHERE gift_card_id = $1 AND booking_id = $2 AND type = 'debit' AND note LIKE '%rétablissement%'`, [gr.gift_card_id, gr.booking_id]
+          );
+          if (_existRd.rows.length > 0) continue;
+          await client.query(`UPDATE gift_cards SET balance_cents = GREATEST(balance_cents - $1, 0), updated_at = NOW() WHERE id = $2`, [gr.amount_cents, gr.gift_card_id]);
+          await client.query(
+            `INSERT INTO gift_card_transactions (id, gift_card_id, business_id, booking_id, amount_cents, type, note) VALUES (gen_random_uuid(), $1, $2, $3, $4, 'debit', 'Re-consommation — rétablissement RDV')`,
+            [gr.gift_card_id, bid, gr.booking_id, gr.amount_cents]
+          );
+        }
+        // Same for group siblings
+        if (old.rows[0].group_id) {
+          const _ucSibs = await client.query(`SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2 AND id != $3`, [old.rows[0].group_id, bid, id]);
+          for (const sib of _ucSibs.rows) {
+            const _spR = await client.query(`SELECT pt.pass_id, pt.sessions FROM pass_transactions pt WHERE pt.booking_id = $1 AND pt.type = 'refund'`, [sib.id]);
+            for (const pr of _spR.rows) {
+              const _ex = await client.query(`SELECT id FROM pass_transactions WHERE pass_id = $1 AND booking_id = $2 AND type = 'debit' AND note LIKE '%rétablissement%'`, [pr.pass_id, sib.id]);
+              if (_ex.rows.length > 0) continue;
+              await client.query(`UPDATE passes SET sessions_remaining = GREATEST(sessions_remaining - $1, 0), updated_at = NOW() WHERE id = $2`, [Math.abs(pr.sessions), pr.pass_id]);
+              await client.query(`INSERT INTO pass_transactions (id, pass_id, business_id, booking_id, sessions, type, note) VALUES (gen_random_uuid(), $1, $2, $3, $4, 'debit', 'Re-consommation — rétablissement RDV')`, [pr.pass_id, bid, sib.id, -Math.abs(pr.sessions)]);
+            }
+            const _sgR = await client.query(`SELECT gct.gift_card_id, gct.amount_cents FROM gift_card_transactions gct WHERE gct.booking_id = $1 AND gct.type = 'refund'`, [sib.id]);
+            for (const gr of _sgR.rows) {
+              const _ex = await client.query(`SELECT id FROM gift_card_transactions WHERE gift_card_id = $1 AND booking_id = $2 AND type = 'debit' AND note LIKE '%rétablissement%'`, [gr.gift_card_id, sib.id]);
+              if (_ex.rows.length > 0) continue;
+              await client.query(`UPDATE gift_cards SET balance_cents = GREATEST(balance_cents - $1, 0), updated_at = NOW() WHERE id = $2`, [gr.amount_cents, gr.gift_card_id]);
+              await client.query(`INSERT INTO gift_card_transactions (id, gift_card_id, business_id, booking_id, amount_cents, type, note) VALUES (gen_random_uuid(), $1, $2, $3, $4, 'debit', 'Re-consommation — rétablissement RDV')`, [gr.gift_card_id, bid, sib.id, gr.amount_cents]);
+            }
           }
         }
       }
@@ -1844,6 +1924,12 @@ router.delete('/:id', async (req, res, next) => {
       );
       const calEventsToDelete = calEventRows.rows;
 
+      // Clean up FK references before deleting bookings
+      await client.query(`DELETE FROM pass_transactions WHERE booking_id = ANY($1)`, [bookingIds]);
+      await client.query(`DELETE FROM gift_card_transactions WHERE booking_id = ANY($1)`, [bookingIds]);
+      await client.query(`UPDATE invoice_items SET booking_id = NULL WHERE booking_id = ANY($1)`, [bookingIds]);
+      await client.query(`DELETE FROM notifications WHERE booking_id = ANY($1)`, [bookingIds]);
+      await client.query(`DELETE FROM pre_rdv_sends WHERE booking_id = ANY($1)`, [bookingIds]);
       await client.query(`DELETE FROM booking_notes WHERE booking_id = ANY($1) AND business_id = $2`, [bookingIds, bid]);
       await client.query(`DELETE FROM practitioner_todos WHERE booking_id = ANY($1) AND business_id = $2`, [bookingIds, bid]);
       await client.query(`DELETE FROM booking_reminders WHERE booking_id = ANY($1) AND business_id = $2`, [bookingIds, bid]);

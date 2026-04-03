@@ -374,7 +374,31 @@ router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) 
         const promoRes = await client.query(`SELECT * FROM promotions WHERE id = $1`, [promoId]);
         const promo = promoRes.rows[0];
 
-        if (promo) {
+        // Re-validate promo conditions for new date
+        const promoValid = (() => {
+          if (!promo) return false;
+          if (!promo.is_active) return false;
+          // Check date range
+          if (promo.valid_from) {
+            const newStartDate = new Date(start_at).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+            if (newStartDate < new Date(promo.valid_from).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' })) return false;
+          }
+          if (promo.valid_until) {
+            const newStartDate = new Date(start_at).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+            if (newStartDate > new Date(promo.valid_until).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' })) return false;
+          }
+          return true;
+        })();
+
+        if (!promoValid) {
+          // Promo no longer valid for new date — remove it
+          for (const uid of promoIds) {
+            await client.query(
+              `UPDATE bookings SET promotion_id = NULL, promotion_label = NULL, promotion_discount_cents = 0, promotion_discount_pct = NULL WHERE id = $1`,
+              [uid]
+            );
+          }
+        } else if (promo) {
           // Fetch each member's adjusted price (after LM discount) and sum for group total
           let groupTotal = 0;
           const memberPrices = [];
@@ -459,6 +483,34 @@ router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) 
             `UPDATE bookings SET booked_price_cents = $1 WHERE id = $2 AND business_id = $3`,
             [bookedPrice, uid, bk.business_id]
           );
+        }
+      }
+    }
+
+    // Recalculate deposit_amount_cents when price changed after LM recalculation
+    {
+      const depIds = (bk.group_id && groupMembers.length > 0)
+        ? groupMembers.map(m => m.id) : [bk.id];
+
+      // Only recalculate if deposit is still pending
+      if (bk.deposit_status === 'pending') {
+        const bizRes = await client.query(`SELECT settings FROM businesses WHERE id = $1`, [bk.business_id]);
+        const depPct = parseInt(bizRes.rows[0]?.settings?.deposit_pct) || 0;
+        if (depPct > 0) {
+          // Sum all booked_price_cents - promotion_discount_cents for the group
+          const totalRes = await client.query(
+            `SELECT COALESCE(SUM(booked_price_cents), 0) AS total,
+                    COALESCE(SUM(CASE WHEN group_order = 0 THEN promotion_discount_cents ELSE 0 END), 0) AS promo
+             FROM bookings WHERE id = ANY($1::uuid[])`, [depIds]
+          );
+          const effectiveTotal = Math.max((parseInt(totalRes.rows[0].total) || 0) - (parseInt(totalRes.rows[0].promo) || 0), 0);
+          const newDepAmount = Math.round(effectiveTotal * depPct / 100);
+          for (const uid of depIds) {
+            await client.query(
+              `UPDATE bookings SET deposit_amount_cents = $1 WHERE id = $2 AND deposit_status = 'pending'`,
+              [newDepAmount, uid]
+            );
+          }
         }
       }
     }

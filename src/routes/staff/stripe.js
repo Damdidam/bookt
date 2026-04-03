@@ -400,23 +400,33 @@ async function handleStripeWebhook(req, res) {
               );
             } catch (logErr) { /* non-critical */ }
           } else {
-            // Race condition: deposit-expiry cron may have cancelled the booking while Stripe processed payment
-            const stale = await query(
-              `SELECT id, status, deposit_status FROM bookings WHERE id = $1 AND business_id = $2`,
-              [bookingId, businessId]
-            );
-            if (stale.rows.length > 0 && stale.rows[0].status === 'cancelled') {
-              console.warn(`[STRIPE WH] Race: booking ${bookingId} was cancelled while deposit was paid. Attempting auto-refund.`);
+            // Booking was already cancelled/expired — auto-refund the orphaned payment
+            console.warn(`[STRIPE WH] Deposit payment for already-cancelled booking ${bookingId} — initiating auto-refund`);
+            try {
               if (piId && piId.startsWith('pi_')) {
-                try {
-                  await stripe.refunds.create({ payment_intent: piId });
-                  console.log(`[STRIPE WH] Auto-refunded PI ${piId} for cancelled booking ${bookingId}`);
-                } catch (refundErr) {
-                  if (refundErr.code !== 'charge_already_refunded') {
-                    console.error(`[STRIPE WH] Auto-refund failed for PI ${piId}:`, refundErr.message);
-                  }
-                }
+                await stripe.refunds.create({ payment_intent: piId });
+                console.log(`[STRIPE WH] Auto-refund successful for orphaned payment PI ${piId}`);
               }
+              // Notify the business about the orphaned payment
+              try {
+                await query(
+                  `INSERT INTO notifications (business_id, booking_id, type, status, metadata)
+                   VALUES ($1, $2, 'email_deposit_orphan', 'queued', $3)`,
+                  [businessId, bookingId, JSON.stringify({ payment_intent: piId, auto_refunded: true })]
+                );
+              } catch (_) {}
+            } catch (refundErr) {
+              if (refundErr.code !== 'charge_already_refunded') {
+                console.error(`[STRIPE WH] Auto-refund FAILED for orphaned payment:`, refundErr.message);
+              }
+              // Still try to notify business
+              try {
+                await query(
+                  `INSERT INTO notifications (business_id, booking_id, type, status, metadata)
+                   VALUES ($1, $2, 'email_deposit_orphan', 'queued', $3)`,
+                  [businessId, bookingId, JSON.stringify({ payment_intent: piId, auto_refunded: refundErr.code === 'charge_already_refunded', error: refundErr.message })]
+                );
+              } catch (_) {}
             }
           }
           break;

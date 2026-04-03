@@ -26,6 +26,7 @@ async function processExpiredPasses() {
       const remaining = pass.sessions_remaining || 0;
 
       const bodyHTML = `
+        <p>Bonjour${pass.buyer_name ? ' ' + escHtml(pass.buyer_name) : ''},</p>
         <p>Votre pass <strong>${escHtml(pass.name || 'Pass')}</strong> a expir\u00e9.</p>
         <div style="background:#FEF2F2;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #EF4444">
           <div style="font-size:14px;color:#DC2626;font-weight:600;margin-bottom:4px">Pass expir\u00e9</div>

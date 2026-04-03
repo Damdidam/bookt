@@ -5,7 +5,7 @@
 const router = require('express').Router();
 const { query, pool } = require('../../services/db');
 const { broadcast } = require('../../services/sse');
-const { stripeRefundDeposit, escHtml } = require('./helpers');
+const { stripeRefundDeposit, escHtml, decrementPromoUsage } = require('./helpers');
 const { processWaitlistForCancellation } = require('../../services/waitlist');
 const { sendBookingConfirmation } = require('../../services/email');
 const { refundPassForBooking } = require('../../services/pass-refund');
@@ -104,6 +104,8 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
       }
       // Pass sessions: always refund (pass is a prepaid entitlement, not money)
       await refundPassForBooking(postCancelBk.id, txClient).catch(e => console.warn('[PASS REFUND]', e.message));
+      // M16: Decrement promo usage
+      await decrementPromoUsage(postCancelBk.id, txClient).catch(e => console.warn('[PROMO DEC]', e.message));
       // Group siblings
       if (bk.group_id) {
         try {
@@ -611,6 +613,16 @@ router.post('/booking/:token/reject', async (req, res, next) => {
       // M1: calSyncDelete + waitlist on reject
       try { const { calSyncDelete } = require('../staff/bookings-helpers'); calSyncDelete(rejBk.business_id, rejBk.id); } catch (_) {}
       try { await processWaitlistForCancellation(rejBk.id, rejBk.business_id); } catch (_) {}
+      // C2+C3 fix: Process calSync + waitlist for group siblings
+      if (rejBk.group_id) {
+        try {
+          const rejSibs = await query(`SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2 AND id != $3`, [rejBk.group_id, rejBk.business_id, rejBk.id]);
+          for (const sib of rejSibs.rows) {
+            try { const { calSyncDelete: csd } = require('../staff/bookings-helpers'); csd(rejBk.business_id, sib.id); } catch (_) {}
+            try { await processWaitlistForCancellation(sib.id, rejBk.business_id); } catch (_) {}
+          }
+        } catch (_) {}
+      }
     })();
 
     if (isForm && displayData) {
