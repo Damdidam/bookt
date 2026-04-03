@@ -496,7 +496,7 @@ router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) 
       // Only recalculate if deposit is still pending
       if (bk.deposit_status === 'pending') {
         const bizRes = await client.query(`SELECT settings FROM businesses WHERE id = $1`, [bk.business_id]);
-        const depPct = parseInt(bizRes.rows[0]?.settings?.deposit_pct) || 0;
+        const depPct = parseInt(bizRes.rows[0]?.settings?.deposit_percent) || 0;
         if (depPct > 0) {
           // Sum all booked_price_cents - promotion_discount_cents for the group
           const totalRes = await client.query(

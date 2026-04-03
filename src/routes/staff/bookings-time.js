@@ -712,12 +712,12 @@ router.patch('/:id/move', async (req, res, next) => {
         // M2 fix: Recalculate deposit_amount_cents when price changed on move
         if (moved && moved.deposit_required) {
           const _depPctRes = await client.query(
-            `SELECT biz.settings->>'deposit_pct' AS deposit_pct, b.booked_price_cents, b.promotion_discount_cents
+            `SELECT biz.settings->>'deposit_percent' AS deposit_percent, b.booked_price_cents, b.promotion_discount_cents
              FROM bookings b JOIN businesses biz ON biz.id = b.business_id WHERE b.id = $1 AND b.business_id = $2`, [id, bid]
           );
           const _dr = _depPctRes.rows[0];
           if (_dr) {
-            const _depPct = parseInt(_dr.deposit_pct) || 0;
+            const _depPct = parseInt(_dr.deposit_percent) || 0;
             if (_depPct > 0) {
               const _effPrice = Math.max((_dr.booked_price_cents || 0) - (_dr.promotion_discount_cents || 0), 0);
               const _newDepAmt = Math.round(_effPrice * _depPct / 100);
