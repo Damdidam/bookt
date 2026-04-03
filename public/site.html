@@ -1634,7 +1634,22 @@ body.tpl-funky .cart-chip { border-radius: 100px; }
     if (footerGuide) { footerGuide.href = guideUrl; footerGuide.style.display = 'inline'; }
 
     // Hero
-    var city = b.address ? b.address.split(',').pop().trim() : '';
+    // Extract city from address: try after last comma, else match "1234 City" pattern
+    var city = '';
+    if (b.address) {
+      var parts = b.address.split(',');
+      var lastPart = parts[parts.length - 1].trim();
+      // If multiple comma parts, last part is likely city/region
+      if (parts.length > 1) {
+        // Strip leading postal code if present (e.g. "1000 Bruxelles" → "Bruxelles")
+        var m = lastPart.match(/^\d{4,5}\s+(.+)/);
+        city = m ? m[1] : lastPart;
+      } else {
+        // No comma — try to find "postal City" pattern
+        var m2 = lastPart.match(/\d{4,5}\s+(.+)/);
+        city = m2 ? m2[1] : '';
+      }
+    }
     var sectorLabel = b.sector_label || (b.sector ? b.sector : '');
     var label = (sectorLabel ? sectorLabel.toUpperCase() : '') + (city ? (sectorLabel ? ' \u00b7 ' : '') + city.toUpperCase() : '');
     document.getElementById('heroLabel').textContent = label;
