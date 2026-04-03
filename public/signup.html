@@ -198,7 +198,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
         <div class="fg"><label class="fl">Nom du salon</label><input class="fi" id="f_biz" placeholder="Le Studio Coiffure" oninput="updSlug()"></div>
         <div class="slug-prev"><span class="d">genda.be/</span><span class="s" id="slugPrev">votre-salon</span></div>
         <div class="fg"><label class="fl">Téléphone</label><input class="fi" id="f_phone" type="tel" placeholder="+32 / +33..."></div>
-        <div class="fg"><label class="fl">Adresse</label><input class="fi" id="f_addr" placeholder="Rue du Midi 42, 1000 Bruxelles"></div>
+        <div class="fg"><label class="fl">Adresse</label>
+          <div class="fr"><input class="fi" id="f_street" placeholder="Rue du Midi" style="grid-column:1/2"><input class="fi" id="f_street_nr" placeholder="N°" style="max-width:80px"></div>
+          <div class="fr" style="margin-top:8px"><input class="fi" id="f_zip" placeholder="1000" style="max-width:100px"><input class="fi" id="f_city" placeholder="Bruxelles"></div>
+        </div>
         <div class="fg" style="margin-top:10px"><label class="fl">Mot de passe <span class="opt">(optionnel)</span></label><input class="fi" type="password" id="f_pass" placeholder="Min. 8 caractères"></div>
         <div class="fg"><label class="fl">Votre secteur</label>
           <div class="sectors">
@@ -372,7 +375,10 @@ async function doSignup() {
   const email = document.getElementById('f_email').value.trim();
   const bizName = document.getElementById('f_biz').value.trim();
   const phone = document.getElementById('f_phone').value.trim();
-  const address = document.getElementById('f_addr').value.trim();
+  const street = document.getElementById('f_street').value.trim();
+  const streetNr = document.getElementById('f_street_nr').value.trim();
+  const zip = document.getElementById('f_zip').value.trim();
+  const city = document.getElementById('f_city').value.trim();
   const pass = document.getElementById('f_pass').value;
 
   if (!name) return showError('Votre nom est requis.');
@@ -393,7 +399,10 @@ async function doSignup() {
       password: pass || undefined,
       business_name: bizName,
       business_phone: phone || undefined,
-      business_address: address || undefined,
+      street: street || undefined,
+      street_number: streetNr || undefined,
+      postal_code: zip || undefined,
+      city: city || undefined,
       sector
     });
 

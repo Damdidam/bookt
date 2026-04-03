@@ -36,7 +36,7 @@ router.get('/:slug', async (req, res, next) => {
     // Also check custom domains
     let bizResult = await query(
       `SELECT b.id, b.slug, b.name, b.tagline, b.description, b.phone, b.email,
-              b.address, b.language_default, b.languages_spoken, b.founded_year,
+              b.address, b.city, b.language_default, b.languages_spoken, b.founded_year,
               b.accreditation, b.bce_number, b.parking_info, b.logo_url,
               b.cover_image_url, b.social_links, b.theme, b.seo_title,
               b.seo_description, b.page_sections, b.settings,
@@ -49,7 +49,7 @@ router.get('/:slug', async (req, res, next) => {
     if (bizResult.rows.length === 0) {
       bizResult = await query(
         `SELECT b.id, b.slug, b.name, b.tagline, b.description, b.phone, b.email,
-                b.address, b.language_default, b.languages_spoken, b.founded_year,
+                b.address, b.city, b.language_default, b.languages_spoken, b.founded_year,
                 b.accreditation, b.bce_number, b.parking_info, b.logo_url,
                 b.cover_image_url, b.social_links, b.theme, b.seo_title,
                 b.seo_description, b.page_sections, b.settings,

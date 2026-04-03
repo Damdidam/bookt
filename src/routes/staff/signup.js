@@ -25,12 +25,19 @@ router.post('/signup', authLimiter, async (req, res, next) => {
       // Salon info
       business_name,
       business_phone,
-      business_address,
+      business_address, // legacy single field (fallback)
+      street, street_number, postal_code, city,
       language,
       // Optional
       category,    // 'sante' | 'beaute' | 'juridique_finance' | 'education' | 'creatif' | 'autre'
       sector       // specific profession within category
     } = req.body;
+
+    // Compose full address from structured fields, fallback to legacy
+    const composedAddress = [street, street_number].filter(Boolean).join(' ')
+      + ([street, street_number].some(Boolean) && [postal_code, city].some(Boolean) ? ', ' : '')
+      + [postal_code, city].filter(Boolean).join(' ');
+    const finalAddress = composedAddress.trim() || business_address || null;
 
     // ===== VALIDATION =====
     if (!email || !full_name || !business_name) {
@@ -98,12 +105,14 @@ router.post('/signup', authLimiter, async (req, res, next) => {
       const finalCategory = validCategories.includes(category) ? category : (SECTOR_TO_CAT[sector] || 'autre');
 
       const bizResult = await client.query(
-        `INSERT INTO businesses (slug, name, phone, email, address, language_default, plan, sector, category,
+        `INSERT INTO businesses (slug, name, phone, email, address, street, street_number, postal_code, city,
+          language_default, plan, sector, category,
           tagline, settings, page_sections, theme)
-         VALUES ($1, $2, $3, $4, $5, $6, 'free', $7, $8, $9, $10::jsonb, $11::jsonb, $12::jsonb)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'free', $11, $12, $13, $14::jsonb, $15::jsonb, $16::jsonb)
          RETURNING id, slug`,
         [
-          slug, business_name, business_phone || null, email, business_address || null,
+          slug, business_name, business_phone || null, email, finalAddress,
+          street || null, street_number || null, postal_code || null, city || null,
           language || 'fr',
           // Sector
           sector || 'autre',
@@ -241,7 +250,7 @@ router.post('/signup', authLimiter, async (req, res, next) => {
                   <tr><td style="font-weight:600;padding-right:12px">Email</td><td>${email}</td></tr>
                   <tr><td style="font-weight:600;padding-right:12px">Secteur</td><td>${sector || 'autre'}</td></tr>
                   <tr><td style="font-weight:600;padding-right:12px">Téléphone</td><td>${business_phone || '—'}</td></tr>
-                  <tr><td style="font-weight:600;padding-right:12px">Adresse</td><td>${business_address || '—'}</td></tr>
+                  <tr><td style="font-weight:600;padding-right:12px">Adresse</td><td>${finalAddress || '—'}</td></tr>
                   <tr><td style="font-weight:600;padding-right:12px">Minisite</td><td><a href="${baseUrl}/${slug}" style="color:#0D7377">${baseUrl}/${slug}</a></td></tr>
                 </table>`,
               ctaText: 'Voir dans le panel admin',

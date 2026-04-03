@@ -43,7 +43,8 @@ router.patch('/', requireOwner, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const {
-      name, slug, phone, email, address, language_default, settings,
+      name, slug, phone, email, address, street, street_number, postal_code, city,
+      language_default, settings,
       // V2 fields
       tagline, description, logo_url, cover_image_url,
       founded_year, accreditation, bce_number, parking_info,
@@ -302,6 +303,14 @@ router.patch('/', requireOwner, async (req, res, next) => {
       }
     }
 
+    // Recompose address from structured fields if provided
+    const composedAddr = (street || street_number || postal_code || city)
+      ? ([street, street_number].filter(Boolean).join(' ')
+        + ([street, street_number].some(Boolean) && [postal_code, city].some(Boolean) ? ', ' : '')
+        + [postal_code, city].filter(Boolean).join(' ')).trim() || null
+      : null;
+    const finalAddress = composedAddr || address || null;
+
     const result = await queryWithRLS(bid,
       `UPDATE businesses SET
         name = COALESCE($1, name),
@@ -309,29 +318,35 @@ router.patch('/', requireOwner, async (req, res, next) => {
         phone = COALESCE($3, phone),
         email = COALESCE($4, email),
         address = COALESCE($5, address),
-        language_default = COALESCE($6, language_default),
-        settings = COALESCE($7::jsonb, settings),
-        tagline = COALESCE($8, tagline),
-        description = COALESCE($9, description),
-        logo_url = COALESCE($10, logo_url),
-        cover_image_url = COALESCE($11, cover_image_url),
-        founded_year = COALESCE($12, founded_year),
-        accreditation = COALESCE($13, accreditation),
-        bce_number = COALESCE($14, bce_number),
-        parking_info = COALESCE($15, parking_info),
-        languages_spoken = COALESCE($16::text[], languages_spoken),
-        social_links = COALESCE($17::jsonb, social_links),
-        page_sections = COALESCE($18::jsonb, page_sections),
-        seo_title = COALESCE($19, seo_title),
-        seo_description = COALESCE($20, seo_description),
-        theme = COALESCE($21::jsonb, theme),
-        sector = COALESCE($22, sector),
-        category = COALESCE($23, category),
+        street = COALESCE($6, street),
+        street_number = COALESCE($7, street_number),
+        postal_code = COALESCE($8, postal_code),
+        city = COALESCE($9, city),
+        language_default = COALESCE($10, language_default),
+        settings = COALESCE($11::jsonb, settings),
+        tagline = COALESCE($12, tagline),
+        description = COALESCE($13, description),
+        logo_url = COALESCE($14, logo_url),
+        cover_image_url = COALESCE($15, cover_image_url),
+        founded_year = COALESCE($16, founded_year),
+        accreditation = COALESCE($17, accreditation),
+        bce_number = COALESCE($18, bce_number),
+        parking_info = COALESCE($19, parking_info),
+        languages_spoken = COALESCE($20::text[], languages_spoken),
+        social_links = COALESCE($21::jsonb, social_links),
+        page_sections = COALESCE($22::jsonb, page_sections),
+        seo_title = COALESCE($23, seo_title),
+        seo_description = COALESCE($24, seo_description),
+        theme = COALESCE($25::jsonb, theme),
+        sector = COALESCE($26, sector),
+        category = COALESCE($27, category),
         updated_at = NOW()
-       WHERE id = $24
+       WHERE id = $28
        RETURNING *`,
       [
-        name, finalSlug || slug, phone, email, address, language_default,
+        name, finalSlug || slug, phone, email, finalAddress,
+        street || null, street_number || null, postal_code || null, city || null,
+        language_default,
         mergedSettings ? JSON.stringify(mergedSettings) : null,
         tagline, description, logo_url, cover_image_url,
         founded_year ? parseInt(founded_year) : null,
