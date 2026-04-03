@@ -413,7 +413,8 @@ section { max-width: var(--max-w); margin: 0 auto; padding: 100px 32px; }
   .hero-visual { max-width: 100%; margin: 32px auto 0; }
   .hf1, .hf2 { display: none; }
   .bento { grid-template-columns: 1fr; }
-  .bento-card.span2 { grid-column: span 1; }
+  .bento-card.span2 { grid-column: span 1; flex-direction: column; }
+  .bento-card.span2 .bento-pills { max-width: none; }
   .feat-block, .feat-block.reverse { grid-template-columns: 1fr; direction: ltr; gap: 32px; }
   .feat-block.reverse > * { direction: ltr; }
   .feat-visual { min-height: 280px; }
@@ -758,7 +759,7 @@ section { max-width: var(--max-w); margin: 0 auto; padding: 100px 32px; }
 
 <!-- BENTO FEATURES -->
 <section id="features">
-  <div class="s-center rv"><div class="s-label">Tout-en-un</div><div class="s-title">Tout ce dont votre salon a besoin</div><p class="s-desc">Booking en ligne, rappels, acomptes, cartes cadeau, minisite, analytics. Tout est intégré, rien à bricoler.</p></div>
+  <div class="s-center rv"><div class="s-label">Tout-en-un</div><div class="s-title">Tout ce dont votre salon a besoin</div><p class="s-desc">Booking en ligne, rappels, acomptes, cartes cadeau, abonnements, minisite, analytics. Tout est int&#233;gr&#233;, rien &#224; bricoler.</p></div>
 
   <div class="bento">
     <!-- 1. Réservation en ligne -->
@@ -896,6 +897,7 @@ section { max-width: var(--max-w); margin: 0 auto; padding: 100px 32px; }
           <li><span class="ck"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span> Replanification par le client via lien email</li>
           <li><span class="ck"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span> Rappels automatiques email + SMS</li>
           <li><span class="ck"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span> Carte cadeau applicable au checkout</li>
+          <li><span class="ck"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span> Abonnements : pass de X s&#233;ances d&#233;compt&#233;es &#224; chaque RDV</li>
         </ul>
       </div>
       <div class="feat-visual">
@@ -1005,6 +1007,7 @@ section { max-width: var(--max-w); margin: 0 auto; padding: 100px 32px; }
     <div class="faq-item"><div class="faq-q" >Comment fonctionne le multi-praticien sur un meme RDV ? <span class="arr">+</span></div><div class="faq-a">Quand un client combine des prestations assignees a des praticiens differents (ex: sourcils par Maeva + ongles par Joyce), le moteur détecte automatiquement qu'aucun praticien ne couvre tout. Il passe en mode "split" : chaque prestation est assignée au bon praticien, les créneaux sont chaînés sans chevauchement, et le client ne voit qu'un seul RDV. Cote staff, chaque praticien voit sa partie sur son planning.</div></div>
     <div class="faq-item"><div class="faq-q" >Est-ce que mes clients doivent creer un compte ? <span class="arr">+</span></div><div class="faq-a">Non. Vos clients remplissent simplement leur nom, email et telephone pour reserver. Pas de compte, pas de mot de passe, zéro friction.</div></div>
     <div class="faq-item"><div class="faq-q" >Comment fonctionne le systeme d'acomptes ? <span class="arr">+</span></div><div class="faq-a">Le client reçoit un lien de paiement Stripe avec le même délai que pour confirmer un RDV (30 min par defaut, configurable). Pas de paiement dans le délai = annulation automatique et créneau libéré. Les cartes cadeau sont applicables sur l'acompte.</div></div>
+    <div class="faq-item"><div class="faq-q" >Comment fonctionnent les abonnements / pass ? <span class="arr">+</span></div><div class="faq-a">Vous cr&#233;ez des formules d'abonnement (ex: "10 s&#233;ances d'&#233;pilation &#224; 250&#8364;"). Le client ach&#232;te en ligne via Stripe. &#192; chaque r&#233;servation, une s&#233;ance est d&#233;compt&#233;e automatiquement du solde. Vous suivez le solde restant, l'historique d'utilisation et l'expiration depuis le tableau de bord.</div></div>
     <div class="faq-item"><div class="faq-q" >C'est quoi la liste d'attente intelligente ? <span class="arr">+</span></div><div class="faq-a">Quand un créneau est complet, votre client peut s'inscrire sur la liste d'attente avec ses preferences (jours, horaire, praticien). Dès qu'un créneau se libere, le premier de la liste reçoit une offre avec un timer de 2 heures. S'il ne repond pas, l'offre passe au suivant. Tout est automatique.</div></div>
     <div class="faq-item"><div class="faq-q" >Est-ce conforme au RGPD ? <span class="arr">+</span></div><div class="faq-a">Oui. Données hébergées en Europe, consentements explicites, droit a la suppression, isolation des données par salon (Row-Level Security). Conforme des le premier jour.</div></div>
     <div class="faq-item"><div class="faq-q" >Je peux annuler a tout moment ? <span class="arr">+</span></div><div class="faq-a">Oui. Sans engagement. Votre minisite reste actif en mode gratuit. Vos données ne sont jamais supprimées sans votre demande.</div></div>
