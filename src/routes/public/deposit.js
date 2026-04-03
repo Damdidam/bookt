@@ -23,7 +23,7 @@ router.post('/deposit/:token/checkout', depositLimiter, async (req, res, next) =
               c.full_name AS client_name, c.email AS client_email,
               CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
                   s.category AS service_category,
-              biz.name AS business_name, biz.stripe_customer_id,
+              biz.name AS business_name, biz.plan AS business_plan, biz.stripe_customer_id,
               biz.stripe_connect_id, biz.stripe_connect_status
        FROM bookings b
        LEFT JOIN clients c ON c.id = b.client_id
@@ -35,6 +35,7 @@ router.post('/deposit/:token/checkout', depositLimiter, async (req, res, next) =
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Rendez-vous introuvable' });
     const bk = result.rows[0];
+    if ((bk.business_plan || 'free') === 'free') return res.status(403).json({ error: 'upgrade_required' });
 
     // Verify merchant has active Stripe Connect
     if (!bk.stripe_connect_id || bk.stripe_connect_status !== 'active') {
@@ -157,7 +158,7 @@ router.get('/deposit/:token/pay', depositLimiter, async (req, res, next) => {
               c.email AS client_email,
               CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
                   s.category AS service_category,
-              biz.name AS business_name,
+              biz.name AS business_name, biz.plan AS business_plan,
               biz.stripe_connect_id, biz.stripe_connect_status
        FROM bookings b
        LEFT JOIN clients c ON c.id = b.client_id
@@ -169,6 +170,7 @@ router.get('/deposit/:token/pay', depositLimiter, async (req, res, next) => {
     );
     if (result.rows.length === 0) return res.redirect(depositPageUrl + '?error=not_found');
     const bk = result.rows[0];
+    if ((bk.business_plan || 'free') === 'free') return res.redirect(depositPageUrl + '?error=upgrade_required');
 
     // Verify merchant has active Stripe Connect
     if (!bk.stripe_connect_id || bk.stripe_connect_status !== 'active') {

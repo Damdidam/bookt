@@ -4,7 +4,7 @@
  */
 const router = require('express').Router();
 const { queryWithRLS } = require('../../services/db');
-const { requireAuth, requireOwner } = require('../../middleware/auth');
+const { requireAuth, requireOwner, requirePro } = require('../../middleware/auth');
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -98,6 +98,15 @@ router.post('/', requireAuth, requireOwner, async (req, res, next) => {
       condition_start_date, condition_end_date, reward_type, reward_service_id, reward_value,
       is_active, display_style
     } = req.body;
+
+    // Plan guard: free tier limited to 1 active promo
+    if (req.businessPlan === 'free') {
+      const countRes = await queryWithRLS(req.businessId,
+        `SELECT COUNT(*)::int AS cnt FROM promotions WHERE business_id = $1 AND is_active = true`, [req.businessId]);
+      if (countRes.rows[0].cnt >= 1) {
+        return res.status(403).json({ error: 'upgrade_required', message: 'Le plan gratuit est limité à 1 promotion active. Passez au Pro pour des promotions illimitées.' });
+      }
+    }
 
     // Validate
     const errors = validatePromo(req.body);

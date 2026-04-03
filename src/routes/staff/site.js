@@ -330,6 +330,9 @@ router.get('/domain', async (req, res, next) => {
 router.post('/domain', requireOwner, async (req, res, next) => {
   try {
     const { domain } = req.body;
+    if (req.businessPlan === 'free' && domain) {
+      return res.status(403).json({ error: 'upgrade_required', message: 'Le domaine personnalisé est disponible avec le plan Pro.' });
+    }
     if (!domain) return res.status(400).json({ error: 'domain requis' });
 
     // Validate domain format

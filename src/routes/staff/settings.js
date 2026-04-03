@@ -106,6 +106,14 @@ router.patch('/', requireOwner, async (req, res, next) => {
       sector
     } = req.body;
 
+    // Plan guards: block Pro-only settings on free plan
+    if (req.businessPlan === 'free' && settings_last_minute_enabled === true) {
+      return res.status(403).json({ error: 'upgrade_required', message: 'Les promotions last-minute sont disponibles avec le plan Pro.' });
+    }
+    if (req.businessPlan === 'free' && (settings_deposit_enabled === true || settings_deposit_percent !== undefined)) {
+      return res.status(403).json({ error: 'upgrade_required', message: 'Les acomptes sont disponibles avec le plan Pro.' });
+    }
+
     // Merge individual settings fields into settings JSONB
     let mergedSettings = settings || null;
     if (settings_iban !== undefined || settings_bic !== undefined || settings_invoice_footer !== undefined

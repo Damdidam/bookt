@@ -554,7 +554,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         // Deposit check (multi-service) — triggers: price/duration thresholds OR no-show recidivist
         let gcPartialCents = 0;
         let bizSettings = {};
-        if (bookings.length > 0) {
+        if (bookings.length > 0 && businessPlan !== 'free') {
           try {
             await client.query('SAVEPOINT deposit_sp');
 
@@ -1149,7 +1149,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       // ── Deposit check (single-service) — triggers: price/duration thresholds OR no-show recidivist ──
       let gcPartialCents = 0;
       let bizSettings = {};
-      if (booking.rows[0]) {
+      if (booking.rows[0] && businessPlan !== 'free') {
         try {
           await client.query('SAVEPOINT deposit_single_sp');
 

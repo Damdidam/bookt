@@ -64,10 +64,12 @@ router.post('/:slug/waitlist', bookingLimiter, async (req, res, next) => {
     }
 
     const bizResult = await query(
-      `SELECT id FROM businesses WHERE slug = $1 AND is_active = true`, [slug]
+      `SELECT id, plan FROM businesses WHERE slug = $1 AND is_active = true`, [slug]
     );
     if (bizResult.rows.length === 0) return res.status(404).json({ error: 'Cabinet introuvable' });
-    const businessId = bizResult.rows[0].id;
+    const biz = bizResult.rows[0];
+    if ((biz.plan || 'free') === 'free') return res.status(403).json({ error: 'upgrade_required', message: "La liste d'attente est disponible avec le plan Pro." });
+    const businessId = biz.id;
 
     // Check practitioner has waitlist enabled
     const pracResult = await query(
