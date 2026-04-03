@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const crypto = require('crypto');
 const { query, queryWithRLS, transactionWithRLS } = require('../../services/db');
-const { requireAuth, requireOwner } = require('../../middleware/auth');
+const { requireAuth, requireOwner, requirePro } = require('../../middleware/auth');
 const cal = require('../../services/calendar-sync');
 
 // Store OAuth state tokens in DB (survives restarts, multi-instance safe)
@@ -32,7 +32,7 @@ const oauthStates = {
  * GET /api/calendar/google/connect
  * Redirects to Google OAuth consent screen
  */
-router.get('/google/connect', requireAuth, async (req, res) => {
+router.get('/google/connect', requireAuth, requirePro, async (req, res) => {
   if (!process.env.GOOGLE_CLIENT_ID) {
     return res.status(501).json({ error: 'Google Calendar non configuré' });
   }
@@ -141,7 +141,7 @@ router.get('/google/callback', async (req, res) => {
 /**
  * GET /api/calendar/outlook/connect
  */
-router.get('/outlook/connect', requireAuth, async (req, res) => {
+router.get('/outlook/connect', requireAuth, requirePro, async (req, res) => {
   if (!process.env.OUTLOOK_CLIENT_ID) {
     return res.status(501).json({ error: 'Outlook Calendar non configuré' });
   }
@@ -256,7 +256,7 @@ router.get('/outlook/callback', async (req, res) => {
 /**
  * GET /api/calendar/connections — list connected calendars
  */
-router.get('/connections', requireAuth, async (req, res, next) => {
+router.get('/connections', requireAuth, requirePro, async (req, res, next) => {
   try {
     const { practitioner_id } = req.query;
     let sql = `SELECT id, provider, practitioner_id, email, calendar_name, sync_direction, sync_enabled,
@@ -278,7 +278,7 @@ router.get('/connections', requireAuth, async (req, res, next) => {
 /**
  * PATCH /api/calendar/connections/:id — update sync settings
  */
-router.patch('/connections/:id', requireAuth, async (req, res, next) => {
+router.patch('/connections/:id', requireAuth, requirePro, async (req, res, next) => {
   try {
     const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     const { sync_direction, sync_enabled } = req.body;
@@ -306,7 +306,7 @@ router.patch('/connections/:id', requireAuth, async (req, res, next) => {
 /**
  * DELETE /api/calendar/connections/:id — disconnect calendar
  */
-router.delete('/connections/:id', requireAuth, async (req, res, next) => {
+router.delete('/connections/:id', requireAuth, requirePro, async (req, res, next) => {
   try {
     // V13-003: Wrap in transaction, delete events first (FK order), then connection
     await transactionWithRLS(req.businessId, async (client) => {
@@ -332,7 +332,7 @@ router.delete('/connections/:id', requireAuth, async (req, res, next) => {
 /**
  * POST /api/calendar/connections/:id/sync — trigger manual sync
  */
-router.post('/connections/:id/sync', requireAuth, async (req, res, next) => {
+router.post('/connections/:id/sync', requireAuth, requirePro, async (req, res, next) => {
   try {
     const connResult = await queryWithRLS(req.businessId,
       `SELECT * FROM calendar_connections WHERE id = $1 AND business_id = $2 AND user_id = $3`,
@@ -501,7 +501,7 @@ router.get('/ical/:token', async (req, res) => {
  * POST /api/calendar/ical/generate — generate iCal feed URL
  * Creates a persistent "ical" connection with a secret token
  */
-router.post('/ical/generate', requireAuth, async (req, res, next) => {
+router.post('/ical/generate', requireAuth, requirePro, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { practitioner_id } = req.body; // null = all practitioners

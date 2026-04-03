@@ -1,11 +1,12 @@
 const router = require('express').Router();
 const { queryWithRLS } = require('../../services/db');
-const { requireAuth, resolvePractitionerScope } = require('../../middleware/auth');
+const { requireAuth, resolvePractitionerScope, requirePro } = require('../../middleware/auth');
 const { sendEmail, buildEmailHTML, escHtml } = require('../../services/email');
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 router.use(requireAuth);
+router.use(requirePro);
 router.use(resolvePractitionerScope);
 
 // ============================================================
