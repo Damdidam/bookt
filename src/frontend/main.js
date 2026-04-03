@@ -91,13 +91,18 @@ document.getElementById('todayDate').textContent = new Date().toLocaleDateString
 // ── Plan badge (refresh from server to catch DB changes) ──
 if (biz) {
   const badge = document.getElementById('planBadge');
-  badge.textContent = (biz.plan || 'free').toUpperCase();
+  const currentPlan = biz.plan || 'free';
+  badge.textContent = currentPlan.toUpperCase();
+  badge.className = 'plan plan-' + currentPlan;
+  badge.title = currentPlan === 'pro' ? 'Plan Pro actif' : 'Plan gratuit — cliquez pour upgrader';
+  badge.onclick = () => { window.location.hash = 'settings'; };
   // Async refresh
   api.getDashboard?.()?.then?.(d => {
     if (d?.business?.plan && d.business.plan !== biz.plan) {
       biz.plan = d.business.plan;
       api.setBusiness(biz);
       badge.textContent = d.business.plan.toUpperCase();
+      badge.className = 'plan plan-' + d.business.plan;
     }
   }).catch(() => {});
 }

@@ -4,7 +4,10 @@
 .sb-logo{padding:12px 18px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.06);height:57px;box-sizing:border-box}
 .sb-logo .l{width:32px;height:32px;display:flex;align-items:center;justify-content:center}
 .sb-logo .w{font-size:.85rem;font-weight:700;letter-spacing:.3px}
-.sb-logo .plan{font-size:.55rem;font-weight:700;background:rgba(255,255,255,.1);padding:2px 6px;border-radius:4px;margin-left:auto;color:rgba(255,255,255,.4);letter-spacing:.5px}
+.sb-logo .plan{font-size:.58rem;font-weight:700;padding:3px 8px;border-radius:6px;margin-left:auto;letter-spacing:.5px;cursor:pointer;transition:opacity .15s}
+.sb-logo .plan:hover{opacity:.8}
+.sb-logo .plan.plan-free{background:rgba(255,255,255,.12);color:rgba(255,255,255,.5)}
+.sb-logo .plan.plan-pro{background:linear-gradient(135deg,#D97706,#F59E0B);color:#fff}
 .sb-nav{padding:12px 10px;flex:1;overflow-y:auto}
 .sb-nav::-webkit-scrollbar{width:0}
 .sb-label{font-size:.65rem;font-weight:800;text-transform:uppercase;letter-spacing:1.4px;color:rgba(255,255,255,.45);padding:18px 12px 6px;user-select:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;border-radius:var(--radius-xs);transition:color .15s}
