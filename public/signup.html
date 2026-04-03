@@ -249,16 +249,16 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 
       <!-- ===== STEP 11: GO LIVE ===== -->
       <div class="step" data-step="11">
-        <div class="step-hdr"><div class="lbl"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Inscription terminée</div><h2>Merci pour votre inscription !</h2></div>
-        <div class="golive">
-          <div class="icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:#A68B3C"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+        <div class="step-hdr"><div class="lbl"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> C'est prêt !</div><h2>Votre salon est en ligne</h2></div>
+        <div class="golive" style="border-color:#B8E6C4">
+          <div class="icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:#1B7A42"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
           <h3 id="goliveName">Votre salon</h3>
-          <p style="color:var(--text-3);font-size:.88rem;line-height:1.6">Votre compte a bien été créé. <strong>Un administrateur Genda va vérifier votre inscription</strong> et activer votre salon. Vous recevrez un email de confirmation dès que tout sera prêt.</p>
+          <p style="color:var(--text-3);font-size:.88rem;line-height:1.6">Votre page de réservation est déjà accessible. Vos clients peuvent prendre rendez-vous dès maintenant.</p>
           <div class="url" id="goliveUrl" onclick="copyUrl()">genda.be/votre-salon</div>
         </div>
 
         <div style="background:var(--gold-bg);border:1px solid var(--gold-border);border-radius:var(--radius);padding:16px;margin:16px 0">
-          <div style="font-size:.82rem;font-weight:700;color:var(--gold);margin-bottom:8px">En attendant l'activation, configurez votre salon :</div>
+          <div style="font-size:.82rem;font-weight:700;color:var(--gold);margin-bottom:8px">Peaufinez votre salon dans le dashboard :</div>
           <div style="font-size:.8rem;color:var(--text-2);line-height:1.7">
             <div style="margin-bottom:4px">• <strong>Prestations</strong> — ajustez les noms, durées, prix et temps de pose</div>
             <div style="margin-bottom:4px">• <strong>Bio & minisite</strong> — description, galerie, témoignages, thème</div>
@@ -269,7 +269,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 
         <div class="golive" style="padding-top:0">
           <div class="acts">
-            <a href="/dashboard" class="pri">Configurer mon salon →</a>
+            <a href="/dashboard" class="pri">Accéder au dashboard →</a>
           </div>
         </div>
       </div>
@@ -639,7 +639,7 @@ async function goLive() {
   document.getElementById('goliveUrl').textContent = `genda.be/${slug}`;
 
   go(11);
-  GendaUI.toast('Inscription terminée ! Un admin va vérifier votre salon.', 'success', 5000);
+  GendaUI.toast('Votre salon est en ligne !', 'success', 5000);
 }
 
 function copyUrl() {
