@@ -168,19 +168,27 @@ router.patch('/:id/status', async (req, res, next) => {
         }
       }
 
-      // M7 fix: Check slot availability when un-cancelling
+      // M7 fix: Check slot availability when un-cancelling (primary + group siblings)
       if (old.rows[0].status === 'cancelled' && !['cancelled', 'no_show', 'completed'].includes(status)) {
-        const bkSlot = await client.query(
-          `SELECT start_at, end_at, practitioner_id FROM bookings WHERE id = $1 AND business_id = $2`, [id, bid]
-        );
-        if (bkSlot.rows.length > 0) {
-          const slot = bkSlot.rows[0];
+        const slotsToCheck = [{ id, bid }];
+        if (old.rows[0].group_id) {
+          const grpSlots = await client.query(
+            `SELECT id, start_at, end_at, practitioner_id FROM bookings WHERE group_id = $1 AND business_id = $2 AND status = 'cancelled'`,
+            [old.rows[0].group_id, bid]
+          );
+          for (const gs of grpSlots.rows) slotsToCheck.push(gs);
+        } else {
+          const bkSlot = await client.query(`SELECT start_at, end_at, practitioner_id FROM bookings WHERE id = $1 AND business_id = $2`, [id, bid]);
+          if (bkSlot.rows.length > 0) slotsToCheck[0] = { ...bkSlot.rows[0], id };
+        }
+        for (const slot of slotsToCheck) {
+          if (!slot.practitioner_id) continue;
           const maxConc = await getMaxConcurrent(bid, slot.practitioner_id);
           const conflicts = await checkBookingConflicts(client, {
             bid, pracId: slot.practitioner_id,
             newStart: new Date(slot.start_at).toISOString(),
             newEnd: new Date(slot.end_at).toISOString(),
-            excludeIds: id
+            excludeIds: slot.id
           });
           if (conflicts.length >= maxConc) {
             return { error: 409, message: 'Ce créneau n\'est plus disponible. Un autre RDV occupe déjà ce créneau.' };

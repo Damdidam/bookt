@@ -496,7 +496,7 @@ router.delete('/:id/group-remove', async (req, res, next) => {
               try {
                 const _depPiRes = await client.query(
                   `SELECT deposit_payment_intent_id FROM bookings WHERE group_id = $1 AND business_id = $2 AND deposit_payment_intent_id IS NOT NULL LIMIT 1`,
-                  [group_id, bid]
+                  [groupId, bid]
                 );
                 if (_depPiRes.rows.length > 0 && _depPiRes.rows[0].deposit_payment_intent_id) {
                   const _stripeKey = process.env.STRIPE_SECRET_KEY;
