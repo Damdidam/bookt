@@ -1768,9 +1768,14 @@ body.tpl-funky .cart-chip { border-radius: 100px; }
 
       // Promo banner + badges
       var promos = d.promotions || [];
-      if (promos.length > 0) {
-        // All promos → banner above services
-        var bH = '';
+      var hasLm = d.last_minute_enabled && d.last_minute_discount_pct > 0;
+      if (promos.length > 0 || hasLm) {
+        // Title + all promos → banner above services
+        var bH = '<div style="font-weight:700;font-size:15px;margin-bottom:8px;color:var(--accent)">Profitez-en !</div>';
+        // Last-minute discount line
+        if (hasLm) {
+          bH += '<div class="sp-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><span class="sp-title">-' + d.last_minute_discount_pct + '% sur les cr\u00e9neaux de derni\u00e8re minute</span></div>';
+        }
         promos.forEach(function(p) {
           var label = '';
           if (p.condition_type === 'first_visit' && p.reward_type === 'discount_pct') label = '-' + p.reward_value + '% pour les nouveaux clients';
