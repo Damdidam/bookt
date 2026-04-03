@@ -550,7 +550,7 @@ async function handleStripeWebhook(req, res) {
               `SELECT pt.*, s.name AS service_name FROM pass_templates pt LEFT JOIN services s ON s.id = pt.service_id WHERE pt.id = $1 AND pt.business_id = $2`,
               [pass_template_id, business_id]
             );
-            if (tplRes.rows.length === 0) { console.error('[STRIPE] Pass template not found:', pass_template_id); return; }
+            if (tplRes.rows.length === 0) { console.error('[STRIPE] Pass template not found:', pass_template_id); break; }
             const tpl = tplRes.rows[0];
 
             // Generate unique code (PS-XXXX-XXXX)

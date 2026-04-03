@@ -73,6 +73,7 @@ router.get('/manage/:token/slots', slotsLimiter, async (req, res, next) => {
     // locked flag no longer blocks client reschedule
     if ((bk.reschedule_count || 0) >= reschMaxCount) return res.status(403).json({ error: 'Nombre maximum de modifications atteint.' });
     if (new Date(bk.start_at) <= now) return res.status(403).json({ error: 'Ce rendez-vous est déjà passé.' });
+    if (now >= reschDeadline) return res.status(403).json({ error: `La modification doit être faite au moins ${reschDeadlineHours}h avant le rendez-vous.` });
 
     // Validate date range
     const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
@@ -174,6 +175,8 @@ router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) 
     // locked flag no longer blocks client reschedule
     if ((bk.reschedule_count || 0) >= reschMaxCount) { await client.query('ROLLBACK'); return res.status(403).json({ error: 'Nombre maximum de modifications atteint.' }); }
     if (new Date(bk.start_at) <= now) { await client.query('ROLLBACK'); return res.status(403).json({ error: 'Ce rendez-vous est déjà passé.' }); }
+    const reschDeadline = new Date(new Date(bk.start_at).getTime() - reschDeadlineHours * 3600000);
+    if (now >= reschDeadline) { await client.query('ROLLBACK'); return res.status(403).json({ error: `La modification doit être faite au moins ${reschDeadlineHours}h avant le rendez-vous.` }); }
 
     // Validate date within window
     const today = now.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });

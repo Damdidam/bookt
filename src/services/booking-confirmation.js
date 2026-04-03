@@ -42,7 +42,7 @@ async function processExpiredPendingBookings() {
       try {
       // Cancel the booking
       const upd = await client.query(
-        `UPDATE bookings SET status = 'cancelled', updated_at = NOW(), confirmation_expires_at = NULL
+        `UPDATE bookings SET status = 'cancelled', cancel_reason = 'Confirmation non reçue dans le délai imparti', updated_at = NOW(), confirmation_expires_at = NULL
          WHERE id = $1 AND status = 'pending'
          RETURNING id`,
         [bk.id]

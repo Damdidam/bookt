@@ -522,7 +522,7 @@ router.post('/ical/generate', requireAuth, async (req, res, next) => {
     );
 
     const token = Buffer.from(`${bid}:${practitioner_id || 'all'}:${result.rows[0].access_token}`).toString('base64url');
-    const baseUrl = process.env.BASE_URL || 'https://genda-qgm2.onrender.com';
+    const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
 
     res.json({
       ical_url: `${baseUrl}/api/calendar/ical/${token}`,

@@ -1637,7 +1637,7 @@ router.post('/:id/send-reminder', async (req, res, next) => {
     const dateStr = new Date(b.start_at).toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
     const timeStr = new Date(b.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
     const endTimeStr = b.end_at ? new Date(b.end_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' }) : null;
-    const baseUrl = process.env.BASE_URL || 'https://genda.be';
+    const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
     const manageUrl = `${baseUrl}/booking/${b.public_token}`;
     const result = {};
 

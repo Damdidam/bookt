@@ -526,7 +526,7 @@ async function loadSettings(){
     try{
       const sr=await fetch('/api/stripe/status',{headers:{'Authorization':'Bearer '+api.getToken()}});
       if(sr.ok) subStatus=await sr.json();
-    }catch(e){}
+    }catch(e){console.error('Stripe status error:',e);}
 
     h+=`<div class="settings-card"><div class="sc-h"><h3>${IC.creditCard} Plan & Facturation</h3></div><div class="sc-body">`;
 

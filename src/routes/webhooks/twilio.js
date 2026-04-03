@@ -71,7 +71,7 @@ router.post('/sms/inbound', async (req, res) => {
   const body = (req.body.Body || '').trim();
   const normalized = body.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
-  console.log(`[SMS INBOUND] From: ***${from.slice(-4)} Body: "${body}"`);
+  console.log(`[SMS INBOUND] From: ***${from.slice(-4)} (${body.length} chars)`);
 
   // Rate limit — silent response (no outbound SMS charged)
   if (!checkSmsRate(from)) {

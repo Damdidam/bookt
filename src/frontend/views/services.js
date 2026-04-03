@@ -512,7 +512,7 @@ async function persistCatOrder(){
       try{
         const r=await fetch('/api/business/categories',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({label})});
         if(r.ok){const d=await r.json();catMeta[label]={...catMeta[label],id:d.category.id};meta=catMeta[label];}
-      }catch(e){}
+      }catch(e){console.error('Category create error:',e);}
     }
     if(meta?.id)order.push({id:meta.id,sort_order:i});
   }
@@ -579,7 +579,7 @@ function svcPickTemplate(cat,name,dur,priceCents){
 async function openServiceModal(editId,prefill){
   let sectorCats=allSectorCats;
   if(!sectorCats.length){
-    try{const r=await fetch('/api/business/sector-categories',{headers:{'Authorization':'Bearer '+api.getToken()}});if(r.ok){const data=await r.json();sectorCats=data.categories||[];}}catch(e){}
+    try{const r=await fetch('/api/business/sector-categories',{headers:{'Authorization':'Bearer '+api.getToken()}});if(r.ok){const data=await r.json();sectorCats=data.categories||[];}}catch(e){console.error('Services error:',e);}
   }
   try {
     const sRes = await fetch('/api/business', { headers: { 'Authorization': 'Bearer ' + api.getToken() } });
@@ -600,7 +600,7 @@ async function openServiceModal(editId,prefill){
       try {
         const promoRes=await fetch('/api/promotions',{headers:{'Authorization':'Bearer '+api.getToken()}});
         if(promoRes.ok){const promoData=await promoRes.json();const promos=promoData.promotions||promoData||[];existingPromo=promos.find(p=>p.condition_type==='specific_service'&&String(p.condition_service_id)===String(editId))||null;}
-      } catch(e){}
+      } catch(e){console.error('Services error:',e);}
     }
     renderServiceModal(svc,sectorCats,null,existingPromo);
   }else{renderServiceModal(null,sectorCats,prefill||null,null);}

@@ -76,7 +76,7 @@ router.get('/:provider', authLimiter, async (req, res) => {
       expiresAt: Date.now() + 10 * 60000 // 10 min
     });
 
-    const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+    const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'http://localhost:3000';
     const callbackPath = provider === 'apple'
       ? `/api/public/auth/apple/callback`
       : `/api/public/auth/${provider}/callback`;
@@ -202,7 +202,7 @@ async function handleCallback(provider, params, appleUserObj, req, res) {
     }
 
     // Exchange code for tokens
-    const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+    const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'http://localhost:3000';
     const callbackPath = provider === 'apple'
       ? `/api/public/auth/apple/callback`
       : `/api/public/auth/${provider}/callback`;
