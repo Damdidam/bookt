@@ -5,6 +5,7 @@
  */
 import { api, calState, biz } from '../../state.js';
 import { esc, gToast } from '../../utils/dom.js';
+import { isPro } from '../../utils/plan-gate.js';
 import { bridge } from '../../utils/window-bridge.js';
 import { fcRefresh } from './calendar-init.js';
 import { fcOpenQuickCreate } from './quick-create.js';
@@ -36,6 +37,7 @@ function fmtEur(cents) { return ((cents || 0) / 100).toFixed(2).replace('.',',')
 // ── Toggle ──
 async function gaToggleMode() {
   if (gaActive) { gaDeactivate(); return; }
+  if (!isPro()) { gToast('Le gap analyzer est disponible avec le plan Pro', 'error'); return; }
 
   if (fcIsMobile()) { gToast('Analyseur non disponible sur mobile', 'info'); return; }
 

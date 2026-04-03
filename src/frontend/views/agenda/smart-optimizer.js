@@ -8,6 +8,7 @@
  */
 import { calState, api } from '../../state.js';
 import { esc, gToast, initTimeInputs } from '../../utils/dom.js';
+import { isPro } from '../../utils/plan-gate.js';
 import { bridge } from '../../utils/window-bridge.js';
 import { fcOpenQuickCreate } from './quick-create.js';
 import { fcIsMobile } from '../../utils/touch.js';
@@ -1182,6 +1183,7 @@ function _soQueueRemainingServices(services, idx) {
 
 function soToggleMode() {
   if (S.active) { soDeactivate(); return; }
+  if (!isPro()) { gToast('Le smart optimizer est disponible avec le plan Pro', 'error'); return; }
   if (fcIsMobile()) { gToast('Quick booking non disponible sur mobile', 'info'); return; }
   soActivate();
 }
