@@ -366,10 +366,11 @@ section { max-width: var(--max-w); margin: 0 auto; padding: 100px 32px; }
 
 /* ── PRICING ── */
 .pricing-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; margin-top: 56px; max-width: 720px; margin-left: auto; margin-right: auto; }
-.price-card { background: var(--white); border-radius: 20px; padding: 36px 28px; border: 1px solid var(--border-light); transition: all .3s; position: relative; }
+.price-card { background: var(--white); border-radius: 20px; padding: 36px 28px; border: 1px solid var(--border-light); transition: all .3s; position: relative; display: flex; flex-direction: column; }
+.price-card .plan-btn { margin-top: auto; }
 .price-card:hover { box-shadow: var(--shadow-md); }
 .price-card.feat { border: 2px solid var(--coral); background: var(--coral-lighter); box-shadow: var(--shadow-glow); }
-.price-card.feat::before { content: 'Le plus populaire'; display: inline-block; background: var(--coral); color: white; padding: 4px 14px; border-radius: 100px; font-size: .68rem; font-weight: 700; white-space: nowrap; margin-bottom: 12px; }
+.price-card.feat::before { display: none; }
 .plan-name { font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--text-4); margin-bottom: 8px; }
 .plan-price { font-family: var(--serif); font-size: 2.8rem; color: var(--text); letter-spacing: -.03em; }
 .plan-price span { font-family: var(--sans); font-size: .85rem; color: var(--text-4); font-weight: 400; }
@@ -1005,8 +1006,10 @@ section { max-width: var(--max-w); margin: 0 auto; padding: 100px 32px; }
         <li><span class="ck"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> <strong>Promotions illimit&#233;es + last-minute auto</strong></li>
         <li><span class="ck"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> Analytics avanc&#233;s + heatmap</li>
         <li><span class="ck"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> Liste d'attente intelligente</li>
-        <li><span class="ck"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> Facturation PDF + sync Google/Outlook</li>
-        <li><span class="ck"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> Domaine personnalis&#233; + support prioritaire</li>
+        <li><span class="ck"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> Facturation PDF</li>
+        <li><span class="ck"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> Sync Google / Outlook</li>
+        <li><span class="ck"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> Domaine personnalis&#233;</li>
+        <li><span class="ck"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> Support prioritaire</li>
       </ul>
       <a class="plan-btn primary" href="/signup.html">Commencer gratuitement</a>
     </div>
