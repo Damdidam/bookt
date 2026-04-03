@@ -108,6 +108,7 @@ router.post('/checkout', requireAuth, requireOwner, async (req, res, next) => {
       allow_promotion_codes: true,
       billing_address_collection: 'required',
       tax_id_collection: { enabled: true },
+      customer_update: { name: 'auto', address: 'auto' },
       metadata: { business_id: bid, plan }
     };
 
