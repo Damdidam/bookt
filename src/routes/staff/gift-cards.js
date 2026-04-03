@@ -1,10 +1,11 @@
 const router = require('express').Router();
 const crypto = require('crypto');
 const { queryWithRLS, transactionWithRLS } = require('../../services/db');
-const { requireAuth, requireOwner } = require('../../middleware/auth');
+const { requireAuth, requireOwner, requirePro } = require('../../middleware/auth');
 
 router.use(requireAuth);
 router.use(requireOwner);
+router.use(requirePro);
 
 /** Generate unique gift card code: GC-XXXX-XXXX */
 function generateCode() {

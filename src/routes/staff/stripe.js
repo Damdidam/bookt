@@ -725,9 +725,17 @@ async function handleStripeWebhook(req, res) {
               );
               console.log(`[STRIPE WH] Deactivated ${activePromos.rows.length - 1} excess promotions for business ${bizId}`);
             }
-            // Disable LM auto-discount in settings
+            // Disable Pro-only settings on downgrade
             await query(
-              `UPDATE businesses SET settings = jsonb_set(COALESCE(settings, '{}'::jsonb), '{last_minute_enabled}', 'false') WHERE id = $1`,
+              `UPDATE businesses SET settings =
+                jsonb_set(
+                  jsonb_set(
+                    jsonb_set(
+                      jsonb_set(COALESCE(settings, '{}'::jsonb), '{last_minute_enabled}', 'false'),
+                    '{deposit_enabled}', 'false'),
+                  '{giftcard_enabled}', 'false'),
+                '{passes_enabled}', 'false')
+              WHERE id = $1`,
               [bizId]
             );
           } catch (cleanupErr) {

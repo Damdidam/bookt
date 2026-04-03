@@ -54,7 +54,7 @@ async function requireAuth(req, res, next) {
     };
     req.businessId = user.business_id;
     req.businessSlug = user.slug;
-    req.businessPlan = user.plan;
+    req.businessPlan = user.plan || 'free';
     req.businessSector = user.sector || 'autre';
 
     next();
