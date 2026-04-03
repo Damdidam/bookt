@@ -116,4 +116,17 @@ function requireSuperadmin(req, res, next) {
   next();
 }
 
-module.exports = { requireAuth, requireOwner, requireRole, resolvePractitionerScope, requireSuperadmin };
+/**
+ * Require Pro plan (gated features)
+ */
+function requirePro(req, res, next) {
+  if (req.businessPlan === 'free') {
+    return res.status(403).json({
+      error: 'upgrade_required',
+      message: 'Cette fonctionnalité est disponible avec le plan Pro.'
+    });
+  }
+  next();
+}
+
+module.exports = { requireAuth, requireOwner, requireRole, resolvePractitionerScope, requireSuperadmin, requirePro };
