@@ -618,11 +618,14 @@ router.post('/', requireOwner, async (req, res, next) => {
 
     if (!display_name) return res.status(400).json({ error: 'Nom requis' });
 
-    // Plan guard: free tier limited to 1 practitioner
+    // Plan guard: free tier limited to 1 practitioner (bypassed during onboarding)
     const bizPlanCheck = await queryWithRLS(bid,
-      `SELECT b.plan, (SELECT COUNT(*)::int FROM practitioners WHERE business_id = b.id AND is_active = true) AS prac_count
+      `SELECT b.plan,
+              (SELECT COUNT(*)::int FROM practitioners WHERE business_id = b.id AND is_active = true) AS prac_count,
+              (SELECT completed_at FROM onboarding_progress WHERE business_id = b.id) AS onboarding_done
        FROM businesses b WHERE b.id = $1`, [bid]);
-    if (bizPlanCheck.rows[0]?.plan === 'free' && bizPlanCheck.rows[0]?.prac_count >= 1) {
+    const row = bizPlanCheck.rows[0];
+    if (row?.plan === 'free' && row.prac_count >= 1 && row.onboarding_done !== null) {
       return res.status(403).json({ error: 'Le plan gratuit est limité à 1 praticien. Passez au Pro pour en ajouter.' });
     }
 
