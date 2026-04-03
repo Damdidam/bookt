@@ -458,6 +458,10 @@ function renderTable(businesses) {
           : '<button class="act-btn" onclick="toggleActive(\'' + b.id + '\',true)" title="Activer">\u2705</button>'
         ) +
         '<button class="act-btn" onclick="copyUrl(\'' + esc(b.slug) + '\')" title="Copier URL">\ud83d\udccb</button>' +
+        (b.plan === 'pro'
+          ? '<button class="act-btn danger" onclick="togglePlan(\'' + b.id + '\',\'' + esc(b.name) + '\',\'free\')" title="Downgrader vers Free">\u2b07\ufe0f</button>'
+          : '<button class="act-btn" onclick="togglePlan(\'' + b.id + '\',\'' + esc(b.name) + '\',\'pro\')" title="Upgrader vers Pro" style="color:var(--gold)">\u2b06\ufe0f</button>'
+        ) +
       '</div></td>' +
     '</tr>';
   }).join('');
@@ -481,6 +485,25 @@ function goPage(p) {
 }
 
 // ─── Actions ───
+async function togglePlan(businessId, name, newPlan) {
+  const label = newPlan === 'pro' ? 'Upgrader vers Pro' : 'Downgrader vers Free';
+  const msg = newPlan === 'free'
+    ? 'Passer ' + name + ' en Free ?\n\nLes fonctionnalités Pro seront désactivées (LM, acomptes, GC, passes, promos surplus).'
+    : 'Passer ' + name + ' en Pro ?\n\nToutes les fonctionnalités seront débloquées.';
+  const confirmed = await showConfirm(msg, { okLabel: label });
+  if (!confirmed) return;
+  apiFetch('/businesses/' + businessId, {
+    method: 'PATCH',
+    body: JSON.stringify({ plan: newPlan })
+  })
+  .then(data => {
+    toast(data.name + ' → ' + newPlan.toUpperCase(), 'success');
+    loadBusinesses();
+    apiFetch('/stats').then(renderStats);
+  })
+  .catch(err => toast(err.message));
+}
+
 function impersonate(businessId) {
   apiFetch('/impersonate/' + businessId, { method: 'POST' })
     .then(data => {

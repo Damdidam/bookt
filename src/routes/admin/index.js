@@ -187,6 +187,17 @@ router.patch('/businesses/:id', async (req, res, next) => {
       sets.push(`plan = $${idx++}`);
       params.push(plan);
       sets.push(`plan_changed_at = NOW()`);
+      // Downgrade cleanup: disable Pro-only settings + deactivate excess promos
+      if (plan === 'free') {
+        sets.push(`settings = jsonb_set(jsonb_set(jsonb_set(jsonb_set(COALESCE(settings, '{}'::jsonb), '{last_minute_enabled}', 'false'), '{deposit_enabled}', 'false'), '{giftcard_enabled}', 'false'), '{passes_enabled}', 'false')`);
+        try {
+          const activePromos = await query(`SELECT id FROM promotions WHERE business_id = $1 AND is_active = true ORDER BY sort_order, created_at`, [req.params.id]);
+          if (activePromos.rows.length > 1) {
+            const keepId = activePromos.rows[0].id;
+            await query(`UPDATE promotions SET is_active = false, updated_at = NOW() WHERE business_id = $1 AND is_active = true AND id != $2`, [req.params.id, keepId]);
+          }
+        } catch (_) {}
+      }
     }
 
     if (sets.length === 0) return res.status(400).json({ error: 'Nothing to update' });
