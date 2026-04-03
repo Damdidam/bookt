@@ -398,7 +398,8 @@ section { max-width: var(--max-w); margin: 0 auto; padding: 100px 32px; }
 
 /* ── FOOTER ── */
 .footer { padding: 64px 32px; border-top: 1px solid var(--border-light); }
-.footer-inner { max-width: var(--max-w); margin: 0 auto; display: grid; grid-template-columns: 1.6fr 1fr 1fr 1fr; gap: 48px; }
+.footer-inner { max-width: var(--max-w); margin: 0 auto; display: grid; grid-template-columns: 1.6fr 2.4fr; gap: 48px; }
+.footer-cols-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 32px; }
 .footer-brand .f-logo { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
 .footer-brand .f-logo .nav-logo { width: 30px; height: 30px; }
 .footer-brand .f-tagline { font-size: .82rem; color: var(--text-3); max-width: 280px; line-height: 1.5; font-weight: 300; }
@@ -422,7 +423,7 @@ section { max-width: var(--max-w); margin: 0 auto; padding: 100px 32px; }
   .step-arrow { display: none; }
   .pricing-grid { grid-template-columns: 1fr; max-width: 400px; margin-left: auto; margin-right: auto; margin-top: 48px; }
   .stats-inner { grid-template-columns: 1fr 1fr; gap: 24px; }
-  .footer-inner { grid-template-columns: 1fr 1fr; }
+  .footer-inner { grid-template-columns: 1fr; }
   .engine-grid { grid-template-columns: 1fr; }
 }
 
@@ -438,7 +439,10 @@ section { max-width: var(--max-w); margin: 0 auto; padding: 100px 32px; }
   .nav-right .nav-link, .nav-right .nav-login { display: none; }
   .nav-mobile { display: block; }
   .sectors-label { display: none; }
-  .footer-inner { grid-template-columns: 1fr; gap: 28px; }
+  .footer-inner { grid-template-columns: 1fr; gap: 24px; }
+  .footer-inner .footer-brand { margin-bottom: 8px; }
+  .footer-inner .footer-brand .f-tagline { max-width: 100%; }
+  .footer-cols-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
   .footer-bottom { flex-direction: column; gap: 6px; }
   .final-cta { margin: 0 16px 60px; padding: 56px 24px; }
   .feat-section, .steps-section, .stats-bar, .engine-section { padding-left: 20px; padding-right: 20px; }
@@ -1029,9 +1033,11 @@ section { max-width: var(--max-w); margin: 0 auto; padding: 100px 32px; }
 <footer class="footer">
   <div class="footer-inner">
     <div class="footer-brand"><div class="f-logo"><div class="nav-logo"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="2" width="20" height="20" rx="6" fill="#F0EBE7"/><path d="M12 6.5c-3.04 0-5.5 2.46-5.5 5.5s2.46 5.5 5.5 5.5c1.52 0 2.9-.62 3.89-1.61" stroke="#2C2622" stroke-width="1.8" stroke-linecap="round" fill="none"/><path d="M15.5 12H12v3.5" stroke="#2C2622" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></div><span class="nav-wm">Genda</span></div><p class="f-tagline">L'outil de gestion de rendez-vous dédié aux professionnels de la beauté et du bien-être. Pas de marketplace, pas de commission — juste votre salon.</p></div>
-    <div class="footer-col"><h4>Produit</h4><a href="#engine">Le moteur</a><a href="#features">Fonctionnalités</a><a href="#pricing">Tarifs</a><a href="#faq">FAQ</a></div>
-    <div class="footer-col"><h4>Secteurs</h4><a href="#engine">Coiffure</a><a href="#engine">Esthétique</a><a href="#engine">Barbier</a><a href="#engine">Massage</a><a href="#engine">Onglerie</a><a href="#engine">Bien-être</a></div>
-    <div class="footer-col"><h4>Legal</h4><a href="/privacy-policy.html">Politique de confidentialité</a><a href="/legal">Conditions d'utilisation</a><a href="/legal">RGPD</a><a href="mailto:contact@genda.be">Contact</a></div>
+    <div class="footer-cols-row">
+      <div class="footer-col"><h4>Produit</h4><a href="#engine">Le moteur</a><a href="#features">Fonctionnalités</a><a href="#pricing">Tarifs</a><a href="#faq">FAQ</a></div>
+      <div class="footer-col"><h4>Secteurs</h4><a href="#engine">Coiffure</a><a href="#engine">Esthétique</a><a href="#engine">Barbier</a><a href="#engine">Massage</a><a href="#engine">Onglerie</a><a href="#engine">Bien-être</a></div>
+      <div class="footer-col"><h4>Legal</h4><a href="/privacy-policy.html">Politique de confidentialité</a><a href="/legal">Conditions d'utilisation</a><a href="/legal">RGPD</a><a href="mailto:contact@genda.be">Contact</a></div>
+    </div>
   </div>
   <div class="footer-bottom"><span>&copy; 2026 Genda &middot; H3001 &middot; Belgique</span><span>Fait avec soin a Charleroi</span></div>
 </footer>
