@@ -16,7 +16,7 @@ const SECTION_TITLES = {
   hours: 'Horaires',
   waitlist: "Liste d'attente",
   team: 'Équipe',
-  planning: 'Planning',
+  planning: 'Absences',
   site: 'Mon site',
   invoices: 'Facturation',
   deposits: 'Acomptes',
