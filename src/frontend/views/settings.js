@@ -1253,7 +1253,7 @@ async function confirmDeleteAccount(){
     el.className = 'dg-overlay';
     el.innerHTML = `<div class="dg-card">
       <p class="dg-msg" style="font-weight:600;margin-bottom:6px;color:#DC2626">Fermer votre compte ?</p>
-      <p class="dg-msg" style="font-size:.85rem;color:var(--text-2)">Votre compte sera désactivé. Vos clients avec des rendez-vous futurs, acomptes, cartes cadeaux ou abonnements seront notifiés par email.</p>
+      <p class="dg-msg" style="font-size:.85rem;color:var(--text-2)">Votre compte sera désactivé. Vos clients avec des rendez-vous futurs, acomptes, cartes cadeaux ou abonnements seront notifiés par email. Vous recevrez un export CSV de vos données par email.</p>
       <p class="dg-msg" style="font-size:.85rem;margin-top:8px">Tapez le nom de votre salon pour confirmer :</p>
       <input id="_delName" type="text" placeholder="Nom du salon" style="width:100%;padding:8px 10px;border:1px solid var(--border-light);border-radius:6px;font-size:.85rem;margin:8px 0;box-sizing:border-box">
       <div class="dg-actions">
