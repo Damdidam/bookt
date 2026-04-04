@@ -251,9 +251,52 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
         <div class="snav"><button class="btn-back" onclick="go(2)">← Retour</button><button class="btn-next" onclick="saveOwnerStep()">Continuer →</button></div>
       </div>
 
-      <!-- STEPS 5, 6, 7 removed: bio/specializations/testimonials configurable in dashboard -->
+      <!-- ===== STEP 5: BOOKING CONFIRMATION ===== -->
+      <div class="step" data-step="5">
+        <div class="step-hdr"><div class="lbl">Confirmation des RDV</div><h2>Confirmer les rendez-vous ?</h2><p>Choisissez si vos clients doivent confirmer leur rendez-vous par email ou SMS avant qu'il ne soit validé.</p></div>
 
-      <!-- STEPS 8, 9, 10 removed: notifications/call-filter/calendar configurable in dashboard -->
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <label style="display:flex;align-items:flex-start;gap:12px;padding:16px;border:1.5px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;transition:all .15s" onclick="setConfirmMode(false)">
+            <input type="radio" name="confirmMode" value="off" checked style="margin-top:3px;accent-color:var(--primary)">
+            <div>
+              <div style="font-weight:600;font-size:.88rem">Confirmation automatique</div>
+              <div style="font-size:.78rem;color:var(--text-3);margin-top:2px">Les rendez-vous sont confirmés immédiatement. Recommandé pour la plupart des salons.</div>
+            </div>
+          </label>
+          <label style="display:flex;align-items:flex-start;gap:12px;padding:16px;border:1.5px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;transition:all .15s" onclick="setConfirmMode(true)">
+            <input type="radio" name="confirmMode" value="on" style="margin-top:3px;accent-color:var(--primary)">
+            <div>
+              <div style="font-weight:600;font-size:.88rem">Confirmation requise</div>
+              <div style="font-size:.78rem;color:var(--text-3);margin-top:2px">Le client reçoit un lien de confirmation par email/SMS. Sans réponse dans le délai, le RDV est annulé.</div>
+            </div>
+          </label>
+        </div>
+
+        <div id="confirmOptions" style="display:none;margin-top:16px;padding:16px;background:var(--surface);border-radius:var(--radius-sm)">
+          <div style="margin-bottom:12px">
+            <label style="font-size:.8rem;font-weight:600;color:var(--text-2);display:block;margin-bottom:4px">Canal de confirmation</label>
+            <select id="confirmChannel" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:var(--radius-xs);font-family:var(--sans);font-size:.82rem;background:var(--white)">
+              <option value="email">Email uniquement</option>
+              <option value="sms">SMS uniquement (plan Pro)</option>
+              <option value="both">Email + SMS (plan Pro)</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:.8rem;font-weight:600;color:var(--text-2);display:block;margin-bottom:4px">Délai de confirmation</label>
+            <select id="confirmTimeout" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:var(--radius-xs);font-family:var(--sans);font-size:.82rem;background:var(--white)">
+              <option value="15">15 minutes</option>
+              <option value="30" selected>30 minutes</option>
+              <option value="60">1 heure</option>
+              <option value="120">2 heures</option>
+              <option value="240">4 heures</option>
+              <option value="1440">24 heures</option>
+            </select>
+            <div style="font-size:.7rem;color:var(--text-4);margin-top:4px">Si le client ne confirme pas dans ce délai, le rendez-vous est automatiquement annulé.</div>
+          </div>
+        </div>
+
+        <div class="snav"><button class="btn-back" onclick="go(4)">← Retour</button><button class="btn-next" onclick="saveConfirmStep()">Continuer →</button></div>
+      </div>
 
       <!-- ===== STEP 11: GO LIVE ===== -->
       <div class="step" data-step="11">
@@ -324,13 +367,13 @@ function go(n) {
   currentStep = n;
   hideError();
 
-  // Progress bar — real steps: 0(account) → 2(hours) → 4(team) → 11(done)
-  const stepMap = {0: 0, 2: 1, 4: 2, 11: 3};
+  // Progress bar — real steps: 0(account) → 2(hours) → 4(team) → 5(confirm) → 11(done)
+  const stepMap = {0: 0, 2: 1, 4: 2, 5: 3, 11: 4};
   const stepNum = stepMap[n];
-  if (stepNum !== undefined && stepNum > 0 && stepNum < 3) {
-    const pct = Math.round((stepNum / 3) * 100);
+  if (stepNum !== undefined && stepNum > 0 && stepNum < 4) {
+    const pct = Math.round((stepNum / 4) * 100);
     document.getElementById('pFill').style.width = pct + '%';
-    document.getElementById('pLabel').textContent = `Étape ${stepNum}/3`;
+    document.getElementById('pLabel').textContent = `Étape ${stepNum}/4`;
     document.getElementById('pPct').textContent = pct + '%';
     document.getElementById('prog').classList.add('show');
   } else {
@@ -354,6 +397,7 @@ const leftTexts = {
   0: ['Chaque minute <em>compte.</em>', 'Le moteur de planning le plus intelligent pour salons et instituts de beauté.'],
   2: ['Vos <em>horaires,</em> optimisés', 'Le moteur maximise chaque créneau et gère les temps de pose.'],
   4: ['Votre <em>équipe</em>', 'Multi-praticiens sur un même RDV : le moteur assigne le bon créneau à chacun.'],
+  5: ['<em>Confirmations</em>', 'Choisissez si vos clients doivent confirmer leur RDV avant validation.'],
   11: ['Presque <em>terminé !</em>', 'Encore quelques réglages dans le dashboard et vous êtes prêt.']
 };
 
@@ -571,6 +615,37 @@ async function saveOwnerStep() {
     }
     await api.updateOnboarding('team');
     GendaUI.toast('Profil confirmé', 'success');
+    go(5);
+  } catch (err) {
+    showError(err.message);
+  } finally {
+    GendaUI.btnLoading(btn, false);
+  }
+}
+
+// ============================================================
+// STEP 5: BOOKING CONFIRMATION SETTINGS
+// ============================================================
+let confirmRequired = false;
+
+function setConfirmMode(enabled) {
+  confirmRequired = enabled;
+  document.getElementById('confirmOptions').style.display = enabled ? 'block' : 'none';
+}
+
+async function saveConfirmStep() {
+  const btn = document.querySelector('.step[data-step="5"] .btn-next');
+  GendaUI.btnLoading(btn, true);
+  try {
+    const body = {
+      settings_booking_confirmation_required: confirmRequired
+    };
+    if (confirmRequired) {
+      body.settings_booking_confirmation_channel = document.getElementById('confirmChannel').value;
+      body.settings_booking_confirmation_timeout = parseInt(document.getElementById('confirmTimeout').value) || 30;
+    }
+    await api.patch('/api/business', body);
+    GendaUI.toast(confirmRequired ? 'Confirmation activée' : 'Confirmation automatique', 'success');
     goLive();
   } catch (err) {
     showError(err.message);
@@ -625,7 +700,7 @@ function copyUrl() {
 Object.assign(window, {
   selSec, updSlug, go, doSignup, toggleDay, toggleBreak,
   toggleOwnerCustomHours, saveSchedule, saveOnboardingStep,
-  saveOwnerStep, goLive, copyUrl
+  saveOwnerStep, setConfirmMode, saveConfirmStep, goLive, copyUrl
 });
 </script>
 
