@@ -727,10 +727,12 @@ router.post('/close', requireOwner, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { confirm_name } = req.body;
+    const { escHtml, sendEmail, buildEmailHTML } = require('../../services/email-utils');
+    const { transactionWithRLS } = require('../../services/db');
 
     // 1. Verify business name matches
     const bizRes = await queryWithRLS(bid,
-      `SELECT name, stripe_customer_id, stripe_subscription_id FROM businesses WHERE id = $1`, [bid]
+      `SELECT name, email, phone, stripe_customer_id, stripe_subscription_id FROM businesses WHERE id = $1`, [bid]
     );
     const biz = bizRes.rows[0];
     if (!biz) return res.status(404).json({ error: 'Salon introuvable' });
@@ -738,12 +740,68 @@ router.post('/close', requireOwner, async (req, res, next) => {
       return res.status(400).json({ error: 'Le nom du salon ne correspond pas' });
     }
 
-    // 2. Soft-delete: deactivate business
-    await queryWithRLS(bid,
-      `UPDATE businesses SET is_active = false, updated_at = NOW() WHERE id = $1`, [bid]
-    );
+    // 2. All DB operations in a single transaction
+    const txResult = await transactionWithRLS(bid, async (client) => {
+      // 2a. Soft-delete: deactivate business
+      await client.query(
+        `UPDATE businesses SET is_active = false, updated_at = NOW() WHERE id = $1`, [bid]
+      );
 
-    // 3. Cancel Stripe subscription if active
+      // 2b. Cancel all future bookings + mark deposit as 'cancelled' (retained by merchant)
+      const futureRes = await client.query(
+        `UPDATE bookings SET status = 'cancelled',
+          cancel_reason = 'Fermeture du salon',
+          deposit_status = CASE WHEN deposit_status = 'pending' THEN 'cancelled' ELSE deposit_status END,
+          updated_at = NOW()
+         WHERE business_id = $1 AND status IN ('confirmed', 'pending', 'modified_pending', 'pending_deposit')
+           AND start_at > NOW()
+         RETURNING id, client_id`, [bid]
+      );
+
+      // 2c. Collect ALL affected emails: clients with bookings + GC buyers + GC recipients + pass buyers
+      // GC/passes don't have client_id — they have buyer_email/recipient_email
+      const affectedRes = await client.query(
+        `SELECT DISTINCT email, name FROM (
+           -- Clients with future bookings (just cancelled)
+           SELECT c.email, c.full_name AS name
+           FROM clients c
+           WHERE c.business_id = $1 AND c.email IS NOT NULL AND c.email != ''
+             AND c.id IN (SELECT DISTINCT client_id FROM bookings WHERE business_id = $1 AND cancel_reason = 'Fermeture du salon' AND client_id IS NOT NULL)
+           UNION
+           -- Clients with paid deposits on future bookings
+           SELECT c.email, c.full_name AS name
+           FROM clients c
+           WHERE c.business_id = $1 AND c.email IS NOT NULL AND c.email != ''
+             AND c.id IN (SELECT DISTINCT client_id FROM bookings WHERE business_id = $1 AND deposit_status = 'paid' AND start_at > NOW() AND client_id IS NOT NULL)
+           UNION
+           -- Gift card buyers with active balance
+           SELECT buyer_email AS email, buyer_name AS name
+           FROM gift_cards WHERE business_id = $1 AND status = 'active' AND balance_cents > 0 AND buyer_email IS NOT NULL AND buyer_email != ''
+           UNION
+           -- Gift card recipients with active balance
+           SELECT recipient_email AS email, recipient_name AS name
+           FROM gift_cards WHERE business_id = $1 AND status = 'active' AND balance_cents > 0 AND recipient_email IS NOT NULL AND recipient_email != ''
+           UNION
+           -- Pass buyers with remaining sessions
+           SELECT buyer_email AS email, buyer_name AS name
+           FROM passes WHERE business_id = $1 AND status = 'active' AND sessions_remaining > 0 AND buyer_email IS NOT NULL AND buyer_email != ''
+         ) AS affected
+         WHERE email IS NOT NULL AND email != ''`, [bid]
+      );
+
+      // 2d. Audit log
+      await client.query(
+        `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
+         VALUES ($1, $2, 'business', $1, 'close_account', $3, $4)`,
+        [bid, req.user.id,
+         JSON.stringify({ is_active: true, name: biz.name }),
+         JSON.stringify({ is_active: false, bookings_cancelled: futureRes.rows.length, affected_emails: affectedRes.rows.length })]
+      );
+
+      return { futureCount: futureRes.rows.length, affected: affectedRes.rows };
+    });
+
+    // 3. Cancel Stripe subscription AFTER commit (external API call outside tx)
     if (biz.stripe_subscription_id) {
       try {
         const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
@@ -756,70 +814,49 @@ router.post('/close', requireOwner, async (req, res, next) => {
       }
     }
 
-    // 4. Cancel all future bookings
-    const futureBookings = await queryWithRLS(bid,
-      `UPDATE bookings SET status = 'cancelled', cancel_reason = 'Fermeture du salon', updated_at = NOW()
-       WHERE business_id = $1 AND status IN ('confirmed', 'pending', 'modified_pending', 'pending_deposit')
-         AND start_at > NOW()
-       RETURNING id, client_id`, [bid]
-    );
-
-    // 5. Collect affected clients: future bookings + active GCs + active passes + paid deposits
-    const affectedClients = await query(
-      `SELECT DISTINCT c.id, c.full_name, c.email
-       FROM clients c
-       WHERE c.business_id = $1 AND c.email IS NOT NULL AND c.email != ''
-         AND (
-           -- Clients with future bookings (just cancelled)
-           c.id IN (SELECT DISTINCT client_id FROM bookings WHERE business_id = $1 AND cancel_reason = 'Fermeture du salon' AND client_id IS NOT NULL)
-           -- Clients with active gift cards
-           OR c.id IN (SELECT DISTINCT buyer_client_id FROM gift_cards WHERE business_id = $1 AND status = 'active' AND balance_cents > 0 AND buyer_client_id IS NOT NULL)
-           -- Clients with active passes
-           OR c.id IN (SELECT DISTINCT client_id FROM passes WHERE business_id = $1 AND status = 'active' AND sessions_remaining > 0 AND client_id IS NOT NULL)
-           -- Clients with paid deposits on future bookings
-           OR c.id IN (SELECT DISTINCT client_id FROM bookings WHERE business_id = $1 AND deposit_status = 'paid' AND start_at > NOW() AND client_id IS NOT NULL)
-         )`, [bid]
-    );
-
-    // 6. Send notification email to each affected client
-    const { sendEmail, buildEmailHTML } = require('../../services/email-utils');
+    // 4. Send notification emails (post-commit, non-blocking)
     let emailsSent = 0;
-    for (const client of affectedClients.rows) {
+    const safeBizName = escHtml(biz.name);
+    const bizContact = [biz.phone, biz.email].filter(Boolean).join(' / ');
+
+    for (const person of txResult.affected) {
       try {
+        const safeName = escHtml(person.name || '');
         const html = buildEmailHTML({
-          title: `${biz.name} ferme ses portes`,
-          preheader: `Information importante concernant vos prestations chez ${biz.name}`,
+          title: `${safeBizName} ferme ses portes`,
+          preheader: `Information importante concernant vos prestations`,
           bodyHTML: `
-            <p>Bonjour <strong>${client.full_name || ''}</strong>,</p>
-            <p>Nous vous informons que <strong>${biz.name}</strong> a décidé de fermer son compte sur notre plateforme.</p>
+            <p>Bonjour${safeName ? ' <strong>' + safeName + '</strong>' : ''},</p>
+            <p>Nous vous informons que <strong>${safeBizName}</strong> a décidé de fermer son compte sur notre plateforme.</p>
             <div style="background:#FEF3E2;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #E6A817">
               <div style="font-size:14px;color:#92700C;font-weight:600">Ce que cela signifie pour vous :</div>
               <ul style="font-size:13px;color:#92700C;margin:8px 0;padding-left:20px">
-                <li>Vos rendez-vous futurs ont été annulés</li>
-                <li>Si vous aviez un acompte payé, une carte cadeau ou un abonnement en cours, veuillez contacter directement le salon pour obtenir un remboursement</li>
+                <li>Vos rendez-vous futurs ont \u00e9t\u00e9 annul\u00e9s</li>
+                <li>Si vous aviez un acompte pay\u00e9, une carte cadeau ou un abonnement en cours, veuillez contacter directement le salon pour obtenir un remboursement</li>
               </ul>
+              ${bizContact ? `<div style="font-size:13px;color:#92700C;margin-top:8px;font-weight:500">Contact du salon : ${escHtml(bizContact)}</div>` : ''}
             </div>
-            <p style="font-size:13px;color:#6B6560">Si vous avez des questions, n'hésitez pas à contacter le salon directement ou notre support à <a href="mailto:support@genda.be" style="color:#0D7377">support@genda.be</a>.</p>`,
+            <p style="font-size:13px;color:#6B6560">Si vous avez des questions, vous pouvez \u00e9galement contacter notre support \u00e0 <a href="mailto:support@genda.be" style="color:#0D7377">support@genda.be</a>.</p>`,
           businessName: biz.name,
-          footerText: 'Cet email a été envoyé automatiquement via Genda.be'
+          footerText: 'Cet email a \u00e9t\u00e9 envoy\u00e9 automatiquement via Genda.be'
         });
         await sendEmail({
-          to: client.email,
-          toName: client.full_name || '',
-          subject: `${biz.name} — Fermeture`,
+          to: person.email,
+          toName: person.name || '',
+          subject: `${biz.name} \u2014 Fermeture`,
           html
         });
         emailsSent++;
       } catch (emailErr) {
-        console.warn(`[CLOSE] Email to ${client.email} failed:`, emailErr.message);
+        console.warn(`[CLOSE] Email to ${person.email} failed:`, emailErr.message);
       }
     }
 
-    console.log(`[CLOSE] Business ${bid} (${biz.name}) closed. ${futureBookings.rows.length} bookings cancelled, ${emailsSent} clients notified.`);
+    console.log(`[CLOSE] Business ${bid} (${biz.name}) closed. ${txResult.futureCount} bookings cancelled, ${emailsSent}/${txResult.affected.length} clients notified.`);
 
     res.json({
       closed: true,
-      bookings_cancelled: futureBookings.rows.length,
+      bookings_cancelled: txResult.futureCount,
       clients_notified: emailsSent
     });
   } catch (err) { next(err); }
