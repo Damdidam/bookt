@@ -65,7 +65,8 @@ router.get('/review/:token', async (req, res, next) => {
 });
 
 // ─── Submit a review ────────────────────────────────────────────────
-router.post('/review/:token', async (req, res, next) => {
+const { bookingLimiter } = require('../../middleware/rate-limiter');
+router.post('/review/:token', bookingLimiter, async (req, res, next) => {
   try {
     const { token } = req.params;
     const { rating, comment } = req.body;

@@ -324,7 +324,15 @@ async function validateAndCalcPromo(txClient, businessId, promotionId, serviceId
  */
 async function decrementPromoUsage(bookingId, dbClient) {
   const q = dbClient ? dbClient.query.bind(dbClient) : require('../../services/db').query;
-  const bk = await q(`SELECT promotion_id, business_id FROM bookings WHERE id = $1 AND promotion_id IS NOT NULL`, [bookingId]);
+  // Check primary booking first
+  let bk = await q(`SELECT promotion_id, business_id, group_id FROM bookings WHERE id = $1 AND promotion_id IS NOT NULL`, [bookingId]);
+  // If primary has no promo but is part of a group, check siblings (promo may be on a non-primary sibling)
+  if (bk.rows.length === 0) {
+    const grp = await q(`SELECT group_id FROM bookings WHERE id = $1`, [bookingId]);
+    if (grp.rows[0]?.group_id) {
+      bk = await q(`SELECT promotion_id, business_id FROM bookings WHERE group_id = $1 AND promotion_id IS NOT NULL LIMIT 1`, [grp.rows[0].group_id]);
+    }
+  }
   if (bk.rows.length === 0) return;
   const { promotion_id, business_id } = bk.rows[0];
   await q(`UPDATE promotions SET current_uses = GREATEST(current_uses - 1, 0) WHERE id = $1 AND business_id = $2`, [promotion_id, business_id]);

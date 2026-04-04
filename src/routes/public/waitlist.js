@@ -524,6 +524,21 @@ router.post('/waitlist/:token/decline', async (req, res, next) => {
         const timeOfDay = bxlHour < 12 ? 'morning' : 'afternoon';
         const crypto = require('crypto');
 
+        // Check: slot still at least 2h away and no conflicts before cascading
+        const slotStartMs = new Date(entry.offer_booking_start).getTime();
+        const tooSoon = slotStartMs - Date.now() < 2 * 60 * 60 * 1000;
+        let slotTaken = false;
+        if (!tooSoon) {
+          const conflicts = await query(
+            `SELECT id FROM bookings WHERE practitioner_id = $1 AND business_id = $2
+             AND status IN ('confirmed', 'pending', 'pending_deposit', 'modified_pending')
+             AND start_at < $4 AND end_at > $3`,
+            [entry.practitioner_id, entry.business_id, entry.offer_booking_start, entry.offer_booking_end]
+          );
+          slotTaken = conflicts.rows.length > 0;
+        }
+
+        if (!tooSoon && !slotTaken) {
         // Atomic: SELECT FOR UPDATE SKIP LOCKED to prevent race condition
         // between concurrent decline handlers picking the same next entry
         const offerToken = crypto.randomBytes(20).toString('hex');
@@ -562,6 +577,7 @@ router.post('/waitlist/:token/decline', async (req, res, next) => {
             );
           } catch (notifErr) { console.warn('[WAITLIST] Notification error:', notifErr.message); }
         }
+        } // end if (!tooSoon && !slotTaken)
       }
     } catch (e) { /* non-blocking */ }
 

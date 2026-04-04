@@ -228,15 +228,19 @@ async function sendBookingConfirmationRequest({ booking, business, timeoutMin, g
     }
   } else {
     detailLines += `<div style="font-size:14px;color:#92700C;margin-top:4px">${_ic('sparkle-amb')} ${serviceName}</div>`;
-    // Single-service: show price + promo (use LM-adjusted price)
-    const singlePriceCR = booking.booked_price_cents || (booking.discount_pct ? Math.round((booking.service_price_cents || 0) * (100 - booking.discount_pct) / 100) : (booking.service_price_cents || 0));
+    // Single-service: show price + LM discount + promo
+    const rawPriceCR = booking.service_price_cents || 0;
+    const singlePriceCR = booking.booked_price_cents || (booking.discount_pct ? Math.round(rawPriceCR * (100 - booking.discount_pct) / 100) : rawPriceCR);
     if (singlePriceCR > 0) {
       const singleDurCR = booking.duration_min || '';
       const promoDiscSingleCR = booking.promotion_discount_cents || 0;
-      if (promoDiscSingleCR > 0 && booking.promotion_label) {
-        const finalSingleCR = singlePriceCR - promoDiscSingleCR;
-        detailLines += `<div style="font-size:14px;color:#92700C;margin-top:6px;font-weight:700">${singleDurCR ? singleDurCR + ' min · ' : ''}<s style="opacity:.6">${(singlePriceCR / 100).toFixed(2).replace('.', ',')} €</s> ${(finalSingleCR / 100).toFixed(2).replace('.', ',')} €</div>`;
-        detailLines += `<div style="font-size:12px;color:#92700C;opacity:.8">${escHtml(booking.promotion_label)} : -${(promoDiscSingleCR / 100).toFixed(2).replace('.', ',')} €</div>`;
+      const hasLmCR = booking.discount_pct && rawPriceCR > singlePriceCR;
+      const finalSingleCR = singlePriceCR - promoDiscSingleCR;
+      if (hasLmCR || (promoDiscSingleCR > 0 && booking.promotion_label)) {
+        const displayBaseCR = hasLmCR ? rawPriceCR : singlePriceCR;
+        detailLines += `<div style="font-size:14px;color:#92700C;margin-top:6px;font-weight:700">${singleDurCR ? singleDurCR + ' min · ' : ''}<s style="opacity:.6">${(displayBaseCR / 100).toFixed(2).replace('.', ',')} €</s> ${(finalSingleCR / 100).toFixed(2).replace('.', ',')} €</div>`;
+        if (hasLmCR) detailLines += `<div style="font-size:12px;color:#92700C;opacity:.8">Last Minute -${booking.discount_pct}%</div>`;
+        if (promoDiscSingleCR > 0 && booking.promotion_label) detailLines += `<div style="font-size:12px;color:#92700C;opacity:.8">${escHtml(booking.promotion_label)} : -${(promoDiscSingleCR / 100).toFixed(2).replace('.', ',')} €</div>`;
       } else {
         detailLines += `<div style="font-size:14px;color:#92700C;margin-top:4px">${singleDurCR ? singleDurCR + ' min · ' : ''}${(singlePriceCR / 100).toFixed(2).replace('.', ',')} €</div>`;
       }

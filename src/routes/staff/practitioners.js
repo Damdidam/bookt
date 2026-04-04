@@ -789,6 +789,13 @@ router.delete('/:id', requireOwner, async (req, res, next) => {
 
     // Keep practitioner_services intact so competencies are preserved on reactivation
 
+    // Cancel active waitlist entries for this practitioner (no point offering slots for inactive prac)
+    await queryWithRLS(bid,
+      `UPDATE waitlist_entries SET status = 'cancelled', updated_at = NOW()
+       WHERE practitioner_id = $1 AND business_id = $2 AND status IN ('waiting', 'offered')`,
+      [pracId, bid]
+    ).catch(() => {});
+
     res.json({ deleted: true, cancelled_count: cancelledCount, future_bookings_kept: keepBookings ? futureCount : 0 });
   } catch (err) { next(err); }
 });

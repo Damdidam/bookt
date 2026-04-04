@@ -69,8 +69,17 @@ router.put('/', async (req, res, next) => {
         const weekdayNum = parseInt(weekday);
         if (isNaN(weekdayNum) || weekdayNum < 0 || weekdayNum > 6) continue;
 
+        const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+        const validWindows = [];
         for (const win of windows) {
           if (!win.start_time || !win.end_time) continue;
+          if (!TIME_RE.test(win.start_time) || !TIME_RE.test(win.end_time)) continue;
+          if (win.start_time >= win.end_time) continue;
+          const hasOverlap = validWindows.some(v => win.start_time < v.end_time && win.end_time > v.start_time);
+          if (hasOverlap) continue;
+          validWindows.push(win);
+        }
+        for (const win of validWindows) {
           await client.query(
             `INSERT INTO business_schedule (business_id, weekday, start_time, end_time)
              VALUES ($1, $2, $3, $4)`,
@@ -107,7 +116,16 @@ router.post('/closures', async (req, res, next) => {
       [bid, date_from, date_to, reason || null]
     );
 
-    res.status(201).json({ closure: result.rows[0] });
+    // Count impacted bookings in the closure period (warn the merchant)
+    const impacted = await queryWithRLS(bid,
+      `SELECT COUNT(*) AS cnt FROM bookings
+       WHERE business_id = $1 AND status IN ('confirmed', 'pending', 'pending_deposit')
+         AND start_at::date >= $2::date AND start_at::date <= $3::date`,
+      [bid, date_from, date_to]
+    );
+    const impactedCount = parseInt(impacted.rows[0]?.cnt) || 0;
+
+    res.status(201).json({ closure: result.rows[0], impacted_bookings: impactedCount });
   } catch (err) { next(err); }
 });
 
