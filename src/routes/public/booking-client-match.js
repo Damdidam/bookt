@@ -118,16 +118,37 @@ async function findOrCreateClient(txClient, {
       );
     }
   } else {
-    const nc = await txClient.query(
-      `INSERT INTO clients (business_id, full_name, phone, email, bce_number,
-        language_preference, consent_sms, consent_email, consent_marketing, created_from,
-        oauth_provider, oauth_provider_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'booking',$10,$11) RETURNING id`,
-      [businessId, client_name, client_phone, client_email, client_bce||null,
-       safeLang, consent_sms===true, consent_email===true, consent_marketing===true,
-       oauth_provider || null, oauth_provider_id || null]
-    );
-    clientId = nc.rows[0].id;
+    // Insert new client — handle unique constraint violation (concurrent booking race)
+    try {
+      const nc = await txClient.query(
+        `INSERT INTO clients (business_id, full_name, phone, email, bce_number,
+          language_preference, consent_sms, consent_email, consent_marketing, created_from,
+          oauth_provider, oauth_provider_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'booking',$10,$11) RETURNING id`,
+        [businessId, client_name, client_phone, client_email, client_bce||null,
+         safeLang, consent_sms===true, consent_email===true, consent_marketing===true,
+         oauth_provider || null, oauth_provider_id || null]
+      );
+      clientId = nc.rows[0].id;
+    } catch (insertErr) {
+      // Unique constraint violation — another booking just created this client, fetch it
+      if (insertErr.code === '23505') {
+        const fallback = await txClient.query(
+          `SELECT id, is_blocked FROM clients WHERE business_id = $1 AND (LOWER(email) = LOWER($2) OR phone = $3) LIMIT 1`,
+          [businessId, client_email, client_phone]
+        );
+        if (fallback.rows.length > 0) {
+          if (fallback.rows[0].is_blocked) {
+            throw Object.assign(new Error('Votre compte est temporairement suspendu.'), { type: 'blocked', status: 403 });
+          }
+          clientId = fallback.rows[0].id;
+        } else {
+          throw insertErr; // re-throw if fallback also fails
+        }
+      } else {
+        throw insertErr;
+      }
+    }
   }
 
   return { clientId, existingClient };

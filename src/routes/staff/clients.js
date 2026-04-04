@@ -134,6 +134,16 @@ router.post('/', async (req, res, next) => {
     const { full_name, phone, email } = req.body;
     if (!full_name?.trim()) return res.status(400).json({ error: 'Nom requis' });
 
+    // Check for existing client with same phone or email
+    if (phone || email) {
+      const existing = await queryWithRLS(bid,
+        `SELECT id, full_name FROM clients WHERE business_id = $1 AND (($2 IS NOT NULL AND phone = $2) OR ($3 IS NOT NULL AND LOWER(email) = LOWER($3))) LIMIT 1`,
+        [bid, phone || null, email || null]
+      );
+      if (existing.rows.length > 0) {
+        return res.status(409).json({ error: `Un client avec ce ${phone && existing.rows[0] ? 'téléphone' : 'email'} existe déjà : ${existing.rows[0].full_name}` });
+      }
+    }
     const result = await queryWithRLS(bid,
       `INSERT INTO clients (business_id, full_name, phone, email)
        VALUES ($1, $2, $3, $4) RETURNING *`,
@@ -141,6 +151,7 @@ router.post('/', async (req, res, next) => {
     );
     res.status(201).json({ client: result.rows[0] });
   } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ error: 'Un client avec ce téléphone ou email existe déjà' });
     next(err);
   }
 });
@@ -176,13 +187,18 @@ router.post('/import', async (req, res, next) => {
       if (phone && existingPhones.has(phone.toLowerCase())) { skipped++; continue; }
       if (email && existingEmails.has(email.toLowerCase())) { skipped++; continue; }
 
-      await queryWithRLS(bid,
-        `INSERT INTO clients (business_id, full_name, phone, email) VALUES ($1, $2, $3, $4)`,
-        [bid, name, phone, email]
-      );
-      if (phone) existingPhones.add(phone.toLowerCase());
-      if (email) existingEmails.add(email.toLowerCase());
-      imported++;
+      try {
+        await queryWithRLS(bid,
+          `INSERT INTO clients (business_id, full_name, phone, email) VALUES ($1, $2, $3, $4)`,
+          [bid, name, phone, email]
+        );
+        if (phone) existingPhones.add(phone.toLowerCase());
+        if (email) existingEmails.add(email.toLowerCase());
+        imported++;
+      } catch (e) {
+        if (e.code === '23505') { skipped++; continue; } // unique constraint = skip
+        throw e;
+      }
     }
 
     res.json({ imported, skipped, total: clients.length });
