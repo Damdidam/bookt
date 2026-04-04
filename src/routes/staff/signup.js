@@ -181,16 +181,26 @@ router.post('/signup', authLimiter, async (req, res, next) => {
 
       // 4. Services: skip — merchant will use Quick Start wizard on first visit
 
-      // 5. Create default availability (Mon-Fri 9-12, 13-17)
-      for (let weekday = 0; weekday <= 4; weekday++) {
-        await client.query(
-          `INSERT INTO availabilities (business_id, practitioner_id, weekday, start_time, end_time) VALUES ($1,$2,$3,$4,$5)`,
-          [businessId, practitionerId, weekday, '09:00', '12:00']
-        );
-        await client.query(
-          `INSERT INTO availabilities (business_id, practitioner_id, weekday, start_time, end_time) VALUES ($1,$2,$3,$4,$5)`,
-          [businessId, practitionerId, weekday, '13:00', weekday === 4 ? '16:00' : '17:00']
-        );
+      // 5. Create default availability — copy from business_schedule if it exists, otherwise Mon-Fri 9-18 continuous
+      const bizSched = await client.query(
+        `SELECT weekday, start_time, end_time FROM business_schedule WHERE business_id = $1 AND is_active = true ORDER BY weekday, start_time`,
+        [businessId]
+      );
+      if (bizSched.rows.length > 0) {
+        for (const row of bizSched.rows) {
+          await client.query(
+            `INSERT INTO availabilities (business_id, practitioner_id, weekday, start_time, end_time) VALUES ($1,$2,$3,$4,$5)`,
+            [businessId, practitionerId, row.weekday, row.start_time, row.end_time]
+          );
+        }
+      } else {
+        // No business schedule yet — default Mon-Fri 9-18 continuous (no lunch break)
+        for (let weekday = 0; weekday <= 4; weekday++) {
+          await client.query(
+            `INSERT INTO availabilities (business_id, practitioner_id, weekday, start_time, end_time) VALUES ($1,$2,$3,$4,$5)`,
+            [businessId, practitionerId, weekday, '09:00', '18:00']
+          );
+        }
       }
 
       // 6. Create default specializations from sector

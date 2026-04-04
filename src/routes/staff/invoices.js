@@ -400,4 +400,65 @@ router.delete('/:id', requireOwner, async (req, res, next) => {
   }
 });
 
+// ============================================================
+// GET /api/invoices/export — CSV export of all invoices + line items
+// UI: Settings > Zone danger > Exporter mes données
+// ============================================================
+router.get('/export', async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const result = await query(
+      `SELECT i.*,
+              COALESCE(
+                (SELECT string_agg(
+                  ii.description || ' x' || ii.quantity || ' @ ' || ((ii.unit_price_cents || 0)::float / 100)::text || '€',
+                  ' | '
+                  ORDER BY ii.id)
+                 FROM invoice_items ii WHERE ii.invoice_id = i.id
+                ), '') AS items_summary
+       FROM invoices i
+       WHERE i.business_id = $1
+       ORDER BY i.issue_date DESC, i.invoice_number DESC
+       LIMIT 50000`,
+      [bid]
+    );
+
+    const fmt = (d) => d ? new Date(d).toLocaleDateString('fr-BE', { timeZone: 'Europe/Brussels' }) : '';
+    const fmtEur = (c) => ((c || 0) / 100).toFixed(2).replace('.', ',');
+    const esc = (s) => `"${(s || '').replace(/"/g, '""')}"`;
+
+    const header = 'Numéro;Type;Statut;Date émission;Date échéance;Date paiement;Client;Email client;Tél client;Adresse client;BCE client;Sous-total (€);TVA (€);Total (€);Taux TVA;Moyen paiement;Communication structurée;Notes;Lignes détail\n';
+    const typeLabels = { invoice: 'Facture', quote: 'Devis', credit_note: 'Note de crédit' };
+    const statusLabels = { draft: 'Brouillon', sent: 'Envoyée', paid: 'Payée', overdue: 'En retard', cancelled: 'Annulée' };
+
+    const rows = result.rows.map(r => [
+      r.invoice_number || '',
+      typeLabels[r.type] || r.type || '',
+      statusLabels[r.status] || r.status || '',
+      fmt(r.issue_date),
+      fmt(r.due_date),
+      fmt(r.paid_date),
+      esc(r.client_name),
+      r.client_email || '',
+      r.client_phone || '',
+      esc(r.client_address),
+      r.client_bce || '',
+      fmtEur(r.subtotal_cents),
+      fmtEur(r.vat_amount_cents),
+      fmtEur(r.total_cents),
+      r.vat_rate != null ? `${r.vat_rate}%` : '',
+      r.payment_method || '',
+      r.structured_comm || '',
+      esc(r.notes),
+      esc(r.items_summary)
+    ].join(';')).join('\n');
+
+    const csv = '\uFEFF' + header + rows;
+    const filename = `factures-${new Date().toISOString().split('T')[0]}.csv`;
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(csv);
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

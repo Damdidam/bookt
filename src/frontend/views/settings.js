@@ -586,6 +586,14 @@ async function loadSettings(){
 
     // 7. Danger zone
     h+=`<div class="settings-card danger-zone"><div class="sc-h"><h3>${IC.alertTriangle} Zone danger</h3></div><div class="sc-body">
+      <div style="margin-bottom:20px;padding-bottom:20px;border-bottom:1px solid var(--border)">
+        <div style="font-size:.85rem;font-weight:600;color:var(--text);margin-bottom:4px">Exporter mes données</div>
+        <p style="font-size:.8rem;color:var(--text-3);margin-bottom:10px">Téléchargez vos données clients et factures au format CSV (Excel, Google Sheets).</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn-outline btn-sm" onclick="exportData('clients')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg> Exporter clients</button>
+          <button class="btn-outline btn-sm" onclick="exportData('invoices')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Exporter factures</button>
+        </div>
+      </div>
       <p style="font-size:.85rem;color:var(--text-2);margin-bottom:12px">Supprimer définitivement votre compte et toutes les données associées. Cette action est irréversible.</p>
       <button class="btn-outline btn-danger" onclick="confirmDeleteAccount()">Supprimer mon compte</button>
     </div></div>`;
@@ -1222,6 +1230,16 @@ async function changePassword(){
     GendaUI.toast('Mot de passe modifié','success');
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
+
+async function exportData(type) {
+  const label = type === 'clients' ? 'clients' : 'factures';
+  GendaUI.toast(`Export ${label} en cours…`, 'info');
+  try {
+    const url = type === 'clients' ? '/api/clients/export' : '/api/invoices/export';
+    window.open(`${url}?token=${api.getToken()}`, '_blank', 'noopener');
+  } catch (e) { GendaUI.toast('Erreur: ' + e.message, 'error'); }
+}
+window.exportData = exportData;
 
 function copyField(id){
   const el=document.getElementById(id);el.select();navigator.clipboard.writeText(el.value);
