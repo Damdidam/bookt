@@ -289,4 +289,58 @@ async function sendPassPurchaseEmail({ pass, business }) {
   });
 }
 
-module.exports = { sendSessionNotesEmail, sendPasswordResetEmail, sendReviewRequestEmail, sendGiftCardEmail, sendGiftCardReceiptEmail, sendPassPurchaseEmail };
+// ── Merchant notification: Gift card purchased ──
+async function sendGiftCardPurchaseProEmail({ giftCard, business }) {
+  if (!business.email) return;
+  const amtStr = ((giftCard.amount_cents || 0) / 100).toFixed(2).replace('.', ',');
+  const color = safeColor(business.theme?.primary_color);
+  const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+  const buyerName = escHtml(giftCard.buyer_name || 'Client');
+  const recipientName = giftCard.recipient_name ? escHtml(giftCard.recipient_name) : null;
+  const html = buildEmailHTML({
+    title: 'Carte cadeau achetée',
+    preheader: `${buyerName} a acheté une carte cadeau de ${amtStr} €`,
+    bodyHTML: `
+      <p>Une carte cadeau a été achetée sur votre page.</p>
+      <div style="background:#F0FDF4;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #22C55E">
+        <div style="font-size:15px;font-weight:600;color:#15803D;margin-bottom:4px">Carte cadeau de ${amtStr} €</div>
+        <div style="font-size:14px;color:#3D3832">Achetée par ${buyerName}</div>
+        ${recipientName ? `<div style="font-size:13px;color:#6B6560">Pour : ${recipientName}</div>` : ''}
+        <div style="font-size:13px;color:#6B6560;margin-top:4px">Code : ${escHtml(giftCard.code)}</div>
+      </div>`,
+    ctaText: 'Voir dans le dashboard',
+    ctaUrl: `${baseUrl}/dashboard#gift-cards`,
+    businessName: business.name,
+    primaryColor: color,
+    footerText: `${business.name} · Via Genda.be`
+  });
+  return sendEmail({ to: business.email, toName: business.name, subject: `Carte cadeau achetée — ${amtStr} € — ${buyerName}`, html, fromName: 'Genda' });
+}
+
+// ── Merchant notification: Pass purchased ──
+async function sendPassPurchaseProEmail({ pass, business }) {
+  if (!business.email) return;
+  const amtStr = ((pass.price_cents || 0) / 100).toFixed(2).replace('.', ',');
+  const color = safeColor(business.theme?.primary_color);
+  const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+  const buyerName = escHtml(pass.buyer_name || 'Client');
+  const html = buildEmailHTML({
+    title: 'Pass acheté',
+    preheader: `${buyerName} a acheté un pass ${escHtml(pass.name)}`,
+    bodyHTML: `
+      <p>Un pass a été acheté sur votre page.</p>
+      <div style="background:#F0FDF4;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #22C55E">
+        <div style="font-size:15px;font-weight:600;color:#15803D;margin-bottom:4px">Pass : ${escHtml(pass.name)}</div>
+        <div style="font-size:14px;color:#3D3832">${pass.sessions_total} séance(s) — ${amtStr} €</div>
+        <div style="font-size:13px;color:#6B6560;margin-top:4px">Acheté par ${buyerName}</div>
+      </div>`,
+    ctaText: 'Voir dans le dashboard',
+    ctaUrl: `${baseUrl}/dashboard#passes`,
+    businessName: business.name,
+    primaryColor: color,
+    footerText: `${business.name} · Via Genda.be`
+  });
+  return sendEmail({ to: business.email, toName: business.name, subject: `Pass acheté — ${escHtml(pass.name)} — ${buyerName}`, html, fromName: 'Genda' });
+}
+
+module.exports = { sendSessionNotesEmail, sendPasswordResetEmail, sendReviewRequestEmail, sendGiftCardEmail, sendGiftCardReceiptEmail, sendPassPurchaseEmail, sendGiftCardPurchaseProEmail, sendPassPurchaseProEmail };

@@ -210,10 +210,20 @@ router.post('/', requireOwner, async (req, res, next) => {
           if (grpResult.rows.length > 1) allBookings = grpResult.rows;
         }
 
+        // Check pass_transactions for pass-covered bookings (H2 fix: don't rely on deposit_payment_intent_id)
+        const passBookingIds = new Set();
+        try {
+          const ptRes = await queryWithRLS(bid,
+            `SELECT DISTINCT booking_id FROM pass_transactions WHERE booking_id = ANY($1) AND type = 'debit'`,
+            [allBookings.map(b => b.id)]
+          );
+          for (const r of ptRes.rows) passBookingIds.add(r.booking_id);
+        } catch (_) {}
+
         // Build line items for each service in the group (pass-covered = 0€)
         invoiceItems = allBookings.map(sib => {
           const svcLabel = sib.service_category ? `${sib.service_category} - ${sib.service_name}${sib.variant_name ? ' \u2014 ' + sib.variant_name : ''}` : (sib.variant_name ? `${sib.service_name} \u2014 ${sib.variant_name}` : sib.service_name);
-          const isPassCovered = sib.deposit_payment_intent_id && sib.deposit_payment_intent_id.startsWith('pass_');
+          const isPassCovered = passBookingIds.has(sib.id) || (sib.deposit_payment_intent_id && sib.deposit_payment_intent_id.startsWith('pass_'));
           return {
             booking_id: sib.id,
             description: `${svcLabel} — ${new Date(sib.start_at).toLocaleDateString('fr-BE', { timeZone: 'Europe/Brussels' })}${isPassCovered ? ' (pass)' : ''}`,

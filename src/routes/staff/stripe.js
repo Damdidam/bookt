@@ -530,7 +530,7 @@ async function handleStripeWebhook(req, res) {
 
             // Send emails
             if (biz) {
-              const { sendGiftCardEmail, sendGiftCardReceiptEmail } = require('../../services/email');
+              const { sendGiftCardEmail, sendGiftCardReceiptEmail, sendGiftCardPurchaseProEmail } = require('../../services/email');
 
               if (giftCard.recipient_email) {
                 await sendGiftCardEmail({ giftCard, business: biz }).catch(e =>
@@ -540,6 +540,9 @@ async function handleStripeWebhook(req, res) {
                 await sendGiftCardReceiptEmail({ giftCard, business: biz }).catch(e =>
                   console.error('[GIFT-CARD] Buyer receipt failed:', e.message));
               }
+              // M5: Notify merchant of GC purchase
+              sendGiftCardPurchaseProEmail({ giftCard, business: biz }).catch(e =>
+                console.warn('[GIFT-CARD] Pro notification failed:', e.message));
             }
 
             // SSE
@@ -639,11 +642,15 @@ async function handleStripeWebhook(req, res) {
               const bizRes = await query(`SELECT name, slug, email, theme, phone, address FROM businesses WHERE id = $1`, [business_id]);
               const biz = bizRes.rows[0];
               if (biz && buyer_email) {
-                const { sendPassPurchaseEmail } = require('../../services/email');
+                const { sendPassPurchaseEmail, sendPassPurchaseProEmail } = require('../../services/email');
+                const passData = { code, name: tpl.name, sessions_total: tpl.sessions_count, price_cents: tpl.price_cents, service_name: tpl.service_name, buyer_name, buyer_email, expires_at: expiresAt };
                 await sendPassPurchaseEmail({
-                  pass: { code, name: tpl.name, sessions_total: tpl.sessions_count, price_cents: tpl.price_cents, service_name: tpl.service_name, buyer_name, buyer_email, expires_at: expiresAt },
+                  pass: passData,
                   business: { name: biz.name, slug: biz.slug, email: biz.email, phone: biz.phone, address: biz.address, theme: biz.theme }
                 });
+                // M6: Notify merchant of pass purchase
+                sendPassPurchaseProEmail({ pass: passData, business: { name: biz.name, email: biz.email, theme: biz.theme } }).catch(e =>
+                  console.warn('[STRIPE] Pass pro notification failed:', e.message));
               }
             } catch (emailErr) { console.warn('[STRIPE] Pass email error:', emailErr.message); }
 

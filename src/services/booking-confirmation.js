@@ -158,7 +158,7 @@ async function processExpiredPendingBookings() {
 
     // H3 fix: Delete external calendar events for cancelled bookings
     for (const cancelled of cancelledBookingIds) {
-      try { calSyncDelete(cancelled.business_id, cancelled.id); } catch (_) {}
+      try { await calSyncDelete(cancelled.business_id, cancelled.id); } catch (_) {}
     }
 
     // M3 fix: Queue pro notification for auto-expired bookings

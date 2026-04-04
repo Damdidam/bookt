@@ -83,7 +83,10 @@ async function process24hReminders(stats) {
       AND bk.start_at > NOW() + INTERVAL '23 hours'
       AND bk.start_at <= NOW() + INTERVAL '25 hours'
       AND b.is_active = true
-      AND (bk.group_id IS NULL OR bk.group_order = 0)
+      AND (bk.group_id IS NULL OR bk.group_order = (
+        SELECT MIN(b2.group_order) FROM bookings b2
+        WHERE b2.group_id = bk.group_id AND b2.status = 'confirmed' AND b2.reminder_24h_sent_at IS NULL
+      ))
     ORDER BY bk.start_at
     LIMIT 200
   `);
@@ -335,7 +338,10 @@ async function process2hReminders(stats) {
       AND bk.start_at > NOW() + INTERVAL '1 hour'
       AND bk.start_at <= NOW() + INTERVAL '2 hours 15 minutes'
       AND b.is_active = true
-      AND (bk.group_id IS NULL OR bk.group_order = 0)
+      AND (bk.group_id IS NULL OR bk.group_order = (
+        SELECT MIN(b2.group_order) FROM bookings b2
+        WHERE b2.group_id = bk.group_id AND b2.status = 'confirmed' AND b2.reminder_2h_sent_at IS NULL
+      ))
     ORDER BY bk.start_at
     LIMIT 200
   `);

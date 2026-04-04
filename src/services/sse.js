@@ -37,14 +37,18 @@ function addClient(businessId, res) {
   clients.add(res);
   globalCount++;
 
-  // Cleanup on disconnect
+  // Cleanup on disconnect (use flag to prevent double-decrement from broadcast error + close)
+  res._sseRemoved = false;
   res.on('close', () => {
     const clients = connections.get(businessId);
     if (clients) {
       clients.delete(res);
       if (clients.size === 0) connections.delete(businessId);
     }
-    globalCount = Math.max(0, globalCount - 1);
+    if (!res._sseRemoved) {
+      res._sseRemoved = true;
+      globalCount = Math.max(0, globalCount - 1);
+    }
   });
 
   return true;
@@ -69,7 +73,10 @@ function broadcast(businessId, event, data = {}) {
     } catch (e) {
       // Connection broken, remove it
       clients.delete(res);
-      globalCount = Math.max(0, globalCount - 1);
+      if (!res._sseRemoved) {
+        res._sseRemoved = true;
+        globalCount = Math.max(0, globalCount - 1);
+      }
     }
   }
 }

@@ -44,9 +44,14 @@ async function refundGiftCardForBooking(bookingId, dbClient) {
     if ((refundCounts[debit.gift_card_id] || 0) >= (debitCounts[debit.gift_card_id] || 0)) continue;
     refundCounts[debit.gift_card_id] = (refundCounts[debit.gift_card_id] || 0) + 1;
 
-    // Credit back to gift card
+    // Credit back to gift card (don't reactivate if naturally expired past expires_at)
     await q(
-      `UPDATE gift_cards SET balance_cents = balance_cents + $1, status = CASE WHEN status IN ('used', 'expired') THEN 'active' ELSE status END, updated_at = NOW()
+      `UPDATE gift_cards SET balance_cents = balance_cents + $1,
+       status = CASE
+         WHEN status IN ('used', 'expired') AND (expires_at IS NULL OR expires_at > NOW()) THEN 'active'
+         ELSE status
+       END,
+       updated_at = NOW()
        WHERE id = $2`,
       [debit.amount_cents, debit.gift_card_id]
     );

@@ -599,9 +599,11 @@ async function sendDepositPaidProEmail({ booking, business }) {
     title: 'Acompte reçu',
     preheader: `${clientName} a payé son acompte de ${amtStr} €`,
     bodyHTML: `
-      <p><strong>${clientName}</strong> a réglé son acompte.</p>
+      <p><strong>${clientName}</strong> a r��glé son acompte.</p>
       <div style="background:#F0FDF4;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #22C55E">
         <div style="font-size:15px;font-weight:600;color:#15803D;margin-bottom:4px">Acompte de ${amtStr} € reçu</div>
+        ${booking.service_name ? `<div style="font-size:14px;color:#3D3832;margin-bottom:2px">${escHtml(booking.service_name)}</div>` : ''}
+        ${booking.practitioner_name ? `<div style="font-size:13px;color:#6B6560">${escHtml(booking.practitioner_name)}</div>` : ''}
         <div style="font-size:14px;color:#3D3832">${dateStr} à ${timeStr}</div>
         ${booking.client_email ? `<div style="font-size:13px;color:#6B6560;margin-top:4px">${escHtml(booking.client_email)}</div>` : ''}
       </div>`,
@@ -641,6 +643,7 @@ async function sendDepositRefundProEmail({ booking, business }) {
       <p>L'acompte de <strong>${clientName}</strong> a été remboursé.</p>
       <div style="background:#FEF2F2;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #EF4444">
         <div style="font-size:15px;font-weight:600;color:#DC2626;margin-bottom:4px">Acompte de ${amtStr} € remboursé</div>
+        ${booking.service_name ? `<div style="font-size:14px;color:#3D3832;margin-bottom:2px">${escHtml(booking.service_name)}</div>` : ''}
         <div style="font-size:14px;color:#3D3832">${dateStr}</div>
         ${booking.client_email ? `<div style="font-size:13px;color:#6B6560;margin-top:4px">${escHtml(booking.client_email)}</div>` : ''}
       </div>`,

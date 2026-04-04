@@ -26,7 +26,7 @@ async function processExpiredDeposits() {
     // Find pending_deposit bookings whose deposit deadline has passed
     const expired = await client.query(
       `SELECT id, business_id, service_id, practitioner_id, start_at, end_at,
-              group_id, client_id, deposit_amount_cents
+              group_id, client_id, deposit_amount_cents, deposit_payment_intent_id
        FROM bookings
        WHERE status = 'pending_deposit'
          AND deposit_status = 'pending'
@@ -141,7 +141,7 @@ async function processExpiredDeposits() {
       }
 
       processed++;
-      cancelledBookingIds.push({ id: bk.id, business_id: bk.business_id, group_id: bk.group_id, client_id: bk.client_id, _gcRefunded: gcRefundExp.refunded || 0, _passRefunded: (passRefundExp.refunded || 0) !== 0 });
+      cancelledBookingIds.push({ id: bk.id, business_id: bk.business_id, group_id: bk.group_id, client_id: bk.client_id, _gcRefunded: gcRefundExp.refunded || 0, _passRefunded: (passRefundExp.refunded || 0) !== 0, _stripeSessionId: bk.deposit_payment_intent_id });
       } catch (spErr) {
         await client.query(`ROLLBACK TO sp_${i}`);
         console.error('[DEPOSIT CRON] Failed to process booking', bk.id, spErr.message);
@@ -165,9 +165,20 @@ async function processExpiredDeposits() {
       }
     }
 
-    // H3 fix: Delete external calendar events for cancelled bookings
+    // H3 fix: Expire open Stripe checkout sessions so client can't pay after cancellation
+    const stripeKey = process.env.STRIPE_SECRET_KEY;
+    if (stripeKey) {
+      const stripe = require('stripe')(stripeKey);
+      for (const cancelled of cancelledBookingIds) {
+        if (cancelled._stripeSessionId && cancelled._stripeSessionId.startsWith('cs_')) {
+          try { await stripe.checkout.sessions.expire(cancelled._stripeSessionId); } catch (_) {}
+        }
+      }
+    }
+
+    // Delete external calendar events for cancelled bookings
     for (const cancelled of cancelledBookingIds) {
-      try { calSyncDelete(cancelled.business_id, cancelled.id); } catch (_) {}
+      try { await calSyncDelete(cancelled.business_id, cancelled.id); } catch (_) {}
     }
 
     // M3 fix: Queue pro notification for auto-expired bookings

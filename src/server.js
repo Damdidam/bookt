@@ -526,7 +526,7 @@ app.listen(PORT, async () => {
         console.log(`[WAITLIST CRON] ${result.processed} expired offer(s) processed`);
       }
     } catch (e) {
-      console.error('[WAITLIST CRON] Error:', e.message);
+      console.error('[WAITLIST CRON] Error:', e.message); Sentry.captureException(e);
     } finally {
       waitlistRunning = false;
     }
@@ -547,7 +547,7 @@ app.listen(PORT, async () => {
         console.log(`[REMINDERS CRON] ${stats.email_24h} email 24h, ${stats.sms_24h} SMS 24h, ${stats.email_2h} email 2h, ${stats.sms_2h} SMS 2h, ${stats.errors} errors`);
       }
     } catch (e) {
-      console.error('[REMINDERS CRON] Error:', e.message);
+      console.error('[REMINDERS CRON] Error:', e.message); Sentry.captureException(e);
     } finally {
       reminderRunning = false;
     }
@@ -566,7 +566,7 @@ app.listen(PORT, async () => {
         console.log(`[CONFIRM CRON] ${result.processed} unconfirmed booking(s) auto-cancelled`);
       }
     } catch (e) {
-      console.error('[CONFIRM CRON] Error:', e.message);
+      console.error('[CONFIRM CRON] Error:', e.message); Sentry.captureException(e);
     } finally {
       confirmRunning = false;
     }
@@ -585,7 +585,7 @@ app.listen(PORT, async () => {
         console.log(`[DEPOSIT CRON] ${result.processed} expired deposit booking(s) auto-cancelled`);
       }
     } catch (e) {
-      console.error('[DEPOSIT CRON] Error:', e.message);
+      console.error('[DEPOSIT CRON] Error:', e.message); Sentry.captureException(e);
     } finally {
       depositRunning = false;
     }
@@ -603,7 +603,7 @@ app.listen(PORT, async () => {
         console.log(`[GC CRON] ${result.processed} gift card(s) expired`);
       }
     } catch (e) {
-      console.error('[GC CRON] Error:', e.message);
+      console.error('[GC CRON] Error:', e.message); Sentry.captureException(e);
     } finally {
       gcRunning = false;
     }
@@ -618,7 +618,7 @@ app.listen(PORT, async () => {
       const { processExpiredPasses } = require('./services/pass-expiry');
       const result = await processExpiredPasses();
       if (result.processed > 0) console.log(`[PASS CRON] ${result.processed} pass(es) expired`);
-    } catch (e) { console.error('[PASS CRON] Error:', e.message); }
+    } catch (e) { console.error('[PASS CRON] Error:', e.message); Sentry.captureException(e); }
     finally { passExpiryRunning = false; }
   }, 60 * 60 * 1000);
 
@@ -635,7 +635,7 @@ app.listen(PORT, async () => {
         console.log(`[NOTIF CRON] ${stats.sent} sent, ${stats.failed} failed, ${stats.errors} errors (${stats.processed} processed)`);
       }
     } catch (e) {
-      console.error('[NOTIF CRON] Error:', e.message);
+      console.error('[NOTIF CRON] Error:', e.message); Sentry.captureException(e);
     } finally {
       notifRunning = false;
     }
@@ -651,7 +651,7 @@ app.listen(PORT, async () => {
         console.log(`[FEATURED CLEANUP] Purged ${result.rows.length} old featured slots`);
       }
     } catch (e) {
-      console.error('[FEATURED CLEANUP] Error:', e.message);
+      console.error('[FEATURED CLEANUP] Error:', e.message); Sentry.captureException(e);
     }
   }, 24 * 60 * 60 * 1000); // 24h
 
@@ -665,7 +665,7 @@ app.listen(PORT, async () => {
       const { calibrateAllBusinesses } = require('./services/slot-optimizer');
       await calibrateAllBusinesses((sql, params) => pool.query(sql, params));
     } catch (e) {
-      console.error('[SLOT CALIBRATION] Error:', e.message);
+      console.error('[SLOT CALIBRATION] Error:', e.message); Sentry.captureException(e);
     } finally {
       calibrationRunning = false;
     }

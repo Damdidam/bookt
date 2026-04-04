@@ -25,8 +25,14 @@ async function refundPassForBooking(bookingId, dbClient) {
     // Skip if this pass already has as many refunds as debits for this booking
     if ((refundCounts[debit.pass_id] || 0) >= (debitCounts[debit.pass_id] || 0)) continue;
     refundCounts[debit.pass_id] = (refundCounts[debit.pass_id] || 0) + 1;
+    // Credit sessions back (don't reactivate if naturally expired past expires_at)
     await q(
-      `UPDATE passes SET sessions_remaining = sessions_remaining + ABS($1), status = CASE WHEN status IN ('used', 'expired') THEN 'active' ELSE status END, updated_at = NOW() WHERE id = $2`,
+      `UPDATE passes SET sessions_remaining = sessions_remaining + ABS($1),
+       status = CASE
+         WHEN status IN ('used', 'expired') AND (expires_at IS NULL OR expires_at > NOW()) THEN 'active'
+         ELSE status
+       END,
+       updated_at = NOW() WHERE id = $2`,
       [debit.sessions, debit.pass_id]
     );
     await q(

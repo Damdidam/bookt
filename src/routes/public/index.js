@@ -505,7 +505,8 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         let servicePricesForPromo = servicePricesAfterLm;
         if (passPreMatchSlotIdx >= 0) {
           const coveredSlot = chainedSlots[passPreMatchSlotIdx];
-          const coveredPrice = servicePricesAfterLm[coveredSlot.service_id] || 0;
+          // M2 fix: use slot index array instead of map to avoid duplicate service_id overwrite
+          const coveredPrice = slotBookedPrices[passPreMatchSlotIdx] || 0;
           totalPriceForPromo = totalPriceAfterLm - coveredPrice;
           // M8 fix: only zero the map entry if this service_id appears once; otherwise reduce price
           const svcIdCount = chainedSlots.filter(sl => sl.service_id === coveredSlot.service_id).length;

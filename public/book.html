@@ -1645,23 +1645,32 @@ function getPromoConditionText(p){
 }
 
 // Calculate discount amount for a promo given a cart (array of services)
+// Uses LM-adjusted prices when LM is active, matching backend behavior
 function calcPromoDiscAmount(promoOrId,cart){
   var p=typeof promoOrId==='object'?promoOrId:(siteData&&siteData.promotions||[]).find(function(x){return x.id===promoOrId;});
   if(!p||!p.reward_type||p.reward_type==='info_only')return 0;
-  var cartTotal=cart.reduce(function(s,svc,i){var v=selectedVariantsByIdx[i]||selectedVariants[svc.id];return s+(v&&v.price_cents!=null?v.price_cents:(svc.price_cents||0));},0);
+  var lmActive=selectedSlot&&selectedSlot.is_last_minute&&selectedSlot.discount_pct;
+  function getLmPrice(svc,i){
+    var v=selectedVariantsByIdx[i]||selectedVariants[svc.id];
+    var pc=v&&v.price_cents!=null?v.price_cents:(svc.price_cents||0);
+    if(lmActive&&svc.promo_eligible!==false&&pc>0) pc=Math.round(pc*(100-selectedSlot.discount_pct)/100);
+    return pc;
+  }
+  var cartTotal=cart.reduce(function(s,svc,i){return s+getLmPrice(svc,i);},0);
   if(p.reward_type==='discount_pct'){
     if(p.condition_type==='specific_service'){
-      var svc=cart.find(function(s){return s.id===p.condition_service_id;});
+      var svcIdx=-1;var svc=null;
+      for(var ci=0;ci<cart.length;ci++){if(cart[ci].id===p.condition_service_id){svc=cart[ci];svcIdx=ci;break;}}
       if(!svc)return 0;
-      var sv=selectedVariants[svc.id];
-      return Math.round((sv&&sv.price_cents!=null?sv.price_cents:(svc.price_cents||0))*p.reward_value/100);
+      return Math.round(getLmPrice(svc,svcIdx)*p.reward_value/100);
     }
     return Math.round(cartTotal*p.reward_value/100);
   }
   if(p.reward_type==='discount_fixed'){
     if(p.condition_type==='specific_service'){
-      var svc2=cart.find(function(s){return s.id===p.condition_service_id;});
-      var sp=svc2?(selectedVariants[svc2.id]&&selectedVariants[svc2.id].price_cents!=null?selectedVariants[svc2.id].price_cents:(svc2.price_cents||0)):cartTotal;
+      var svcIdx2=-1;var svc2=null;
+      for(var ci2=0;ci2<cart.length;ci2++){if(cart[ci2].id===p.condition_service_id){svc2=cart[ci2];svcIdx2=ci2;break;}}
+      var sp=svc2?getLmPrice(svc2,svcIdx2):cartTotal;
       return Math.min(p.reward_value||0,sp);
     }
     return Math.min(p.reward_value||0,cartTotal);
@@ -2436,9 +2445,18 @@ function buildSummary(){
     var totalMin=selectedServices.reduce(function(s,svc,i){var v=selectedVariantsByIdx[i];return s+(v?v.duration_min:svc.duration_min);},0);
     var totalPrice=selectedServices.reduce(function(s,svc,i){var v=selectedVariantsByIdx[i];return s+(v&&v.price_cents!=null?v.price_cents:(svc.price_cents||0));},0);
     var totalPriceStr=totalPrice>0?(totalPrice/100).toFixed(2).replace('.', ',')+' \u20ac':'';
-    // Last-minute discount display for multi-service
+    // Last-minute discount display for multi-service (per-service eligibility)
     if(selectedSlot&&selectedSlot.is_last_minute&&selectedSlot.discount_pct&&totalPrice>0){
-      var lmTotal=Math.round(totalPrice*(100-selectedSlot.discount_pct)/100);
+      var lmTotal=0;
+      selectedServices.forEach(function(svc,i){
+        var v=selectedVariantsByIdx[i];
+        var pc=v&&v.price_cents!=null?v.price_cents:(svc.price_cents||0);
+        if(svc.promo_eligible!==false&&pc>0){
+          lmTotal+=Math.round(pc*(100-selectedSlot.discount_pct)/100);
+        }else{
+          lmTotal+=pc;
+        }
+      });
       html+='<div class="sum-divider"></div>'
         +'<div class="sum-row"><span class="label">Prix</span><span class="val"><s style="color:#9ca3af">'+(totalPrice/100).toFixed(2).replace('.', ',')+' \u20ac</s> <strong style="color:#059669">'+(lmTotal/100).toFixed(2).replace('.', ',')+' \u20ac</strong></span></div>'
         +'<div class="sum-row"><span class="label" style="color:#f59e0b;font-weight:600">Derni\u00e8re minute</span><span class="val" style="color:#f59e0b;font-weight:600">-'+selectedSlot.discount_pct+'%</span></div>';
@@ -2620,20 +2638,22 @@ async function submitBooking(){
     const dateStr=d.toLocaleDateString('fr-BE',{timeZone:'Europe/Brussels',weekday:'long',day:'numeric',month:'long'});
     var confirmHtml='';
 
-    // Prestations — always show all selected services
+    // Prestations — use API-returned total for correct post-discount price
+    var apiTotalCents=data.total_after_discount_cents;
     if(multiServiceMode&&selectedServices.length>1){
       confirmHtml+='<div class="row" style="font-weight:600;padding-bottom:2px"><span class="l">Prestations</span><span class="v"></span></div>';
-      var confirmTotalMin=0,confirmTotalCents=0;
+      var confirmTotalMin=0;
       selectedServices.forEach(function(svc,i){
         var cv=selectedVariantsByIdx[i];
         var cn=cv?escH(svc.name)+' \u2014 '+escH(cv.name):escH(svc.name);
         var cd=cv?cv.duration_min:svc.duration_min;
         var cpc=svc.is_promo?0:(cv&&cv.price_cents!=null?cv.price_cents:svc.price_cents);
         var cp=svc.is_promo?'Offert':(cpc>0?(cpc/100).toFixed(2).replace('.', ',')+' \u20ac':(cpc===0?'Gratuit':(svc.price_label||'')));
-        confirmTotalMin+=cd;confirmTotalCents+=(cpc||0);
+        confirmTotalMin+=cd;
         confirmHtml+='<div class="row"><span class="l" style="padding-left:8px">\u2022 '+cn+'</span><span class="v">'+cd+' min \u00b7 '+cp+'</span></div>';
       });
-      confirmHtml+='<div class="row" style="border-top:1px solid var(--border-light);margin-top:4px;padding-top:4px"><span class="l" style="font-weight:700">Total</span><span class="v" style="font-weight:700">'+confirmTotalMin+' min \u00b7 '+(confirmTotalCents>0?(confirmTotalCents/100).toFixed(2).replace('.', ',')+' \u20ac':'')+'</span></div>';
+      var confirmTotalStr=apiTotalCents!=null?(apiTotalCents/100).toFixed(2).replace('.', ',')+' \u20ac':'';
+      confirmHtml+='<div class="row" style="border-top:1px solid var(--border-light);margin-top:4px;padding-top:4px"><span class="l" style="font-weight:700">Total</span><span class="v" style="font-weight:700">'+confirmTotalMin+' min \u00b7 '+confirmTotalStr+'</span></div>';
     }else if(selectedService){
       var cv2=selectedVariantsByIdx[0]||selectedVariants[selectedService.id];
       var confirmName=cv2?escH(selectedService.name)+' \u2014 '+escH(cv2.name):escH(selectedService.name);

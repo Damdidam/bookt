@@ -619,7 +619,7 @@ router.patch('/:id/move', async (req, res, next) => {
           }
         }
 
-        let sql = `UPDATE bookings SET start_at = $1, end_at = $2, updated_at = NOW()`;
+        let sql = `UPDATE bookings SET start_at = $1, end_at = $2, reminder_24h_sent_at = NULL, reminder_2h_sent_at = NULL, updated_at = NOW()`;
         const params = [newStart.toISOString(), newEnd.toISOString()];
         let idx = 3;
 
