@@ -2457,10 +2457,15 @@ function buildSummary(){
           lmTotal+=pc;
         }
       });
-      html+='<div class="sum-divider"></div>'
-        +'<div class="sum-row"><span class="label">Prix</span><span class="val"><s style="color:#9ca3af">'+(totalPrice/100).toFixed(2).replace('.', ',')+' \u20ac</s> <strong style="color:#059669">'+(lmTotal/100).toFixed(2).replace('.', ',')+' \u20ac</strong></span></div>'
-        +'<div class="sum-row"><span class="label" style="color:#f59e0b;font-weight:600">Derni\u00e8re minute</span><span class="val" style="color:#f59e0b;font-weight:600">-'+selectedSlot.discount_pct+'%</span></div>';
-      html+='<div class="sum-row"><span class="label"><strong>Total</strong></span><span class="val"><strong>'+totalMin+' min \u00b7 '+(lmTotal/100).toFixed(2).replace('.', ',')+' \u20ac</strong></span></div>';
+      if(lmTotal<totalPrice){
+        html+='<div class="sum-divider"></div>'
+          +'<div class="sum-row"><span class="label">Prix</span><span class="val"><s style="color:#9ca3af">'+(totalPrice/100).toFixed(2).replace('.', ',')+' \u20ac</s> <strong style="color:#059669">'+(lmTotal/100).toFixed(2).replace('.', ',')+' \u20ac</strong></span></div>'
+          +'<div class="sum-row"><span class="label" style="color:#f59e0b;font-weight:600">Derni\u00e8re minute</span><span class="val" style="color:#f59e0b;font-weight:600">-'+selectedSlot.discount_pct+'%</span></div>';
+        html+='<div class="sum-row"><span class="label"><strong>Total</strong></span><span class="val"><strong>'+totalMin+' min \u00b7 '+(lmTotal/100).toFixed(2).replace('.', ',')+' \u20ac</strong></span></div>';
+      }else{
+        html+='<div class="sum-divider"></div>'
+          +'<div class="sum-row"><span class="label"><strong>Total</strong></span><span class="val"><strong>'+totalMin+' min \u00b7 '+totalPriceStr+'</strong></span></div>';
+      }
     }else{
       html+='<div class="sum-divider"></div>'
         +'<div class="sum-row"><span class="label"><strong>Total</strong></span><span class="val"><strong>'+totalMin+' min \u00b7 '+totalPriceStr+'</strong></span></div>';
@@ -2639,7 +2644,7 @@ async function submitBooking(){
     var confirmHtml='';
 
     // Prestations — use API-returned total for correct post-discount price
-    var apiTotalCents=data.total_after_discount_cents;
+    var apiTotalCents=data.booking?data.booking.total_after_discount_cents:data.total_after_discount_cents;
     if(multiServiceMode&&selectedServices.length>1){
       confirmHtml+='<div class="row" style="font-weight:600;padding-bottom:2px"><span class="l">Prestations</span><span class="v"></span></div>';
       var confirmTotalMin=0;

@@ -315,7 +315,7 @@ router.patch('/:id', requireOwner, async (req, res, next) => {
           await queryWithRLS(bid,
             `INSERT INTO service_variants (business_id, service_id, name, duration_min, price_cents, sort_order, description, processing_time, processing_start)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-            [bid, svcId, v.name, v.duration_min, v.price_cents ?? null, v.sort_order ?? i, v.description || null,
+            [bid, svcId, v.name, v.duration_min, v.price_cents != null ? Math.max(0, parseInt(v.price_cents) || 0) : null, v.sort_order ?? i, v.description || null,
              parseInt(v.processing_time) || 0, parseInt(v.processing_start) || 0]
           );
         }

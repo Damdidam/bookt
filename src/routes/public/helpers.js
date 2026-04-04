@@ -244,8 +244,18 @@ async function validateAndCalcPromo(txClient, businessId, promotionId, serviceId
     case 'date_range': {
       const now = new Date();
       const todayBrussels = now.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
-      if (promo.condition_start_date && todayBrussels < promo.condition_start_date.toString().slice(0, 10)) return { valid: false };
-      if (promo.condition_end_date && todayBrussels > promo.condition_end_date.toString().slice(0, 10)) return { valid: false };
+      if (promo.condition_start_date) {
+        const startStr = promo.condition_start_date instanceof Date
+          ? promo.condition_start_date.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' })
+          : String(promo.condition_start_date).slice(0, 10);
+        if (todayBrussels < startStr) return { valid: false };
+      }
+      if (promo.condition_end_date) {
+        const endStr = promo.condition_end_date instanceof Date
+          ? promo.condition_end_date.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' })
+          : String(promo.condition_end_date).slice(0, 10);
+        if (todayBrussels > endStr) return { valid: false };
+      }
       break;
     }
     case 'none':
