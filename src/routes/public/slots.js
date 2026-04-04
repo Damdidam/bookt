@@ -103,7 +103,51 @@ router.get('/:slug/slots', slotsLimiter, async (req, res, next) => {
       byDate[slot.date].push(slot);
     }
 
-    res.json({ slots, by_date: byDate, total: slots.length });
+    // SE-1: Include locked week dates so frontend can reliably filter
+    const lockedWeeksRes = await query(
+      `SELECT lw.week_start, lw.practitioner_id FROM locked_weeks lw
+       JOIN practitioners p ON p.id = lw.practitioner_id AND p.business_id = lw.business_id
+       WHERE lw.business_id = $1 AND p.featured_enabled = true AND p.is_active = true
+         AND lw.week_start >= (CURRENT_DATE - interval '7 days')
+       LIMIT 200`, [businessId]
+    );
+    const locked_weeks = lockedWeeksRes.rows.map(r => ({ week_start: r.week_start, practitioner_id: r.practitioner_id }));
+
+    // Filter out non-featured slots for locked weeks (server-side enforcement)
+    let filteredSlots = slots;
+    if (locked_weeks.length > 0 && practitioner_id) {
+      const pracLocked = locked_weeks.filter(lw => lw.practitioner_id === practitioner_id);
+      if (pracLocked.length > 0) {
+        const featuredRes = await query(
+          `SELECT date, start_time FROM featured_slots WHERE business_id = $1 AND practitioner_id = $2 AND date >= CURRENT_DATE`,
+          [businessId, practitioner_id]
+        );
+        const featuredSet = new Set(featuredRes.rows.map(r => `${r.date}|${r.start_time}`));
+        filteredSlots = slots.filter(s => {
+          const slotWeekStart = getWeekStart(s.date);
+          const isLocked = pracLocked.some(lw => {
+            const lwStr = new Date(lw.week_start).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+            return lwStr === slotWeekStart;
+          });
+          if (!isLocked) return true;
+          return featuredSet.has(`${s.date}|${s.start_time}`);
+        });
+      }
+    }
+    function getWeekStart(dateStr) {
+      const d = new Date(dateStr + 'T12:00:00Z');
+      const day = d.getUTCDay();
+      d.setUTCDate(d.getUTCDate() - (day === 0 ? 6 : day - 1));
+      return d.toLocaleDateString('en-CA', { timeZone: 'UTC' });
+    }
+
+    const filteredByDate = {};
+    for (const slot of filteredSlots) {
+      if (!filteredByDate[slot.date]) filteredByDate[slot.date] = [];
+      filteredByDate[slot.date].push(slot);
+    }
+
+    res.json({ slots: filteredSlots, by_date: filteredByDate, total: filteredSlots.length, locked_weeks });
   } catch (err) {
     next(err);
   }

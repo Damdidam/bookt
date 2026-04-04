@@ -817,6 +817,70 @@ async function handleStripeWebhook(req, res) {
         }
         break;
       }
+
+      // ST-1: Handle external refunds (issued from Stripe dashboard)
+      case 'charge.refunded': {
+        const charge = event.data.object;
+        const pi = charge.payment_intent;
+        if (pi) {
+          // Find booking via Stripe checkout session linked to this payment intent
+          try {
+            const sessions = await stripe.checkout.sessions.list({ payment_intent: pi, limit: 1 });
+            if (sessions.data.length > 0) {
+              const sessionId = sessions.data[0].id;
+              const bookings = await query(
+                `SELECT id, business_id FROM bookings WHERE deposit_payment_intent_id = $1 AND deposit_status = 'paid'`,
+                [sessionId]
+              );
+              for (const bk of bookings.rows) {
+                await query(
+                  `UPDATE bookings SET deposit_status = 'refunded', updated_at = NOW() WHERE id = $1`,
+                  [bk.id]
+                );
+                console.log(`[STRIPE WH] External refund detected for booking ${bk.id} (PI: ${pi})`);
+              }
+            }
+          } catch (refErr) {
+            console.warn('[STRIPE WH] charge.refunded processing error:', refErr.message);
+          }
+        }
+        break;
+      }
+
+      // ST-2: Handle disputes — alert business owner
+      case 'charge.dispute.created': {
+        const dispute = event.data.object;
+        const chargeId = dispute.charge;
+        try {
+          // Find the payment intent from the charge
+          const ch = await stripe.charges.retrieve(chargeId);
+          const pi = ch.payment_intent;
+          if (pi) {
+            const sessions = await stripe.checkout.sessions.list({ payment_intent: pi, limit: 1 });
+            if (sessions.data.length > 0) {
+              const sessionId = sessions.data[0].id;
+              const bookings = await query(
+                `SELECT b.id, b.business_id, biz.email AS biz_email, biz.name AS biz_name
+                 FROM bookings b JOIN businesses biz ON biz.id = b.business_id
+                 WHERE b.deposit_payment_intent_id = $1`, [sessionId]
+              );
+              if (bookings.rows.length > 0) {
+                const bk = bookings.rows[0];
+                // Queue notification for business owner
+                await query(
+                  `INSERT INTO notifications (business_id, booking_id, type, status, metadata)
+                   VALUES ($1, $2, 'email_dispute_alert', 'queued', $3)`,
+                  [bk.business_id, bk.id, JSON.stringify({ dispute_id: dispute.id, amount: dispute.amount, reason: dispute.reason })]
+                ).catch(e => console.warn('[STRIPE WH] Dispute notification queue error:', e.message));
+                console.log(`[STRIPE WH] Dispute created for booking ${bk.id}, amount: ${dispute.amount}, reason: ${dispute.reason}`);
+              }
+            }
+          }
+        } catch (dispErr) {
+          console.warn('[STRIPE WH] charge.dispute.created processing error:', dispErr.message);
+        }
+        break;
+      }
     }
   } catch (err) {
     console.error('[STRIPE WH] Processing error:', err);
@@ -985,6 +1049,17 @@ router.post('/connect/dashboard', requireAuth, requireOwner, async (req, res, ne
 router.delete('/connect', requireAuth, requireOwner, async (req, res, next) => {
   try {
     const bid = req.businessId;
+    // ST-3: Check for pending deposits before allowing disconnect
+    const pending = await query(
+      `SELECT COUNT(*) AS cnt FROM bookings
+       WHERE business_id = $1 AND status = 'pending_deposit' AND deposit_status = 'pending'`,
+      [bid]
+    );
+    if (parseInt(pending.rows[0].cnt) > 0) {
+      return res.status(400).json({
+        error: `Impossible de déconnecter Stripe : ${pending.rows[0].cnt} acompte(s) en attente de paiement. Annulez-les d'abord ou attendez leur expiration.`
+      });
+    }
     await query(
       `UPDATE businesses SET stripe_connect_id = NULL, stripe_connect_status = 'none', updated_at = NOW()
        WHERE id = $1`,

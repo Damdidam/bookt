@@ -566,7 +566,7 @@ body.theme-dark .promo-banner-arrow{background:rgba(30,30,30,.9);border-color:va
 
     <div class="fg" style="margin-top:8px">
       <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-size:.78rem;color:var(--text-3)">
-        <input type="checkbox" id="bkConsent" checked style="margin-top:3px;flex-shrink:0">
+        <input type="checkbox" id="bkConsent" style="margin-top:3px;flex-shrink:0">
         <span>J'accepte de recevoir les confirmations, rappels et informations relatives à mon rendez-vous par email et SMS.</span>
       </label>
     </div>
@@ -2509,7 +2509,7 @@ function buildSummary(){
     var sumCartSvcs=multiServiceMode?selectedServices.filter(function(s){return!s.is_promo;}):(selectedService?[selectedService]:[]);
     var sumDiscAmount=calcPromoDiscAmount(ap.id,sumCartSvcs);
     if(ap.type!=='info_only'&&sumDiscAmount>0){
-      var sumCartTotal=sumCartSvcs.reduce(function(s,svc){var oi=selectedServices.indexOf(svc);var v=oi>=0?selectedVariantsByIdx[oi]:null;return s+(v&&v.price_cents!=null?v.price_cents:(svc.price_cents||0));},0);
+      var sumCartTotal=sumCartSvcs.reduce(function(s,svc,ci){var v=multiServiceMode?selectedVariantsByIdx[selectedServices.indexOf(svc)]:(ci===0?selectedVariantsByIdx[0]:null);return s+(v&&v.price_cents!=null?v.price_cents:(svc.price_cents||0));},0);
       // If last-minute discount is also active, apply promo on the already-reduced price
       var sumBaseForPromo=sumCartTotal;
       if(selectedSlot&&selectedSlot.is_last_minute&&selectedSlot.discount_pct){
