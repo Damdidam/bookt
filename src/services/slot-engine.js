@@ -899,13 +899,19 @@ async function getAvailableSlotsMultiPractitioner({ businessId, serviceIds, date
     const avgStart = wins.reduce((sum, w) => sum + timeToMinutes(w.from), 0) / wins.length;
     return avgStart < 720 ? 0 : 100;
   }
+  // Store original index before sorting (for split-mode response ordering)
+  services.forEach((s, i) => { s._originalIndex = i; });
   services.sort((a, b) => _restrictionWeight(a) - _restrictionWeight(b));
 
-  // Calculate chained duration
+  // Calculate chained duration (with intermediate buffers between consecutive services)
   const sumDurations = services.reduce((sum, s) => sum + s.duration_min, 0);
   const bufferBefore = services[0].buffer_before_min || 0;
   const bufferAfter = services[services.length - 1].buffer_after_min || 0;
-  const totalDuration = bufferBefore + sumDurations + bufferAfter;
+  let intermediateBuffers = 0;
+  for (let i = 0; i < services.length - 1; i++) {
+    intermediateBuffers += Math.max(services[i].buffer_after_min || 0, services[i + 1].buffer_before_min || 0);
+  }
+  const totalDuration = bufferBefore + sumDurations + intermediateBuffers + bufferAfter;
 
   if (!totalDuration || totalDuration <= 0) {
     throw Object.assign(new Error(`Durée totale invalide (${totalDuration} min)`), { type: 'validation' });
