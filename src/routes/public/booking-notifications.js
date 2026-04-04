@@ -18,7 +18,7 @@ const { BASE_URL } = require('./helpers');
  * @param {string} params.savepointPrefix - Unique prefix for savepoint names (e.g. 'notif_multi' or 'notif')
  */
 async function queueBookingNotifications(txClient, {
-  businessId, bookingId, bookingStatus, clientEmail, clientPhone, savepointPrefix
+  businessId, bookingId, bookingStatus, clientEmail, clientPhone, savepointPrefix, notifyProEnabled = true
 }) {
   // Queue client confirmation email (skip if deposit pending — deposit email replaces it)
   if (bookingStatus !== 'pending_deposit') {
@@ -34,7 +34,8 @@ async function queueBookingNotifications(txClient, {
       console.error('Notification insert failed:', notifErr.message);
     }
   }
-  // Queue pro notification (always)
+  // Queue pro notification (if enabled in settings — default true)
+  if (notifyProEnabled === false) return;
   try {
     await txClient.query(`SAVEPOINT ${savepointPrefix}_sp2`);
     await txClient.query(

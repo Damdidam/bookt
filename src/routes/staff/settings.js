@@ -76,6 +76,8 @@ router.patch('/', requireOwner, async (req, res, next) => {
       settings_practitioner_choice_enabled,
       // Booking confirmation
       settings_booking_confirmation_required, settings_booking_confirmation_timeout, settings_booking_confirmation_channel,
+      // Pro notifications
+      settings_notify_new_booking_pro,
       // Gap analyzer
       settings_gap_analyzer_enabled,
       // Featured slots (mode vedette)
@@ -143,6 +145,7 @@ router.patch('/', requireOwner, async (req, res, next) => {
         || settings_practitioner_choice_enabled !== undefined
         || settings_booking_confirmation_required !== undefined || settings_booking_confirmation_timeout !== undefined
         || settings_booking_confirmation_channel !== undefined
+        || settings_notify_new_booking_pro !== undefined
         || settings_gap_analyzer_enabled !== undefined
         || settings_featured_slots_enabled !== undefined
         || settings_last_minute_enabled !== undefined || settings_last_minute_deadline !== undefined
@@ -207,6 +210,7 @@ router.patch('/', requireOwner, async (req, res, next) => {
       // Booking page
       if (settings_practitioner_choice_enabled !== undefined) cur.practitioner_choice_enabled = !!settings_practitioner_choice_enabled;
       // Booking confirmation
+      if (settings_notify_new_booking_pro !== undefined) cur.notify_new_booking_pro = !!settings_notify_new_booking_pro;
       if (settings_booking_confirmation_required !== undefined) cur.booking_confirmation_required = !!settings_booking_confirmation_required;
       if (settings_booking_confirmation_timeout !== undefined) { const _v = parseInt(settings_booking_confirmation_timeout); cur.booking_confirmation_timeout_min = (_v >= 5 && _v <= 1440) ? _v : 30; }
       if (settings_booking_confirmation_channel !== undefined) { cur.booking_confirmation_channel = ['email','sms','both'].includes(settings_booking_confirmation_channel) ? settings_booking_confirmation_channel : 'email'; }

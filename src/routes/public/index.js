@@ -802,7 +802,8 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         // Queue notifications for first booking (skip email_confirmation if deposit active)
         await queueBookingNotifications(client, {
           businessId, bookingId: bookings[0].id, bookingStatus: bookings[0].status,
-          clientEmail: client_email, clientPhone: client_phone, savepointPrefix: 'notif_multi'
+          clientEmail: client_email, clientPhone: client_phone, savepointPrefix: 'notif_multi',
+          notifyProEnabled: _bizSettings.notify_new_booking_pro !== false
         });
 
         return { bookings, needsConfirmation, confirmTimeoutMin, confirmChannel, gcPartialCents };
@@ -1364,7 +1365,8 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       // Queue notifications (skip email_confirmation if deposit active)
       await queueBookingNotifications(client, {
         businessId, bookingId: booking.rows[0].id, bookingStatus: booking.rows[0].status,
-        clientEmail: client_email, clientPhone: client_phone, savepointPrefix: 'notif'
+        clientEmail: client_email, clientPhone: client_phone, savepointPrefix: 'notif',
+        notifyProEnabled: _bizSettings.notify_new_booking_pro !== false
       });
 
       return { booking: booking.rows[0], needsConfirmation, confirmTimeoutMin, confirmChannel, gcPartialCents, svcPrice, svcDuration };

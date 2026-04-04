@@ -506,6 +506,19 @@ async function loadSettings(){
 
     h+=`</div></div>`;
 
+    // 3c. Notifications commerçant
+    const notifProOn=b.settings?.notify_new_booking_pro!==false;
+    h+=`<div class="settings-card"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg> Notifications</h3></div><div class="sc-body">`;
+    h+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border:1.5px solid var(--border);border-radius:var(--radius-sm);background:var(--surface)">
+      <div><div style="font-size:.88rem;font-weight:600">Email à chaque nouveau RDV</div><div style="font-size:.75rem;color:var(--text-4);margin-top:2px">Recevoir un email lorsqu'un client prend rendez-vous en ligne</div></div>
+      <label style="position:relative;display:inline-flex;width:44px;height:24px;flex-shrink:0;margin-left:16px;cursor:pointer">
+        <input type="checkbox" id="s_notify_new_booking_pro" ${notifProOn?'checked':''} style="display:none">
+        <span style="position:absolute;inset:0;background:${notifProOn?'var(--primary)':'var(--border)'};border-radius:12px;transition:all .2s"></span>
+        <span style="position:absolute;left:${notifProOn?'22px':'2px'};top:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,.15)"></span>
+      </label>
+    </div>`;
+    h+=`</div></div>`;
+
     // 4. Lien public & widget
     h+=`<div class="settings-card"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Lien public & Widget</h3></div><div class="sc-body">
       <div class="field"><label>URL de réservation</label><div class="copy-input"><input id="s_url" value="${lk.booking_url||''}" readonly><button class="btn-outline btn-sm" onclick="copyField('s_url')">${IC.clipboard} Copier</button></div></div>
@@ -1136,7 +1149,8 @@ async function saveBookingConfirmSettings(){
     const data={
       settings_booking_confirmation_required:document.getElementById('s_booking_confirm_required').checked,
       settings_booking_confirmation_timeout:parseInt(document.getElementById('s_booking_confirm_timeout')?.value)||30,
-      settings_booking_confirmation_channel:document.getElementById('s_booking_confirm_channel')?.value||'email'
+      settings_booking_confirmation_channel:document.getElementById('s_booking_confirm_channel')?.value||'email',
+      settings_notify_new_booking_pro:document.getElementById('s_notify_new_booking_pro').checked
     };
     const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(data)});
     if(!r.ok)throw new Error((await r.json()).error);
