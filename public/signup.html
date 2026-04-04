@@ -298,6 +298,44 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
         <div class="snav"><button class="btn-back" onclick="go(4)">← Retour</button><button class="btn-next" onclick="saveConfirmStep()">Continuer →</button></div>
       </div>
 
+      <!-- ===== STEP 6: RESCHEDULE POLICY ===== -->
+      <div class="step" data-step="6">
+        <div class="step-hdr"><div class="lbl">Modification des RDV</div><h2>Vos clients peuvent-ils déplacer leur RDV ?</h2><p>Autorisez ou non vos clients à modifier eux-mêmes la date/heure de leur rendez-vous en ligne.</p></div>
+
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <label style="display:flex;align-items:flex-start;gap:12px;padding:16px;border:1.5px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;transition:all .15s" onclick="setRescheduleMode(true)">
+            <input type="radio" name="reschedMode" value="on" checked style="margin-top:3px;accent-color:var(--primary)">
+            <div>
+              <div style="font-weight:600;font-size:.88rem">Oui, autoriser le déplacement</div>
+              <div style="font-size:.78rem;color:var(--text-3);margin-top:2px">Le client peut déplacer son RDV depuis la page de gestion. Réduit les annulations.</div>
+            </div>
+          </label>
+          <label style="display:flex;align-items:flex-start;gap:12px;padding:16px;border:1.5px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;transition:all .15s" onclick="setRescheduleMode(false)">
+            <input type="radio" name="reschedMode" value="off" style="margin-top:3px;accent-color:var(--primary)">
+            <div>
+              <div style="font-weight:600;font-size:.88rem">Non, uniquement par le salon</div>
+              <div style="font-size:.78rem;color:var(--text-3);margin-top:2px">Le client doit vous contacter pour tout changement de créneau.</div>
+            </div>
+          </label>
+        </div>
+
+        <div id="reschedOptions" style="margin-top:16px;padding:16px;background:var(--surface);border-radius:var(--radius-sm)">
+          <div>
+            <label style="font-size:.8rem;font-weight:600;color:var(--text-2);display:block;margin-bottom:4px">Nombre maximum de déplacements par RDV</label>
+            <select id="reschedMax" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:var(--radius-xs);font-family:var(--sans);font-size:.82rem;background:var(--white)">
+              <option value="1">1 fois</option>
+              <option value="2" selected>2 fois</option>
+              <option value="3">3 fois</option>
+              <option value="5">5 fois</option>
+              <option value="10">Illimité (10 max)</option>
+            </select>
+            <div style="font-size:.7rem;color:var(--text-4);margin-top:4px">Au-delà, le client devra vous contacter directement.</div>
+          </div>
+        </div>
+
+        <div class="snav"><button class="btn-back" onclick="go(5)">← Retour</button><button class="btn-next" onclick="saveRescheduleStep()">Continuer →</button></div>
+      </div>
+
       <!-- ===== STEP 11: GO LIVE ===== -->
       <div class="step" data-step="11">
         <div class="step-hdr"><div class="lbl"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> C'est prêt !</div><h2>Votre salon est en ligne</h2></div>
@@ -367,13 +405,13 @@ function go(n) {
   currentStep = n;
   hideError();
 
-  // Progress bar — real steps: 0(account) → 2(hours) → 4(team) → 5(confirm) → 11(done)
-  const stepMap = {0: 0, 2: 1, 4: 2, 5: 3, 11: 4};
+  // Progress bar — real steps: 0(account) → 2(hours) → 4(team) → 5(confirm) → 6(reschedule) → 11(done)
+  const stepMap = {0: 0, 2: 1, 4: 2, 5: 3, 6: 4, 11: 5};
   const stepNum = stepMap[n];
-  if (stepNum !== undefined && stepNum > 0 && stepNum < 4) {
-    const pct = Math.round((stepNum / 4) * 100);
+  if (stepNum !== undefined && stepNum > 0 && stepNum < 5) {
+    const pct = Math.round((stepNum / 5) * 100);
     document.getElementById('pFill').style.width = pct + '%';
-    document.getElementById('pLabel').textContent = `Étape ${stepNum}/4`;
+    document.getElementById('pLabel').textContent = `Étape ${stepNum}/5`;
     document.getElementById('pPct').textContent = pct + '%';
     document.getElementById('prog').classList.add('show');
   } else {
@@ -398,6 +436,7 @@ const leftTexts = {
   2: ['Vos <em>horaires,</em> optimisés', 'Le moteur maximise chaque créneau et gère les temps de pose.'],
   4: ['Votre <em>équipe</em>', 'Multi-praticiens sur un même RDV : le moteur assigne le bon créneau à chacun.'],
   5: ['<em>Confirmations</em>', 'Choisissez si vos clients doivent confirmer leur RDV avant validation.'],
+  6: ['<em>Flexibilité</em>', 'Définissez les règles de modification des rendez-vous par vos clients.'],
   11: ['Presque <em>terminé !</em>', 'Encore quelques réglages dans le dashboard et vous êtes prêt.']
 };
 
@@ -646,6 +685,36 @@ async function saveConfirmStep() {
     }
     await api.patch('/api/business', body);
     GendaUI.toast(confirmRequired ? 'Confirmation activée' : 'Confirmation automatique', 'success');
+    go(6);
+  } catch (err) {
+    showError(err.message);
+  } finally {
+    GendaUI.btnLoading(btn, false);
+  }
+}
+
+// ============================================================
+// STEP 6: RESCHEDULE POLICY
+// ============================================================
+let rescheduleEnabled = true;
+
+function setRescheduleMode(enabled) {
+  rescheduleEnabled = enabled;
+  document.getElementById('reschedOptions').style.display = enabled ? 'block' : 'none';
+}
+
+async function saveRescheduleStep() {
+  const btn = document.querySelector('.step[data-step="6"] .btn-next');
+  GendaUI.btnLoading(btn, true);
+  try {
+    const body = {
+      settings_reschedule_enabled: rescheduleEnabled
+    };
+    if (rescheduleEnabled) {
+      body.settings_reschedule_max_count = parseInt(document.getElementById('reschedMax').value) || 2;
+    }
+    await api.patch('/api/business', body);
+    GendaUI.toast(rescheduleEnabled ? 'Déplacement activé' : 'Déplacement désactivé', 'success');
     goLive();
   } catch (err) {
     showError(err.message);
@@ -700,7 +769,8 @@ function copyUrl() {
 Object.assign(window, {
   selSec, updSlug, go, doSignup, toggleDay, toggleBreak,
   toggleOwnerCustomHours, saveSchedule, saveOnboardingStep,
-  saveOwnerStep, setConfirmMode, saveConfirmStep, goLive, copyUrl
+  saveOwnerStep, setConfirmMode, saveConfirmStep,
+  setRescheduleMode, saveRescheduleStep, goLive, copyUrl
 });
 </script>
 
