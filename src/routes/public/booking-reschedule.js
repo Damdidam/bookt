@@ -380,13 +380,13 @@ router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) 
           if (!promo) return false;
           if (!promo.is_active) return false;
           // Check date range
-          if (promo.valid_from) {
+          if (promo.condition_start_date) {
             const newStartDate = new Date(start_at).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
-            if (newStartDate < new Date(promo.valid_from).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' })) return false;
+            if (newStartDate < new Date(promo.condition_start_date).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' })) return false;
           }
-          if (promo.valid_until) {
+          if (promo.condition_end_date) {
             const newStartDate = new Date(start_at).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
-            if (newStartDate > new Date(promo.valid_until).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' })) return false;
+            if (newStartDate > new Date(promo.condition_end_date).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' })) return false;
           }
           return true;
         })();

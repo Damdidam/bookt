@@ -439,10 +439,12 @@ router.patch('/:id/status', async (req, res, next) => {
       }
 
       // BUG-3 fix: Decrement cancel_count when restoring a cancelled booking
+      // Note: only client-initiated cancels increment cancel_count. If staff cancelled then
+      // restores, GREATEST(0) prevents going below zero. Completed status resets to 0 anyway.
       if (old.rows[0].status === 'cancelled' && status === 'confirmed' && old.rows[0].client_id) {
         await client.query(
           `UPDATE clients SET cancel_count = GREATEST(COALESCE(cancel_count, 0) - 1, 0), updated_at = NOW()
-           WHERE id = $1 AND business_id = $2`,
+           WHERE id = $1 AND business_id = $2 AND COALESCE(cancel_count, 0) > 0`,
           [old.rows[0].client_id, bid]
         ).catch(e => console.warn('[CANCEL COUNT DEC]', e.message));
       }
