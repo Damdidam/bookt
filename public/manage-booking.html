@@ -492,7 +492,7 @@ async function refuseModification() {
 
 // H8 fix: confirmation dialog before cancel (especially important when deposit at risk)
 function confirmCancel() {
-  const hasDeposit = window._bookingData?.deposit_status === 'paid';
+  const hasDeposit = _data?.booking?.deposit_status === 'paid';
   const msg = hasDeposit
     ? 'Attention : votre acompte pourrait ne pas être remboursé si le délai d\'annulation est dépassé.\n\nConfirmer l\'annulation ?'
     : 'Êtes-vous sûr(e) de vouloir annuler ce rendez-vous ?';

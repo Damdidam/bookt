@@ -385,7 +385,7 @@ async function applyGiftCard() {
 
     if (!data.valid) {
       result.style.display = '';
-      result.innerHTML = `<div style="padding:10px 14px;border-radius:8px;background:var(--red-bg);color:var(--red);font-size:.82rem;font-weight:600">${data.error || 'Code invalide'}</div>`;
+      result.innerHTML = `<div style="padding:10px 14px;border-radius:8px;background:var(--red-bg);color:var(--red);font-size:.82rem;font-weight:600">${esc(data.error || 'Code invalide')}</div>`;
       btn.disabled = false;
       btn.textContent = 'Appliquer';
       return;
@@ -413,7 +413,7 @@ async function payWithGiftCard(code) {
     });
     const data = await res.json();
     if (!res.ok) {
-      if (result) { result.style.display = ''; result.innerHTML = `<div style="padding:10px 14px;border-radius:8px;background:var(--red-bg);color:var(--red);font-size:.82rem;font-weight:600">${data.error || 'Erreur'}</div>`; }
+      if (result) { result.style.display = ''; result.innerHTML = `<div style="padding:10px 14px;border-radius:8px;background:var(--red-bg);color:var(--red);font-size:.82rem;font-weight:600">${esc(data.error || 'Erreur')}</div>`; }
       return;
     }
 

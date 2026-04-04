@@ -194,7 +194,7 @@ async function validateAndCalcPromo(txClient, businessId, promotionId, serviceId
 
   // Fetch promo
   const promoRes = await txClient.query(
-    `SELECT * FROM promotions WHERE id = $1 AND business_id = $2 AND is_active = true`,
+    `SELECT * FROM promotions WHERE id = $1 AND business_id = $2 AND is_active = true FOR UPDATE`,
     [promotionId, businessId]
   );
   if (promoRes.rows.length === 0) return { valid: false };
@@ -243,7 +243,7 @@ async function validateAndCalcPromo(txClient, businessId, promotionId, serviceId
     }
     case 'date_range': {
       const now = new Date();
-      if (promo.condition_start_date && now < new Date(promo.condition_start_date)) return { valid: false };
+      if (promo.condition_start_date && now < new Date(promo.condition_start_date + 'T00:00:00+02:00')) return { valid: false };
       if (promo.condition_end_date && now > new Date(promo.condition_end_date + 'T23:59:59+02:00')) return { valid: false };
       break;
     }

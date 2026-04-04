@@ -341,8 +341,8 @@ router.patch('/:id/move', async (req, res, next) => {
                 // H2 fix: Re-validate promo date range after group move
                 const _grpMovedDate = new Date(totalStart).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
                 const _grpPromoValid = promo.is_active !== false
-                  && (!promo.valid_from || _grpMovedDate >= new Date(promo.valid_from).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' }))
-                  && (!promo.valid_until || _grpMovedDate <= new Date(promo.valid_until).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' }));
+                  && (!promo.condition_start_date || _grpMovedDate >= new Date(promo.condition_start_date).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' }))
+                  && (!promo.condition_end_date || _grpMovedDate <= new Date(promo.condition_end_date).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' }));
                 if (!_grpPromoValid) {
                   for (const uid of updates.map(u => u.id)) {
                     await client.query(
@@ -695,8 +695,8 @@ router.patch('/:id/move', async (req, res, next) => {
               const _promoStillValid = (() => {
                 if (!promo.is_active) return false;
                 const _movedDateStr = new Date(moved.start_at).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
-                if (promo.valid_from && _movedDateStr < new Date(promo.valid_from).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' })) return false;
-                if (promo.valid_until && _movedDateStr > new Date(promo.valid_until).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' })) return false;
+                if (promo.condition_start_date && _movedDateStr < new Date(promo.condition_start_date).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' })) return false;
+                if (promo.condition_end_date && _movedDateStr > new Date(promo.condition_end_date).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' })) return false;
                 return true;
               })();
               if (!_promoStillValid) {

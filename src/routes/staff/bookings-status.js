@@ -438,6 +438,15 @@ router.patch('/:id/status', async (req, res, next) => {
         }
       }
 
+      // BUG-3 fix: Decrement cancel_count when restoring a cancelled booking
+      if (old.rows[0].status === 'cancelled' && status === 'confirmed' && old.rows[0].client_id) {
+        await client.query(
+          `UPDATE clients SET cancel_count = GREATEST(COALESCE(cancel_count, 0) - 1, 0), updated_at = NOW()
+           WHERE id = $1 AND business_id = $2`,
+          [old.rows[0].client_id, bid]
+        ).catch(e => console.warn('[CANCEL COUNT DEC]', e.message));
+      }
+
       // ===== DEPOSIT: refund logic on cancellation =====
       let depositRefunded = false;
       let gcRefundForEmail = { refunded: 0 };
@@ -632,6 +641,20 @@ router.patch('/:id/status', async (req, res, next) => {
             }
           }
         }
+      }
+
+      // BUG-2 fix: Un-void invoices when restoring a cancelled booking
+      if (old.rows[0].status === 'cancelled' && status !== 'cancelled') {
+        const invoiceIds = [id];
+        if (old.rows[0].group_id) {
+          const _invSibs = await client.query(`SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2 AND id != $3`, [old.rows[0].group_id, bid, id]);
+          for (const s of _invSibs.rows) invoiceIds.push(s.id);
+        }
+        await client.query(
+          `UPDATE invoices SET status = 'draft', updated_at = NOW()
+           WHERE booking_id = ANY($1::uuid[]) AND status = 'cancelled'`,
+          [invoiceIds]
+        ).catch(e => console.warn('[INVOICE RESTORE]', e.message));
       }
 
       // Audit log (inside transaction for consistency, enriched with deposit state)
