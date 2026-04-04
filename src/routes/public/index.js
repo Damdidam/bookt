@@ -1149,6 +1149,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       // ── Deposit check (single-service) — triggers: price/duration thresholds OR no-show recidivist ──
       let gcPartialCents = 0;
       let bizSettings = {};
+      let svcPrice = 0, svcDuration = 0;
       if (booking.rows[0] && businessPlan !== 'free') {
         try {
           await client.query('SAVEPOINT deposit_single_sp');
@@ -1158,7 +1159,6 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           bizSettings = bizSettingsRow.rows[0]?.settings || {};
 
           // Get service price + duration (use variant if applicable)
-          let svcPrice = 0, svcDuration = 0;
           const svcInfoResult = await client.query(
             `SELECT COALESCE(s.price_cents, 0) AS price, COALESCE(s.duration_min, 0) AS duration
              FROM bookings b JOIN services s ON s.id = b.service_id
