@@ -758,6 +758,18 @@ router.post('/close', requireOwner, async (req, res, next) => {
          RETURNING id, client_id`, [bid]
       );
 
+      // 2b2. Void all draft/sent invoices
+      await client.query(
+        `UPDATE invoices SET status = 'cancelled', updated_at = NOW()
+         WHERE business_id = $1 AND status IN ('draft', 'sent')`, [bid]
+      );
+
+      // 2b3. Clean up waitlist entries
+      await client.query(
+        `UPDATE waitlist_entries SET status = 'expired', updated_at = NOW()
+         WHERE business_id = $1 AND status IN ('waiting', 'offered')`, [bid]
+      );
+
       // 2c. Collect ALL affected emails: clients with bookings + GC buyers + GC recipients + pass buyers
       // GC/passes don't have client_id — they have buyer_email/recipient_email
       const affectedRes = await client.query(
@@ -850,6 +862,67 @@ router.post('/close', requireOwner, async (req, res, next) => {
       } catch (emailErr) {
         console.warn(`[CLOSE] Email to ${person.email} failed:`, emailErr.message);
       }
+    }
+
+    // 5. Auto-export data and send to owner (post-close, they lose dashboard access)
+    try {
+      const ownerRes = await query(`SELECT email FROM users WHERE business_id = $1 AND role = 'owner' LIMIT 1`, [bid]);
+      const ownerEmail = ownerRes.rows[0]?.email;
+      if (ownerEmail) {
+        // Build clients CSV
+        const clientsRes = await query(
+          `SELECT c.full_name, c.email, c.phone, c.notes, c.consent_sms, c.consent_email, c.consent_marketing, c.created_at,
+                  (SELECT COUNT(*) FROM bookings b WHERE b.client_id = c.id AND b.status IN ('confirmed', 'completed')) AS total_bookings
+           FROM clients c WHERE c.business_id = $1 ORDER BY c.full_name`, [bid]
+        );
+        const fmtD = (d) => d ? new Date(d).toLocaleDateString('fr-BE', { timeZone: 'Europe/Brussels' }) : '';
+        const escC = (s) => `"${(s || '').replace(/"/g, '""')}"`;
+        const clientsCsv = '\uFEFF' + 'Nom;Email;Téléphone;Notes;SMS;Email;Marketing;Créé le;RDV total\n' +
+          clientsRes.rows.map(r => [escC(r.full_name), r.email||'', r.phone||'', escC(r.notes),
+            r.consent_sms?'Oui':'Non', r.consent_email!==false?'Oui':'Non', r.consent_marketing?'Oui':'Non',
+            fmtD(r.created_at), r.total_bookings||0].join(';')).join('\n');
+
+        // Build invoices CSV
+        const invRes = await query(
+          `SELECT invoice_number, type, status, issue_date, client_name, client_email, total_cents, vat_amount_cents
+           FROM invoices WHERE business_id = $1 ORDER BY issue_date DESC`, [bid]
+        );
+        const fmtE = (c) => ((c||0)/100).toFixed(2).replace('.',',');
+        const invoicesCsv = '\uFEFF' + 'Numéro;Type;Statut;Date;Client;Email;Total (€);TVA (€)\n' +
+          invRes.rows.map(r => [r.invoice_number||'', r.type||'', r.status||'', fmtD(r.issue_date),
+            escC(r.client_name), r.client_email||'', fmtE(r.total_cents), fmtE(r.vat_amount_cents)].join(';')).join('\n');
+
+        const exportHtml = buildEmailHTML({
+          title: 'Vos données — ' + escHtml(biz.name),
+          preheader: 'Export de vos données clients et factures',
+          bodyHTML: `
+            <p>Bonjour,</p>
+            <p>Suite à la fermeture de votre compte <strong>${escHtml(biz.name)}</strong>, voici l'export de vos données en pièces jointes.</p>
+            <p style="font-size:13px;color:#6B6560">Ces fichiers CSV sont compatibles avec Excel et Google Sheets. Conservez-les précieusement.</p>`,
+          businessName: biz.name,
+          footerText: 'Genda.be — Export de données'
+        });
+
+        // Send with Brevo attachments
+        const BREVO_API = 'https://api.brevo.com/v3/smtp/email';
+        await fetch(BREVO_API, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'api-key': process.env.BREVO_API_KEY },
+          body: JSON.stringify({
+            sender: { name: 'Genda', email: 'no-reply@genda.be' },
+            to: [{ email: ownerEmail }],
+            subject: `${biz.name} — Export de vos données`,
+            htmlContent: exportHtml,
+            attachment: [
+              { name: 'clients.csv', content: Buffer.from(clientsCsv).toString('base64') },
+              { name: 'factures.csv', content: Buffer.from(invoicesCsv).toString('base64') }
+            ]
+          })
+        });
+        console.log(`[CLOSE] Data export sent to ${ownerEmail}`);
+      }
+    } catch (exportErr) {
+      console.warn('[CLOSE] Data export email failed:', exportErr.message);
     }
 
     console.log(`[CLOSE] Business ${bid} (${biz.name}) closed. ${txResult.futureCount} bookings cancelled, ${emailsSent}/${txResult.affected.length} clients notified.`);
