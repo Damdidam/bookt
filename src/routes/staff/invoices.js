@@ -210,14 +210,15 @@ router.post('/', requireOwner, async (req, res, next) => {
           if (grpResult.rows.length > 1) allBookings = grpResult.rows;
         }
 
-        // Build line items for each service in the group
+        // Build line items for each service in the group (pass-covered = 0€)
         invoiceItems = allBookings.map(sib => {
           const svcLabel = sib.service_category ? `${sib.service_category} - ${sib.service_name}${sib.variant_name ? ' \u2014 ' + sib.variant_name : ''}` : (sib.variant_name ? `${sib.service_name} \u2014 ${sib.variant_name}` : sib.service_name);
+          const isPassCovered = sib.deposit_payment_intent_id && sib.deposit_payment_intent_id.startsWith('pass_');
           return {
             booking_id: sib.id,
-            description: `${svcLabel} — ${new Date(sib.start_at).toLocaleDateString('fr-BE', { timeZone: 'Europe/Brussels' })}`,
+            description: `${svcLabel} — ${new Date(sib.start_at).toLocaleDateString('fr-BE', { timeZone: 'Europe/Brussels' })}${isPassCovered ? ' (pass)' : ''}`,
             quantity: 1,
-            unit_price_cents: sib.booked_price_cents ?? sib.variant_price_cents ?? sib.price_cents ?? 0,
+            unit_price_cents: isPassCovered ? 0 : (sib.booked_price_cents ?? sib.variant_price_cents ?? sib.price_cents ?? 0),
             vat_rate: vat_rate || 21
           };
         });

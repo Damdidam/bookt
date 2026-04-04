@@ -30,14 +30,19 @@ async function refundGiftCardForBooking(bookingId, dbClient) {
   let totalRefunded = 0;
   const cards = [];
 
+  // Count existing refunds per GC to handle cancel→restore→cancel correctly
+  const refundCounts = {};
+  const existingRefunds = await q(
+    `SELECT gift_card_id, COUNT(*) AS cnt FROM gift_card_transactions WHERE booking_id = $1 AND type = 'refund' GROUP BY gift_card_id`, [bookingId]
+  );
+  for (const r of existingRefunds.rows) refundCounts[r.gift_card_id] = parseInt(r.cnt) || 0;
+  const debitCounts = {};
+  for (const d of debits.rows) debitCounts[d.gift_card_id] = (debitCounts[d.gift_card_id] || 0) + 1;
+
   for (const debit of debits.rows) {
-    // Check if already refunded for this debit
-    const existing = await q(
-      `SELECT id FROM gift_card_transactions
-       WHERE gift_card_id = $1 AND booking_id = $2 AND type = 'refund'`,
-      [debit.gift_card_id, bookingId]
-    );
-    if (existing.rows.length > 0) continue; // already refunded
+    // Skip if this GC already has as many refunds as debits for this booking
+    if ((refundCounts[debit.gift_card_id] || 0) >= (debitCounts[debit.gift_card_id] || 0)) continue;
+    refundCounts[debit.gift_card_id] = (refundCounts[debit.gift_card_id] || 0) + 1;
 
     // Credit back to gift card
     await q(

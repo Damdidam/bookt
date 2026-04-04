@@ -89,12 +89,24 @@ router.put('/', async (req, res, next) => {
 
       // Insert new schedule
       // schedule = { "0": [{ start_time: "09:00", end_time: "12:00" }, ...], "1": [...], ... }
+      const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
       for (const [weekday, windows] of Object.entries(schedule)) {
         // V12-009: Validate weekday range
         const weekdayNum = parseInt(weekday);
         if (isNaN(weekdayNum) || weekdayNum < 0 || weekdayNum > 6) continue;
 
+        // Validate time format + detect overlaps
+        const validWindows = [];
         for (const win of windows) {
+          if (!TIME_RE.test(win.start_time) || !TIME_RE.test(win.end_time)) continue;
+          if (win.start_time >= win.end_time) continue;
+          // Check overlap with already-added windows for this weekday
+          const hasOverlap = validWindows.some(v => win.start_time < v.end_time && win.end_time > v.start_time);
+          if (hasOverlap) continue;
+          validWindows.push(win);
+        }
+
+        for (const win of validWindows) {
           await client.query(
             `INSERT INTO availabilities (business_id, practitioner_id, weekday, start_time, end_time)
              VALUES ($1, $2, $3, $4, $5)`,

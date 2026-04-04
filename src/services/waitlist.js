@@ -219,6 +219,7 @@ async function processExpiredOffers() {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    const pendingEmails = [], pendingBroadcasts = [];
 
     // Find expired offers
     // SVC-V11-5: Add business_id to JOINs for cross-tenant isolation
@@ -348,14 +349,11 @@ async function processExpiredOffers() {
             footerText: `${cbiz.name}${cbiz.address ? ' \u00b7 ' + cbiz.address : ''} \u00b7 Via Genda.be`
           });
 
-          sendEmail({
-            to: next.rows[0].client_email,
-            toName: next.rows[0].client_name,
-            subject: `Cr\u00e9neau disponible \u2014 ${entry.service_name} le ${cascadeDateFmt}`,
-            html: cascadeHtml,
-            fromName: cbiz.name,
-            replyTo: cbiz.email || undefined
-          }).catch(e => console.warn('[WAITLIST] Cascade email error:', e.message));
+          pendingEmails.push({ to: next.rows[0].client_email, toName: next.rows[0].client_name, subject: `Créneau disponible — ${entry.service_name} le ${cascadeDateFmt}`, html: cascadeHtml, fromName: cbiz.name, replyTo: cbiz.email || undefined });
+
+
+
+
 
           broadcast(entry.business_id, 'waitlist_match', {
             mode: 'auto_cascade',
@@ -370,6 +368,10 @@ async function processExpiredOffers() {
     }
 
     await client.query('COMMIT');
+    // Send deferred emails + broadcasts AFTER commit (no rollback risk)
+    for (const em of pendingEmails) {
+      sendEmail(em).catch(e => console.warn('[WAITLIST] Cascade email error:', e.message));
+    }
     return { processed };
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});

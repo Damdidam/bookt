@@ -104,7 +104,7 @@ router.post('/:slug/waitlist', bookingLimiter, async (req, res, next) => {
        AND NOT EXISTS (
          SELECT 1 FROM waitlist_entries dup
          WHERE dup.practitioner_id = $2 AND dup.service_id = $3
-           AND dup.client_email = $5 AND dup.status = 'waiting'
+           AND LOWER(dup.client_email) = LOWER($5) AND dup.status = 'waiting'
            AND dup.business_id = $1
        )
        RETURNING id, priority, created_at`,
