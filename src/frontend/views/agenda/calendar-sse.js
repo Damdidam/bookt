@@ -18,7 +18,7 @@ function setupSSE() {
         const d = JSON.parse(ev.data);
         const slot = d.slot_start
           ? new Date(d.slot_start).toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' })
-            + ' \u00e0 ' + new Date(d.slot_start).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' })
+            + ' \u00e0 ' + new Date(d.slot_start).toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' })
           : '';
         if (d.mode === 'manual') {
           gToast(`${IC.hourglass} ${d.matches_count} personne(s) en attente pour le cr\u00e9neau du ${slot} (${d.practitioner_name})`, 'info', { label: 'Voir la liste \u2192', fn: "document.querySelector('[data-section=waitlist]').click()" });

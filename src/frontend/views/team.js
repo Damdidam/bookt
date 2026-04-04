@@ -476,7 +476,7 @@ function renderServicesList() {
 
     services.forEach(s => {
       const checked = teamEditServiceIds.has(s.id);
-      const priceLabel = s.price_cents ? (s.price_cents / 100).toFixed(2).replace('.00', '') + '€' : '';
+      const priceLabel = s.price_cents ? (s.price_cents / 100).toFixed(2).replace('.', ',').replace(',00', '') + '€' : '';
       h += `<label class="svc-assign-item${checked ? ' checked' : ''}" onclick="event.preventDefault();teamToggleService('${s.id}')">
         <input type="checkbox" ${checked ? 'checked' : ''} tabindex="-1" style="accent-color:var(--primary)">
         <span class="svc-assign-name">${esc(s.name)}</span>

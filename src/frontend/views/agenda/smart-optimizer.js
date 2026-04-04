@@ -823,7 +823,7 @@ function soSelectedServicesHTML() {
   let html = '';
   S.selectedServices.forEach((svc, idx) => {
     const poseLabel = svc.processing_time > 0 ? ` <span class="so-svc-pose">(+${svc.processing_time}min pose)</span>` : '';
-    const priceLabel = svc.price_cents > 0 ? `<span class="so-svc-price">${(svc.price_cents / 100).toFixed(2)}\u20ac</span>` : '';
+    const priceLabel = svc.price_cents > 0 ? `<span class="so-svc-price">${(svc.price_cents / 100).toFixed(2).replace('.', ',')}\u20ac</span>` : '';
     const schedLabel = soGetScheduleLabel(svc.id);
     const schedTag = schedLabel ? ` <span class="so-svc-sched">${schedLabel}</span>` : '';
     html += `<div class="so-svc-card">
@@ -846,7 +846,7 @@ function soTotalHTML() {
   const totalCents = S.selectedServices.reduce((s, svc) => s + (svc.price_cents || 0), 0);
   let html = `<div class="so-total-row"><span>Durée totale</span><strong>${fmtMin(dur)}</strong></div>`;
   if (poseT > 0) html += `<div class="so-total-row"><span>Dont pose</span><span class="so-svc-pose">${fmtMin(poseT)}</span></div>`;
-  if (totalCents > 0) html += `<div class="so-total-row so-total-price"><span>Total</span><strong>${(totalCents / 100).toFixed(2)}\u20ac</strong></div>`;
+  if (totalCents > 0) html += `<div class="so-total-row so-total-price"><span>Total</span><strong>${(totalCents / 100).toFixed(2).replace('.', ',')}\u20ac</strong></div>`;
   return html;
 }
 

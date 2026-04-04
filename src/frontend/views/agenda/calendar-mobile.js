@@ -73,7 +73,7 @@ async function fcLoadMobileList() {
     const sorted = [...calState.fcAllBookings].sort((a, b) => new Date(a.start_at) - new Date(b.start_at));
     sorted.forEach(b => {
       const s = new Date(b.start_at), e = new Date(b.end_at);
-      const t1 = s.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+      const t1 = s.toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' });
       const dur = Math.round((e - s) / 60000);
       const prac = calState.fcPractitioners.find(p => String(p.id) === String(b.practitioner_id));
       const stLabel = esc(ST_LABELS[b.status] || b.status);

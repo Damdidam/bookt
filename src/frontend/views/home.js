@@ -69,7 +69,7 @@ async function loadDashboard(){
       const todos=sum.pending_todos||[];
 
       // ── KPI tiles ──
-      const nbTime=nb?new Date(nb.start_at).toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'}):'';
+      const nbTime=nb?new Date(nb.start_at).toLocaleTimeString('fr-BE',{timeZone:'Europe/Brussels',hour:'2-digit',minute:'2-digit'}):'';
       const nbDate=nb?new Date(nb.start_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short',timeZone:'Europe/Brussels'}):'';
       h+=`<div class="stats">`;
       h+=`<div class="stat-card"><div class="label">RDV aujourd'hui</div><div class="val">${sum.today?.count||0}</div></div>`;
@@ -105,7 +105,7 @@ async function loadDashboard(){
       // ── RDV du jour ──
       h+=`<div class="card"><div class="card-h"><h3>${isPrac?'Mes RDV du jour':'RDV du jour'}</h3><span class="badge badge-teal">${sum.today?.count||0}</span></div>`;
       if(sum.today?.bookings?.length>0){sum.today.bookings.forEach(b=>{
-        const t=new Date(b.start_at).toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'});
+        const t=new Date(b.start_at).toLocaleTimeString('fr-BE',{timeZone:'Europe/Brussels',hour:'2-digit',minute:'2-digit'});
         let badges='';
         if(b.todo_count>0)badges+=`<span class="bk-badge todo">${IC.clipboard} ${b.todo_count}</span>`;
         if(b.note_count>0||b.has_internal_note)badges+=`<span class="bk-badge note">${IC.fileText}</span>`;

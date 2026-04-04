@@ -319,7 +319,7 @@ async function process2hReminders(stats) {
       COALESCE(sv.price_cents, s.price_cents) AS price_cents,
       bk.appointment_mode,
       bk.promotion_label, bk.promotion_discount_cents,
-      bk.discount_pct,
+      bk.discount_pct, bk.booked_price_cents, bk.deposit_payment_intent_id,
       bk.deposit_required, bk.deposit_status, bk.deposit_amount_cents,
       b.id AS business_id, b.name AS business_name,
       b.phone AS business_phone, b.address AS business_address,
@@ -394,7 +394,7 @@ async function process2hReminders(stats) {
 
       const isMulti = Array.isArray(groupServices) && groupServices.length > 1;
       // Apply last-minute discount to single booking price (2h)
-      const adjPriceCents2h = bk.discount_pct && bk.price_cents ? Math.round(bk.price_cents * (100 - bk.discount_pct) / 100) : bk.price_cents;
+      const adjPriceCents2h = bk.booked_price_cents || (bk.discount_pct && bk.price_cents ? Math.round(bk.price_cents * (100 - bk.discount_pct) / 100) : bk.price_cents);
 
       // SMS 2h — keep under 160 chars
       const manageUrl2hSms = `${process.env.APP_BASE_URL || 'https://genda.be'}/booking/${bk.public_token}`;

@@ -1398,9 +1398,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           confirmChannel: singleConfChannel, gcPartialCents: resultGcPartial || 0,
           practitionerName: pracRow.rows[0]?.display_name || '',
           serviceName: svcName, serviceCategory: svcCategory,
-          servicePriceCents: createdBooking.discount_pct
-            ? Math.round((resultSvcPrice || 0) * (100 - createdBooking.discount_pct) / 100)
-            : (resultSvcPrice || 0),
+          servicePriceCents: resultSvcPrice || 0,
           durationMin: resultSvcDuration || 0,
           groupServices: null,
           logPrefix: 'Single booking'

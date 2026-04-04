@@ -51,7 +51,7 @@ function fcShowTooltip(event, x, y) {
 
   // ── Task tooltip (simpler) ──
   if (p._isTask) {
-    const timeStr = start.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' }) + (end ? '–' + end.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' }) : '');
+    const timeStr = start.toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' }) + (end ? '–' + end.toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' }) : '');
     const dateStr = start.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
     const dur = end ? Math.round((end - start) / 60000) : 0;
     let html = `<div class="tt-head">${IC.wrench} ${esc(p.title)}</div>`;
@@ -66,7 +66,7 @@ function fcShowTooltip(event, x, y) {
     document.body.appendChild(tt); fcMoveTooltip(x, y); return;
   }
 
-  const timeStr = start.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' }) + (end ? '–' + end.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' }) : '');
+  const timeStr = start.toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' }) + (end ? '–' + end.toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' }) : '');
   const dateStr = start.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
   const dur = end ? Math.round((end - start) / 60000) : p.duration_min || 0;
 
@@ -133,8 +133,8 @@ function fcShowTooltip(event, x, y) {
     const buf = parseInt(p.buffer_before_min) || 0;
     const poseStartMs = start.getTime() + (buf + ps) * 60000;
     const poseEndMs = poseStartMs + ptMin * 60000;
-    const psFmt = new Date(poseStartMs).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
-    const peFmt = new Date(poseEndMs).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+    const psFmt = new Date(poseStartMs).toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' });
+    const peFmt = new Date(poseEndMs).toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' });
     infos.push(ico('hourglass') + 'Pose ' + psFmt + '–' + peFmt + ' <span class="tt-dim">(' + ptMin + 'min)</span>');
   }
 

@@ -141,7 +141,7 @@ async function processExpiredDeposits() {
       }
 
       processed++;
-      cancelledBookingIds.push({ id: bk.id, business_id: bk.business_id, group_id: bk.group_id, client_id: bk.client_id });
+      cancelledBookingIds.push({ id: bk.id, business_id: bk.business_id, group_id: bk.group_id, client_id: bk.client_id, _gcRefunded: gcRefundExp.refunded || 0, _passRefunded: (passRefundExp.refunded || 0) !== 0 });
       } catch (spErr) {
         await client.query(`ROLLBACK TO sp_${i}`);
         console.error('[DEPOSIT CRON] Failed to process booking', bk.id, spErr.message);
@@ -178,7 +178,7 @@ async function processExpiredDeposits() {
     }
 
     // Send cancellation emails AFTER commit (non-blocking)
-    for (const { id: bkId } of cancelledBookingIds) {
+    for (const { id: bkId, _gcRefunded, _passRefunded } of cancelledBookingIds) {
       try {
         const fullBk = await query(
           `SELECT b.*, CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
@@ -225,7 +225,7 @@ async function processExpiredDeposits() {
         const gcPaidExpiry = await getGcPaidCents(bkId);
         const { sendCancellationEmail } = require('./email');
         await sendCancellationEmail({
-          booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, service_category: row.service_category, custom_label: row.custom_label, service_price_cents: _adjSvcPriceExp, duration_min: row.duration_min, practitioner_name: row.practitioner_name, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_paid_at: row.deposit_paid_at, deposit_payment_intent_id: row.deposit_payment_intent_id, gc_paid_cents: gcPaidExpiry, gc_refunded_cents: gcRefundExp.refunded || 0, pass_refunded: (passRefundExp.refunded || 0) !== 0, promotion_label: row.promotion_label, promotion_discount_cents: row.promotion_discount_cents, promotion_discount_pct: row.promotion_discount_pct },
+          booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, service_category: row.service_category, custom_label: row.custom_label, service_price_cents: _adjSvcPriceExp, duration_min: row.duration_min, practitioner_name: row.practitioner_name, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_paid_at: row.deposit_paid_at, deposit_payment_intent_id: row.deposit_payment_intent_id, gc_paid_cents: gcPaidExpiry, gc_refunded_cents: _gcRefunded || 0, pass_refunded: !!_passRefunded, promotion_label: row.promotion_label, promotion_discount_cents: row.promotion_discount_cents, promotion_discount_pct: row.promotion_discount_pct },
           business: { name: row.biz_name, slug: row.biz_slug, email: row.biz_email, phone: row.biz_phone, address: row.biz_address, theme: row.biz_theme, settings: row.biz_settings },
           groupServices
         });

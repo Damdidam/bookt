@@ -148,12 +148,12 @@ async function openClientDetail(id){
     const gcs = d.gift_cards || [];
     if (gcs.length > 0) {
       const totalBalance = gcs.reduce((s, g) => s + (g.status === 'active' ? g.balance_cents : 0), 0);
-      m += `<div class="m-sec"><div class="m-sec-head"><span class="m-sec-title">${IC.gift} Cartes cadeau${totalBalance > 0 ? ' · <span style="color:var(--green);font-weight:700">' + (totalBalance/100).toFixed(2) + ' €</span>' : ''}</span><span class="m-sec-line"></span></div>`;
+      m += `<div class="m-sec"><div class="m-sec-head"><span class="m-sec-title">${IC.gift} Cartes cadeau${totalBalance > 0 ? ' · <span style="color:var(--green);font-weight:700">' + (totalBalance/100).toFixed(2).replace('.',',') + ' €</span>' : ''}</span><span class="m-sec-line"></span></div>`;
       m += `<div style="border-radius:8px;border:1px solid var(--border-light);overflow:hidden">`;
       gcs.forEach((g, i) => {
         const bg = i % 2 === 0 ? 'var(--white)' : 'var(--surface)';
-        const bal = (g.balance_cents / 100).toFixed(2);
-        const orig = (g.amount_cents / 100).toFixed(2);
+        const bal = (g.balance_cents / 100).toFixed(2).replace('.',',');
+        const orig = (g.amount_cents / 100).toFixed(2).replace('.',',');
         const exp = g.expires_at ? new Date(g.expires_at).toLocaleDateString('fr-BE', {day:'numeric',month:'short',year:'numeric',timeZone:'Europe/Brussels'}) : '—';
         const active = g.status === 'active' && g.balance_cents > 0;
         m += `<div style="background:${bg}">`;
@@ -178,7 +178,7 @@ async function openClientDetail(id){
             const col = txColors[t.type] || 'var(--text-4)';
             const sign = txSigns[t.type] || '';
             const label = txLabels[t.type] || t.type;
-            const amt = (Math.abs(t.amount_cents) / 100).toFixed(2);
+            const amt = (Math.abs(t.amount_cents) / 100).toFixed(2).replace('.',',');
             m += `<div style="display:flex;justify-content:space-between;align-items:center;padding:2px 0;color:var(--text-3)">
               <span><span style="color:${col};font-weight:600">${sign}${amt} €</span> ${esc(label)}${t.note ? ' — ' + esc(t.note) : ''}</span>
               <span style="color:var(--text-4)">${dt}</span>
@@ -291,7 +291,7 @@ async function openClientDetail(id){
 async function saveClient(id){
   try{
     const remarkEl=document.getElementById('cl_remarks');
-    const remarksHtml=remarkEl?remarkEl.innerHTML.trim():'';
+    const remarksHtml=remarkEl?sanitizeRichText(remarkEl.innerHTML.trim()):'';
     const bdayVal=document.getElementById('cl_birthday')?.value||null;
     const r=await fetch(`/api/clients/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({full_name:document.getElementById('cl_name').value,phone:document.getElementById('cl_phone').value,email:document.getElementById('cl_email').value,bce_number:document.getElementById('cl_bce').value,notes:document.getElementById('cl_notes').value,remarks:remarksHtml,birthday:bdayVal||null,is_vip:document.getElementById('cl_vip')?.checked||false})});
     if(!r.ok)throw new Error((await r.json()).error);

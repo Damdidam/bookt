@@ -99,7 +99,7 @@ function calCheckConflict() {
         if (newStart >= poseStart && newEnd <= poseEnd) continue;
       }
       const name = ev.extendedProps?.client_name || ev.title || 'RDV';
-      const time = ev.start.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' }) + ' \u2013 ' + ev.end.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+      const time = ev.start.toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' }) + ' \u2013 ' + ev.end.toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' });
       // Reverse: existing event fits inside current booking's pose
       if (myPt > 0) {
         const myPoseStart = new Date(newStart.getTime() + (myBuf + myPs) * 60000);
@@ -131,7 +131,7 @@ function calCheckConflict() {
   if (poseOptimized.length > 0 && poseInfo) {
     const poseStartMs = newStart.getTime() + (myBuf + myPs) * 60000;
     const poseEndMs = poseStartMs + myPt * 60000;
-    const fmt = d => new Date(d).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+    const fmt = d => new Date(d).toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' });
     poseInfo.style.display = 'block';
     poseInfo.innerHTML = `\u23f3 Temps de pose (${fmt(poseStartMs)}\u2013${fmt(poseEndMs)}) optimis\u00e9 : ${poseOptimized.join(', ')}`;
   } else if (poseInfo) {
@@ -212,8 +212,8 @@ function _scheduleServerCheck(nd, ns, ne, pracId) {
       if (!data.available) {
         _setSlotUnavailable();
         const conflictNames = (data.conflicts || []).map(c => {
-          const s = new Date(c.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
-          const e = new Date(c.end_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+          const s = new Date(c.start_at).toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' });
+          const e = new Date(c.end_at).toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' });
           return `<strong>${c.service_name || 'RDV'}</strong> (${s} \u2013 ${e})`;
         }).join(', ');
         warn.style.display = 'block';

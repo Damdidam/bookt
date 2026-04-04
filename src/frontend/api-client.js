@@ -400,8 +400,9 @@ const GendaUI = {
     toast.className = `genda-toast genda-toast-${type}`;
     toast.innerHTML = `
       <span class="genda-toast-icon">${type === 'success' ? '' : type === 'error' ? '' : type === 'warning' ? '' : 'ℹ'}</span>
-      <span class="genda-toast-msg">${message}</span>
+      <span class="genda-toast-msg"></span>
     `;
+    toast.querySelector('.genda-toast-msg').textContent = message;
 
     // Add styles if not already present
     if (!document.getElementById('genda-toast-styles')) {

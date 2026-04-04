@@ -532,6 +532,8 @@ router.post('/booking/:token/reject', async (req, res, next) => {
           for (const sib of sibs.rows) { await refundPassForBooking(sib.id, txClient).catch(e => console.warn('[PASS REFUND]', e.message)); }
         } catch (e) { console.error('[GC REFUND] sibling reject error:', e.message); }
       }
+      // Decrement promo usage on reject (same as cancel)
+      await decrementPromoUsage(rejBkTx.id, txClient).catch(e => console.warn('[PROMO DEC]', e.message));
 
       await txClient.query('COMMIT');
     } catch (txErr) {
@@ -1008,6 +1010,8 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
           for (const sib of sibs.rows) { await refundPassForBooking(sib.id, txClient2).catch(e => console.warn('[PASS REFUND]', e.message)); }
         } catch (e) { console.error('[GC REFUND] sibling cancel-booking error:', e.message); }
       }
+      // Decrement promo usage on cancel-booking (same as cancel)
+      await decrementPromoUsage(postCancelBk2.id, txClient2).catch(e => console.warn('[PROMO DEC]', e.message));
 
       await txClient2.query('COMMIT');
     } catch (txErr2) {

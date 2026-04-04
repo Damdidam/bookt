@@ -49,7 +49,7 @@ function buildEventContent() {
     // -- Internal task --
     if (p._isTask) {
       if (isMonth) {
-        const t = arg.event.start ? arg.event.start.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' }) : '';
+        const t = arg.event.start ? arg.event.start.toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' }) : '';
         return { html: `<span class="ev-month-pill ev-task-pill" style="color:${darkAccent}">${t} ${gi(IC.wrench)} <strong>${esc(p.title)}</strong></span>` };
       }
       const noteLine = p.note ? '<span class="ev-service">' + esc(p.note.length > 40 ? p.note.slice(0, 37) + '…' : p.note) + '</span>' : '';
@@ -59,7 +59,7 @@ function buildEventContent() {
 
     // -- Month view (same for singles and groups) --
     if (isMonth) {
-      const t = arg.event.start ? arg.event.start.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' }) : '';
+      const t = arg.event.start ? arg.event.start.toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' }) : '';
       const name = (p.client_name || arg.event.title || '').split(' ')[0];
       const extra = p._isGroup ? ' ' + gi(IC.chain) : (!p.service_name ? ' ' + gi(IC.sparkle) : '');
       return { html: `<span class="ev-month-pill" style="color:${darkAccent}">${t} <strong>${esc(name)}</strong>${extra}</span>` };
@@ -80,8 +80,8 @@ function buildEventContent() {
       }).join(' \u00b7 ');
       const clientDim = isPartial ? ' style="opacity:.4"' : '';
       const iconDim = isPartial ? 'opacity:.3' : 'opacity:.8';
-      const tStart = arg.event.start ? arg.event.start.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' }).replace(':', 'h') : '';
-      const tEnd = arg.event.end ? arg.event.end.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' }).replace(':', 'h') : '';
+      const tStart = arg.event.start ? arg.event.start.toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' }).replace(':', 'h') : '';
+      const tEnd = arg.event.end ? arg.event.end.toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' }).replace(':', 'h') : '';
       const timeSpan = tStart ? '<span class="ev-time">' + tStart + (tEnd ? ' \u2013 ' + tEnd : '') + '</span>' : '';
       const grpVip = p.client_is_vip ? '<span class="ev-badge-vip" title="VIP">' + IC.crown + '</span>' : '';
       const grpLock = members.some(m => m.locked) ? '<span class="ev-badge-lock" title="Verrouill\u00e9">' + IC.lock + '</span>' : '';
@@ -99,8 +99,8 @@ function buildEventContent() {
 
     // -- Week/Day: single event --
     const svcLabel = esc(fmtSvcLabel(p.service_category, p.service_name, p.variant_name, p.custom_label));
-    const sStart = arg.event.start ? arg.event.start.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' }).replace(':', 'h') : '';
-    const sEnd = arg.event.end ? arg.event.end.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' }).replace(':', 'h') : '';
+    const sStart = arg.event.start ? arg.event.start.toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' }).replace(':', 'h') : '';
+    const sEnd = arg.event.end ? arg.event.end.toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' }).replace(':', 'h') : '';
     const sTimeSpan = sStart ? '<span class="ev-time">' + sStart + (sEnd ? ' \u2013 ' + sEnd : '') + '</span>' : '';
     const vipBadge = p.client_is_vip ? '<span class="ev-badge-vip" title="VIP">' + IC.crown + '</span>' : '';
     const depBadge = !p.deposit_required ? '' : p.deposit_status === 'paid' ? '<span class="ev-badge-dep paid" title="Acompte pay\u00e9">' + IC.dollar + '</span>' : ['refunded','waived'].includes(p.deposit_status) ? '<span class="ev-badge-dep" style="opacity:.4" title="Acompte ' + p.deposit_status + '">' + IC.dollar + '</span>' : p.deposit_status === 'cancelled' ? '<span class="ev-badge-dep" style="color:var(--red)" title="Acompte retenu">' + IC.dollar + '</span>' : '<span class="ev-badge-dep" title="Acompte en attente">' + IC.dollar + '</span>';

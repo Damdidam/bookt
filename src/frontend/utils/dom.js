@@ -51,7 +51,7 @@ export function gToast(msg, type, action, duration) {
   const topRow = document.createElement('div');
   topRow.className = 'g-toast-top';
   const span = document.createElement('span');
-  span.innerHTML = msg;
+  span.textContent = msg;
   topRow.appendChild(span);
   const xBtn = document.createElement('button');
   xBtn.className = 'dismiss';

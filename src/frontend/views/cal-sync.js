@@ -83,7 +83,7 @@ async function loadCalSync() {
         const pracName = practitioners.find(p => p.id === conn.practitioner_id)?.display_name || 'Tous';
         const statusColor = conn.status === 'active' ? 'var(--green)' : 'var(--red)';
         const statusLabel = conn.status === 'active' ? 'Connecté' : conn.status;
-        const lastSync = conn.last_sync_at ? new Date(conn.last_sync_at).toLocaleString('fr-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Jamais';
+        const lastSync = conn.last_sync_at ? new Date(conn.last_sync_at).toLocaleString('fr-BE', { timeZone: 'Europe/Brussels', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Jamais';
 
         h += `<div style="padding:14px;border:1px solid var(--border-light);border-radius:12px;margin-bottom:10px">
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">

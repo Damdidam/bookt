@@ -69,6 +69,7 @@ function broadcast(businessId, event, data = {}) {
     } catch (e) {
       // Connection broken, remove it
       clients.delete(res);
+      globalCount = Math.max(0, globalCount - 1);
     }
   }
 }

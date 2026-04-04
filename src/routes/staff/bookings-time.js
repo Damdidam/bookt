@@ -264,7 +264,7 @@ router.patch('/:id/move', async (req, res, next) => {
           }
 
           for (const u of updates) {
-            let sql = `UPDATE bookings SET start_at = $1, end_at = $2, updated_at = NOW()`;
+            let sql = `UPDATE bookings SET start_at = $1, end_at = $2, reminder_24h_sent_at = NULL, reminder_2h_sent_at = NULL, updated_at = NOW()`;
             const params = [u.start_at, u.end_at];
             let idx = 3;
             // Only reassign practitioner if NOT a split group (split = each member keeps its own practitioner)

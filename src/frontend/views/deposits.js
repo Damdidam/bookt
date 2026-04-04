@@ -114,7 +114,7 @@ function showDepositAudit(bookingId){
   const actionLabels={deposit_refund:'Remboursement',status_change:'Changement de statut'};
 
   let auditHtml=trail.map(a=>{
-    const date=new Date(a.audit_date).toLocaleString('fr-BE');
+    const date=new Date(a.audit_date).toLocaleString('fr-BE',{timeZone:'Europe/Brussels'});
     const label=actionLabels[a.action]||a.action;
     const nd=a.new_data||{};
     let details=[];

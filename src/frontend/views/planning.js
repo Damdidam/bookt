@@ -900,7 +900,7 @@ async function _doCheckImpact() {
       bookings.forEach(b => {
         const dt = new Date(b.start_at);
         const day = dt.toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
-        const time = dt.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+        const time = dt.toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' });
         h += `<div class="plan-impact-item" data-bk="${esc(b.id)}">
           <div><strong>${esc(b.client_name || 'Client')}</strong> · ${esc(b.service_name || '')} · ${day} à ${time}</div>
           <div class="plan-alt-zone" id="planAlt_${b.id}" style="margin-top:4px"></div>
@@ -1157,7 +1157,7 @@ async function planLoadLogs(absId) {
     logs.forEach(log => {
       const date = new Date(log.created_at);
       const dateStr = date.toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/Brussels' });
-      const timeStr = date.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+      const timeStr = date.toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' });
       let detailStr = '';
       if (log.action === 'modified' && log.details?.changes) {
         const c = log.details.changes;

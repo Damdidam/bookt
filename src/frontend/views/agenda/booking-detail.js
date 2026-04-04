@@ -511,8 +511,8 @@ async function fcOpenDetail(bookingId) {
       let gh = `<div class="m-sec"><div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Groupe (${siblings.length} prestations)</span>${addBtn}<span class="m-sec-line"></span></div><div style="display:flex;flex-direction:column;gap:3px">`;
       siblings.forEach((sib, sibIdx) => {
         const isCur = String(sib.id) === String(bookingId);
-        const sT = new Date(sib.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
-        const eT = new Date(sib.end_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+        const sT = new Date(sib.start_at).toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' });
+        const eT = new Date(sib.end_at).toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' });
         const safeSibColor = /^#[0-9a-fA-F]{3,6}$/.test(sib.service_color) ? sib.service_color : '#ccc';
         const sibFrozen = ['cancelled', 'no_show'].includes(sib.status);
         const canDrag = canDetach && !sibFrozen;
@@ -636,7 +636,7 @@ async function fcOpenDetail(bookingId) {
       const bBuf = parseInt(b.buffer_before_min) || 0;
       const poseStartMs = s.getTime() + (bBuf + bPs) * 60000;
       const poseEndMs = poseStartMs + bPt * 60000;
-      const fmt = d => new Date(d).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+      const fmt = d => new Date(d).toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' });
       poseInfoEl.style.display = 'block';
       poseInfoEl.innerHTML = `\u23f3 Temps de pose : ${fmt(poseStartMs)} \u2013 ${fmt(poseEndMs)} (${bPt}min)`;
     }
@@ -774,20 +774,20 @@ const STATUS_MAP = {
 function fmtHistoryTime(iso) {
   const d = new Date(iso);
   return d.toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' }) + ' ' +
-    d.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+    d.toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' });
 }
 
 function fmtTimeOnly(iso) {
   if (!iso) return '?';
   const d = new Date(iso);
-  return d.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' });
 }
 
 function fmtDateTime(iso) {
   if (!iso) return '?';
   const d = new Date(iso);
   return d.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' }) + ' ' +
-    d.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+    d.toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' });
 }
 
 function fmtMoveRange(oldIso, newIso) {

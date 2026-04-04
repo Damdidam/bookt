@@ -277,7 +277,7 @@ router.post('/deposit/:token/verify', depositLimiter, async (req, res, next) => 
 
     const result = await query(
       `SELECT b.id, b.business_id, b.status, b.deposit_status, b.deposit_payment_intent_id,
-              b.group_id
+              b.group_id, b.deposit_deadline
        FROM bookings b
        WHERE b.public_token = $1`,
       [token]
@@ -289,6 +289,10 @@ router.post('/deposit/:token/verify', depositLimiter, async (req, res, next) => 
     if (bk.deposit_status === 'paid') return res.json({ status: 'paid', updated: false });
     if (bk.status !== 'pending_deposit' || bk.deposit_status !== 'pending') {
       return res.json({ status: bk.deposit_status, updated: false });
+    }
+    // Reject if deposit deadline has passed (cron may not have run yet)
+    if (bk.deposit_deadline && new Date(bk.deposit_deadline) < new Date()) {
+      return res.json({ status: 'expired', updated: false, reason: 'deadline_passed' });
     }
 
     // Need a stored checkout session ID (cs_...) to verify

@@ -94,11 +94,9 @@ router.get('/booking/:token', async (req, res, next) => {
     const depositAtRisk = depositPaid && new Date() >= deadline;
 
     // Build service info: use group members if available, otherwise single service
-    // For group total: sum LM-adjusted prices per member (each may have different discount_pct)
-    const groupRawTotal = grpRows ? grpRows.reduce((sum, r) => {
-      const adj = r.discount_pct && r.price_cents ? Math.round(r.price_cents * (100 - r.discount_pct) / 100) : (r.price_cents || 0);
-      return sum + adj;
-    }, 0) : 0;
+    // For group total: use RAW catalog prices so frontend can apply discount_pct once
+    // (members[].price_cents are LM-adjusted for per-line display)
+    const groupRawTotal = grpRows ? grpRows.reduce((sum, r) => sum + (r.price_cents || 0), 0) : 0;
     const serviceInfo = groupServices
       ? { name: groupServices.map(s => s.name).join(' + '), duration_min: groupServices.reduce((sum, s) => sum + (s.duration_min || 0), 0), price_cents: groupRawTotal, color: bk.service_color, members: groupServices }
       : { name: (bk.service_category ? bk.service_category + ' - ' : '') + (bk.service_name || ''), duration_min: bk.duration_min, price_cents: bk.price_cents, color: bk.service_color };

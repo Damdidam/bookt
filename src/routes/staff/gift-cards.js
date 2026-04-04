@@ -172,7 +172,7 @@ router.post('/:id/debit', async (req, res, next) => {
       const card = gc.rows[0];
 
       if (card.status !== 'active') throw Object.assign(new Error('Cette carte n\'est plus active'), { status: 400 });
-      if (card.balance_cents < amount_cents) throw Object.assign(new Error(`Solde insuffisant (${(card.balance_cents/100).toFixed(2)}€)`), { status: 400 });
+      if (card.balance_cents < amount_cents) throw Object.assign(new Error(`Solde insuffisant (${(card.balance_cents/100).toFixed(2).replace('.',',')}€)`), { status: 400 });
 
       const newBalance = card.balance_cents - amount_cents;
       const newStatus = newBalance === 0 ? 'used' : 'active';

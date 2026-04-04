@@ -234,7 +234,7 @@ function wlDetail(idx){
   if(e.status==='offered'&&e.offer_booking_start){
     const d=new Date(e.offer_booking_start);
     const expMins=e.offer_expires_at?Math.max(0,Math.round((new Date(e.offer_expires_at)-new Date())/60000)):0;
-    m+=`<div style="padding:10px 14px;background:var(--amber-bg);border:1px solid var(--gold);border-radius:8px;font-size:.8rem;color:var(--amber-dark);margin-bottom:16px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Offre : <strong>${d.toLocaleDateString('fr-BE',{weekday:'short',day:'numeric',month:'short',timeZone:'Europe/Brussels'})} \u00e0 ${d.toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'})}</strong> \u2014 expire dans <strong>${expMins>60?Math.floor(expMins/60)+'h'+String(expMins%60).padStart(2,'0'):expMins+' min'}</strong></div>`;
+    m+=`<div style="padding:10px 14px;background:var(--amber-bg);border:1px solid var(--gold);border-radius:8px;font-size:.8rem;color:var(--amber-dark);margin-bottom:16px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Offre : <strong>${d.toLocaleDateString('fr-BE',{weekday:'short',day:'numeric',month:'short',timeZone:'Europe/Brussels'})} \u00e0 ${d.toLocaleTimeString('fr-BE',{timeZone:'Europe/Brussels',hour:'2-digit',minute:'2-digit'})}</strong> \u2014 expire dans <strong>${expMins>60?Math.floor(expMins/60)+'h'+String(expMins%60).padStart(2,'0'):expMins+' min'}</strong></div>`;
   }
 
   // Staff notes

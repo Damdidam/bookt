@@ -100,7 +100,7 @@ async function fcWaiveDeposit() {
 
 async function fcRefundDeposit(amountCents) {
   if (fcRefundDeposit._busy) return;
-  const amt = ((amountCents || 0) / 100).toFixed(2);
+  const amt = ((amountCents || 0) / 100).toFixed(2).replace('.', ',');
   if (!(await showConfirmDialog('Rembourser l\u2019acompte', 'Rembourser l\u2019acompte de ' + amt + '\u20ac ? Le RDV sera annul\u00e9.', 'Rembourser', 'danger'))) return;
   fcRefundDeposit._busy = true;
   const _refBtns = document.querySelectorAll('.m-st-btn');
@@ -164,7 +164,7 @@ async function fcRequireDeposit() {
   const amountCents = Math.round(parseFloat(amountInput?.value || 0) * 100);
   const deadlineHours = parseInt(deadlineInput?.value || 48);
   if (!amountCents || amountCents <= 0) { gToast('Montant invalide', 'error'); return; }
-  if (!(await showConfirmDialog(`Exiger un acompte de ${(amountCents / 100).toFixed(2)}\u20ac ? Le client devra payer avant le RDV.`))) return;
+  if (!(await showConfirmDialog(`Exiger un acompte de ${(amountCents / 100).toFixed(2).replace('.', ',')}\u20ac ? Le client devra payer avant le RDV.`))) return;
   fcRequireDeposit._busy = true;
   try {
     const r = await fetch(`/api/bookings/${calState.fcCurrentEventId}/require-deposit`, {
