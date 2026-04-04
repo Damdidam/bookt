@@ -3,7 +3,7 @@ const { getBusyBlocks } = require('./calendar-sync');
 const {
   timeToMinutes, minutesToTime, intersectWindows,
   getAbsencePeriod, restrictWindowsForAbsence,
-  brusselsOffset, nextDateStr
+  brusselsOffset, nextDateStr, dateToWeekday
 } = require('./schedule-helpers');
 const { computeOptimalGranularity, rankSlots } = require('./slot-optimizer');
 
@@ -52,7 +52,7 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
       granularity = computeOptimalGranularity(allSvcDur.rows.map(r => r.duration_min));
     }
   } else {
-    granularity = Math.max(parseInt(settings.slot_increment_min ?? settings.slot_granularity_min, 10) || 15, 1);
+    granularity = Math.max(parseInt(settings.slot_increment_min ?? settings.slot_granularity_min, 10) || 15, 5);
   }
 
   // 2. Fetch service details
@@ -265,10 +265,7 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
   const slots = [];
 
   for (let dateStr = dateFrom; dateStr <= dateTo; dateStr = nextDateStr(dateStr)) {
-    // Calculate weekday from date string (noon UTC to avoid edge cases)
-    const dayDate = new Date(dateStr + 'T12:00:00Z');
-    const jsDay = dayDate.getUTCDay(); // 0=Sun, 1=Mon, ...
-    const weekday = jsDay === 0 ? 6 : jsDay - 1; // 0=Mon, 6=Sun
+    const weekday = dateToWeekday(dateStr);
     const tzOffset = brusselsOffset(dateStr);
 
     // Skip if business holiday
@@ -428,7 +425,7 @@ async function getAvailableSlotsMulti({ businessId, serviceIds, practitionerId, 
       granularity = computeOptimalGranularity(allSvcDur.rows.map(r => r.duration_min));
     }
   } else {
-    granularity = Math.max(parseInt(settings.slot_increment_min ?? settings.slot_granularity_min, 10) || 15, 1);
+    granularity = Math.max(parseInt(settings.slot_increment_min ?? settings.slot_granularity_min, 10) || 15, 5);
   }
 
   // 2. Fetch all unique services in one query, then expand to match serviceIds order (supports duplicates)
@@ -475,13 +472,19 @@ async function getAvailableSlotsMulti({ businessId, serviceIds, practitionerId, 
     const avgStart = wins.reduce((sum, w) => sum + timeToMinutes(w.from), 0) / wins.length;
     return avgStart < 720 ? 0 : 100; // before noon → front, after noon → back
   }
+  // Store original index before sorting so we can restore order in the response
+  services.forEach((s, i) => { s._originalIndex = i; });
   services.sort((a, b) => _restrictionWeight(a) - _restrictionWeight(b));
 
-  // 3. Calculate chained duration: buffer_before from FIRST, buffer_after from LAST, no buffers between
+  // 3. Calculate chained duration: buffer_before from FIRST, intermediate buffers (max of adjacent), buffer_after from LAST
   const sumDurations = services.reduce((sum, s) => sum + s.duration_min, 0);
   const bufferBefore = services[0].buffer_before_min || 0;
   const bufferAfter = services[services.length - 1].buffer_after_min || 0;
-  const totalDuration = bufferBefore + sumDurations + bufferAfter;
+  let intermediateBuffers = 0;
+  for (let i = 0; i < services.length - 1; i++) {
+    intermediateBuffers += Math.max(services[i].buffer_after_min || 0, services[i + 1].buffer_before_min || 0);
+  }
+  const totalDuration = bufferBefore + sumDurations + intermediateBuffers + bufferAfter;
 
   if (!totalDuration || totalDuration <= 0) {
     throw Object.assign(new Error(`Durée totale invalide (${totalDuration} min)`), { type: 'validation' });
@@ -675,9 +678,7 @@ async function getAvailableSlotsMulti({ businessId, serviceIds, practitionerId, 
   const slots = [];
 
   for (let dateStr = dateFrom; dateStr <= dateTo; dateStr = nextDateStr(dateStr)) {
-    const dayDate = new Date(dateStr + 'T12:00:00Z');
-    const jsDay = dayDate.getUTCDay();
-    const weekday = jsDay === 0 ? 6 : jsDay - 1;
+    const weekday = dateToWeekday(dateStr);
     const tzOffset = brusselsOffset(dateStr);
 
     // Skip if business holiday
@@ -856,7 +857,7 @@ async function getAvailableSlotsMultiPractitioner({ businessId, serviceIds, date
       granularity = computeOptimalGranularity(allSvcDur.rows.map(r => r.duration_min));
     }
   } else {
-    granularity = Math.max(parseInt(settings.slot_increment_min ?? settings.slot_granularity_min, 10) || 15, 1);
+    granularity = Math.max(parseInt(settings.slot_increment_min ?? settings.slot_granularity_min, 10) || 15, 5);
   }
 
   // 2. Fetch all unique services in one query, then expand to match serviceIds order (supports duplicates)
@@ -1145,9 +1146,7 @@ async function getAvailableSlotsMultiPractitioner({ businessId, serviceIds, date
   const slots = [];
 
   for (let dateStr = dateFrom; dateStr <= dateTo; dateStr = nextDateStr(dateStr)) {
-    const dayDate = new Date(dateStr + 'T12:00:00Z');
-    const jsDay = dayDate.getUTCDay();
-    const weekday = jsDay === 0 ? 6 : jsDay - 1;
+    const weekday = dateToWeekday(dateStr);
     const tzOffset = brusselsOffset(dateStr);
 
     // Skip business holidays / closures
@@ -1253,7 +1252,13 @@ async function getAvailableSlotsMultiPractitioner({ businessId, serviceIds, date
           start_min: svcStartMin,
           end_min: svcEndMin
         });
-        cursor = svcEndMin;
+        // Advance cursor past service duration + intermediate buffer to next service
+        if (si < services.length - 1) {
+          const interBuf = Math.max(svc.buffer_after_min || 0, services[si + 1].buffer_before_min || 0);
+          cursor = svcEndMin + interBuf;
+        } else {
+          cursor = svcEndMin;
+        }
       }
 
       if (!valid) continue;
@@ -1271,12 +1276,15 @@ async function getAvailableSlotsMultiPractitioner({ businessId, serviceIds, date
         end_at: new Date(`${dateStr}T${minutesToTime(serviceEndMin)}:00${tzOffset}`).toISOString(),
         split: isSplit,
         practitioner_id: isSplit ? assignments[0].practitioner_id : assignments[0].practitioner_id,
-        practitioners: assignments.map(a => ({
-          service_id: a.service_id,
-          practitioner_id: a.practitioner_id,
-          start_at: new Date(`${dateStr}T${minutesToTime(a.start_min)}:00${tzOffset}`).toISOString(),
-          end_at: new Date(`${dateStr}T${minutesToTime(a.end_min)}:00${tzOffset}`).toISOString()
-        }))
+        practitioners: assignments
+          .map((a, i) => ({ ...a, _originalIndex: services[i]._originalIndex }))
+          .sort((a, b) => a._originalIndex - b._originalIndex)
+          .map(a => ({
+            service_id: a.service_id,
+            practitioner_id: a.practitioner_id,
+            start_at: new Date(`${dateStr}T${minutesToTime(a.start_min)}:00${tzOffset}`).toISOString(),
+            end_at: new Date(`${dateStr}T${minutesToTime(a.end_min)}:00${tzOffset}`).toISOString()
+          }))
       });
     }
   }

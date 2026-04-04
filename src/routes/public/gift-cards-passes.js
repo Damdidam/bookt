@@ -48,8 +48,9 @@ router.post('/:slug/gift-card/checkout', depositLimiter, async (req, res, next) 
     if ((biz.plan || 'free') === 'free') return res.status(403).json({ error: 'upgrade_required', message: 'Les cartes cadeau sont disponibles avec le plan Pro.' });
     const s = biz.settings || {};
     if (!s.giftcard_enabled) return res.status(400).json({ error: 'Cartes cadeau non disponibles' });
-    const { amount_cents, buyer_name, buyer_email, recipient_name, recipient_email, message } = req.body;
-    if (!amount_cents || amount_cents < (s.giftcard_min_amount_cents || 1000)) return res.status(400).json({ error: 'Montant trop faible' });
+    const { buyer_name, buyer_email, recipient_name, recipient_email, message } = req.body;
+    const amount_cents = parseInt(req.body.amount_cents, 10);
+    if (!amount_cents || !Number.isInteger(amount_cents) || amount_cents < (s.giftcard_min_amount_cents || 1000)) return res.status(400).json({ error: 'Montant trop faible' });
     if (amount_cents > (s.giftcard_max_amount_cents || 50000)) return res.status(400).json({ error: 'Montant trop élevé' });
     if (!buyer_email) return res.status(400).json({ error: 'Email acheteur requis' });
     const baseUrl = BASE_URL;
@@ -233,7 +234,7 @@ router.get('/:slug/pass-config', async (req, res, next) => {
     const tplRes = await query(
       `SELECT pt.id, pt.name, pt.description, pt.sessions_count, pt.price_cents, pt.validity_days, pt.service_variant_id,
               s.name AS service_name, s.category AS service_category, COALESCE(sv.price_cents, s.price_cents, 0) AS unit_price_cents, COALESCE(s.price_cents, 0) AS service_price_cents, sv.name AS variant_name
-       FROM pass_templates pt JOIN services s ON s.id = pt.service_id LEFT JOIN service_variants sv ON sv.id = pt.service_variant_id
+       FROM pass_templates pt JOIN services s ON s.id = pt.service_id AND s.is_active = true LEFT JOIN service_variants sv ON sv.id = pt.service_variant_id
        WHERE pt.business_id = $1 AND pt.is_active = true ORDER BY s.name, sv.name, pt.price_cents`,
       [biz.id]
     );
@@ -270,7 +271,7 @@ router.post('/:slug/pass/checkout', depositLimiter, async (req, res, next) => {
     if (!pass_template_id) return res.status(400).json({ error: 'Template requis' });
     if (!buyer_email) return res.status(400).json({ error: 'Email requis' });
     const tplRes = await query(
-      `SELECT pt.*, s.name AS service_name FROM pass_templates pt JOIN services s ON s.id = pt.service_id WHERE pt.id = $1 AND pt.business_id = $2 AND pt.is_active = true`,
+      `SELECT pt.*, s.name AS service_name FROM pass_templates pt JOIN services s ON s.id = pt.service_id AND s.is_active = true WHERE pt.id = $1 AND pt.business_id = $2 AND pt.is_active = true`,
       [pass_template_id, biz.id]
     );
     if (tplRes.rows.length === 0) return res.status(404).json({ error: 'Formule introuvable' });

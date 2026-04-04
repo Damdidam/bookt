@@ -12,6 +12,7 @@
  */
 
 const { queryWithRLS } = require('./db');
+const { getBusyBlocks } = require('./calendar-sync');
 const {
   timeToMinutes, minutesToTime, intersectWindows,
   getAbsencePeriod, restrictWindowsForAbsence,
@@ -158,6 +159,37 @@ async function detectGaps({ businessId, date, practitionerId }) {
     bookingsByPrac[pid].push(row);
   }
 
+  // ── 3b. Fetch external calendar busy blocks and merge into bookingsByPrac ──
+  try {
+    const dateObj = new Date(date + 'T00:00:00');
+    const nextDay = new Date(dateObj); nextDay.setDate(nextDay.getDate() + 1);
+    const rlsQuery = (sql, params) => queryWithRLS(businessId, sql, params);
+    for (const pracId of practitionerIds) {
+      const busyBlocks = await getBusyBlocks(rlsQuery, businessId, pracId, dateObj, nextDay);
+      for (const block of busyBlocks) {
+        if (!bookingsByPrac[pracId]) bookingsByPrac[pracId] = [];
+        bookingsByPrac[pracId].push({
+          id: `ext-${block.id || Date.now()}`,
+          practitioner_id: pracId,
+          service_id: null,
+          start_at: block.start_at,
+          end_at: block.end_at,
+          processing_time: 0,
+          processing_start: 0,
+          buffer_before_min: 0,
+          buffer_after_min: 0,
+          service_name: block.title || 'External event'
+        });
+      }
+    }
+  } catch (e) {
+    if (e.code === '42P01') {
+      // calendar_events table not yet created — ignore
+    } else {
+      throw e;
+    }
+  }
+
   // ── 4. Fetch all active services with practitioner links (for suggestions) ──
   const servicesResult = await queryWithRLS(businessId,
     `SELECT s.id, s.name, s.duration_min, s.buffer_before_min, s.buffer_after_min, s.price_cents,
@@ -297,11 +329,11 @@ async function detectGaps({ businessId, date, practitionerId }) {
 
         // Processing window?
         if (bk.processing_time > 0) {
-          const poseStart = bk.start + bk.buffer_before + bk.processing_start;
+          const poseStart = bk.start + bk.processing_start;
           const poseEnd = poseStart + bk.processing_time;
           // Check if any other booking already occupies this pose window
           const poseOccupied = windowBookings.some(other =>
-            other.id !== bk.id && other.start >= poseStart && other.end <= poseEnd
+            other.id !== bk.id && other.start < poseEnd && other.end > poseStart
           );
           if (!poseOccupied && bk.processing_time >= 10) {
             processingUnusedMin += bk.processing_time;

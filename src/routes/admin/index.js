@@ -120,7 +120,7 @@ router.get('/businesses', async (req, res, next) => {
       SELECT
         b.id, b.name, b.slug, b.sector, b.plan, b.is_active, b.created_at,
         b.subscription_status, b.trial_ends_at, b.plan_changed_at, b.subscription_current_period_end,
-        b.stripe_customer_id, b.stripe_subscription_id,
+        b.stripe_customer_id IS NOT NULL AS has_stripe_customer, b.stripe_subscription_id IS NOT NULL AS has_stripe_subscription,
         owner_u.email AS owner_email,
         (SELECT COUNT(*) FROM bookings bk WHERE bk.business_id = b.id) AS bookings_count,
         (SELECT COUNT(*) FROM bookings bk WHERE bk.business_id = b.id AND bk.created_at >= NOW() - INTERVAL '30 days') AS bookings_30d,
@@ -230,6 +230,8 @@ router.patch('/businesses/:id', async (req, res, next) => {
     );
 
     if (result.rows.length === 0) return res.status(404).json({ error: 'Business not found' });
+    // ST-12: Audit trail for admin actions
+    console.log(`[ADMIN AUDIT] User ${req.user.id} updated business ${req.params.id}: ${JSON.stringify(req.body)}`);
     res.json(result.rows[0]);
   } catch (err) { next(err); }
 });
@@ -265,6 +267,8 @@ router.post('/impersonate/:businessId', async (req, res, next) => {
       { expiresIn: '1h' }
     );
 
+    // ST-12: Audit trail for impersonation
+    console.log(`[ADMIN AUDIT] User ${req.user.id} impersonated business ${req.params.businessId} (owner: ${owner.email})`);
     res.json({
       token,
       business: { id: owner.business_id, name: owner.business_name, slug: owner.slug },

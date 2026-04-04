@@ -591,6 +591,9 @@ async function handleStripeWebhook(req, res) {
             );
             if (tplRes.rows.length === 0) { console.error('[STRIPE] Pass template not found:', pass_template_id); break; }
             const tpl = tplRes.rows[0];
+            // ST-14: Warn if template or service was deactivated since purchase
+            if (!tpl.is_active) console.warn(`[STRIPE WH] Pass template ${pass_template_id} is inactive — fulfilling anyway (client already paid)`);
+            if (tpl.service_id && !tpl.service_name) console.warn(`[STRIPE WH] Service for pass template ${pass_template_id} may be deleted/inactive`);
 
             // Generate unique code (PS-XXXX-XXXX)
             const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -892,6 +895,14 @@ async function handleStripeWebhook(req, res) {
         }
         break;
       }
+
+      // ST-11: Handle failed one-time payment intents (deposits, GC, passes)
+      case 'payment_intent.payment_failed': {
+        const pi = event.data.object;
+        const lastError = pi.last_payment_error;
+        console.warn(`[STRIPE WH] Payment failed: PI ${pi.id}, reason: ${lastError?.message || 'unknown'}, code: ${lastError?.code || 'none'}`);
+        break;
+      }
     }
   } catch (err) {
     console.error('[STRIPE WH] Processing error:', err);
@@ -1070,6 +1081,12 @@ router.delete('/connect', requireAuth, requireOwner, async (req, res, next) => {
       return res.status(400).json({
         error: `Impossible de déconnecter Stripe : ${pending.rows[0].cnt} acompte(s) en attente de paiement. Annulez-les d'abord ou attendez leur expiration.`
       });
+    }
+    // ST-7: Delete the Stripe Express account to avoid orphans
+    const bizRes = await query(`SELECT stripe_connect_id FROM businesses WHERE id = $1`, [bid]);
+    const connectId = bizRes.rows[0]?.stripe_connect_id;
+    if (connectId) {
+      try { await getStripe().accounts.del(connectId); } catch (e) { console.warn('[STRIPE CONNECT] Account delete failed (may already be deleted):', e.message); }
     }
     await query(
       `UPDATE businesses SET stripe_connect_id = NULL, stripe_connect_status = 'none', updated_at = NOW()

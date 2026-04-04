@@ -376,9 +376,9 @@ router.get('/:slug/client-phone', clientPhoneLimiter, async (req, res, next) => 
         [bid, phone]
       );
     }
-    if (cl.rows.length === 0) return res.json({ booking_count: 0 });
+    if (cl.rows.length === 0) return res.json({ is_new: true, booking_count: 0 });
 
-    res.json({ phone: cl.rows[0].phone || null, name: cl.rows[0].full_name, booking_count: cl.rows[0].booking_count });
+    res.json({ phone: cl.rows[0].phone || null, name: cl.rows[0].full_name, is_new: (cl.rows[0].booking_count || 0) === 0, booking_count: cl.rows[0].booking_count });
   } catch (err) { next(err); }
 });
 
