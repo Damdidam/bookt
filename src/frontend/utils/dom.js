@@ -13,6 +13,25 @@ export function safeId(id) {
   return String(id).replace(/[^a-zA-Z0-9_-]/g, '');
 }
 
+/** Sanitize rich-text HTML: keep only safe formatting tags, strip everything else */
+export function sanitizeRichText(html) {
+  if (!html) return '';
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  // Remove all script/style/iframe/object/embed/form elements
+  tmp.querySelectorAll('script,style,iframe,object,embed,form,link,meta').forEach(el => el.remove());
+  // Remove event handler attributes and dangerous attrs from all elements
+  tmp.querySelectorAll('*').forEach(el => {
+    for (const attr of [...el.attributes]) {
+      const n = attr.name.toLowerCase();
+      if (n.startsWith('on') || n === 'src' || n === 'href' || n === 'action' || n === 'formaction' || n === 'xlink:href' || n === 'data') {
+        el.removeAttribute(attr.name);
+      }
+    }
+  });
+  return tmp.innerHTML;
+}
+
 /** Alias */
 export const escH = esc;
 

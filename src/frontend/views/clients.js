@@ -2,7 +2,7 @@
  * Clients view module.
  */
 import { api, categoryLabels, GendaUI } from '../state.js';
-import { esc } from '../utils/dom.js';
+import { esc, sanitizeRichText } from '../utils/dom.js';
 import { bridge } from '../utils/window-bridge.js';
 import { IC } from '../utils/icons.js';
 import { guardModal, showConfirmDialog } from '../utils/dirty-guard.js';
@@ -273,7 +273,7 @@ async function openClientDetail(id){
         <button type="button" style="padding:2px 6px;background:none;border:1px solid var(--border-light);border-radius:4px;cursor:pointer;font-size:.8rem" onclick="document.execCommand('underline')"><u>S</u></button>
         <button type="button" style="padding:2px 6px;background:none;border:1px solid var(--border-light);border-radius:4px;cursor:pointer;font-size:.8rem" onclick="document.execCommand('insertUnorderedList')">• Liste</button>
       </div>
-      <div id="cl_remarks" contenteditable="true" style="min-height:80px;max-height:200px;overflow-y:auto;padding:8px 12px;font-size:.82rem;line-height:1.5;outline:none">${cl.remarks||''}</div>
+      <div id="cl_remarks" contenteditable="true" style="min-height:80px;max-height:200px;overflow-y:auto;padding:8px 12px;font-size:.82rem;line-height:1.5;outline:none">${sanitizeRichText(cl.remarks)}</div>
     </div></div>`;
 
     // ── Danger zone (subtle, bottom of m-body) ──
@@ -301,7 +301,22 @@ async function saveClient(id){
 }
 
 async function blockClient(id){
-  const reason=prompt('Raison du blocage (optionnel):');
+  const reason = await new Promise(resolve => {
+    const el = document.createElement('div');
+    el.className = 'dg-overlay';
+    el.innerHTML = `<div class="dg-card">
+      <p class="dg-msg" style="font-weight:600;margin-bottom:6px">Bloquer ce client ?</p>
+      <input id="_blockReason" type="text" placeholder="Raison du blocage (optionnel)" style="width:100%;padding:8px 10px;border:1px solid var(--border-light);border-radius:6px;font-size:.85rem;margin:8px 0;box-sizing:border-box">
+      <div class="dg-actions">
+        <button class="dg-btn dg-cancel" style="background:var(--bg);color:var(--text)">Annuler</button>
+        <button class="dg-btn dg-confirm" style="background:#DC2626;color:#fff">Bloquer</button>
+      </div>
+    </div>`;
+    el.querySelector('.dg-cancel').onclick = () => { el.remove(); resolve(null); };
+    el.querySelector('.dg-confirm').onclick = () => { const v = el.querySelector('#_blockReason').value; el.remove(); resolve(v); };
+    (document.querySelector('.m-overlay.open .m-dialog') || document.body).appendChild(el);
+    el.querySelector('#_blockReason').focus();
+  });
   if(reason===null)return;
   try{
     const r=await fetch(`/api/clients/${id}/block`,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({reason:reason||'Bloqué manuellement'})});

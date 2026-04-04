@@ -1214,8 +1214,24 @@ function copyField(id){
   GendaUI.toast('Copié !','success');
 }
 
-function confirmDeleteAccount(){
-  const name=prompt('Tapez le nom de votre salon pour confirmer la suppression :');
+async function confirmDeleteAccount(){
+  const name = await new Promise(resolve => {
+    const el = document.createElement('div');
+    el.className = 'dg-overlay';
+    el.innerHTML = `<div class="dg-card">
+      <p class="dg-msg" style="font-weight:600;margin-bottom:6px;color:#DC2626">Supprimer votre compte ?</p>
+      <p class="dg-msg" style="font-size:.85rem">Tapez le nom de votre salon pour confirmer :</p>
+      <input id="_delName" type="text" placeholder="Nom du salon" style="width:100%;padding:8px 10px;border:1px solid var(--border-light);border-radius:6px;font-size:.85rem;margin:8px 0;box-sizing:border-box">
+      <div class="dg-actions">
+        <button class="dg-btn dg-cancel" style="background:var(--bg);color:var(--text)">Annuler</button>
+        <button class="dg-btn dg-confirm" style="background:#DC2626;color:#fff">Supprimer</button>
+      </div>
+    </div>`;
+    el.querySelector('.dg-cancel').onclick = () => { el.remove(); resolve(null); };
+    el.querySelector('.dg-confirm').onclick = () => { const v = el.querySelector('#_delName').value; el.remove(); resolve(v); };
+    document.body.appendChild(el);
+    el.querySelector('#_delName').focus();
+  });
   if(!name)return;
   GendaUI.toast('Suppression de compte — contactez support@genda.be','info');
 }

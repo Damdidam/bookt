@@ -382,12 +382,16 @@ async function handleStripeWebhook(req, res) {
                 if (groupServices) d.end_at = groupServices[groupServices.length - 1].end_at;
                 const { getGcPaidCents } = require('../../services/gift-card-refund');
                 d.gc_paid_cents = await getGcPaidCents(bookingId);
-                const { sendDepositPaidEmail } = require('../../services/email');
+                const { sendDepositPaidEmail, sendDepositPaidProEmail } = require('../../services/email');
                 await sendDepositPaidEmail({
                   booking: d,
                   business: { name: d.business_name, email: d.business_email, phone: d.business_phone, address: d.business_address, theme: d.theme, slug: d.slug, settings: d.business_settings },
                   groupServices
                 });
+                sendDepositPaidProEmail({
+                  booking: d,
+                  business: { name: d.business_name, email: d.business_email, theme: d.theme }
+                }).catch(e => console.warn('[STRIPE WH] Pro deposit email error:', e.message));
               }
             } catch (emailErr) {
               console.error('[STRIPE WH] Deposit confirmation email failed:', emailErr.message);

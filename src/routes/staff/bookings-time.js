@@ -757,6 +757,29 @@ router.patch('/:id/move', async (req, res, next) => {
            JSON.stringify({ start_at: newStart.toISOString(), end_at: newEnd.toISOString(), practitioner_id })]
         );
 
+        // Pre-set modified_pending inside transaction if notify requested and time moved
+        if (shouldNotify) {
+          const sRefStart = old_start_at || draggedBooking.start_at;
+          const sRefEnd = old_end_at || draggedBooking.end_at;
+          const timeMoved = new Date(sRefStart).getTime() !== newStart.getTime() || new Date(sRefEnd).getTime() !== newEnd.getTime();
+          if (timeMoved) {
+            const curStatus = old.rows[0].status;
+            const mNewStatus = curStatus === 'pending_deposit' ? 'pending_deposit' : 'modified_pending';
+            await client.query(
+              `UPDATE bookings SET status = $1, updated_at = NOW() WHERE id = $2 AND business_id = $3`,
+              [mNewStatus, id, bid]
+            );
+            if (draggedBooking.group_id) {
+              await client.query(
+                `UPDATE bookings SET status = $1, updated_at = NOW()
+                 WHERE group_id = $2 AND business_id = $3 AND id != $4
+                   AND status NOT IN ('cancelled', 'completed', 'no_show')`,
+                [mNewStatus, draggedBooking.group_id, bid, id]
+              );
+            }
+          }
+        }
+
         return r;
       });
     } catch (err) {
@@ -788,26 +811,6 @@ router.patch('/:id/move', async (req, res, next) => {
         );
         const bk = fullBk.rows[0];
         if (bk && bk.client_email) {
-          // Only change status to modified_pending if time actually changed
-          const sRefStart = old_start_at || draggedBooking.start_at;
-          const sRefEnd = old_end_at || draggedBooking.end_at;
-          const singleTimeMoved = new Date(sRefStart).getTime() !== new Date(bk.start_at).getTime() || new Date(sRefEnd).getTime() !== new Date(bk.end_at).getTime();
-          if (singleTimeMoved) {
-            const newStatus = bk.status === 'pending_deposit' ? 'pending_deposit' : 'modified_pending';
-            await queryWithRLS(bid,
-              `UPDATE bookings SET status = $1, updated_at = NOW() WHERE id = $2 AND business_id = $3`,
-              [newStatus, id, bid]
-            );
-            // For groups, also update siblings
-            if (draggedBooking.group_id) {
-              await queryWithRLS(bid,
-                `UPDATE bookings SET status = $1, updated_at = NOW()
-                 WHERE group_id = $2 AND business_id = $3 AND id != $4
-                   AND status NOT IN ('cancelled', 'completed', 'no_show')`,
-                [newStatus, draggedBooking.group_id, bid, id]
-              );
-            }
-          }
 
           notificationResult = {};
           if (effectiveChannel === 'email' || effectiveChannel === 'both') {

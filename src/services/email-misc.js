@@ -143,7 +143,7 @@ async function sendReviewRequestEmail({ booking, business }) {
  * Send gift card to recipient — beautiful card with code + amount
  */
 async function sendGiftCardEmail({ giftCard, business }) {
-  const baseUrl = process.env.APP_BASE_URL || 'https://genda.be';
+  const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
   const color = safeColor(business.theme?.primary_color);
   const amtStr = (giftCard.amount_cents / 100).toFixed(2).replace('.', ',');
   const expiryStr = giftCard.expires_at

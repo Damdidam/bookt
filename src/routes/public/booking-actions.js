@@ -103,11 +103,13 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
       // Always refund GC debits on cancellation — GC is a client asset, not deposit retention
       const shouldRefundGc = true;
       const { refundGiftCardForBooking } = require('../../services/gift-card-refund');
+      let gcRefundResult = { refunded: 0 };
       if (shouldRefundGc) {
-        try { await refundGiftCardForBooking(postCancelBk.id, txClient); } catch (e) { console.error('[GC REFUND] cancel error:', e.message); }
+        try { gcRefundResult = await refundGiftCardForBooking(postCancelBk.id, txClient) || { refunded: 0 }; } catch (e) { console.error('[GC REFUND] cancel error:', e.message); }
       }
       // Pass sessions: always refund (pass is a prepaid entitlement, not money)
-      await refundPassForBooking(postCancelBk.id, txClient).catch(e => console.warn('[PASS REFUND]', e.message));
+      let passRefundResult = { refunded: 0 };
+      try { passRefundResult = await refundPassForBooking(postCancelBk.id, txClient) || { refunded: 0 }; } catch (e) { console.warn('[PASS REFUND]', e.message); }
       // M16: Decrement promo usage
       await decrementPromoUsage(postCancelBk.id, txClient).catch(e => console.warn('[PROMO DEC]', e.message));
       // Group siblings
@@ -132,7 +134,11 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
     // Stripe refund if deposit was refunded (must be outside transaction — external API call)
     const cancelledBk = cancelResult.rows[0];
     if (cancelledBk.deposit_status === 'refunded' && cancelledBk.deposit_payment_intent_id) {
-      await stripeRefundDeposit(cancelledBk.deposit_payment_intent_id, 'POST CANCEL');
+      await stripeRefundDeposit(cancelledBk.deposit_payment_intent_id, 'POST CANCEL', {
+        refundPolicy: bk.business_settings?.refund_policy || 'full',
+        depositAmountCents: cancelledBk.deposit_amount_cents,
+        bookingId: cancelledBk.id
+      });
     }
 
     // Log client cancellation in audit_logs (shows in staff modal "Historique" tab)
@@ -235,7 +241,7 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
           const _adjSvcPrice1 = row.discount_pct ? Math.round((row.service_price_cents || 0) * (100 - row.discount_pct) / 100) : (row.service_price_cents || 0);
           const { sendCancellationEmail } = require('../../services/email');
           await sendCancellationEmail({
-            booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, service_category: row.service_category, practitioner_name: row.practitioner_name, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_paid_at: row.deposit_paid_at, deposit_payment_intent_id: row.deposit_payment_intent_id, gc_paid_cents: gcPaidCancel, promotion_label: row.promotion_label, promotion_discount_cents: row.promotion_discount_cents, promotion_discount_pct: row.promotion_discount_pct, service_price_cents: _adjSvcPrice1, duration_min: row.duration_min },
+            booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, service_category: row.service_category, custom_label: row.custom_label, practitioner_name: row.practitioner_name, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_paid_at: row.deposit_paid_at, deposit_payment_intent_id: row.deposit_payment_intent_id, gc_paid_cents: gcPaidCancel, gc_refunded_cents: gcRefundResult.refunded || 0, pass_refunded: (passRefundResult.refunded || 0) !== 0, promotion_label: row.promotion_label, promotion_discount_cents: row.promotion_discount_cents, promotion_discount_pct: row.promotion_discount_pct, service_price_cents: _adjSvcPrice1, duration_min: row.duration_min },
             business: { name: row.biz_name, email: row.biz_email, phone: row.biz_phone, address: row.biz_address, theme: row.biz_theme, slug: row.biz_slug, settings: bk.business_settings },
             groupServices
           });
@@ -431,7 +437,7 @@ router.post('/booking/:token/reject', async (req, res, next) => {
 
     // Client can ALWAYS reject — the deposit refund SQL handles the financial consequence
     const bkCheck = await query(
-      `SELECT b.id, b.status, b.start_at, b.deposit_required, b.deposit_status, biz.settings AS business_settings
+      `SELECT b.id, b.status, b.start_at, b.deposit_required, b.deposit_status, b.deposit_amount_cents, biz.settings AS business_settings
        FROM bookings b JOIN businesses biz ON biz.id = b.business_id
        WHERE b.public_token = $1`, [token]
     );
@@ -509,11 +515,13 @@ router.post('/booking/:token/reject', async (req, res, next) => {
       // Always refund GC debits on rejection — GC is a client asset, not deposit retention
       const shouldRefundGcReject = true;
       const { refundGiftCardForBooking } = require('../../services/gift-card-refund');
+      let gcRefundReject = { refunded: 0 };
       if (shouldRefundGcReject) {
-        try { await refundGiftCardForBooking(rejBkTx.id, txClient); } catch (e) { console.error('[GC REFUND] reject error:', e.message); }
+        try { gcRefundReject = await refundGiftCardForBooking(rejBkTx.id, txClient) || { refunded: 0 }; } catch (e) { console.error('[GC REFUND] reject error:', e.message); }
       }
       // Refund pass sessions inside transaction (pass = entitlement, always refund)
-      await refundPassForBooking(rejBkTx.id, txClient).catch(e => console.warn('[PASS REFUND]', e.message));
+      let passRefundReject = { refunded: 0 };
+      try { passRefundReject = await refundPassForBooking(rejBkTx.id, txClient) || { refunded: 0 }; } catch (e) { console.warn('[PASS REFUND]', e.message); }
       // Refund GC debits + pass sessions for group siblings inside transaction
       if (rejBkTx.group_id) {
         try {
@@ -536,7 +544,11 @@ router.post('/booking/:token/reject', async (req, res, next) => {
     // Stripe refund AFTER transaction commits (external API call shouldn't hold open DB transaction)
     const rejBk = result.rows[0];
     if (rejBk.deposit_status === 'refunded' && rejBk.deposit_payment_intent_id) {
-      await stripeRefundDeposit(rejBk.deposit_payment_intent_id, 'REJECT');
+      await stripeRefundDeposit(rejBk.deposit_payment_intent_id, 'REJECT', {
+        refundPolicy: bkData.business_settings?.refund_policy || 'full',
+        depositAmountCents: bkData.deposit_amount_cents,
+        bookingId: rejBk.id
+      });
     }
 
     // Auto-void draft/sent invoices for this booking (+ group siblings)
@@ -608,7 +620,7 @@ router.post('/booking/:token/reject', async (req, res, next) => {
           const gcPaidReject = await getGcPaidCents(rejBk.id);
           const _adjSvcPrice2 = row.discount_pct ? Math.round((row.service_price_cents || 0) * (100 - row.discount_pct) / 100) : (row.service_price_cents || 0);
           await sendCancellationEmail({
-            booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, service_category: row.service_category, practitioner_name: row.practitioner_name, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_paid_at: row.deposit_paid_at, deposit_payment_intent_id: row.deposit_payment_intent_id, gc_paid_cents: gcPaidReject, promotion_label: row.promotion_label, promotion_discount_cents: row.promotion_discount_cents, promotion_discount_pct: row.promotion_discount_pct, service_price_cents: _adjSvcPrice2, duration_min: row.duration_min },
+            booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, service_category: row.service_category, custom_label: row.custom_label, practitioner_name: row.practitioner_name, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_paid_at: row.deposit_paid_at, deposit_payment_intent_id: row.deposit_payment_intent_id, gc_paid_cents: gcPaidReject, gc_refunded_cents: gcRefundReject.refunded || 0, pass_refunded: (passRefundReject.refunded || 0) !== 0, promotion_label: row.promotion_label, promotion_discount_cents: row.promotion_discount_cents, promotion_discount_pct: row.promotion_discount_pct, service_price_cents: _adjSvcPrice2, duration_min: row.duration_min },
             business: { name: row.biz_name, email: row.biz_email, phone: row.biz_phone, address: row.biz_address, theme: row.biz_theme, slug: row.biz_slug, settings: row.biz_settings },
             groupServices
           });
@@ -979,11 +991,13 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
       // Always refund GC debits on cancellation — GC is a client asset, not deposit retention
       const shouldRefundGc2 = true;
       const { refundGiftCardForBooking: refundGC2 } = require('../../services/gift-card-refund');
+      let gcRefundResult2 = { refunded: 0 };
       if (shouldRefundGc2) {
-        try { await refundGC2(postCancelBk2.id, txClient2); } catch (e) { console.error('[GC REFUND] cancel-booking error:', e.message); }
+        try { gcRefundResult2 = await refundGC2(postCancelBk2.id, txClient2) || { refunded: 0 }; } catch (e) { console.error('[GC REFUND] cancel-booking error:', e.message); }
       }
       // Pass sessions: always refund (pass is a prepaid entitlement, not money)
-      await refundPassForBooking(postCancelBk2.id, txClient2).catch(e => console.warn('[PASS REFUND]', e.message));
+      let passRefundResult2 = { refunded: 0 };
+      try { passRefundResult2 = await refundPassForBooking(postCancelBk2.id, txClient2) || { refunded: 0 }; } catch (e) { console.warn('[PASS REFUND]', e.message); }
       // Group siblings
       if (bk.group_id) {
         try {
@@ -1006,7 +1020,11 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
     // Stripe refund AFTER transaction commits (external API call shouldn't hold open DB transaction)
     const cancelledBk = cancelResult.rows[0];
     if (cancelledBk.deposit_status === 'refunded' && cancelledBk.deposit_payment_intent_id) {
-      await stripeRefundDeposit(cancelledBk.deposit_payment_intent_id, 'CANCEL-BOOKING');
+      await stripeRefundDeposit(cancelledBk.deposit_payment_intent_id, 'CANCEL-BOOKING', {
+        refundPolicy: bk.business_settings?.refund_policy || 'full',
+        depositAmountCents: cancelledBk.deposit_amount_cents,
+        bookingId: cancelledBk.id
+      });
     }
 
     // Audit log
@@ -1107,7 +1125,7 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
           const gcPaidCancel2 = await getGcPaidCents(bk.id);
           const _adjSvcPrice3 = row.discount_pct ? Math.round((row.service_price_cents || 0) * (100 - row.discount_pct) / 100) : (row.service_price_cents || 0);
           await sendCancellationEmail({
-            booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, service_category: row.service_category, practitioner_name: row.practitioner_name, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_paid_at: row.deposit_paid_at, deposit_payment_intent_id: row.deposit_payment_intent_id, gc_paid_cents: gcPaidCancel2, promotion_label: row.promotion_label, promotion_discount_cents: row.promotion_discount_cents, promotion_discount_pct: row.promotion_discount_pct, service_price_cents: _adjSvcPrice3, duration_min: row.duration_min },
+            booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, service_category: row.service_category, custom_label: row.custom_label, practitioner_name: row.practitioner_name, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_paid_at: row.deposit_paid_at, deposit_payment_intent_id: row.deposit_payment_intent_id, gc_paid_cents: gcPaidCancel2, gc_refunded_cents: gcRefundResult2.refunded || 0, pass_refunded: (passRefundResult2.refunded || 0) !== 0, promotion_label: row.promotion_label, promotion_discount_cents: row.promotion_discount_cents, promotion_discount_pct: row.promotion_discount_pct, service_price_cents: _adjSvcPrice3, duration_min: row.duration_min },
             business: { name: row.biz_name, email: row.biz_email, phone: row.biz_phone, address: row.biz_address, theme: row.biz_theme, slug: row.biz_slug, settings: row.biz_settings },
             groupServices
           });

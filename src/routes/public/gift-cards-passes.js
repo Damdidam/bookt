@@ -34,7 +34,7 @@ router.get('/:slug/gift-card-config', async (req, res, next) => {
 });
 
 // POST /api/public/:slug/gift-card/checkout — Stripe Checkout for gift card purchase
-router.post('/:slug/gift-card/checkout', async (req, res, next) => {
+router.post('/:slug/gift-card/checkout', depositLimiter, async (req, res, next) => {
   try {
     const key = process.env.STRIPE_SECRET_KEY;
     if (!key) return res.status(500).json({ error: 'Paiement non configuré' });
@@ -157,12 +157,17 @@ router.post('/deposit/:token/gift-card', depositLimiter, async (req, res, next) 
           const groupEndAt = groupServices ? groupServices[groupServices.length - 1].end_at : null;
           const { getGcPaidCents } = require('../../services/gift-card-refund');
           const gcPaidForEmail = await getGcPaidCents(bk.id);
-          const { sendDepositPaidEmail } = require('../../services/email');
+          const { sendDepositPaidEmail, sendDepositPaidProEmail } = require('../../services/email');
+          const _emailBooking = { start_at: row.start_at, end_at: groupEndAt || row.end_at, deposit_amount_cents: row.deposit_amount_cents, gc_paid_cents: gcPaidForEmail, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, service_category: row.service_category, practitioner_name: row.practitioner_name, public_token: row.public_token, promotion_label: row.promotion_label, promotion_discount_cents: row.promotion_discount_cents, promotion_discount_pct: row.promotion_discount_pct, service_price_cents: row.service_price_cents, duration_min: row.duration_min };
           await sendDepositPaidEmail({
-            booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, deposit_amount_cents: row.deposit_amount_cents, gc_paid_cents: gcPaidForEmail, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, service_category: row.service_category, practitioner_name: row.practitioner_name, public_token: row.public_token, promotion_label: row.promotion_label, promotion_discount_cents: row.promotion_discount_cents, promotion_discount_pct: row.promotion_discount_pct, service_price_cents: row.service_price_cents, duration_min: row.duration_min },
+            booking: _emailBooking,
             business: { name: row.biz_name, slug: row.biz_slug, email: row.biz_email, phone: row.biz_phone, address: row.biz_address, theme: row.biz_theme, settings: row.biz_settings },
             groupServices
           });
+          sendDepositPaidProEmail({
+            booking: _emailBooking,
+            business: { name: row.biz_name, email: row.biz_email, theme: row.biz_theme }
+          }).catch(e => console.warn('[GC DEPOSIT] Pro email error:', e.message));
         }
       } catch (e) { console.error('[GC DEPOSIT] Email error:', e.message); }
       try { const { broadcast } = require('../../services/sse'); if (broadcast) broadcast(bk.business_id, 'booking_update', { action: 'deposit_paid', booking_id: bk.id }); } catch (e) {}
@@ -248,7 +253,7 @@ router.get('/:slug/pass-config', async (req, res, next) => {
 });
 
 // POST /api/public/:slug/pass/checkout
-router.post('/:slug/pass/checkout', async (req, res, next) => {
+router.post('/:slug/pass/checkout', depositLimiter, async (req, res, next) => {
   try {
     const key = process.env.STRIPE_SECRET_KEY;
     if (!key) return res.status(500).json({ error: 'Paiement non configuré' });

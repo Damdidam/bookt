@@ -3,9 +3,14 @@ const { sendEmail, buildEmailHTML, escHtml, safeColor } = require('./email-utils
 
 async function processExpiredPasses() {
   const result = await pool.query(
-    `UPDATE passes SET status = 'expired', updated_at = NOW()
-     WHERE status = 'active' AND expires_at IS NOT NULL AND expires_at < NOW()
-     RETURNING id, business_id, buyer_email, buyer_name, name, sessions_total, sessions_remaining`
+    `WITH expiring AS (
+       SELECT id FROM passes
+       WHERE status = 'active' AND expires_at IS NOT NULL AND expires_at < NOW()
+       FOR UPDATE SKIP LOCKED
+     )
+     UPDATE passes SET status = 'expired', updated_at = NOW()
+     FROM expiring WHERE passes.id = expiring.id
+     RETURNING passes.id, passes.business_id, passes.buyer_email, passes.buyer_name, passes.name, passes.sessions_total, passes.sessions_remaining`
   );
 
   // Send expiry notification emails (non-blocking)

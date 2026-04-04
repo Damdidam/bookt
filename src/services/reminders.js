@@ -70,7 +70,7 @@ async function process24hReminders(stats) {
       b.phone AS business_phone, b.address AS business_address,
       b.plan, b.settings, b.theme, b.email AS business_email,
       bk.promotion_label, bk.promotion_discount_cents,
-      bk.discount_pct,
+      bk.discount_pct, bk.booked_price_cents, bk.deposit_payment_intent_id,
       bk.deposit_required, bk.deposit_status, bk.deposit_amount_cents
     FROM bookings bk
     JOIN clients c ON c.id = bk.client_id
@@ -149,8 +149,8 @@ async function process24hReminders(stats) {
         }
       }
 
-      // Apply last-minute discount to single booking price
-      const adjPriceCents = bk.discount_pct && bk.price_cents ? Math.round(bk.price_cents * (100 - bk.discount_pct) / 100) : bk.price_cents;
+      // Use booked_price_cents (locked at booking time) if available, otherwise apply LM discount to catalog price
+      const adjPriceCents = bk.booked_price_cents || (bk.discount_pct && bk.price_cents ? Math.round(bk.price_cents * (100 - bk.discount_pct) / 100) : bk.price_cents);
 
       const isMulti = Array.isArray(groupServices) && groupServices.length > 1;
       let serviceHTML;
@@ -202,7 +202,28 @@ async function process24hReminders(stats) {
               <tr><td style="padding:8px 0;color:#7A7470"> Praticien</td><td style="padding:8px 0;font-weight:600">${escHtml(bk.practitioner_name)}</td></tr>
               ${bk.business_address ? `<tr><td style="padding:8px 0;color:#7A7470"> Adresse</td><td style="padding:8px 0"><a href="https://maps.google.com/?q=${encodeURIComponent(bk.business_address)}" style="color:inherit;text-decoration:underline">${escHtml(bk.business_address)}</a></td></tr>` : ''}
             </table>
-            ${bk.deposit_required && bk.deposit_status === 'paid' && bk.deposit_amount_cents ? `<div style="background:#F0FDF4;border-radius:8px;padding:10px 14px;margin:12px 0;font-size:13px;color:#15803D"><strong>Acompte payé :</strong> ${(bk.deposit_amount_cents / 100).toFixed(2).replace('.', ',')} €${(() => { const totalCents = isMulti ? groupServices.reduce((s, sv) => s + (sv.price_cents || 0), 0) : (adjPriceCents || 0); const promoD = parseInt(bk.promotion_discount_cents) || 0; const finalTotal = totalCents - promoD; const reste = finalTotal - bk.deposit_amount_cents; return reste > 0 ? ' — Reste à régler sur place : ' + (reste / 100).toFixed(2).replace('.', ',') + ' €' : ''; })()}</div>` : ''}${bk.deposit_required && bk.deposit_status === 'pending' && bk.deposit_amount_cents ? `<div style="background:#FEF3C7;border-radius:8px;padding:10px 14px;margin:12px 0;font-size:13px;color:#92400E"><strong>⚠ Acompte en attente :</strong> ${(bk.deposit_amount_cents / 100).toFixed(2).replace('.', ',')} € — Pensez à le régler avant votre rendez-vous.</div>` : ''}
+            ${(() => {
+              const dpi = bk.deposit_payment_intent_id || '';
+              if (dpi.startsWith('pass_')) {
+                return `<div style="background:#EEFAF1;border-radius:8px;padding:10px 14px;margin:12px 0;font-size:13px;color:#15803D"><strong>✅ Cette prestation est couverte par votre abonnement</strong></div>`;
+              }
+              if (bk.deposit_required && bk.deposit_status === 'paid' && bk.deposit_amount_cents) {
+                const depAmt = (bk.deposit_amount_cents / 100).toFixed(2).replace('.', ',');
+                const totalCents = isMulti ? groupServices.reduce((s, sv) => s + (sv.price_cents || 0), 0) : (adjPriceCents || 0);
+                const promoD = parseInt(bk.promotion_discount_cents) || 0;
+                const finalTotal = totalCents - promoD;
+                const reste = finalTotal - bk.deposit_amount_cents;
+                const resteStr = reste > 0 ? ' — Reste à régler sur place : ' + (reste / 100).toFixed(2).replace('.', ',') + ' €' : '';
+                if (dpi.startsWith('gc_')) {
+                  return `<div style="background:#FFF8E1;border-radius:8px;padding:10px 14px;margin:12px 0;font-size:13px;color:#5D4037"><strong>🎁 Acompte de ${depAmt} € réglé via votre carte cadeau</strong>${resteStr}</div>`;
+                }
+                return `<div style="background:#F0FDF4;border-radius:8px;padding:10px 14px;margin:12px 0;font-size:13px;color:#15803D"><strong>Acompte payé :</strong> ${depAmt} €${resteStr}</div>`;
+              }
+              if (bk.deposit_required && bk.deposit_status === 'pending' && bk.deposit_amount_cents) {
+                return `<div style="background:#FEF3C7;border-radius:8px;padding:10px 14px;margin:12px 0;font-size:13px;color:#92400E"><strong>⚠ Acompte en attente :</strong> ${(bk.deposit_amount_cents / 100).toFixed(2).replace('.', ',')} € — Pensez à le régler avant votre rendez-vous.</div>`;
+              }
+              return '';
+            })()}
             ${(() => { const cp = []; if (bk.business_phone) cp.push('📞 ' + escHtml(bk.business_phone)); if (bk.business_email) cp.push('✉️ ' + escHtml(bk.business_email)); return cp.length > 0 ? '<p style="font-size:13px;color:#7A7470;margin:12px 0">' + cp.join(' · ') + '</p>' : ''; })()}
             <p style="font-size:13px;color:#9C958E;margin-top:16px">Besoin de modifier ou annuler ? Utilisez le bouton ci-dessous.</p>
           `,

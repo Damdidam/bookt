@@ -34,7 +34,6 @@ export function showConfirmDialog(title, message, confirmLabel = 'Confirmer', co
     </div>`;
     el.querySelector('.dg-cancel').onclick = () => { el.remove(); resolve(false); };
     el.querySelector('.dg-confirm').onclick = () => { el.remove(); resolve(true); };
-    el.addEventListener('click', e => { if (e.target === el) { el.remove(); resolve(false); } });
     const parent = document.querySelector('.m-overlay.open .m-dialog') || document.body;
     parent.appendChild(el);
   });
@@ -54,7 +53,6 @@ export function showDirtyPrompt(dialogEl) {
     </div>`;
     el.querySelector('.dg-stay').onclick = () => { el.remove(); resolve(false); };
     el.querySelector('.dg-leave').onclick = () => { el.remove(); resolve(true); };
-    el.addEventListener('click', e => { if (e.target === el) { el.remove(); resolve(false); } });
     dialogEl.appendChild(el);
   });
 }

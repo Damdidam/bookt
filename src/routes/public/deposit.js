@@ -444,12 +444,16 @@ router.post('/deposit/:token/verify', depositLimiter, async (req, res, next) => 
           const { getGcPaidCents } = require('../../services/gift-card-refund');
           const gcPaid = await getGcPaidCents(bk.id);
           d.gc_paid_cents = gcPaid;
-          const { sendDepositPaidEmail } = require('../../services/email');
+          const { sendDepositPaidEmail, sendDepositPaidProEmail } = require('../../services/email');
           sendDepositPaidEmail({
             booking: d,
             business: { name: d.business_name, email: d.business_email, phone: d.business_phone, address: d.business_address, theme: d.theme, slug: d.slug, settings: d.business_settings },
             groupServices
           }).catch(e => console.warn('[DEPOSIT VERIFY] Email error:', e.message));
+          sendDepositPaidProEmail({
+            booking: d,
+            business: { name: d.business_name, email: d.business_email, theme: d.theme }
+          }).catch(e => console.warn('[DEPOSIT VERIFY] Pro email error:', e.message));
         }
       } catch (emailErr) {
         console.warn('[DEPOSIT VERIFY] Email fetch error:', emailErr.message);

@@ -341,7 +341,7 @@ function renderStats(s) {
   document.getElementById('kFree').textContent = s.free_count;
   document.getElementById('kPro').textContent = s.pro_count;
   document.getElementById('kPro2').textContent = s.pro_count;
-  document.getElementById('kMrr').textContent = (s.mrr_cents / 100).toFixed(0) + '\u202f\u20ac';
+  document.getElementById('kMrr').textContent = (s.mrr_cents / 100).toFixed(2).replace('.', ',') + '\u202f\u20ac';
   document.getElementById('kBookings').textContent = s.bookings_this_month;
   document.getElementById('kNew').textContent = s.created_this_month;
 
@@ -438,7 +438,7 @@ function renderTable(businesses) {
 
     // Revenue 30d
     var rev30d = parseInt(b.revenue_30d_cents) || 0;
-    var revStr = rev30d > 0 ? (rev30d / 100).toFixed(0) + '\u202f\u20ac' : '\u2014';
+    var revStr = rev30d > 0 ? (rev30d / 100).toFixed(2).replace('.', ',') + '\u202f\u20ac' : '\u2014';
 
     // Row highlight for past_due
     var rowStyle = (ss === 'past_due' || ss === 'unpaid') ? 'background:var(--red-bg)' : '';

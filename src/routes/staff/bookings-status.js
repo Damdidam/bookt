@@ -440,6 +440,8 @@ router.patch('/:id/status', async (req, res, next) => {
 
       // ===== DEPOSIT: refund logic on cancellation =====
       let depositRefunded = false;
+      let gcRefundForEmail = { refunded: 0 };
+      let passRefundForEmail = { refunded: 0 };
       if (status === 'cancelled') {
         const depInfo = await client.query(
           `SELECT b.deposit_required, b.deposit_status, b.deposit_amount_cents, b.deposit_payment_intent_id, b.start_at, b.created_at, biz.settings
@@ -512,8 +514,8 @@ router.patch('/:id/status', async (req, res, next) => {
 
             // Refund gift card debits if deposit cancelled/refunded
             if (newDepStatus === 'cancelled' || newDepStatus === 'refunded') {
-              await refundGiftCardForBooking(id, client);
-              await refundPassForBooking(id, client).catch(e => console.warn('[PASS REFUND]', e.message));
+              gcRefundForEmail = await refundGiftCardForBooking(id, client) || { refunded: 0 };
+              try { passRefundForEmail = await refundPassForBooking(id, client) || { refunded: 0 }; } catch (e) { console.warn('[PASS REFUND]', e.message); }
             }
 
             // Bug H6 + B4 + M7 fix: Update sibling deposits, handle both paid and pending
@@ -541,8 +543,8 @@ router.patch('/:id/status', async (req, res, next) => {
 
         // ===== PASS/GC REFUND: for bookings WITHOUT deposit (e.g. pass-covered) =====
         if (!dep?.deposit_required) {
-          await refundGiftCardForBooking(id, client);
-          await refundPassForBooking(id, client).catch(e => console.warn('[PASS REFUND]', e.message));
+          gcRefundForEmail = await refundGiftCardForBooking(id, client) || { refunded: 0 };
+          try { passRefundForEmail = await refundPassForBooking(id, client) || { refunded: 0 }; } catch (e) { console.warn('[PASS REFUND]', e.message); }
           // Group siblings
           if (old.rows[0].group_id) {
             const sibIds = await client.query(
@@ -698,7 +700,7 @@ router.patch('/:id/status', async (req, res, next) => {
     if (status === 'cancelled') {
       try {
         const emailData = await queryWithRLS(bid,
-          `SELECT b.start_at, b.end_at, b.client_id, b.group_id, b.public_token,
+          `SELECT b.start_at, b.end_at, b.client_id, b.group_id, b.public_token, b.custom_label,
                   b.deposit_required, b.deposit_status, b.deposit_amount_cents, b.deposit_paid_at, b.deposit_payment_intent_id,
                   b.promotion_label, b.promotion_discount_cents, b.promotion_discount_pct, b.discount_pct,
                   c.full_name AS client_name, c.email AS client_email, c.phone AS client_phone,
@@ -740,7 +742,7 @@ router.patch('/:id/status', async (req, res, next) => {
           const cancelServicePrice = d.discount_pct ? Math.round(d.service_price_cents * (100 - d.discount_pct) / 100) : d.service_price_cents;
           const { sendCancellationEmail } = require('../../services/email');
           sendCancellationEmail({
-            booking: { start_at: d.start_at, end_at: groupEndAt || d.end_at, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name, service_category: d.service_category, practitioner_name: d.practitioner_name, deposit_required: d.deposit_required, deposit_status: d.deposit_status, deposit_amount_cents: d.deposit_amount_cents, deposit_paid_at: d.deposit_paid_at, deposit_payment_intent_id: d.deposit_payment_intent_id, gc_paid_cents: gcPaidForEmail, promotion_label: d.promotion_label, promotion_discount_cents: d.promotion_discount_cents, promotion_discount_pct: d.promotion_discount_pct, service_price_cents: cancelServicePrice, duration_min: d.duration_min },
+            booking: { start_at: d.start_at, end_at: groupEndAt || d.end_at, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name, service_category: d.service_category, custom_label: d.custom_label, practitioner_name: d.practitioner_name, deposit_required: d.deposit_required, deposit_status: d.deposit_status, deposit_amount_cents: d.deposit_amount_cents, deposit_paid_at: d.deposit_paid_at, deposit_payment_intent_id: d.deposit_payment_intent_id, gc_paid_cents: gcPaidForEmail, gc_refunded_cents: gcRefundForEmail.refunded || 0, pass_refunded: (passRefundForEmail.refunded || 0) !== 0, promotion_label: d.promotion_label, promotion_discount_cents: d.promotion_discount_cents, promotion_discount_pct: d.promotion_discount_pct, service_price_cents: cancelServicePrice, duration_min: d.duration_min },
             business: { name: d.biz_name, slug: d.slug, email: d.biz_email, phone: d.biz_phone, address: d.address, theme: d.theme, settings: d.biz_settings },
             groupServices
           }).catch(e => console.warn('[EMAIL] Cancellation email error:', e.message));
@@ -776,23 +778,29 @@ router.patch('/:id/status', async (req, res, next) => {
           let groupServices = null;
           if (d.group_id) {
             const grp = await queryWithRLS(bid,
-              `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' \u2014 ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name, COALESCE(sv.duration_min, s.duration_min) AS duration_min, COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at, b.practitioner_id, p.display_name AS practitioner_name FROM bookings b LEFT JOIN services s ON s.id = b.service_id LEFT JOIN service_variants sv ON sv.id = b.service_variant_id LEFT JOIN practitioners p ON p.id = b.practitioner_id WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
+              `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' \u2014 ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name, COALESCE(sv.duration_min, s.duration_min) AS duration_min, COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.discount_pct, b.end_at, b.practitioner_id, p.display_name AS practitioner_name FROM bookings b LEFT JOIN services s ON s.id = b.service_id LEFT JOIN service_variants sv ON sv.id = b.service_variant_id LEFT JOIN practitioners p ON p.id = b.practitioner_id WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
               [d.group_id, bid]
             );
             if (grp.rows.length > 1) {
               const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
               if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
+              grp.rows.forEach(r => { if (r.discount_pct && r.price_cents) r.price_cents = Math.round(r.price_cents * (100 - r.discount_pct) / 100); });
               groupServices = grp.rows;
             }
           }
           const groupEndAt = groupServices ? groupServices[groupServices.length - 1].end_at : null;
           const gcPaidRefund = await getGcPaidCents(id);
-          const { sendDepositRefundEmail } = require('../../services/email');
+          const { sendDepositRefundEmail, sendDepositRefundProEmail } = require('../../services/email');
+          const _refundBooking = { start_at: d.start_at, end_at: groupEndAt || d.end_at, deposit_amount_cents: d.deposit_amount_cents, deposit_payment_intent_id: d.deposit_payment_intent_id, gc_paid_cents: gcPaidRefund, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name, service_category: d.service_category, practitioner_name: d.practitioner_name, promotion_label: d.promotion_label, promotion_discount_cents: d.promotion_discount_cents, promotion_discount_pct: d.promotion_discount_pct, service_price_cents: d.service_price_cents, duration_min: d.duration_min };
           sendDepositRefundEmail({
-            booking: { start_at: d.start_at, end_at: groupEndAt || d.end_at, deposit_amount_cents: d.deposit_amount_cents, deposit_payment_intent_id: d.deposit_payment_intent_id, gc_paid_cents: gcPaidRefund, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name, service_category: d.service_category, practitioner_name: d.practitioner_name, promotion_label: d.promotion_label, promotion_discount_cents: d.promotion_discount_cents, promotion_discount_pct: d.promotion_discount_pct, service_price_cents: d.service_price_cents, duration_min: d.duration_min },
+            booking: _refundBooking,
             business: { name: d.biz_name, slug: d.slug, email: d.biz_email, phone: d.biz_phone, address: d.address, settings: d.settings, theme: d.theme },
             groupServices
           }).catch(e => console.warn('[EMAIL] Deposit refund email error:', e.message));
+          sendDepositRefundProEmail({
+            booking: _refundBooking,
+            business: { name: d.biz_name, email: d.biz_email, theme: d.theme }
+          }).catch(e => console.warn('[EMAIL] Deposit refund pro email error:', e.message));
         }
       } catch (e) { console.warn('[EMAIL] Deposit refund email fetch error:', e.message); }
     }
@@ -829,7 +837,7 @@ router.patch('/:id/status', async (req, res, next) => {
             const grp = await queryWithRLS(bid,
               `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' \u2014 ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
                       COALESCE(sv.duration_min, s.duration_min) AS duration_min,
-                      COALESCE(sv.price_cents, s.price_cents) AS price_cents, bk.end_at, bk.practitioner_id, p.display_name AS practitioner_name
+                      COALESCE(sv.price_cents, s.price_cents) AS price_cents, bk.discount_pct, bk.end_at, bk.practitioner_id, p.display_name AS practitioner_name
                FROM bookings bk LEFT JOIN services s ON s.id = bk.service_id
                LEFT JOIN service_variants sv ON sv.id = bk.service_variant_id
                LEFT JOIN practitioners p ON p.id = bk.practitioner_id
@@ -840,6 +848,7 @@ router.patch('/:id/status', async (req, res, next) => {
             if (grp.rows.length > 1) {
               const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
               if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
+              grp.rows.forEach(r => { if (r.discount_pct && r.price_cents) r.price_cents = Math.round(r.price_cents * (100 - r.discount_pct) / 100); });
               groupServices = grp.rows;
               d.end_at = grp.rows[grp.rows.length - 1].end_at;
             }
@@ -888,7 +897,7 @@ router.patch('/:id/status', async (req, res, next) => {
             const grp = await queryWithRLS(bid,
               `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' — ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
                       COALESCE(sv.duration_min, s.duration_min) AS duration_min,
-                      COALESCE(sv.price_cents, s.price_cents) AS price_cents, bk.end_at, bk.practitioner_id, p.display_name AS practitioner_name
+                      COALESCE(sv.price_cents, s.price_cents) AS price_cents, bk.discount_pct, bk.end_at, bk.practitioner_id, p.display_name AS practitioner_name
                FROM bookings bk LEFT JOIN services s ON s.id = bk.service_id
                LEFT JOIN service_variants sv ON sv.id = bk.service_variant_id
                LEFT JOIN practitioners p ON p.id = bk.practitioner_id
@@ -899,6 +908,7 @@ router.patch('/:id/status', async (req, res, next) => {
             if (grp.rows.length > 1) {
               const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
               if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
+              grp.rows.forEach(r => { if (r.discount_pct && r.price_cents) r.price_cents = Math.round(r.price_cents * (100 - r.discount_pct) / 100); });
               groupServices = grp.rows; d.end_at = grp.rows[grp.rows.length - 1].end_at;
             }
           }
@@ -946,7 +956,7 @@ router.patch('/:id/status', async (req, res, next) => {
             const grp = await queryWithRLS(bid,
               `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' — ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
                       COALESCE(sv.duration_min, s.duration_min) AS duration_min,
-                      COALESCE(sv.price_cents, s.price_cents) AS price_cents, bk.end_at, bk.practitioner_id, p.display_name AS practitioner_name
+                      COALESCE(sv.price_cents, s.price_cents) AS price_cents, bk.discount_pct, bk.end_at, bk.practitioner_id, p.display_name AS practitioner_name
                FROM bookings bk LEFT JOIN services s ON s.id = bk.service_id
                LEFT JOIN service_variants sv ON sv.id = bk.service_variant_id
                LEFT JOIN practitioners p ON p.id = bk.practitioner_id
@@ -957,6 +967,7 @@ router.patch('/:id/status', async (req, res, next) => {
             if (grp.rows.length > 1) {
               const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
               if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
+              grp.rows.forEach(r => { if (r.discount_pct && r.price_cents) r.price_cents = Math.round(r.price_cents * (100 - r.discount_pct) / 100); });
               groupServices = grp.rows;
               d.end_at = grp.rows[grp.rows.length - 1].end_at;
             }
@@ -1223,12 +1234,17 @@ router.patch('/:id/deposit-refund', async (req, res, next) => {
         }
         const groupEndAt = groupServices ? groupServices[groupServices.length - 1].end_at : null;
         const gcPaidManual = await getGcPaidCents(id);
-        const { sendDepositRefundEmail } = require('../../services/email');
+        const { sendDepositRefundEmail, sendDepositRefundProEmail } = require('../../services/email');
+        const _manualRefBk = { start_at: d.start_at, end_at: groupEndAt || d.end_at, deposit_amount_cents: d.deposit_amount_cents, deposit_payment_intent_id: d.deposit_payment_intent_id, gc_paid_cents: gcPaidManual, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name, service_category: d.service_category, service_price_cents: d.service_price_cents, duration_min: d.duration_min, practitioner_name: d.practitioner_name, promotion_label: d.promotion_label, promotion_discount_cents: d.promotion_discount_cents, promotion_discount_pct: d.promotion_discount_pct };
         sendDepositRefundEmail({
-          booking: { start_at: d.start_at, end_at: groupEndAt || d.end_at, deposit_amount_cents: d.deposit_amount_cents, deposit_payment_intent_id: d.deposit_payment_intent_id, gc_paid_cents: gcPaidManual, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name, service_category: d.service_category, service_price_cents: d.service_price_cents, duration_min: d.duration_min, practitioner_name: d.practitioner_name, promotion_label: d.promotion_label, promotion_discount_cents: d.promotion_discount_cents, promotion_discount_pct: d.promotion_discount_pct },
+          booking: _manualRefBk,
           business: { name: d.biz_name, slug: d.slug, email: d.biz_email, phone: d.biz_phone, address: d.address, settings: d.settings, theme: d.theme },
           groupServices
         }).catch(e => console.warn('[EMAIL] Deposit refund email error:', e.message));
+        sendDepositRefundProEmail({
+          booking: _manualRefBk,
+          business: { name: d.biz_name, email: d.biz_email, theme: d.theme }
+        }).catch(e => console.warn('[EMAIL] Deposit refund pro email error:', e.message));
       }
     } catch (e) { console.warn('[EMAIL] Deposit refund email fetch error:', e.message); }
 
