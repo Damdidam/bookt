@@ -889,7 +889,7 @@ function initPage(){
   document.getElementById('hName').textContent=b.name;
   document.getElementById('hTagline').textContent=b.tagline||'';
   document.getElementById('hBack').href='#';
-  document.getElementById('hBack').addEventListener('click',function(e){e.preventDefault();if(currentStepIdx<=0||stepOrder[currentStepIdx]===1)window.location.href='/'+slug;else goToStep(1);});
+  document.getElementById('hBack').addEventListener('click',function(e){e.preventDefault();if(currentStepIdx<=0||stepOrder[currentStepIdx]===1)window.location.href='/'+slug;else goPrev();});
   document.getElementById('btnBackSite').onclick=()=>window.location.href='/'+slug;
   document.title='Prendre RDV — '+b.name;
   // Apply full theme from preset
@@ -2053,7 +2053,10 @@ function goToStep(n){
         selectedPractitioner=siteData.practitioners[0];
       }
     }
-    buildModeSelector();weekOffset=0;selectedDate=null;selectedSlot=null;slotsData={};loadSlots();
+    buildModeSelector();
+    // BK-3: Preserve slot selection when going back from step 4 to step 3
+    if(!selectedSlot||!Object.keys(slotsData).length){weekOffset=0;selectedDate=null;selectedSlot=null;slotsData={};loadSlots();}
+    else{renderSlots();}
   }
   if(n===4){
     buildSummary();
@@ -2328,7 +2331,7 @@ function validatePhone(raw){
   const digits=sanitizePhone(raw);
   const prefix=document.getElementById('cPhonePrefix')?.value||'+32';
   if(prefix==='+32'){
-    if(!/^4[5-9]\d{7}$/.test(digits))return false;
+    if(!/^4\d{8}$/.test(digits))return false;
   }else if(prefix==='+33'){
     if(!/^[67]\d{8}$/.test(digits))return false;
   }else if(prefix==='+352'){

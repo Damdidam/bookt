@@ -225,7 +225,14 @@ async function handleStripeWebhook(req, res) {
           if (!bookingId || !businessId) break;
 
           const piId = session.payment_intent || null;
-          console.log(`[STRIPE WH] Deposit paid for booking ${bookingId} (PI: ${piId})`);
+          // ST-6: Log amount mismatch as warning (don't block — payment already captured)
+          const paidAmountCents = session.amount_total || 0;
+          const expectedRes = await query(`SELECT deposit_amount_cents FROM bookings WHERE id = $1`, [bookingId]);
+          const expectedCents = expectedRes.rows[0]?.deposit_amount_cents || 0;
+          if (paidAmountCents > 0 && expectedCents > 0 && Math.abs(paidAmountCents - expectedCents) > 100) {
+            console.warn(`[STRIPE WH] AMOUNT MISMATCH: booking ${bookingId} expected ${expectedCents}c, paid ${paidAmountCents}c`);
+          }
+          console.log(`[STRIPE WH] Deposit paid for booking ${bookingId} (PI: ${piId}, amount: ${paidAmountCents}c)`);
 
           // Update booking + group siblings + detached bookings atomically in a transaction
           const txClient = await pool.connect();

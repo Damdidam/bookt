@@ -183,10 +183,26 @@ router.patch('/businesses/:id', async (req, res, next) => {
     let idx = 1;
 
     if (typeof is_active === 'boolean') {
+      // ST-9: Warn about active bookings/deposits when deactivating
+      if (is_active === false) {
+        const activeBookings = await query(
+          `SELECT COUNT(*) AS cnt FROM bookings WHERE business_id = $1 AND status IN ('confirmed', 'pending', 'pending_deposit', 'modified_pending') AND start_at > NOW()`,
+          [req.params.id]
+        );
+        const cnt = parseInt(activeBookings.rows[0].cnt) || 0;
+        if (cnt > 0) {
+          console.warn(`[ADMIN] Deactivating business ${req.params.id} with ${cnt} future active booking(s) — clients will NOT be notified`);
+        }
+      }
       sets.push(`is_active = $${idx++}`);
       params.push(is_active);
     }
     if (plan && ['free', 'pro'].includes(plan)) {
+      // ST-8: Warn if Stripe subscription exists and plan change may desync
+      const subCheck = await query(`SELECT stripe_subscription_id, subscription_status FROM businesses WHERE id = $1`, [req.params.id]);
+      if (subCheck.rows[0]?.stripe_subscription_id && plan === 'free') {
+        console.warn(`[ADMIN] Plan downgrade to free for ${req.params.id} but Stripe subscription ${subCheck.rows[0].stripe_subscription_id} still active — manual cancellation needed`);
+      }
       sets.push(`plan = $${idx++}`);
       params.push(plan);
       sets.push(`plan_changed_at = NOW()`);

@@ -144,6 +144,13 @@ function isWithinLastMinuteWindow(slotDate, todayBrussels, deadline) {
   const now = new Date(todayBrussels + 'T12:00:00Z');
   const diffDays = Math.round((slot - now) / 86400000);
   if (diffDays < 0) return false;
+  // SE-3: Support hour-based deadlines (h-24, h-48, etc.)
+  const hourMatch = deadline.match(/^h-(\d+)$/);
+  if (hourMatch) {
+    const hoursAhead = parseInt(hourMatch[1], 10);
+    const diffMs = slot.getTime() - Date.now();
+    return diffMs >= 0 && diffMs <= hoursAhead * 3600000;
+  }
   switch (deadline) {
     case 'j-2': return diffDays <= 2;
     case 'j-1': return diffDays <= 1;
