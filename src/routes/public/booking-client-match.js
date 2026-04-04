@@ -1,7 +1,9 @@
 'use strict';
 
+const { normalizeEmail } = require('./helpers');
+
 /**
- * 4-step client matching logic: OAuth > exact (phone+email) > phone > email
+ * 5-step client matching logic: OAuth > exact (phone+email) > phone > email > normalized email
  * Shared between multi-service and single-service booking flows.
  *
  * @param {object} txClient - The transaction database client
@@ -54,6 +56,18 @@ async function findOrCreateClient(txClient, {
         if (emailMatch.rows.length > 0) {
           existingClient = emailMatch.rows[0];
           matchType = 'email';
+        } else {
+          // Priority 5: Normalized email match (catches +tag aliases, Gmail dots)
+          const normalizedInput = normalizeEmail(client_email);
+          const allClients = await txClient.query(
+            `SELECT id, email, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND email IS NOT NULL`,
+            [businessId]
+          );
+          const normalizedMatch = allClients.rows.find(c => normalizeEmail(c.email) === normalizedInput);
+          if (normalizedMatch) {
+            existingClient = normalizedMatch;
+            matchType = 'email';
+          }
         }
       }
     }

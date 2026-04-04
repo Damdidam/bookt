@@ -5,7 +5,7 @@ const { bookingLimiter, slotsLimiter, depositLimiter } = require('../../middlewa
 const { processWaitlistForCancellation } = require('../../services/waitlist');
 const { broadcast } = require('../../services/sse');
 const { checkPracAvailability, checkBookingConflicts } = require('../staff/bookings-helpers');
-const { UUID_RE, escHtml, stripeRefundDeposit, shouldRequireDeposit, computeDepositDeadline, isWithinLastMinuteWindow, BASE_URL, validateAndCalcPromo } = require('./helpers');
+const { UUID_RE, escHtml, stripeRefundDeposit, shouldRequireDeposit, computeDepositDeadline, isWithinLastMinuteWindow, BASE_URL, validateAndCalcPromo, normalizeEmail, isDisposableEmail } = require('./helpers');
 const { findOrCreateClient } = require('./booking-client-match');
 const { queueBookingNotifications, sendPostBookingComms } = require('./booking-notifications');
 
@@ -115,6 +115,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(client_email)) return res.status(400).json({ error: 'Format email invalide' });
+    if (isDisposableEmail(client_email)) return res.status(400).json({ error: 'Les adresses email temporaires ne sont pas acceptées. Veuillez utiliser votre email personnel.' });
     if (client_phone && !/^\+?[\d\s\-().]{6,}$/.test(client_phone)) return res.status(400).json({ error: 'Format téléphone invalide' });
 
     const VALID_MODES = ['cabinet', 'visio', 'phone', 'domicile'];

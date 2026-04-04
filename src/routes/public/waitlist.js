@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { query, pool } = require('../../services/db');
 const { bookingLimiter } = require('../../middleware/rate-limiter');
-const { UUID_RE, shouldRequireDeposit, computeDepositDeadline, BASE_URL } = require('./helpers');
+const { UUID_RE, shouldRequireDeposit, computeDepositDeadline, BASE_URL, isDisposableEmail } = require('./helpers');
 const { broadcast } = require('../../services/sse');
 const { checkBookingConflicts } = require('../staff/bookings-helpers');
 
@@ -42,6 +42,7 @@ router.post('/:slug/waitlist', bookingLimiter, async (req, res, next) => {
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(client_email)) return res.status(400).json({ error: 'Format email invalide' });
+    if (isDisposableEmail(client_email)) return res.status(400).json({ error: 'Les adresses email temporaires ne sont pas acceptées' });
     if (client_phone && !/^\+?[\d\s\-().]{6,}$/.test(client_phone)) return res.status(400).json({ error: 'Format téléphone invalide' });
 
     if (preferred_days) {

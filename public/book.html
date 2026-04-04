@@ -2380,8 +2380,9 @@ function validateEmailStrict(email){
   if(tld.length<2)return false;
   // Block obvious fake TLDs
   if(/^(test|fake|invalid|example|localhost)$/i.test(tld))return false;
-  // Block disposable patterns
-  if(/^(mailinator|guerrilla|tempmail|throwaway|yopmail|sharklasers|grr\.la)/i.test(domain))return false;
+  // Block disposable email domains
+  var disposable=['mailinator.com','guerrillamail.com','guerrillamail.net','tempmail.com','throwaway.email','temp-mail.org','fakeinbox.com','sharklasers.com','guerrillamailblock.com','grr.la','dispostable.com','trashmail.com','trashmail.net','yopmail.com','yopmail.fr','maildrop.cc','mailnesia.com','tempail.com','tempr.email','discard.email','mohmal.com','getnada.com','emailondeck.com','33mail.com','maildax.com','jetable.org','trash-mail.com','mytemp.email','temp-mail.io','tempmailo.com','minutemail.com','emailfake.com','crazymailing.com','armyspy.com','dayrep.com','einrot.com','fleckens.hu','gustr.com','jourrapide.com','rhyta.com','superrito.com','teleworm.us','10minutemail.com','10minutemail.net','mailcatch.com'];
+  if(disposable.indexOf(domain.toLowerCase())!==-1)return false;
   return true;
 }
 function validateEmailField(){
