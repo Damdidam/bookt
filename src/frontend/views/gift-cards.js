@@ -129,7 +129,7 @@ function openCreateGiftCardModal(){
   modal.innerHTML=`<div class="m-dialog m-md">
     <div class="m-header-simple">
       <h3>Créer une carte cadeau</h3>
-      <button class="m-close" onclick="closeModal('gcCreateModal')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      <button class="m-close" onclick="closeModal('gcCreateModal')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="m-body">
       <div style="margin-bottom:16px">
@@ -218,7 +218,7 @@ function openDebitGiftCard(id){
   modal.innerHTML=`<div class="m-dialog m-sm">
     <div class="m-header-simple">
       <h3>Débiter la carte ${esc(gc.code)}</h3>
-      <button class="m-close" onclick="closeModal('gcDebitModal')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      <button class="m-close" onclick="closeModal('gcDebitModal')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="m-body">
       <div style="margin-bottom:14px;padding:12px;background:var(--surface);border-radius:var(--radius-xs)">
@@ -279,7 +279,7 @@ async function refundGiftCard(id){
   modal.innerHTML=`<div class="m-dialog m-sm">
     <div class="m-header-simple">
       <h3>Rembourser — ${esc(gc.code)}</h3>
-      <button class="m-close" onclick="closeModal('gcRefundModal')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      <button class="m-close" onclick="closeModal('gcRefundModal')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="m-body">
       <div style="margin-bottom:14px;padding:12px;background:var(--surface);border-radius:var(--radius-xs)">

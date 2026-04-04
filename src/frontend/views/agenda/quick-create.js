@@ -1130,7 +1130,7 @@ function _showDepositRequestPanel(booking, clientName, clientEmail, clientPhone)
   modalBody.innerHTML = `
     <div style="padding:24px;text-align:center">
       <div style="width:56px;height:56px;border-radius:16px;background:var(--amber-bg);display:flex;align-items:center;justify-content:center;margin:0 auto 16px">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        <svg class="gi" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
       </div>
       <h3 style="font-size:1.1rem;font-weight:700;margin:0 0 4px;font-family:var(--sans)">Envoyer une demande d\u2019acompte ?</h3>
       <p style="font-size:.88rem;color:var(--text-3);margin:0 0 20px">

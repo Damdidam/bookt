@@ -158,7 +158,7 @@ function renderSummary() {
   }
 
   return `<div class="biz-hours-summary" style="margin-bottom:16px">
-    <svg viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px;flex-shrink:0"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+    <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px;flex-shrink:0"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
     <span class="summary-main">Ouvert ${pattern}, ${timeStr}</span>
     <span class="summary-badge">${hoursPerWeek}h / semaine</span>
   </div>`;
@@ -249,7 +249,7 @@ function renderHolidaysCard(year) {
       const dt = new Date(hol.date).toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'long', timeZone: 'Europe/Brussels' });
       h += `<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border-light)">
         <div style="display:flex;align-items:center;gap:8px">
-          <svg viewBox="0 0 24 24" fill="none" stroke="var(--amber-dark)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
+          <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="var(--amber-dark)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
           <span style="font-size:.85rem;font-weight:600">${dt}</span>
           <span style="font-size:.78rem;color:var(--text-4)">${hol.name}</span>
         </div>

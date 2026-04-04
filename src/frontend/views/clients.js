@@ -123,7 +123,7 @@ async function openClientDetail(id){
     // ── Notes from bookings (internal + client comments) ──
     const allNotes=bks.filter(b=>(b.internal_note&&b.internal_note.trim())||(b.comment_client&&b.comment_client.trim()));
     if(allNotes.length>0){
-      m+=`<div class="m-sec"><div class="m-sec-head"><span class="m-sec-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Notes des RDV (${allNotes.length})</span><span class="m-sec-line"></span></div>`;
+      m+=`<div class="m-sec"><div class="m-sec-head"><span class="m-sec-title"><svg class="gi" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Notes des RDV (${allNotes.length})</span><span class="m-sec-line"></span></div>`;
       m+=`<div style="border-radius:8px;border:1px solid var(--border-light);overflow:hidden;max-height:200px;overflow-y:auto">`;
       allNotes.forEach((b,i)=>{
         const bg=i%2===0?'var(--white)':'var(--surface)';
@@ -265,7 +265,7 @@ async function openClientDetail(id){
     m+=`</div>`;
 
     // ── Remarques (rich text for staff) ──
-    m+=`<div class="m-sec"><div class="m-sec-head"><span class="m-sec-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Remarques</span><span class="m-sec-line"></span></div>`;
+    m+=`<div class="m-sec"><div class="m-sec-head"><span class="m-sec-title"><svg class="gi" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Remarques</span><span class="m-sec-line"></span></div>`;
     m+=`<div style="border:1px solid var(--border-light);border-radius:8px;overflow:hidden">
       <div id="cl_remarks_toolbar" style="display:flex;gap:2px;padding:4px 6px;background:var(--surface);border-bottom:1px solid var(--border-light)">
         <button type="button" style="padding:2px 6px;background:none;border:1px solid var(--border-light);border-radius:4px;cursor:pointer;font-weight:700;font-size:.8rem" onclick="document.execCommand('bold')"><b>G</b></button>
@@ -389,7 +389,7 @@ function openCsvImportModal(){
   let m=`<div class="m-overlay open" id="csvImportModal"><div class="m-dialog m-md"><div class="m-header-simple"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Importer des ${categoryLabels.clients.toLowerCase()}</h3><button class="m-close" onclick="closeModal('csvImportModal')">${IC.x}</button></div><div class="m-body">`;
   m+=`<div style="font-size:.82rem;color:var(--text-3);margin-bottom:12px">Format attendu : <strong>Nom, Téléphone, Email</strong> (séparateur : virgule ou point-virgule). La première ligne peut être un en-tête.</div>`;
   m+=`<div style="border:2px dashed var(--border);border-radius:10px;padding:32px;text-align:center;cursor:pointer;transition:border-color .2s" id="csvDropZone" onclick="document.getElementById('csvFileInput').click()" ondragover="event.preventDefault();this.style.borderColor='var(--primary)'" ondragleave="this.style.borderColor='var(--border)'" ondrop="event.preventDefault();this.style.borderColor='var(--border)';csvHandleFile(event.dataTransfer.files[0])">`;
-  m+=`<svg viewBox="0 0 24 24" fill="none" stroke="var(--text-4)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:32px;height:32px;margin-bottom:8px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`;
+  m+=`<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="var(--text-4)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:32px;height:32px;margin-bottom:8px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`;
   m+=`<div style="font-size:.85rem;font-weight:500;color:var(--text)">Glissez un fichier CSV ici</div>`;
   m+=`<div style="font-size:.75rem;color:var(--text-4);margin-top:4px">ou cliquez pour parcourir</div>`;
   m+=`<input type="file" id="csvFileInput" accept=".csv,.txt" style="display:none" onchange="csvHandleFile(this.files[0])">`;

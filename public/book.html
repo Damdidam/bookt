@@ -443,7 +443,7 @@ body.theme-dark .promo-banner-arrow{background:rgba(30,30,30,.9);border-color:va
   <div class="step" data-step="vedette" id="stepVedette">
     <h2 class="step-title">Choisir un créneau</h2>
     <p class="step-sub">Sélectionnez un horaire disponible.</p>
-    <div class="vedette-banner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex-shrink:0"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg><span id="vedetteBannerLabel">Créneaux disponibles cette semaine</span></div>
+    <div class="vedette-banner"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex-shrink:0"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg><span id="vedetteBannerLabel">Créneaux disponibles cette semaine</span></div>
     <div id="vedetteList"></div>
     <button class="btn-next" id="btnStepVedette" disabled aria-label="Continuer vers l'étape suivante">Continuer →</button>
     <button class="btn-outline" id="btnVedetteMore" style="margin-top:8px;font-size:.82rem" aria-label="Voir d'autres disponibilités">Voir d'autres disponibilités →</button>
@@ -465,24 +465,13 @@ body.theme-dark .promo-banner-arrow{background:rgba(30,30,30,.9);border-color:va
         </div>
         <div class="cart-actions">
           <button class="cart-clear" id="cartClear" title="Vider la sélection" aria-label="Vider la sélection">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
           </button>
           <button class="cart-cta" id="cartCta" aria-label="Continuer vers l'étape suivante">Continuer →</button>
         </div>
       </div>
     </div>
     <button class="btn-next" id="btnStep1" disabled aria-label="Continuer vers le choix du praticien">Continuer →</button>
-  </div>
-
-  <!-- STEP PROMOS: Promotional upsells -->
-  <div class="step" id="stepPromos" data-step="promos">
-    <h2 class="step-title">Offres spéciales</h2>
-    <p class="step-subtitle" style="font-size:.85rem;color:var(--text-3);margin-bottom:20px">Profitez de nos promotions en cours</p>
-    <div id="promoContainer"></div>
-    <div class="step-nav" style="margin-top:24px">
-      <button class="btn-outline" onclick="goPrev()" aria-label="Retour à l'étape précédente">← Retour</button>
-      <button class="btn-next" id="btnStepPromos" onclick="goNext()" aria-label="Continuer vers l'étape suivante">Continuer →</button>
-    </div>
   </div>
 
   <!-- STEP 2: PRACTITIONER -->
@@ -501,7 +490,7 @@ body.theme-dark .promo-banner-arrow{background:rgba(30,30,30,.9);border-color:va
     <div id="step3Recap" style="display:none"></div>
     <div class="mode-row" id="modeRow" style="display:none"></div>
     <div class="date-nav"><button id="prevWeek" aria-label="Semaine précédente">‹</button><span class="label" id="weekLabel">—</span><button id="nextWeek" aria-label="Semaine suivante">›</button></div>
-    <div class="featured-banner" id="featuredBanner" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg><span id="featuredLabel"></span></div>
+    <div class="featured-banner" id="featuredBanner" style="display:none"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg><span id="featuredLabel"></span></div>
     <div class="date-row" id="dateRow"></div>
     <div id="slotsArea"><div class="no-slots">Chargement...</div></div>
     <div id="wlArea"></div>
@@ -517,7 +506,7 @@ body.theme-dark .promo-banner-arrow{background:rgba(30,30,30,.9);border-color:va
 
     <!-- OAuth badge (shown after successful OAuth) -->
     <div class="oauth-badge" id="oauthBadge" style="display:none">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+      <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
       <span id="oauthBadgeText">Connecté</span>
       <span class="oauth-email" id="oauthBadgeEmail"></span>
     </div>
@@ -526,15 +515,15 @@ body.theme-dark .promo-banner-arrow{background:rgba(30,30,30,.9);border-color:va
     <div class="oauth-area" id="oauthArea">
       <div class="oauth-btns">
         <button class="oauth-btn google" onclick="oauthConnect('google')" aria-label="Continuer avec Google">
-          <svg viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18A10.93 10.93 0 0 0 1 12c0 1.77.42 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+          <svg class="gi" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18A10.93 10.93 0 0 0 1 12c0 1.77.42 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
           Continuer avec Google
         </button>
         <button class="oauth-btn apple" onclick="oauthConnect('apple')" aria-label="Continuer avec Apple">
-          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/></svg>
+          <svg class="gi" viewBox="0 0 24 24" fill="currentColor"><path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/></svg>
           Continuer avec Apple
         </button>
         <button class="oauth-btn facebook" onclick="oauthConnect('facebook')" aria-label="Continuer avec Facebook">
-          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+          <svg class="gi" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
           Continuer avec Facebook
         </button>
       </div>
@@ -994,7 +983,7 @@ function initPage(){
       h+='<div class="sk-svc-dur">'+svcDurationLabel(s)+'</div>';
     }
     if(s.available_schedule&&s.available_schedule.type==='restricted'){
-      h+='<div class="sk-svc-restrict"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px;flex-shrink:0"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Disponibilit\u00e9 limit\u00e9e</div>';
+      h+='<div class="sk-svc-restrict"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px;flex-shrink:0"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Disponibilit\u00e9 limit\u00e9e</div>';
     }
     if(s.description)h+='<div class="sk-svc-desc">'+escH(s.description)+'</div>';
     h+='</div>';
@@ -1002,7 +991,7 @@ function initPage(){
     h+='</div>';
     if(noBook){
       const phone=siteData.business.phone||'';
-      h+='<div class="sk-no-book-msg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>'
+      h+='<div class="sk-no-book-msg"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>'
         +'Non r\u00e9servable en ligne.'+(phone?' Contactez-nous au <a href="tel:'+escH(phone)+'">'+escH(phone)+'</a>':' Veuillez nous contacter par t\u00e9l\u00e9phone.')+'</div>';
     }
     h+='</div>';
@@ -1051,7 +1040,7 @@ function initPage(){
     catKeys.forEach((cat,i)=>{
       lh+='<div class="sk-cat-item'+(i===0?' active':'')+'" data-cat="'+cat.replace(/"/g,'&quot;')+'">';
       lh+='<span>'+cat+'</span>';
-      lh+='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
+      lh+='<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
       lh+='</div>';
     });
     lh+='</div>';
@@ -1421,7 +1410,7 @@ function updateCartBar(){
     return '<span class="cart-chip">'
       +'<span class="cart-chip-name">'+escH(svc.name)+'</span>'
       +(varLabel?'<span class="cart-chip-var">'+varLabel+'</span>':'')
-      +'<button class="cart-chip-rm" onclick="event.stopPropagation();removeCartServiceByIdx('+idx+')" title="Retirer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>'
+      +'<button class="cart-chip-rm" onclick="event.stopPropagation();removeCartServiceByIdx('+idx+')" title="Retirer"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>'
       +'</span>';
   }).join('');
 
@@ -1454,7 +1443,7 @@ function checkPromoNudge(cartCents){
   var rewardLabel=nudgePromo.reward_type==='discount_pct'?'-'+nudgePromo.reward_value+'%':'-'+(nudgePromo.reward_value/100).toFixed(2).replace('.', ',')+'\u20ac';
   var el=document.createElement('div');
   el.className='promo-nudge';
-  el.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex-shrink:0"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>'
+  el.innerHTML='<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex-shrink:0"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>'
     +'<span>Plus que <strong>'+remaining+'\u202F\u20ac</strong> pour b\u00e9n\u00e9ficier de <strong>'+rewardLabel+'</strong> !</span>';
   var bar=document.getElementById('cartSticky');
   if(bar)bar.insertAdjacentElement('beforebegin',el);
@@ -1547,7 +1536,7 @@ function buildPractitioners(){
   const list=document.getElementById('pracList');
   let html='<div class="prac-card" data-id="no-pref">'
     +'<div class="prac-avatar" style="background:var(--text-4)">'
-    +'<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>'
+    +'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>'
     +'</div>'
     +'<div class="prac-info"><h4>Pas de préférence</h4><p>Premier praticien disponible</p></div></div>';
 
@@ -1605,7 +1594,7 @@ function renderPromoBannerTop(){
     else if(p.condition_type==='specific_service'&&p.reward_type==='discount_fixed') label='-'+(p.reward_value/100).toFixed(2).replace('.', ',')+'\u202F\u20ac sur '+escH(p.condition_service_name||p.title);
     else if(p.condition_type==='specific_service'&&p.reward_type==='free_service') label=escH(p.reward_service_name||'Service offert')+' offert avec '+escH(p.condition_service_name||p.title);
     else label=p.title;
-    html+='<div class="ptb-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg><span class="ptb-title">'+escH(label)+'</span></div>';
+    html+='<div class="ptb-item"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg><span class="ptb-title">'+escH(label)+'</span></div>';
   });
   html+='<div class="ptb-note">Offres non cumulables \u2014 la plus avantageuse sera appliqu\u00e9e automatiquement.</div>';
   el.innerHTML=html;
@@ -1638,105 +1627,8 @@ function getEligiblePromos(){
   });
 }
 
-function renderPromoStep(){
-  try{
-    var eligible=getEligiblePromos();
-    if(eligible.length===0){goNext();return;}
-    var c=document.getElementById('promoContainer');
-    if(!c){console.error('[PROMO] promoContainer not found');goNext();return;}
-    var style=(eligible[0]||{}).display_style||'cards';
-    if(style==='banner')renderPromoBanner(c,eligible);
-    else renderPromoCards(c,eligible);
-  }catch(e){
-    console.error('[PROMO] renderPromoStep error:',e);
-    goNext();
-  }
-}
+// Promo step removed — promos are auto-applied, shown in recap only
 
-function renderPromoCards(container,promos){
-  var html='';
-  promos.forEach(function(p){
-    var isApplied=appliedPromos.some(function(ap){return ap.id===p.id;});
-    html+='<div class="promo-card">';
-    if(p.image_url){
-      html+='<img class="promo-card-img" src="'+escH(p.image_url)+'" alt="'+escH(p.title)+'">';
-    }else{
-      html+='<div class="promo-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></div>';
-    }
-    html+='<h3>'+escH(p.title)+'</h3>';
-    if(p.description)html+='<p>'+escH(p.description)+'</p>';
-    html+='<div class="promo-cond">'+getPromoConditionText(p)+'</div>';
-    if(p.reward_type==='info_only'){
-      html+='<button class="promo-accept" id="promoBtn_'+p.id+'"'+(isApplied?' disabled style="opacity:.5"':'')+' onclick="acceptPromo(siteData.promotions.find(function(x){return x.id===\''+p.id+'\';}))">'+(isApplied?'Not\u00e9 \u2713':'Not\u00e9')+'</button>';
-    }else{
-      html+='<button class="promo-accept" id="promoBtn_'+p.id+'"'+(isApplied?' disabled style="opacity:.5"':'')+' onclick="acceptPromo(siteData.promotions.find(function(x){return x.id===\''+p.id+'\';}))">'+(isApplied?'Ajout\u00e9 \u2713':'Ajouter')+'</button>';
-    }
-    html+='</div>';
-  });
-  container.innerHTML=html;
-}
-
-function renderPromoBanner(container,promos){
-  var html='<div class="promo-banner">';
-  html+='<div class="promo-banner-track" id="promoBannerTrack">';
-  promos.forEach(function(p){
-    var isApplied=appliedPromos.some(function(ap){return ap.id===p.id;});
-    html+='<div class="promo-banner-slide">';
-    if(p.image_url)html+='<img src="'+escH(p.image_url)+'" alt="'+escH(p.title)+'">';
-    html+='<h3>'+escH(p.title)+'</h3>';
-    if(p.description)html+='<p>'+escH(p.description)+'</p>';
-    html+='<div class="promo-cond">'+getPromoConditionText(p)+'</div>';
-    if(p.reward_type==='info_only'){
-      html+='<button class="promo-accept" id="promoBtn_'+p.id+'"'+(isApplied?' disabled style="opacity:.5"':'')+' onclick="acceptPromo(siteData.promotions.find(function(x){return x.id===\''+p.id+'\';}))">'+(isApplied?'Not\u00e9 \u2713':'Not\u00e9')+'</button>';
-    }else{
-      html+='<button class="promo-accept" id="promoBtn_'+p.id+'"'+(isApplied?' disabled style="opacity:.5"':'')+' onclick="acceptPromo(siteData.promotions.find(function(x){return x.id===\''+p.id+'\';}))">'+(isApplied?'Ajout\u00e9 \u2713':'Ajouter')+'</button>';
-    }
-    html+='</div>';
-  });
-  html+='</div>';
-  if(promos.length>1){
-    html+='<div class="promo-banner-arrow prev" onclick="slidePromoBanner(-1)">\u2039</div>';
-    html+='<div class="promo-banner-arrow next" onclick="slidePromoBanner(1)">\u203a</div>';
-    html+='<div class="promo-banner-dots" id="promoBannerDots">';
-    promos.forEach(function(_,i){
-      html+='<div class="promo-banner-dot'+(i===0?' active':'')+'" onclick="goToPromoSlide('+i+')"></div>';
-    });
-    html+='</div>';
-  }
-  html+='</div>';
-  container.innerHTML=html;
-  // Touch/swipe support
-  var track=document.getElementById('promoBannerTrack');
-  if(track){
-    var startX=0,startTranslate=0;
-    track.addEventListener('touchstart',function(e){startX=e.touches[0].clientX;startTranslate=promoBannerIdx;},{passive:true});
-    track.addEventListener('touchend',function(e){
-      var diff=e.changedTouches[0].clientX-startX;
-      if(Math.abs(diff)>50){
-        if(diff<0)slidePromoBanner(1);
-        else slidePromoBanner(-1);
-      }
-    },{passive:true});
-  }
-}
-
-var promoBannerIdx=0;
-function slidePromoBanner(dir){
-  var track=document.getElementById('promoBannerTrack');
-  if(!track)return;
-  var count=track.children.length;
-  promoBannerIdx=Math.max(0,Math.min(count-1,promoBannerIdx+dir));
-  track.style.transform='translateX(-'+promoBannerIdx*100+'%)';
-  var dots=document.querySelectorAll('.promo-banner-dot');
-  dots.forEach(function(d,i){d.classList.toggle('active',i===promoBannerIdx);});
-}
-function goToPromoSlide(idx){
-  promoBannerIdx=idx;
-  var track=document.getElementById('promoBannerTrack');
-  if(track)track.style.transform='translateX(-'+idx*100+'%)';
-  var dots=document.querySelectorAll('.promo-banner-dot');
-  dots.forEach(function(d,i){d.classList.toggle('active',i===idx);});
-}
 
 function getPromoConditionText(p){
   if(p.condition_type==='none')return 'Offre sans condition';
@@ -2121,7 +2013,7 @@ function goToStep(n){
       var restrictedSvcs=(multiServiceMode?selectedServices:[selectedService]).filter(function(s){return s&&s.available_schedule&&s.available_schedule.type==='restricted';});
       if(restrictedSvcs.length>0){
         rh+='<div style="margin-top:10px;padding:8px 12px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;font-size:.75rem;color:#92400E">';
-        rh+='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;margin-right:4px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+        rh+='<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;margin-right:4px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
         rh+='<strong>Disponibilit\u00e9 limit\u00e9e :</strong> ';
         rh+=restrictedSvcs.map(function(s){return escH(s.name);}).join(', ');
         rh+=' \u2014 les cr\u00e9neaux sont ajust\u00e9s en cons\u00e9quence.</div>';
@@ -2630,14 +2522,14 @@ function buildSummary(){
   if(pm&&pm.length>0){
     var pmLabels={cash:'Espèces',card:'Carte bancaire',bancontact:'Bancontact',apple_pay:'Apple Pay',google_pay:'Google Pay',payconiq:'Payconiq',instant_transfer:'Virement instantané',bank_transfer:'Virement bancaire'};
     var pmIcons={
-      cash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/></svg>',
-      card:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>',
-      bancontact:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><rect x="1" y="4" width="22" height="16" rx="2"/><path d="M1 10h22"/></svg>',
-      apple_pay:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><rect x="5" y="2" width="14" height="20" rx="3"/><line x1="12" y1="18" x2="12" y2="18.01"/></svg>',
-      google_pay:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><rect x="5" y="2" width="14" height="20" rx="3"/><line x1="12" y1="18" x2="12" y2="18.01"/></svg>',
-      payconiq:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="3" height="3"/></svg>',
-      instant_transfer:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>',
-      bank_transfer:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M3 21h18"/><path d="M3 10h18"/><path d="M12 3l9 7H3z"/></svg>'
+      cash:'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/></svg>',
+      card:'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>',
+      bancontact:'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><rect x="1" y="4" width="22" height="16" rx="2"/><path d="M1 10h22"/></svg>',
+      apple_pay:'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><rect x="5" y="2" width="14" height="20" rx="3"/><line x1="12" y1="18" x2="12" y2="18.01"/></svg>',
+      google_pay:'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><rect x="5" y="2" width="14" height="20" rx="3"/><line x1="12" y1="18" x2="12" y2="18.01"/></svg>',
+      payconiq:'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="3" height="3"/></svg>',
+      instant_transfer:'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>',
+      bank_transfer:'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M3 21h18"/><path d="M3 10h18"/><path d="M12 3l9 7H3z"/></svg>'
     };
     html+='<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border-light,#eee)">';
     html+='<div style="font-size:.72rem;font-weight:600;color:var(--text-4,#999);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Paiements acceptés sur place</div>';

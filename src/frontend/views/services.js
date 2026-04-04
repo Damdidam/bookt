@@ -23,7 +23,7 @@ const X_SVG=IC.x;
 const CHEVRON_SVG='<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
 const PLUS_SVG='<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
 const CHECK_CIRCLE_SVG='<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="8 12 11 15 16 9"/></svg>';
-const TICKET_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="12" height="12" style="vertical-align:-1px"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/></svg>';
+const TICKET_SVG='<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="12" height="12" style="vertical-align:-1px"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/></svg>';
 const PHONE_SVG=IC.phone;
 
 // Pastel palette for category icon backgrounds
@@ -79,7 +79,7 @@ async function loadServices(){
     let h='';
     if(svcs.length===0 && allSectorCats.length===0){
       h+=`<div class="card qs-hero"><div class="qs-hero-content">
-        <div class="qs-hero-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
+        <div class="qs-hero-icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
         <h3>Créez votre carte en 2 minutes</h3>
         <p>Sélectionnez vos catégories, ajustez les prix et durées, et c'est parti !</p>
         <button class="btn-primary qs-hero-btn" onclick="openQuickStart()">${PLUS_SVG} Démarrage rapide</button>
@@ -182,7 +182,7 @@ function renderServiceRow(s,sortIdx){
   if(s.available_schedule?.type==='restricted'){
     const w=s.available_schedule.windows||[];
     const days=[...new Set(w.map(x=>DAY_LABELS[x.day]))].join(', ');
-    badges+=`<span class="svc-row-badge sched"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> ${days}</span>`;
+    badges+=`<span class="svc-row-badge sched"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> ${days}</span>`;
   }
   if(s.is_active===false) badges+=`<span class="svc-row-badge" style="background:var(--red-bg);color:var(--red)">Désactivée</span>`;
 
@@ -710,7 +710,7 @@ function renderServiceModal(svc,sectorCats,prefill,existingPromo){
       m+=`</div>`;
     });
     m+=`</div>`;
-    m+=`<div style="font-size:.72rem;color:var(--text-4);margin-top:6px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;vertical-align:-2px;margin-right:3px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>Si aucun sélectionné → disponible pour tous à égalité</div></div>`;
+    m+=`<div style="font-size:.72rem;color:var(--text-4);margin-top:6px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;vertical-align:-2px;margin-right:3px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>Si aucun sélectionné → disponible pour tous à égalité</div></div>`;
     m+=`</div>`;
   }
 
@@ -1047,7 +1047,7 @@ function svcTogglePassSection() {
 // ===== QUICK START WIZARD =====
 
 const checkSvg='<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
-const defaultIcon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="24" height="24"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/></svg>';
+const defaultIcon='<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="24" height="24"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/></svg>';
 let qsGroups=[], qsSelectedCats=new Set(), qsOverlay=null;
 
 async function openQuickStart(){
@@ -1116,7 +1116,7 @@ function qsGoStep2(){
   modal.querySelector('.m-body').innerHTML=body;
   const totalTpl=selectedGroups.reduce((s,g)=>s+g.templates.length,0);
   modal.querySelector('.m-bottom').innerHTML=`
-    <button class="qs-back" onclick="qsBack()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg> Retour</button>
+    <button class="qs-back" onclick="qsBack()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg> Retour</button>
     <span class="qs-count" id="qsTplCount"><strong>${totalTpl}</strong> ${svcsLabel}</span>
     <button class="m-btn m-btn-primary qs-submit" onclick="qsSubmitAll()" id="qsSubmitBtn">Créer ${totalTpl} ${totalTpl>1?svcsLabel:svcLabel}</button>`;
   modal.querySelector('.m-bottom').style.alignItems='center';

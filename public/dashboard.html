@@ -17,14 +17,14 @@
 <body>
 <div class="drawer-overlay"></div>
 <aside class="sidebar">
-  <div class="sb-logo"><div class="l"><svg viewBox="0 0 24 24" width="28" height="28"><rect x="2" y="2" width="20" height="20" rx="6" fill="#F0EBE7"/><path d="M12 6.5c-3.04 0-5.5 2.46-5.5 5.5s2.46 5.5 5.5 5.5c1.52 0 2.9-.62 3.89-1.61" stroke="#2C2622" stroke-width="1.8" stroke-linecap="round" fill="none"/><path d="M15.5 12H12v3.5" stroke="#2C2622" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></div><span class="w">Genda</span><span class="plan" id="planBadge">FREE</span></div>
+  <div class="sb-logo"><div class="l"><svg class="gi" viewBox="0 0 24 24" width="28" height="28"><rect x="2" y="2" width="20" height="20" rx="6" fill="#F0EBE7"/><path d="M12 6.5c-3.04 0-5.5 2.46-5.5 5.5s2.46 5.5 5.5 5.5c1.52 0 2.9-.62 3.89-1.61" stroke="#2C2622" stroke-width="1.8" stroke-linecap="round" fill="none"/><path d="M15.5 12H12v3.5" stroke="#2C2622" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></div><span class="w">Genda</span><span class="plan" id="planBadge">FREE</span></div>
   <nav class="sb-nav">
     <a class="ni active" href="#" data-section="home"><span class="ic"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg></span><span>Dashboard</span></a>
     <a class="ni" href="#" data-section="bookings"><span class="ic"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span><span>Agenda</span></a>
     <a class="ni" href="#" data-section="clients"><span class="ic"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span><span id="sbClientsLabel">Clients</span></a>
     <a class="ni" href="#" data-section="analytics"><span class="ic"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg></span><span>Statistiques</span></a>
     <div class="sb-section" data-group="prestations">
-      <div class="sb-label" onclick="toggleSbSection(this)"><span id="sbServicesLabel">Prestations</span><svg class="sb-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></div>
+      <div class="sb-label" onclick="toggleSbSection(this)"><span id="sbServicesLabel">Prestations</span><svg class="gi sb-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></div>
       <div class="sb-items">
         <a class="ni" href="#" data-section="services"><span class="ic"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg></span><span>Prestations</span></a>
         <a class="ni" href="#" data-section="promotions"><span class="ic"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></span><span>Promotions</span></a>
@@ -33,7 +33,7 @@
       </div>
     </div>
     <div class="sb-section" data-group="salon">
-      <div class="sb-label" id="sbBizName" onclick="toggleSbSection(this)"><span>Mon salon</span><svg class="sb-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></div>
+      <div class="sb-label" id="sbBizName" onclick="toggleSbSection(this)"><span>Mon salon</span><svg class="gi sb-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></div>
       <div class="sb-items">
         <a class="ni" href="#" data-section="team"><span class="ic"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span><span>Équipe</span></a>
         <a class="ni" href="#" data-section="hours"><span class="ic"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span><span>Horaires</span></a>
@@ -44,7 +44,7 @@
       </div>
     </div>
     <div class="sb-section" data-group="finance">
-      <div class="sb-label" onclick="toggleSbSection(this)"><span>Finance</span><svg class="sb-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></div>
+      <div class="sb-label" onclick="toggleSbSection(this)"><span>Finance</span><svg class="gi sb-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></div>
       <div class="sb-items">
         <a class="ni" href="#" data-section="invoices"><span class="ic"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 17.5v-11"/></svg></span><span>Facturation</span></a>
         <a class="ni" href="#" data-section="deposits"><span class="ic"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span><span>Acomptes</span></a>
@@ -59,7 +59,7 @@
   </div>
 </aside>
 <div class="main">
-  <div class="topbar"><button class="hamburger" onclick="toggleDrawer()" aria-label="Menu"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button><h1 id="pageTitle">Dashboard</h1><div><span style="font-size:.78rem;color:var(--text-4)" id="todayDate"></span></div></div>
+  <div class="topbar"><button class="hamburger" onclick="toggleDrawer()" aria-label="Menu"><svg class="gi" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button><h1 id="pageTitle">Dashboard</h1><div><span style="font-size:.78rem;color:var(--text-4)" id="todayDate"></span></div></div>
   <div class="content" id="contentArea"><div class="loading"><div class="spinner"></div><p style="margin-top:10px">Chargement...</p></div></div>
 </div>
 <!-- CALENDAR DETAIL MODAL -->
@@ -157,7 +157,7 @@
             <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
             <span class="m-accordion-title">Note</span>
             <span class="m-badge" id="accNoteBadge" style="display:none">1</span>
-            <svg class="m-accordion-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            <svg class="gi m-accordion-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
           </div>
           <div class="m-accordion-body">
             <div class="m-accordion-inner">
@@ -178,7 +178,7 @@
             <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
             <span class="m-accordion-title">Tâches</span>
             <span class="m-badge" id="accTodosBadge" style="display:none"></span>
-            <svg class="m-accordion-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            <svg class="gi m-accordion-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
           </div>
           <div class="m-accordion-body">
             <div class="m-accordion-inner">
@@ -196,7 +196,7 @@
             <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
             <span class="m-accordion-title">Rappels</span>
             <span class="m-badge" id="accRemindersBadge" style="display:none"></span>
-            <svg class="m-accordion-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            <svg class="gi m-accordion-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
           </div>
           <div class="m-accordion-body">
             <div class="m-accordion-inner">
@@ -223,10 +223,10 @@
         <div class="notify-panel" id="calNotifyPanel">
           <h4><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Notifier ?</h4>
           <div class="notify-options">
-            <div class="notify-opt" onclick="calSelectNotify('email',this)"><svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>Email</div>
-            <div class="notify-opt" onclick="calSelectNotify('sms',this)"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>SMS</div>
-            <div class="notify-opt" onclick="calSelectNotify('both',this)"><svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>Les deux</div>
-            <div class="notify-opt" onclick="calSelectNotify('none',this)"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Non</div>
+            <div class="notify-opt" onclick="calSelectNotify('email',this)"><svg class="gi" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>Email</div>
+            <div class="notify-opt" onclick="calSelectNotify('sms',this)"><svg class="gi" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>SMS</div>
+            <div class="notify-opt" onclick="calSelectNotify('both',this)"><svg class="gi" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>Les deux</div>
+            <div class="notify-opt" onclick="calSelectNotify('none',this)"><svg class="gi" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Non</div>
           </div>
           <div class="notify-actions"><button class="cal-btn" onclick="calCloseNotify()">Terminé</button><button class="cal-btn cal-green" id="calSendNotifyBtn" onclick="calSendNotification()" style="display:none">Envoyer</button></div>
         </div>
@@ -270,7 +270,7 @@
     </div>
     <!-- Bottom bar with lock toggle -->
     <div class="m-bottom" id="mBottom">
-      <button class="m-lock-toggle" id="mBtnLock" onclick="fcToggleLockFromBottom()" title="Verrouiller"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></button>
+      <button class="m-lock-toggle" id="mBtnLock" onclick="fcToggleLockFromBottom()" title="Verrouiller"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></button>
       <button class="m-btn m-btn-primary" id="mBtnSave" onclick="calSaveAll()">Enregistrer</button>
       <button class="m-btn m-btn-ghost" id="mBtnNotify" onclick="calNotifyOrRemind()">Notifier</button>
       <button class="m-btn m-btn-danger" id="mBtnCancel" onclick="fcSetStatus('cancelled')">Annuler le RDV</button>
@@ -414,12 +414,12 @@
         <div class="m-sec">
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.82rem;color:var(--text-2)">
             <input type="checkbox" id="qcSkipConfirm">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><polyline points="20 6 9 17 4 12"/></svg>
+            <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><polyline points="20 6 9 17 4 12"/></svg>
             Confirmer directement (sans attente)
           </label>
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.82rem;color:var(--text-2);margin-top:6px">
             <input type="checkbox" id="qcLocked">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
             Verrouiller ce rendez-vous
           </label>
         </div>
@@ -430,7 +430,7 @@
     <div id="qcDepositToggle" style="display:none;padding:10px 14px;margin:0 20px 8px;background:#FEF9E7;border:1.5px solid #F5D08B;border-radius:10px">
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div style="display:flex;align-items:center;gap:8px">
-          <svg viewBox="0 0 24 24" fill="none" stroke="#92400E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex-shrink:0"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="#92400E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex-shrink:0"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
           <div>
             <div style="font-size:.82rem;font-weight:600;color:#92400E">Demander un acompte</div>
             <div id="qcDepositHint" style="font-size:.72rem;color:#B45309"></div>
@@ -470,12 +470,12 @@
     <div class="m-header">
       <div class="m-header-bg" id="tdHeaderBg" style="background:linear-gradient(135deg,#6B7280 0%,#6B7280AA 60%,#6B728055 100%)"></div>
       <button class="m-close" onclick="closeCalModal('calTaskModal')" aria-label="Fermer">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
       <div class="m-header-content">
         <div class="m-client-hero" style="align-items:center">
           <div class="m-avatar" id="tdAvatar" style="background:linear-gradient(135deg,#6B7280,#6B7280CC)">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+            <svg class="gi" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
           </div>
           <div class="m-modal-title" id="tdModalTitle">Tâche interne</div>
         </div>

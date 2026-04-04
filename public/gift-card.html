@@ -137,7 +137,7 @@ body.ready{opacity:1}
         <span class="logo-name" id="logoName"></span>
       </a>
       <div class="badge">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/></svg>
+        <svg class="gi" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/></svg>
         CARTE CADEAU
       </div>
       <h1>Offrez un moment<br>de <em>bien-&#234;tre</em></h1>
@@ -373,7 +373,7 @@ function render() {
     +'<button class="submit-btn" id="submitBtn" onclick="submitGiftCard()" aria-label="Offrir cette carte cadeau">'
     +GIFT_ICON+' Offrir cette carte cadeau \u2192</button>'
     +'<div class="secure-notice">'
-    +'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>'
+    +'<svg class="gi" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>'
     +'Paiement s\u00e9curis\u00e9 par Stripe</div>'
     +'</div>';
 
@@ -455,7 +455,7 @@ function validateForm() {
   return valid;
 }
 
-var GIFT_ICON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/></svg>';
+var GIFT_ICON = '<svg class="gi" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/></svg>';
 
 async function submitGiftCard() {
   if (!validateForm()) return;
@@ -521,7 +521,7 @@ function showSuccess() {
   document.getElementById('cardContent').innerHTML =
     '<div class="success-wrap">'
     +'<div class="success-icon">'
-    +'<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
+    +'<svg class="gi" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
     +'</div>'
     +'<h2>Carte cadeau envoy\u00e9e !</h2>'
     +'<p>Le destinataire recevra sa carte cadeau par email avec un code unique.<br>Merci pour votre achat !</p>'
@@ -532,7 +532,7 @@ function showSuccess() {
 
   if (slug) {
     var fl = document.getElementById('footerLink');
-    fl.innerHTML = '<a href="/' + slug + '/book"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> R\u00e9server un rendez-vous</a>';
+    fl.innerHTML = '<a href="/' + slug + '/book"><svg class="gi" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> R\u00e9server un rendez-vous</a>';
     fl.style.display = '';
   }
 }
@@ -559,7 +559,7 @@ function launchConfetti() {
 function showFooterLink() {
   if (!config || !slug) return;
   var fl = document.getElementById('footerLink');
-  fl.innerHTML = '<a href="/' + slug + '/book"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> R\u00e9server chez ' + esc(config.business_name) + '</a>';
+  fl.innerHTML = '<a href="/' + slug + '/book"><svg class="gi" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> R\u00e9server chez ' + esc(config.business_name) + '</a>';
   fl.style.display = '';
 }
 

@@ -961,7 +961,7 @@ async function openPracTasks(pracId, pracName) {
         <button class="m-close" onclick="closeTasksModal()">×</button>
         <div class="m-header-content">
           <div class="m-client-hero">
-            <div class="m-avatar" style="background:var(--primary)"><svg style="width:20px;height:20px;stroke:#fff;fill:none;stroke-width:2" ${ICONS.tasks.slice(4)}></div>
+            <div class="m-avatar" style="background:var(--primary)"><svg class="gi" style="width:20px;height:20px;stroke:#fff;fill:none;stroke-width:2" ${ICONS.tasks.slice(4)}></div>
             <div class="m-client-info">
               <div class="m-client-name">${pracName}</div>
               <div class="m-client-meta">Tâches & rappels</div>

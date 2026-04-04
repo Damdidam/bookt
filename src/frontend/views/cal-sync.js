@@ -37,7 +37,7 @@ async function loadCalSync() {
     h += `<div class="card" style="margin-bottom:16px">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
         <div style="width:40px;height:40px;border-radius:10px;background:var(--primary-light);display:flex;align-items:center;justify-content:center">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4m8-4v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/><path d="M16 14l-4 4-4-4"/></svg>
+          <svg class="gi" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4m8-4v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/><path d="M16 14l-4 4-4-4"/></svg>
         </div>
         <div>
           <h3 style="font-size:.95rem;font-weight:700">Synchronisation calendrier</h3>
@@ -48,13 +48,13 @@ async function loadCalSync() {
     // Connect buttons
     h += `<div style="display:flex;gap:10px;flex-wrap:wrap">
       <button class="btn-outline" style="display:flex;align-items:center;gap:8px" onclick="calSyncConnect('google')">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="#4285F4"><path d="${PROVIDER_INFO.google.icon}"/></svg> Google
+        <svg class="gi" width="16" height="16" viewBox="0 0 24 24" fill="#4285F4"><path d="${PROVIDER_INFO.google.icon}"/></svg> Google
       </button>
       <button class="btn-outline" style="display:flex;align-items:center;gap:8px" onclick="calSyncConnect('outlook')">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="#0078D4"><path d="${PROVIDER_INFO.outlook.icon}"/></svg> Outlook
+        <svg class="gi" width="16" height="16" viewBox="0 0 24 24" fill="#0078D4"><path d="${PROVIDER_INFO.outlook.icon}"/></svg> Outlook
       </button>
       <button class="btn-outline" style="display:flex;align-items:center;gap:8px" onclick="calSyncGenIcal()">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B6560" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${PROVIDER_INFO.ical.icon}"/></svg> iCal
+        <svg class="gi" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B6560" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${PROVIDER_INFO.ical.icon}"/></svg> iCal
       </button>
     </div>`;
 
@@ -72,7 +72,7 @@ async function loadCalSync() {
     // Active connections
     if (connections.length === 0) {
       h += `<div class="card" style="text-align:center;padding:32px">
-        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--text-4)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4m8-4v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/></svg>
+        <svg class="gi" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--text-4)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4m8-4v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/></svg>
         <h4 style="font-size:.88rem;font-weight:600;margin-top:12px;color:var(--text-3)">Aucun calendrier connecté</h4>
         <p style="font-size:.78rem;color:var(--text-4);margin-top:4px">Connectez un calendrier externe pour synchroniser vos rendez-vous.</p>
       </div>`;
@@ -88,7 +88,7 @@ async function loadCalSync() {
         h += `<div style="padding:14px;border:1px solid var(--border-light);border-radius:12px;margin-bottom:10px">
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
             <div style="width:32px;height:32px;border-radius:8px;background:${info.color}15;display:flex;align-items:center;justify-content:center">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="${conn.provider === 'ical' ? 'none' : info.color}" stroke="${conn.provider === 'ical' ? info.color : 'none'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${info.icon}"/></svg>
+              <svg class="gi" width="16" height="16" viewBox="0 0 24 24" fill="${conn.provider === 'ical' ? 'none' : info.color}" stroke="${conn.provider === 'ical' ? info.color : 'none'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${info.icon}"/></svg>
             </div>
             <div style="flex:1;min-width:0">
               <div style="font-size:.85rem;font-weight:600">${info.label}</div>
@@ -121,7 +121,7 @@ async function loadCalSync() {
             <option value="both" ${conn.sync_direction === 'both' ? 'selected' : ''}>Bidirectionnel</option>
           </select>
           <button class="btn-outline" style="font-size:.75rem;padding:6px 12px" onclick="calSyncNow('${conn.id}')">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg> Sync
+            <svg class="gi" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg> Sync
           </button>
           <button class="btn-outline" style="font-size:.75rem;padding:6px 12px;color:var(--red);border-color:var(--red-bg)" onclick="calSyncDisconnect('${conn.id}','${info.label}')">Déconnecter</button>
         </div></div>`;
@@ -170,7 +170,7 @@ async function calSyncGenIcal() {
     box.style.display = 'block';
     box.innerHTML = `<div class="card" style="margin-top:16px">
       <h4 style="font-size:.85rem;font-weight:700;margin-bottom:8px">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+        <svg class="gi" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
         Flux iCal
       </h4>
       <p style="font-size:.75rem;color:var(--text-3);margin-bottom:8px">Copiez ce lien dans Apple Calendar, Thunderbird ou tout client CalDAV.</p>

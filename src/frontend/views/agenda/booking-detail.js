@@ -169,7 +169,7 @@ async function fcOpenDetail(bookingId) {
       passEl.className = 'm-deposit-banner';
       passEl.style.cssText = 'padding:12px 16px;margin:0 24px 12px;border-radius:10px;border:1.5px solid #86EFAC;background:var(--green-bg)';
       passEl.innerHTML = `<div style="display:flex;align-items:center;gap:8px;font-size:.85rem;font-weight:700;color:var(--green)">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        <svg class="gi" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
         Couvert par abonnement (${passCode})
       </div>`;
       document.getElementById('mStatusStrip').insertAdjacentElement('afterend', passEl);
@@ -183,7 +183,7 @@ async function fcOpenDetail(bookingId) {
       gcEl.className = 'm-deposit-banner';
       gcEl.style.cssText = 'padding:12px 16px;margin:0 24px 12px;border-radius:10px;border:1.5px solid #C4B5FD;background:#F5F3FF';
       gcEl.innerHTML = `<div style="display:flex;align-items:center;gap:8px;font-size:.85rem;font-weight:700;color:#7C3AED">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8V21"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/></svg>
+        <svg class="gi" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8V21"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/></svg>
         Pay\u00e9 par carte cadeau (${esc(gcCode)})${gcCents > 0 ? ' \u00b7 ' + (gcCents / 100).toFixed(2).replace('.', ',') + ' \u20ac' : ''}
       </div>`;
       document.getElementById('mStatusStrip').insertAdjacentElement('afterend', gcEl);
@@ -194,7 +194,7 @@ async function fcOpenDetail(bookingId) {
       gcEl.className = 'm-deposit-banner';
       gcEl.style.cssText = 'padding:12px 16px;margin:0 24px 12px;border-radius:10px;border:1.5px solid #C4B5FD;background:#F5F3FF';
       gcEl.innerHTML = `<div style="display:flex;align-items:center;gap:8px;font-size:.85rem;font-weight:700;color:#7C3AED">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8V21"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/></svg>
+        <svg class="gi" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8V21"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/></svg>
         Carte cadeau : ${(gcCents / 100).toFixed(2).replace('.', ',')} \u20ac d\u00e9duit
       </div>`;
       document.getElementById('mStatusStrip').insertAdjacentElement('afterend', gcEl);
@@ -261,14 +261,14 @@ async function fcOpenDetail(bookingId) {
 
         if (b.deposit_requested_at) {
           const sentDate = new Date(b.deposit_requested_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
-          extraHtml += `<div style="font-size:.72rem;color:#92700C;margin-top:4px;display:flex;align-items:center;gap:4px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="m22 2-7 20-4-9-9-4z"/></svg>Demande envoy\u00e9e le ${sentDate}${reqCount > 1 ? ' (' + reqCount + ' envoi' + (reqCount > 1 ? 's' : '') + ')' : ''}</div>`;
+          extraHtml += `<div style="font-size:.72rem;color:#92700C;margin-top:4px;display:flex;align-items:center;gap:4px"><svg class="gi" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="m22 2-7 20-4-9-9-4z"/></svg>Demande envoy\u00e9e le ${sentDate}${reqCount > 1 ? ' (' + reqCount + ' envoi' + (reqCount > 1 ? 's' : '') + ')' : ''}</div>`;
         } else if (neverSent) {
           extraHtml += `<div style="font-size:.72rem;color:var(--red);margin-top:4px;display:flex;align-items:center;gap:4px">${IC.info}Demande non envoy\u00e9e</div>`;
         }
         if (depDl) extraHtml += `<div style="font-size:.72rem;color:#92700C;margin-top:2px">Deadline : ${depDl}</div>`;
         // Auto-reminder info
         if (b.deposit_reminder_sent) {
-          extraHtml += `<div style="font-size:.72rem;color:#92700C;margin-top:2px;display:flex;align-items:center;gap:4px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>Relance automatique envoy\u00e9e</div>`;
+          extraHtml += `<div style="font-size:.72rem;color:#92700C;margin-top:2px;display:flex;align-items:center;gap:4px"><svg class="gi" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>Relance automatique envoy\u00e9e</div>`;
         } else if (b.deposit_deadline && !neverSent) {
           const reminderDate = new Date(new Date(b.deposit_deadline).getTime() - 48 * 3600000);
           if (reminderDate > new Date()) {
@@ -286,10 +286,10 @@ async function fcOpenDetail(bookingId) {
           extraHtml += '<div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">';
           if (neverSent) {
             // Primary send button (first time — never sent)
-            extraHtml += `<button style="display:inline-flex;align-items:center;gap:5px;font-size:.72rem;padding:5px 14px;background:var(--amber);color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;font-family:inherit" onclick="fcSendDepositRequest('email')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>Envoyer la demande</button>`;
+            extraHtml += `<button style="display:inline-flex;align-items:center;gap:5px;font-size:.72rem;padding:5px 14px;background:var(--amber);color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;font-family:inherit" onclick="fcSendDepositRequest('email')"><svg class="gi" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>Envoyer la demande</button>`;
           } else {
             // Resend button (secondary — already sent at least once)
-            extraHtml += `<button style="display:inline-flex;align-items:center;gap:5px;font-size:.72rem;padding:5px 12px;background:#fff;color:#92700C;border:1px solid #D6D3D1;border-radius:6px;cursor:pointer;font-weight:500;font-family:inherit" onclick="fcSendDepositRequest('email')" title="Renvoyer la demande par email"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>Renvoyer la demande</button>`;
+            extraHtml += `<button style="display:inline-flex;align-items:center;gap:5px;font-size:.72rem;padding:5px 12px;background:#fff;color:#92700C;border:1px solid #D6D3D1;border-radius:6px;cursor:pointer;font-weight:500;font-family:inherit" onclick="fcSendDepositRequest('email')" title="Renvoyer la demande par email"><svg class="gi" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>Renvoyer la demande</button>`;
             extraHtml += `<span style="font-size:.68rem;color:#A8A29E">${reqCount}/${maxResends}</span>`;
           }
           extraHtml += '</div>';
@@ -303,7 +303,7 @@ async function fcOpenDetail(bookingId) {
       depEl.className = 'm-deposit-banner';
       depEl.style.cssText = 'padding:12px 16px;margin:0 24px 12px;border-radius:10px;border:1.5px solid ' + borderCol + ';background:' + bgCol;
       depEl.innerHTML = `<div style="display:flex;align-items:center;gap:8px;font-size:.85rem;font-weight:700;color:${textCol}">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        <svg class="gi" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
         Acompte : ${depAmt} \u20ac \u2014 ${statusText}
       </div>${extraHtml}`;
       document.getElementById('mStatusStrip').insertAdjacentElement('afterend', depEl);
@@ -351,7 +351,7 @@ async function fcOpenDetail(bookingId) {
       lmEl.className = 'm-lm-banner';
       lmEl.style.cssText = 'padding:10px 16px;margin:0 24px 12px;border-radius:10px;border:1.5px solid var(--amber);background:var(--amber-bg)';
       lmEl.innerHTML = `<div style="display:flex;align-items:center;gap:8px;font-size:.85rem;font-weight:700;color:var(--amber-dark)">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/></svg>
+        <svg class="gi" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/></svg>
         Dernière minute : -${b.discount_pct}%${priceHtml}
       </div>`;
       const depBanner = document.querySelector('.m-deposit-banner');
@@ -1229,7 +1229,7 @@ async function fcConvertDirectAdd(force) {
         // Conflict → show alert banner with force option
         const d = await r.json().catch(() => ({}));
         if (conflictEl) {
-          conflictEl.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex-shrink:0"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'
+          conflictEl.innerHTML = '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex-shrink:0"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'
             + '<span style="flex:1">' + esc(d.error || 'Conflit horaire d\u00e9tect\u00e9') + '</span>'
             + '<button class="m-convert-conflict-force" onclick="fcConvertDirectAdd(true)">Ajouter quand m\u00eame</button>';
           conflictEl.style.display = 'flex';

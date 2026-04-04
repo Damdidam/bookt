@@ -26,7 +26,7 @@ async function refundPassForBooking(bookingId, dbClient) {
        VALUES (gen_random_uuid(), $1, $2, $3, $4, 'refund', 'Remboursement — annulation RDV')`,
       [debit.pass_id, debit.business_id, bookingId, Math.abs(debit.sessions)]
     );
-    totalRefunded += debit.sessions;
+    totalRefunded += Math.abs(debit.sessions);
     passes.push({ code: debit.code, sessions: debit.sessions });
   }
   if (totalRefunded > 0) console.log(`[PASS REFUND] Booking ${bookingId}: refunded ${totalRefunded} session(s)`);

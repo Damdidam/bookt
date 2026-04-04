@@ -427,8 +427,9 @@ router.post('/upload-image', requireOwner, async (req, res, next) => {
     const uploadDir = path.join(__dirname, '../../../public/uploads/branding');
     fs.mkdirSync(uploadDir, { recursive: true });
 
-    // Delete old file if local
-    const field = type === 'about' ? null : (type === 'logo' ? 'logo_url' : 'cover_image_url');
+    // Delete old file if local — static map prevents any SQL interpolation risk
+    const FIELD_MAP = { logo: 'logo_url', cover: 'cover_image_url', about: null };
+    const field = FIELD_MAP[type] || null;
     if (field) {
       const existing = await queryWithRLS(req.businessId, `SELECT ${field} FROM businesses WHERE id = $1`, [req.businessId]);
       if (existing.rows[0]?.[field]?.startsWith('/uploads/branding/')) {

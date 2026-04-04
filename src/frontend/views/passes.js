@@ -137,7 +137,7 @@ async function openCreatePass(){
   modal.innerHTML=`<div class="m-dialog m-md">
     <div class="m-header-simple">
       <h3>Créer un pass</h3>
-      <button class="m-close" onclick="closeModal('passCreateModal')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      <button class="m-close" onclick="closeModal('passCreateModal')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="m-body">
       <div style="margin-bottom:14px">
@@ -247,7 +247,7 @@ function openDebitPass(id){
   modal.innerHTML=`<div class="m-dialog m-sm">
     <div class="m-header-simple">
       <h3>Débiter — ${esc(p.code)}</h3>
-      <button class="m-close" onclick="closeModal('passDebitModal')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      <button class="m-close" onclick="closeModal('passDebitModal')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="m-body">
       <div style="margin-bottom:14px;padding:12px;background:var(--surface);border-radius:var(--radius-xs)">
@@ -291,7 +291,7 @@ async function refundPass(id){
   modal.innerHTML=`<div class="m-dialog m-sm">
     <div class="m-header-simple">
       <h3>Rembourser — ${esc(p.code)}</h3>
-      <button class="m-close" onclick="closeModal('passRefundModal')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      <button class="m-close" onclick="closeModal('passRefundModal')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="m-body">
       <div style="margin-bottom:14px;padding:12px;background:var(--surface);border-radius:var(--radius-xs)">

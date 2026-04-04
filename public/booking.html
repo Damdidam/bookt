@@ -161,7 +161,7 @@ body { background: var(--bg); font-family: var(--sans); color: var(--text); min-
     <div class="details">
       <div class="detail-row" id="rowStatus">
         <div class="detail-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+          <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
         </div>
         <div class="detail-content">
           <div class="detail-label">Statut</div>
@@ -171,7 +171,7 @@ body { background: var(--bg); font-family: var(--sans); color: var(--text); min-
 
       <div class="detail-row" id="rowDate">
         <div class="detail-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+          <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
         </div>
         <div class="detail-content">
           <div class="detail-label">Date & heure</div>
@@ -182,7 +182,7 @@ body { background: var(--bg); font-family: var(--sans); color: var(--text); min-
 
       <div class="detail-row">
         <div class="detail-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14,2 14,8 20,8"/></svg>
+          <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14,2 14,8 20,8"/></svg>
         </div>
         <div class="detail-content">
           <div class="detail-label" id="lblPrestation">Prestation</div>
@@ -193,7 +193,7 @@ body { background: var(--bg); font-family: var(--sans); color: var(--text); min-
 
       <div class="detail-row">
         <div class="detail-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         </div>
         <div class="detail-content">
           <div class="detail-label" id="lblPraticien">Praticien</div>
@@ -204,7 +204,7 @@ body { background: var(--bg); font-family: var(--sans); color: var(--text); min-
 
       <div class="detail-row">
         <div class="detail-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
         </div>
         <div class="detail-content">
           <div class="detail-label">Lieu</div>
@@ -301,7 +301,7 @@ function renderBooking(data) {
   if (booking.status === 'modified_pending') {
     alert.className = 'alert alert-modified';
     alert.innerHTML = `
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
       <div class="alert-text">
         <strong>Votre rendez-vous a été modifié</strong>
         Votre praticien a ajusté l'horaire. Veuillez confirmer ou annuler ci-dessous.
@@ -309,17 +309,17 @@ function renderBooking(data) {
     alert.style.display = 'flex';
   } else if (booking.status === 'confirmed') {
     alert.className = 'alert alert-confirmed';
-    alert.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Rendez-vous confirmé`;
+    alert.innerHTML = `<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Rendez-vous confirmé`;
     alert.style.display = 'block';
   } else if (booking.status === 'pending_deposit') {
     alert.className = 'alert alert-modified';
     const depEuros = booking.deposit_amount_cents ? (booking.deposit_amount_cents / 100).toFixed(2).replace('.', ',') + ' €' : '';
-    alert.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+    alert.innerHTML = `<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
       <div class="alert-text"><strong>Acompte requis${depEuros ? ' — ' + depEuros : ''}</strong>Un acompte est nécessaire pour confirmer votre rendez-vous.</div>`;
     alert.style.display = 'flex';
   } else if (booking.status === 'cancelled') {
     alert.className = 'alert alert-cancelled';
-    alert.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> Ce rendez-vous a été annulé`;
+    alert.innerHTML = `<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> Ce rendez-vous a été annulé`;
     alert.style.display = 'block';
   }
 
@@ -329,7 +329,7 @@ function renderBooking(data) {
     const passBanner = document.createElement('div');
     passBanner.className = 'alert alert-confirmed';
     passBanner.style.display = 'block';
-    passBanner.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Couvert par votre abonnement (${passCode.replace(/</g,'&lt;')})`;
+    passBanner.innerHTML = `<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Couvert par votre abonnement (${passCode.replace(/</g,'&lt;')})`;
     document.getElementById('alertBanner').insertAdjacentElement('afterend', passBanner);
   }
 

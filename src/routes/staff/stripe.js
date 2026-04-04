@@ -306,7 +306,7 @@ async function handleStripeWebhook(req, res) {
               for (const lid of linkedIds) {
                 calSyncPush(businessId, lid);
               }
-            } catch (_) {}
+            } catch (_) { /* calSync best-effort */ }
 
             // Send confirmation email to client
             try {

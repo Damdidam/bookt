@@ -393,14 +393,50 @@ app.get('/:slug/gift-card', async (req, res) => {
   }
 });
 
-// /:slug/pass → pass/subscription purchase page
-app.get('/:slug/pass', (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/pass.html'));
+// /:slug/pass → pass/subscription purchase page (protected by test mode)
+app.get('/:slug/pass', async (req, res) => {
+  try {
+    const slug = req.params.slug;
+    const { rows } = await pool.query(
+      'SELECT settings FROM businesses WHERE slug = $1 AND is_active = true LIMIT 1',
+      [slug]
+    );
+    if (rows.length) {
+      const bizSettings = rows[0].settings || {};
+      if (bizSettings.minisite_test_mode && bizSettings.minisite_test_password) {
+        const cookies = parseCookies(req);
+        if (cookies['minisite_access_' + slug] !== bizSettings.minisite_test_password) {
+          return res.redirect('/' + slug);
+        }
+      }
+    }
+    res.sendFile(path.join(__dirname, '../public/pass.html'));
+  } catch (e) {
+    res.sendFile(path.join(__dirname, '../public/pass.html'));
+  }
 });
 
-// /:slug/guide → client-facing flow documentation
-app.get('/:slug/guide', (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/guide.html'));
+// /:slug/guide → client-facing flow documentation (protected by test mode)
+app.get('/:slug/guide', async (req, res) => {
+  try {
+    const slug = req.params.slug;
+    const { rows } = await pool.query(
+      'SELECT settings FROM businesses WHERE slug = $1 AND is_active = true LIMIT 1',
+      [slug]
+    );
+    if (rows.length) {
+      const bizSettings = rows[0].settings || {};
+      if (bizSettings.minisite_test_mode && bizSettings.minisite_test_password) {
+        const cookies = parseCookies(req);
+        if (cookies['minisite_access_' + slug] !== bizSettings.minisite_test_password) {
+          return res.redirect('/' + slug);
+        }
+      }
+    }
+    res.sendFile(path.join(__dirname, '../public/guide.html'));
+  } catch (e) {
+    res.sendFile(path.join(__dirname, '../public/guide.html'));
+  }
 });
 
 // /booking/:token → manage booking (cancel/reschedule)

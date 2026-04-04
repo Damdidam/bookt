@@ -73,6 +73,14 @@
       }
       ov.querySelector('.g-btn-cancel').onclick = function () { close(false); };
       ov.querySelector('.g-btn-ok').onclick = function () { close(true); };
+      // Escape key closes dialog
+      function onKey(e) { if (e.key === 'Escape') close(false); }
+      document.addEventListener('keydown', onKey);
+      // Focus the cancel button for keyboard accessibility
+      ov.querySelector('.g-btn-cancel').focus();
+      // Cleanup listener on close
+      var _origClose = close;
+      close = function (val) { document.removeEventListener('keydown', onKey); _origClose(val); };
     });
   };
 })();
