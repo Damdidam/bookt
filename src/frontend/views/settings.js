@@ -594,8 +594,9 @@ async function loadSettings(){
           <button class="btn-outline btn-sm" onclick="exportData('invoices')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Exporter factures</button>
         </div>
       </div>
-      <p style="font-size:.85rem;color:var(--text-2);margin-bottom:12px">Supprimer définitivement votre compte et toutes les données associées. Cette action est irréversible.</p>
-      <button class="btn-outline btn-danger" onclick="confirmDeleteAccount()">Supprimer mon compte</button>
+      <p style="font-size:.85rem;color:var(--text-2);margin-bottom:4px">Fermer votre compte et désactiver votre salon. Vos clients impactés seront notifiés.</p>
+      <p style="font-size:.78rem;color:var(--text-4);margin-bottom:12px">Pensez à exporter vos données avant de fermer votre compte.</p>
+      <button class="btn-outline btn-danger" onclick="confirmDeleteAccount()">Fermer mon compte</button>
     </div></div>`;
 
     c.innerHTML=h;
@@ -1251,12 +1252,13 @@ async function confirmDeleteAccount(){
     const el = document.createElement('div');
     el.className = 'dg-overlay';
     el.innerHTML = `<div class="dg-card">
-      <p class="dg-msg" style="font-weight:600;margin-bottom:6px;color:#DC2626">Supprimer votre compte ?</p>
-      <p class="dg-msg" style="font-size:.85rem">Tapez le nom de votre salon pour confirmer :</p>
+      <p class="dg-msg" style="font-weight:600;margin-bottom:6px;color:#DC2626">Fermer votre compte ?</p>
+      <p class="dg-msg" style="font-size:.85rem;color:var(--text-2)">Votre compte sera désactivé. Vos clients avec des rendez-vous futurs, acomptes, cartes cadeaux ou abonnements seront notifiés par email.</p>
+      <p class="dg-msg" style="font-size:.85rem;margin-top:8px">Tapez le nom de votre salon pour confirmer :</p>
       <input id="_delName" type="text" placeholder="Nom du salon" style="width:100%;padding:8px 10px;border:1px solid var(--border-light);border-radius:6px;font-size:.85rem;margin:8px 0;box-sizing:border-box">
       <div class="dg-actions">
         <button class="dg-btn dg-cancel" style="background:var(--bg);color:var(--text)">Annuler</button>
-        <button class="dg-btn dg-confirm" style="background:#DC2626;color:#fff">Supprimer</button>
+        <button class="dg-btn dg-confirm" style="background:#DC2626;color:#fff">Fermer mon compte</button>
       </div>
     </div>`;
     el.querySelector('.dg-cancel').onclick = () => { el.remove(); resolve(null); };
@@ -1265,7 +1267,19 @@ async function confirmDeleteAccount(){
     el.querySelector('#_delName').focus();
   });
   if(!name)return;
-  GendaUI.toast('Suppression de compte — contactez support@genda.be','info');
+  try {
+    const r = await fetch('/api/business/close', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+      body: JSON.stringify({ confirm_name: name })
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error);
+    GendaUI.toast(`Compte fermé. ${d.clients_notified} client(s) notifié(s).`, 'success');
+    setTimeout(() => { localStorage.clear(); window.location.href = '/login.html'; }, 3000);
+  } catch (e) {
+    GendaUI.toast('Erreur : ' + e.message, 'error');
+  }
 }
 
 // ===== QR Code =====

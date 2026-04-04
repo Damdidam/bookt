@@ -719,4 +719,110 @@ router.delete('/categories/:id', requireOwner, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ============================================================
+// POST /api/business/close — Soft-delete business account
+// Deactivates account, cancels Stripe subscription, notifies affected clients
+// ============================================================
+router.post('/close', requireOwner, async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const { confirm_name } = req.body;
+
+    // 1. Verify business name matches
+    const bizRes = await queryWithRLS(bid,
+      `SELECT name, stripe_customer_id, stripe_subscription_id FROM businesses WHERE id = $1`, [bid]
+    );
+    const biz = bizRes.rows[0];
+    if (!biz) return res.status(404).json({ error: 'Salon introuvable' });
+    if (!confirm_name || confirm_name.trim().toLowerCase() !== biz.name.trim().toLowerCase()) {
+      return res.status(400).json({ error: 'Le nom du salon ne correspond pas' });
+    }
+
+    // 2. Soft-delete: deactivate business
+    await queryWithRLS(bid,
+      `UPDATE businesses SET is_active = false, updated_at = NOW() WHERE id = $1`, [bid]
+    );
+
+    // 3. Cancel Stripe subscription if active
+    if (biz.stripe_subscription_id) {
+      try {
+        const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+        await stripe.subscriptions.cancel(biz.stripe_subscription_id);
+        await queryWithRLS(bid,
+          `UPDATE businesses SET subscription_status = 'canceled', updated_at = NOW() WHERE id = $1`, [bid]
+        );
+      } catch (stripeErr) {
+        console.warn('[CLOSE] Stripe subscription cancel failed:', stripeErr.message);
+      }
+    }
+
+    // 4. Cancel all future bookings
+    const futureBookings = await queryWithRLS(bid,
+      `UPDATE bookings SET status = 'cancelled', cancel_reason = 'Fermeture du salon', updated_at = NOW()
+       WHERE business_id = $1 AND status IN ('confirmed', 'pending', 'modified_pending', 'pending_deposit')
+         AND start_at > NOW()
+       RETURNING id, client_id`, [bid]
+    );
+
+    // 5. Collect affected clients: future bookings + active GCs + active passes + paid deposits
+    const affectedClients = await query(
+      `SELECT DISTINCT c.id, c.full_name, c.email
+       FROM clients c
+       WHERE c.business_id = $1 AND c.email IS NOT NULL AND c.email != ''
+         AND (
+           -- Clients with future bookings (just cancelled)
+           c.id IN (SELECT DISTINCT client_id FROM bookings WHERE business_id = $1 AND cancel_reason = 'Fermeture du salon' AND client_id IS NOT NULL)
+           -- Clients with active gift cards
+           OR c.id IN (SELECT DISTINCT buyer_client_id FROM gift_cards WHERE business_id = $1 AND status = 'active' AND balance_cents > 0 AND buyer_client_id IS NOT NULL)
+           -- Clients with active passes
+           OR c.id IN (SELECT DISTINCT client_id FROM passes WHERE business_id = $1 AND status = 'active' AND sessions_remaining > 0 AND client_id IS NOT NULL)
+           -- Clients with paid deposits on future bookings
+           OR c.id IN (SELECT DISTINCT client_id FROM bookings WHERE business_id = $1 AND deposit_status = 'paid' AND start_at > NOW() AND client_id IS NOT NULL)
+         )`, [bid]
+    );
+
+    // 6. Send notification email to each affected client
+    const { sendEmail, buildEmailHTML } = require('../../services/email-utils');
+    let emailsSent = 0;
+    for (const client of affectedClients.rows) {
+      try {
+        const html = buildEmailHTML({
+          title: `${biz.name} ferme ses portes`,
+          preheader: `Information importante concernant vos prestations chez ${biz.name}`,
+          bodyHTML: `
+            <p>Bonjour <strong>${client.full_name || ''}</strong>,</p>
+            <p>Nous vous informons que <strong>${biz.name}</strong> a décidé de fermer son compte sur notre plateforme.</p>
+            <div style="background:#FEF3E2;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #E6A817">
+              <div style="font-size:14px;color:#92700C;font-weight:600">Ce que cela signifie pour vous :</div>
+              <ul style="font-size:13px;color:#92700C;margin:8px 0;padding-left:20px">
+                <li>Vos rendez-vous futurs ont été annulés</li>
+                <li>Si vous aviez un acompte payé, une carte cadeau ou un abonnement en cours, veuillez contacter directement le salon pour obtenir un remboursement</li>
+              </ul>
+            </div>
+            <p style="font-size:13px;color:#6B6560">Si vous avez des questions, n'hésitez pas à contacter le salon directement ou notre support à <a href="mailto:support@genda.be" style="color:#0D7377">support@genda.be</a>.</p>`,
+          businessName: biz.name,
+          footerText: 'Cet email a été envoyé automatiquement via Genda.be'
+        });
+        await sendEmail({
+          to: client.email,
+          toName: client.full_name || '',
+          subject: `${biz.name} — Fermeture`,
+          html
+        });
+        emailsSent++;
+      } catch (emailErr) {
+        console.warn(`[CLOSE] Email to ${client.email} failed:`, emailErr.message);
+      }
+    }
+
+    console.log(`[CLOSE] Business ${bid} (${biz.name}) closed. ${futureBookings.rows.length} bookings cancelled, ${emailsSent} clients notified.`);
+
+    res.json({
+      closed: true,
+      bookings_cancelled: futureBookings.rows.length,
+      clients_notified: emailsSent
+    });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;
