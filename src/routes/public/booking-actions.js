@@ -56,6 +56,8 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
     // Atomic: primary cancel + sibling propagation in one transaction
     const txClient = await pool.connect();
     let cancelResult;
+    let gcRefundResult = { refunded: 0 };
+    let passRefundResult = { refunded: 0 };
     try {
       await txClient.query('BEGIN');
       cancelResult = await txClient.query(
@@ -103,12 +105,10 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
       // Always refund GC debits on cancellation — GC is a client asset, not deposit retention
       const shouldRefundGc = true;
       const { refundGiftCardForBooking } = require('../../services/gift-card-refund');
-      let gcRefundResult = { refunded: 0 };
       if (shouldRefundGc) {
         try { gcRefundResult = await refundGiftCardForBooking(postCancelBk.id, txClient) || { refunded: 0 }; } catch (e) { console.error('[GC REFUND] cancel error:', e.message); }
       }
       // Pass sessions: always refund (pass is a prepaid entitlement, not money)
-      let passRefundResult = { refunded: 0 };
       try { passRefundResult = await refundPassForBooking(postCancelBk.id, txClient) || { refunded: 0 }; } catch (e) { console.warn('[PASS REFUND]', e.message); }
       // M16: Decrement promo usage
       await decrementPromoUsage(postCancelBk.id, txClient).catch(e => console.warn('[PROMO DEC]', e.message));
@@ -454,6 +454,8 @@ router.post('/booking/:token/reject', async (req, res, next) => {
     // Atomic: primary reject + sibling cancellation in one transaction
     const txClient = await pool.connect();
     let result;
+    let gcRefundReject = { refunded: 0 };
+    let passRefundReject = { refunded: 0 };
     try {
       await txClient.query('BEGIN');
       result = await txClient.query(
@@ -515,12 +517,10 @@ router.post('/booking/:token/reject', async (req, res, next) => {
       // Always refund GC debits on rejection — GC is a client asset, not deposit retention
       const shouldRefundGcReject = true;
       const { refundGiftCardForBooking } = require('../../services/gift-card-refund');
-      let gcRefundReject = { refunded: 0 };
       if (shouldRefundGcReject) {
         try { gcRefundReject = await refundGiftCardForBooking(rejBkTx.id, txClient) || { refunded: 0 }; } catch (e) { console.error('[GC REFUND] reject error:', e.message); }
       }
       // Refund pass sessions inside transaction (pass = entitlement, always refund)
-      let passRefundReject = { refunded: 0 };
       try { passRefundReject = await refundPassForBooking(rejBkTx.id, txClient) || { refunded: 0 }; } catch (e) { console.warn('[PASS REFUND]', e.message); }
       // Refund GC debits + pass sessions for group siblings inside transaction
       if (rejBkTx.group_id) {
@@ -946,6 +946,8 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
     const graceMin = bk.business_settings?.cancel_grace_minutes ?? 240;
     const txClient2 = await pool.connect();
     let cancelResult;
+    let gcRefundResult2 = { refunded: 0 };
+    let passRefundResult2 = { refunded: 0 };
     try {
       await txClient2.query('BEGIN');
       cancelResult = await txClient2.query(
@@ -993,12 +995,10 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
       // Always refund GC debits on cancellation — GC is a client asset, not deposit retention
       const shouldRefundGc2 = true;
       const { refundGiftCardForBooking: refundGC2 } = require('../../services/gift-card-refund');
-      let gcRefundResult2 = { refunded: 0 };
       if (shouldRefundGc2) {
         try { gcRefundResult2 = await refundGC2(postCancelBk2.id, txClient2) || { refunded: 0 }; } catch (e) { console.error('[GC REFUND] cancel-booking error:', e.message); }
       }
       // Pass sessions: always refund (pass is a prepaid entitlement, not money)
-      let passRefundResult2 = { refunded: 0 };
       try { passRefundResult2 = await refundPassForBooking(postCancelBk2.id, txClient2) || { refunded: 0 }; } catch (e) { console.warn('[PASS REFUND]', e.message); }
       // Group siblings
       if (bk.group_id) {
