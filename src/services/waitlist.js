@@ -59,14 +59,15 @@ async function processWaitlistForCancellation(bookingId, businessId) {
   const timeOfDay = brusselsHour < 12 ? 'morning' : 'afternoon';
 
   const matches = await queryWithRLS(businessId,
-    `SELECT * FROM waitlist_entries
-     WHERE practitioner_id = $1
-       AND service_id = $2
-       AND business_id = $3
-       AND status = 'waiting'
-       AND (preferred_days @> $4::jsonb)
-       AND (preferred_time = 'any' OR preferred_time = $5)
-     ORDER BY priority ASC, created_at ASC`,
+    `SELECT we.* FROM waitlist_entries we
+     JOIN services s ON s.id = we.service_id AND s.is_active = true
+     WHERE we.practitioner_id = $1
+       AND we.service_id = $2
+       AND we.business_id = $3
+       AND we.status = 'waiting'
+       AND (we.preferred_days @> $4::jsonb)
+       AND (we.preferred_time = 'any' OR we.preferred_time = $5)
+     ORDER BY we.priority ASC, we.created_at ASC`,
     [bk.practitioner_id, bk.service_id, bk.business_id,
      JSON.stringify([weekday]), timeOfDay]
   );

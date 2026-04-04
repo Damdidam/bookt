@@ -178,18 +178,18 @@ router.patch('/', requireOwner, async (req, res, next) => {
       if (settings_deposit_enabled !== undefined) cur.deposit_enabled = !!settings_deposit_enabled;
       if (settings_deposit_noshow_threshold !== undefined) { const _v = parseInt(settings_deposit_noshow_threshold); cur.deposit_noshow_threshold = isNaN(_v) ? 2 : _v; }
       if (settings_deposit_type !== undefined) cur.deposit_type = settings_deposit_type;
-      if (settings_deposit_percent !== undefined) { const _v = parseInt(settings_deposit_percent); cur.deposit_percent = isNaN(_v) ? 50 : _v; }
-      if (settings_deposit_fixed_cents !== undefined) { const _v = parseInt(settings_deposit_fixed_cents); cur.deposit_fixed_cents = isNaN(_v) ? 2500 : _v; }
+      if (settings_deposit_percent !== undefined) { const _v = parseInt(settings_deposit_percent); cur.deposit_percent = isNaN(_v) ? 50 : Math.max(1, Math.min(100, _v)); }
+      if (settings_deposit_fixed_cents !== undefined) { const _v = parseInt(settings_deposit_fixed_cents); cur.deposit_fixed_cents = isNaN(_v) ? 2500 : Math.max(50, _v); }
       if (settings_deposit_deadline_hours !== undefined) { const _v = parseInt(settings_deposit_deadline_hours); cur.deposit_deadline_hours = isNaN(_v) ? 48 : _v; }
-      if (settings_deposit_message !== undefined) cur.deposit_message = settings_deposit_message;
+      if (settings_deposit_message !== undefined) cur.deposit_message = stripHtml(settings_deposit_message);
       if (settings_deposit_deduct !== undefined) cur.deposit_deduct = !!settings_deposit_deduct;
       if (settings_deposit_price_threshold_cents !== undefined) { const _v = parseInt(settings_deposit_price_threshold_cents); cur.deposit_price_threshold_cents = isNaN(_v) ? 0 : _v; }
       if (settings_deposit_duration_threshold_min !== undefined) { const _v = parseInt(settings_deposit_duration_threshold_min); cur.deposit_duration_threshold_min = isNaN(_v) ? 0 : _v; }
       if (settings_deposit_threshold_mode !== undefined) cur.deposit_threshold_mode = ['any', 'both'].includes(settings_deposit_threshold_mode) ? settings_deposit_threshold_mode : 'any';
       // V23b cancellation policy
-      if (settings_cancel_deadline_hours !== undefined) { const _v = parseInt(settings_cancel_deadline_hours); cur.cancel_deadline_hours = isNaN(_v) ? 24 : _v; }
+      if (settings_cancel_deadline_hours !== undefined) { const _v = parseInt(settings_cancel_deadline_hours); cur.cancel_deadline_hours = isNaN(_v) ? 24 : Math.max(0, _v); }
       if (settings_cancel_grace_minutes !== undefined) { const _v = parseInt(settings_cancel_grace_minutes); cur.cancel_grace_minutes = isNaN(_v) ? 240 : _v; }
-      if (settings_cancel_policy_text !== undefined) cur.cancel_policy_text = settings_cancel_policy_text;
+      if (settings_cancel_policy_text !== undefined) cur.cancel_policy_text = stripHtml(settings_cancel_policy_text);
       if (settings_refund_policy !== undefined) cur.refund_policy = ['full', 'net'].includes(settings_refund_policy) ? settings_refund_policy : 'full';
       if (settings_cancel_abuse_enabled !== undefined) cur.cancel_abuse_enabled = !!settings_cancel_abuse_enabled;
       if (settings_cancel_abuse_max !== undefined) { const _v = parseInt(settings_cancel_abuse_max); cur.cancel_abuse_max = isNaN(_v) ? 5 : Math.max(2, _v); }

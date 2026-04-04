@@ -67,7 +67,27 @@ router.post('/deposit/:token/checkout', depositLimiter, async (req, res, next) =
     );
     const gcPaid = parseInt(gcTxRes.rows[0].gc_paid) || 0;
     const amountCents = (bk.deposit_amount_cents || 0) - gcPaid;
-    if (amountCents < 50) return res.status(400).json({ error: 'Montant trop faible' });
+    // S3-8: If remaining amount after GC is below Stripe minimum (50c), treat as fully covered
+    if (amountCents > 0 && amountCents < 50) {
+      // Auto-confirm: the tiny remaining amount is absorbed — mark deposit as paid
+      await query(
+        `UPDATE bookings SET deposit_status = 'paid', deposit_paid_at = NOW(),
+         deposit_payment_intent_id = COALESCE(deposit_payment_intent_id, 'gc_absorbed')
+         WHERE id = $1 AND deposit_status = 'pending'`,
+        [bk.id]
+      );
+      // Also confirm group siblings
+      if (bk.group_id) {
+        await query(
+          `UPDATE bookings SET deposit_status = 'paid', deposit_paid_at = NOW(),
+           deposit_payment_intent_id = COALESCE(deposit_payment_intent_id, 'gc_absorbed')
+           WHERE group_id = $1 AND business_id = $2 AND deposit_status = 'pending'`,
+          [bk.group_id, bk.business_id]
+        );
+      }
+      return res.json({ status: 'already_paid', message: 'Acompte couvert par votre carte cadeau' });
+    }
+    if (amountCents <= 0) return res.json({ status: 'already_paid', message: 'Acompte déjà couvert' });
 
     // M13: Reuse existing Stripe session if still open
     if (bk.deposit_payment_intent_id && bk.deposit_payment_intent_id.startsWith('cs_')) {
@@ -197,7 +217,24 @@ router.get('/deposit/:token/pay', depositLimiter, async (req, res, next) => {
     );
     const gcPaid2 = parseInt(gcTxRes2.rows[0].gc_paid) || 0;
     const amountCents = (bk.deposit_amount_cents || 0) - gcPaid2;
-    if (amountCents < 50) return res.redirect(depositPageUrl);
+    // S3-8: Auto-confirm if remaining is below Stripe minimum (same logic as POST /checkout)
+    if (amountCents > 0 && amountCents < 50) {
+      await query(
+        `UPDATE bookings SET deposit_status = 'paid', deposit_paid_at = NOW(),
+         deposit_payment_intent_id = COALESCE(deposit_payment_intent_id, 'gc_absorbed')
+         WHERE id = $1 AND deposit_status = 'pending'`, [bk.id]
+      );
+      if (bk.group_id) {
+        await query(
+          `UPDATE bookings SET deposit_status = 'paid', deposit_paid_at = NOW(),
+           deposit_payment_intent_id = COALESCE(deposit_payment_intent_id, 'gc_absorbed')
+           WHERE group_id = $1 AND business_id = $2 AND deposit_status = 'pending'`,
+          [bk.group_id, bk.business_id]
+        );
+      }
+      return res.redirect(depositPageUrl + '?paid=1');
+    }
+    if (amountCents <= 0) return res.redirect(depositPageUrl + '?paid=1');
 
     // M13: Reuse existing Stripe session if still open
     if (bk.deposit_payment_intent_id && bk.deposit_payment_intent_id.startsWith('cs_')) {

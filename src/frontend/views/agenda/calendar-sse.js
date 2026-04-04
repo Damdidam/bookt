@@ -20,12 +20,13 @@ function setupSSE() {
           ? new Date(d.slot_start).toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' })
             + ' \u00e0 ' + new Date(d.slot_start).toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' })
           : '';
+        const goWaitlist = () => { const el = document.querySelector('[data-section=waitlist]'); if (el) el.click(); };
         if (d.mode === 'manual') {
-          gToast(`${IC.hourglass} ${d.matches_count} personne(s) en attente pour le cr\u00e9neau du ${slot} (${d.practitioner_name})`, 'info', { label: 'Voir la liste \u2192', fn: "document.querySelector('[data-section=waitlist]').click()" });
+          gToast(`${d.matches_count} personne(s) en attente pour le créneau du ${slot} (${d.practitioner_name})`, 'info', { label: 'Voir la liste \u2192', fn: goWaitlist });
         } else if (d.mode === 'auto') {
-          gToast(`${IC.hourglass} Offre auto envoy\u00e9e \u00e0 ${d.offered_to} pour le ${slot}`, 'info', { label: 'Voir \u2192', fn: "document.querySelector('[data-section=waitlist]').click()" });
+          gToast(`Offre auto envoyée à ${d.offered_to} pour le ${slot}`, 'info', { label: 'Voir \u2192', fn: goWaitlist });
         } else if (d.mode === 'auto_cascade') {
-          gToast(`<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> Offre expir\u00e9e de ${d.expired_from} \u2192 relanc\u00e9e \u00e0 ${d.offered_to}`, 'info', { label: 'Voir \u2192', fn: "document.querySelector('[data-section=waitlist]').click()" });
+          gToast(`Offre expirée de ${d.expired_from} \u2192 relancée à ${d.offered_to}`, 'info', { label: 'Voir \u2192', fn: goWaitlist });
         }
       } catch (e) { /* ignore parse errors */ }
     });

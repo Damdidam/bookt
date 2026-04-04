@@ -118,7 +118,7 @@ router.post('/', async (req, res, next) => {
     const dupCheck = await queryWithRLS(bid,
       `SELECT 1 FROM waitlist_entries
        WHERE business_id = $1 AND practitioner_id = $2 AND service_id = $3
-         AND client_email = $4 AND status = 'waiting'
+         AND LOWER(client_email) = LOWER($4) AND status = 'waiting'
        LIMIT 1`,
       [bid, finalPracId, service_id, client_email.toLowerCase().trim()]
     );

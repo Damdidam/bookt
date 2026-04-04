@@ -71,8 +71,9 @@ router.get('/', async (req, res, next) => {
       countIdx++;
     }
     if (search) {
+      const escapedCountSearch = search.replace(/[%_\\]/g, '\\$&');
       countSql += ` AND (full_name ILIKE $${countIdx} OR phone ILIKE $${countIdx} OR email ILIKE $${countIdx})`;
-      countParams.push(`%${search}%`);
+      countParams.push(`%${escapedCountSearch}%`);
       countIdx++;
     }
     if (filter === 'blocked') { countSql += ` AND is_blocked = true`; }
@@ -205,6 +206,62 @@ router.post('/import', async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+});
+
+// ============================================================
+// GET /api/clients/export — CSV export (MUST be before /:id)
+// UI: Settings > Zone danger > Exporter mes données
+// ============================================================
+router.get('/export', requireOwner, async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const result = await queryWithRLS(bid,
+      `SELECT c.*,
+              (SELECT COUNT(*) FROM bookings b WHERE b.client_id = c.id AND b.status IN ('confirmed', 'completed')) AS total_bookings,
+              (SELECT COUNT(*) FROM bookings b WHERE b.client_id = c.id AND b.status = 'no_show') AS no_shows,
+              (SELECT COUNT(*) FROM bookings b WHERE b.client_id = c.id AND b.status = 'cancelled') AS cancellations,
+              (SELECT MAX(b.start_at) FROM bookings b WHERE b.client_id = c.id AND b.status IN ('confirmed', 'completed')) AS last_visit,
+              (SELECT COALESCE(SUM(COALESCE(b.booked_price_cents, 0) - COALESCE(b.promotion_discount_cents, 0)), 0)
+               FROM bookings b WHERE b.client_id = c.id AND b.status IN ('confirmed', 'completed')) AS total_revenue_cents
+       FROM clients c
+       WHERE c.business_id = $1
+       ORDER BY c.full_name`,
+      [bid]
+    );
+
+    const fmt = (d) => d ? new Date(d).toLocaleDateString('fr-BE', { timeZone: 'Europe/Brussels' }) : '';
+    const fmtEur = (c) => ((c || 0) / 100).toFixed(2).replace('.', ',');
+    const esc = (s) => `"${(s || '').replace(/"/g, '""')}"`;
+
+    const header = 'Nom;Email;Téléphone;Langue;Consentement SMS;Consentement email;Consentement marketing;BCE;Notes;Remarques;Date anniversaire;VIP;Créé le;Source;RDV total;No-shows;Annulations;Dernière visite;CA total (€)\n';
+    const rows = result.rows.map(r => [
+      esc(r.full_name),
+      r.email || '',
+      r.phone || '',
+      r.language_preference || '',
+      r.consent_sms ? 'Oui' : 'Non',
+      r.consent_email !== false ? 'Oui' : 'Non',
+      r.consent_marketing ? 'Oui' : 'Non',
+      r.bce_number || '',
+      esc(r.notes),
+      esc(r.remarks),
+      r.birthday || '',
+      r.is_vip ? 'Oui' : '',
+      fmt(r.created_at),
+      r.created_from || '',
+      r.total_bookings || 0,
+      r.no_shows || 0,
+      r.cancellations || 0,
+      fmt(r.last_visit),
+      fmtEur(parseInt(r.total_revenue_cents) || 0)
+    ].join(';')).join('\n');
+
+    const csv = '\uFEFF' + header + rows;
+    const filename = `clients-${new Date().toISOString().split('T')[0]}.csv`;
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(csv);
+  } catch (err) { next(err); }
 });
 
 // GET /api/clients/:id — client detail with booking history
@@ -432,62 +489,6 @@ router.post('/:id/reset-expired', requireOwner, async (req, res, next) => {
 
     if (result.rows.length === 0) return res.status(404).json({ error: 'Client introuvable' });
     res.json({ reset: true, client: result.rows[0] });
-  } catch (err) { next(err); }
-});
-
-// ============================================================
-// GET /api/clients/export — CSV export of all clients + stats
-// UI: Settings > Zone danger > Exporter mes données
-// ============================================================
-router.get('/export', requireOwner, async (req, res, next) => {
-  try {
-    const bid = req.businessId;
-    const result = await queryWithRLS(bid,
-      `SELECT c.*,
-              (SELECT COUNT(*) FROM bookings b WHERE b.client_id = c.id AND b.status IN ('confirmed', 'completed')) AS total_bookings,
-              (SELECT COUNT(*) FROM bookings b WHERE b.client_id = c.id AND b.status = 'no_show') AS no_shows,
-              (SELECT COUNT(*) FROM bookings b WHERE b.client_id = c.id AND b.status = 'cancelled') AS cancellations,
-              (SELECT MAX(b.start_at) FROM bookings b WHERE b.client_id = c.id AND b.status IN ('confirmed', 'completed')) AS last_visit,
-              (SELECT COALESCE(SUM(COALESCE(b.booked_price_cents, 0) - COALESCE(b.promotion_discount_cents, 0)), 0)
-               FROM bookings b WHERE b.client_id = c.id AND b.status IN ('confirmed', 'completed')) AS total_revenue_cents
-       FROM clients c
-       WHERE c.business_id = $1
-       ORDER BY c.full_name`,
-      [bid]
-    );
-
-    const fmt = (d) => d ? new Date(d).toLocaleDateString('fr-BE', { timeZone: 'Europe/Brussels' }) : '';
-    const fmtEur = (c) => ((c || 0) / 100).toFixed(2).replace('.', ',');
-    const esc = (s) => `"${(s || '').replace(/"/g, '""')}"`;
-
-    const header = 'Nom;Email;Téléphone;Langue;Consentement SMS;Consentement email;Consentement marketing;BCE;Notes;Remarques;Date anniversaire;VIP;Créé le;Source;RDV total;No-shows;Annulations;Dernière visite;CA total (€)\n';
-    const rows = result.rows.map(r => [
-      esc(r.full_name),
-      r.email || '',
-      r.phone || '',
-      r.language_preference || '',
-      r.consent_sms ? 'Oui' : 'Non',
-      r.consent_email !== false ? 'Oui' : 'Non',
-      r.consent_marketing ? 'Oui' : 'Non',
-      r.bce_number || '',
-      esc(r.notes),
-      esc(r.remarks),
-      r.birthday || '',
-      r.is_vip ? 'Oui' : '',
-      fmt(r.created_at),
-      r.created_from || '',
-      r.total_bookings || 0,
-      r.no_shows || 0,
-      r.cancellations || 0,
-      fmt(r.last_visit),
-      fmtEur(parseInt(r.total_revenue_cents) || 0)
-    ].join(';')).join('\n');
-
-    const csv = '\uFEFF' + header + rows;
-    const filename = `clients-${new Date().toISOString().split('T')[0]}.csv`;
-    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.send(csv);
   } catch (err) { next(err); }
 });
 

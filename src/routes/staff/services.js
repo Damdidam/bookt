@@ -111,10 +111,11 @@ router.post('/', requireOwner, async (req, res, next) => {
         for (let i = 0; i < variants.length; i++) {
           const v = variants[i];
           if (!v.name || !v.duration_min || v.duration_min <= 0) continue;
+          const variantPrice = v.price_cents != null ? Math.max(0, parseInt(v.price_cents) || 0) : null;
           await client.query(
             `INSERT INTO service_variants (business_id, service_id, name, duration_min, price_cents, sort_order, description, processing_time, processing_start)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-            [bid, svc.id, v.name, v.duration_min, v.price_cents ?? null, v.sort_order ?? i, v.description || null,
+            [bid, svc.id, v.name, v.duration_min, variantPrice, v.sort_order ?? i, v.description || null,
              parseInt(v.processing_time) || 0, parseInt(v.processing_start) || 0]
           );
         }
@@ -298,7 +299,7 @@ router.patch('/:id', requireOwner, async (req, res, next) => {
               sort_order = $4, description = $5, is_active = true, updated_at = NOW(),
               processing_time = $8, processing_start = $9
              WHERE id = $6 AND business_id = $7`,
-            [v.name, v.duration_min, v.price_cents ?? null, v.sort_order ?? i, v.description || null, v.id, bid,
+            [v.name, v.duration_min, v.price_cents != null ? Math.max(0, parseInt(v.price_cents) || 0) : null, v.sort_order ?? i, v.description || null, v.id, bid,
              parseInt(v.processing_time) || 0, parseInt(v.processing_start) || 0]
           );
           // Recalculate end_at for future bookings using this variant

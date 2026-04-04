@@ -346,10 +346,25 @@ router.patch('/:id/status', requireOwner, async (req, res, next) => {
     const valid = ['draft', 'sent', 'paid', 'overdue', 'cancelled'];
     if (!valid.includes(status)) return res.status(400).json({ error: 'Statut invalide' });
 
+    // S3-18: Validate status transitions
+    const TRANSITIONS = {
+      draft: ['sent', 'paid', 'cancelled'],
+      sent: ['paid', 'overdue', 'cancelled'],
+      overdue: ['paid', 'cancelled'],
+      paid: ['cancelled'],
+      cancelled: ['draft']
+    };
+    const current = await queryWithRLS(bid,
+      `SELECT status FROM invoices WHERE id = $1 AND business_id = $2`, [req.params.id, bid]
+    );
+    if (current.rows.length === 0) return res.status(404).json({ error: 'Facture introuvable' });
+    const allowed = TRANSITIONS[current.rows[0].status] || [];
+    if (!allowed.includes(status)) return res.status(400).json({ error: `Transition ${current.rows[0].status} → ${status} non autorisée` });
+
     await queryWithRLS(bid,
       `UPDATE invoices SET status = $1, paid_date = $2, updated_at = NOW()
        WHERE id = $3 AND business_id = $4`,
-      [status, status === 'paid' ? (paid_date || new Date().toISOString().split('T')[0]) : null,
+      [status, status === 'paid' ? (paid_date || new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' })) : null,
        req.params.id, bid]
     );
     res.json({ updated: true, status });

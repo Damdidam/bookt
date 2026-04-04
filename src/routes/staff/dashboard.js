@@ -16,7 +16,7 @@ router.get('/', async (req, res, next) => {
       `SELECT id, slug, name, plan, tagline FROM businesses WHERE id = $1`, [bid]
     );
     const pracs = await queryWithRLS(bid,
-      `SELECT id, display_name, title, color, bio, years_experience
+      `SELECT id, display_name, title, color, bio, years_experience, featured_enabled
        FROM practitioners WHERE business_id = $1 ORDER BY sort_order, created_at`, [bid]
     );
     res.json({
@@ -55,7 +55,7 @@ router.get('/summary', async (req, res, next) => {
        LEFT JOIN clients c ON c.id = b.client_id
        WHERE b.business_id = $1
        AND DATE(b.start_at AT TIME ZONE 'Europe/Brussels') = $2
-       AND b.status IN ('pending', 'confirmed', 'completed', 'pending_deposit')
+       AND b.status IN ('pending', 'confirmed', 'completed', 'pending_deposit', 'modified_pending')
        ${pracFilter ? 'AND b.practitioner_id = $3' : ''}
        ORDER BY b.start_at`,
       pracFilter ? [bid, today, pracFilter] : [bid, today]
@@ -263,7 +263,7 @@ router.get('/analytics', async (req, res, next) => {
     const days = period === '7d' ? 7 : period === '90d' ? 90 : 30;
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
-    const startStr = startDate.toISOString().split('T')[0];
+    const startStr = startDate.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
     const pracFilter = req.practitionerFilter;
 
     // 1. Revenue + bookings by day
