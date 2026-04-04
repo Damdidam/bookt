@@ -619,14 +619,16 @@ async function handleStripeWebhook(req, res) {
               [pass.id, business_id, tpl.sessions_count, `Achat Stripe — ${code}`]
             );
 
-            // Auto-create client if email provided
+            // Auto-create client if email provided (skip if already exists)
             if (buyer_email) {
               await query(
-                `INSERT INTO clients (business_id, full_name, email, source)
-                 VALUES ($1, $2, $3, 'pass')
-                 ON CONFLICT (business_id, email) DO NOTHING`,
+                `INSERT INTO clients (business_id, full_name, email)
+                 SELECT $1, $2, $3::text
+                 WHERE NOT EXISTS (
+                   SELECT 1 FROM clients WHERE business_id = $1 AND LOWER(email) = LOWER($3::text)
+                 )`,
                 [business_id, buyer_name || 'Client', buyer_email]
-              ).catch(() => {});
+              ).catch(e => { if (e.code !== '23505') console.warn('[STRIPE] Client auto-create failed:', e.message); });
             }
 
             // Send email

@@ -69,7 +69,7 @@ router.get('/summary', async (req, res, next) => {
         COUNT(*) FILTER (WHERE status = 'cancelled') AS cancellations,
         COALESCE(SUM(
           COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents, 0)
-          - CASE WHEN b.group_order = 0 THEN COALESCE(b.promotion_discount_cents, 0) ELSE 0 END
+          - CASE WHEN b.group_order = 0 OR b.group_order IS NULL THEN COALESCE(b.promotion_discount_cents, 0) ELSE 0 END
         ) FILTER (WHERE b.status IN ('confirmed', 'completed')), 0) AS revenue_cents
        FROM bookings b
        LEFT JOIN services s ON s.id = b.service_id
@@ -275,7 +275,7 @@ router.get('/analytics', async (req, res, next) => {
         COUNT(*) FILTER (WHERE b.status = 'cancelled') AS cancellations,
         COALESCE(SUM(
           COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents, 0)
-          - CASE WHEN b.group_order = 0 THEN COALESCE(b.promotion_discount_cents, 0) ELSE 0 END
+          - CASE WHEN b.group_order = 0 OR b.group_order IS NULL THEN COALESCE(b.promotion_discount_cents, 0) ELSE 0 END
         ) FILTER (WHERE b.status IN ('confirmed', 'completed')), 0) AS revenue
        FROM bookings b
        LEFT JOIN services s ON s.id = b.service_id
@@ -306,7 +306,7 @@ router.get('/analytics', async (req, res, next) => {
       `SELECT s.name, s.color, COUNT(b.id) AS count,
         COALESCE(SUM(
           COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents, 0)
-          - CASE WHEN b.group_order = 0 THEN COALESCE(b.promotion_discount_cents, 0) ELSE 0 END
+          - CASE WHEN b.group_order = 0 OR b.group_order IS NULL THEN COALESCE(b.promotion_discount_cents, 0) ELSE 0 END
         ), 0) AS revenue
        FROM bookings b
        JOIN services s ON s.id = b.service_id
@@ -339,7 +339,7 @@ router.get('/analytics', async (req, res, next) => {
         COUNT(*) FILTER (WHERE b.status IN ('confirmed', 'completed')) AS bookings,
         COALESCE(SUM(
           COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents, 0)
-          - CASE WHEN b.group_order = 0 THEN COALESCE(b.promotion_discount_cents, 0) ELSE 0 END
+          - CASE WHEN b.group_order = 0 OR b.group_order IS NULL THEN COALESCE(b.promotion_discount_cents, 0) ELSE 0 END
         ) FILTER (WHERE b.status IN ('confirmed', 'completed')), 0) AS revenue
        FROM bookings b
        LEFT JOIN services s ON s.id = b.service_id

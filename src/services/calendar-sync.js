@@ -426,11 +426,27 @@ async function pullBusyTimes(connection, startDate, endDate, queryFn) {
       if (ev.status === 'cancelled') return;
       // Skip transparent (free) events
       if (ev.transparency === 'transparent') return;
+      // Full-day events: expand to cover full day in Brussels timezone
+      // Google full-day events have date (not dateTime), e.g. "2026-04-05"
+      // We must store them as proper TIMESTAMPTZ covering the full Brussels day
+      let startAt = ev.start?.dateTime || null;
+      let endAt = ev.end?.dateTime || null;
+      if (!startAt && ev.start?.date) {
+        // Determine Brussels UTC offset for this date (handles CET/CEST automatically)
+        const probe = new Date(ev.start.date + 'T12:00:00Z');
+        const bruStr = probe.toLocaleString('en-GB', { timeZone: 'Europe/Brussels', hour12: false });
+        const bruHour = parseInt(bruStr.split(', ')[1]?.split(':')[0]) || 12;
+        const offsetHours = bruHour - 12; // +1 (CET) or +2 (CEST)
+        const offsetStr = (offsetHours >= 0 ? '+' : '-') + String(Math.abs(offsetHours)).padStart(2, '0') + ':00';
+        startAt = ev.start.date + 'T00:00:00' + offsetStr;
+        const endDate = ev.end?.date || ev.start.date;
+        endAt = endDate + 'T00:00:00' + offsetStr;
+      }
       events.push({
         external_event_id: ev.id,
         title: ev.summary || '(occupé)',
-        start_at: ev.start?.dateTime || ev.start?.date,
-        end_at: ev.end?.dateTime || ev.end?.date,
+        start_at: startAt,
+        end_at: endAt,
         is_busy: true
       });
     });
