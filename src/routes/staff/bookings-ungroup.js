@@ -357,6 +357,9 @@ router.delete('/:id/group-remove', async (req, res, next) => {
 
         // ===== Calculate new group total (for deposit + promo recalculation) =====
         const newGroupTotal = remaining.reduce((sum, m) => sum + (m.effective_price_cents || 0), 0);
+        // M2 fix: effective total for deposit = total minus promo (consistent with move/reschedule)
+        const _promoDiscRemove = remaining.reduce((sum, m) => sum + (m.promotion_discount_cents || 0), 0);
+        const newGroupTotalForDeposit = Math.max(newGroupTotal - _promoDiscRemove, 0);
 
         if (remaining.length === 1) {
           // Only 1 member left → ungroup it (no group of 1)
@@ -468,9 +471,9 @@ router.delete('/:id/group-remove', async (req, res, next) => {
           const bizSettings = bizRes.rows[0]?.settings || {};
 
           if (bizSettings.deposit_type === 'fixed') {
-            newDepositCents = bizSettings.deposit_fixed_cents || 2500;
+            newDepositCents = Math.min(bizSettings.deposit_fixed_cents || 2500, newGroupTotalForDeposit);
           } else {
-            newDepositCents = Math.round(newGroupTotal * (bizSettings.deposit_percent || 50) / 100);
+            newDepositCents = Math.round(newGroupTotalForDeposit * (bizSettings.deposit_percent || 50) / 100);
           }
 
           // Update the group leader (group_order=0 or single remaining) with new deposit
@@ -916,14 +919,16 @@ router.post('/:id/group-add', async (req, res, next) => {
 
         // Recalculate deposit if still pending
         if (booking.deposit_required && booking.deposit_status === 'pending') {
+          // M2 fix: subtract promo discount from total (consistent with reschedule/move)
           const grpTotalDep = await client.query(
-            `SELECT COALESCE(SUM(COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents, 0)), 0) AS total
+            `SELECT COALESCE(SUM(COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents, 0)), 0) AS total,
+                    COALESCE(SUM(CASE WHEN b.group_order = 0 THEN b.promotion_discount_cents ELSE 0 END), 0) AS promo
              FROM bookings b LEFT JOIN services s ON s.id = b.service_id
              LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
              WHERE b.group_id = $1 AND b.business_id = $2 AND b.status NOT IN ('cancelled')`,
             [booking.group_id, bid]
           );
-          const newTotalDep = parseInt(grpTotalDep.rows[0].total) || 0;
+          const newTotalDep = Math.max((parseInt(grpTotalDep.rows[0].total) || 0) - (parseInt(grpTotalDep.rows[0].promo) || 0), 0);
           const bizForDep = await client.query(`SELECT settings FROM businesses WHERE id = $1`, [bid]);
           const depSettings = bizForDep.rows[0]?.settings || {};
           let newDepCents;

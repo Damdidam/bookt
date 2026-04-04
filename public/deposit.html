@@ -294,16 +294,12 @@ async function startPayment() {
 // Handle ?paid=1 success redirect — verify with Stripe then show confirmed
 if (new URLSearchParams(window.location.search).get('paid') === '1') {
   (async function verifyAndShow() {
-    // Show immediate success feedback
+    // Show verification-in-progress state (don't claim success yet)
     const card = document.getElementById('cardContent');
     card.innerHTML = `<div style="padding:60px 28px;text-align:center">
-      <div style="width:56px;height:56px;border-radius:50%;background:var(--green-bg);display:flex;align-items:center;justify-content:center;margin:0 auto 16px">
-        <svg class="gi" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-      </div>
-      <h2 style="font-family:var(--serif);font-size:1.4rem;font-weight:400;margin-bottom:6px">Paiement reçu !</h2>
-      <p style="font-size:.88rem;color:var(--text-3)">Votre acompte a bien été enregistré.<br>Votre rendez-vous est confirmé.</p>
-      <div class="spinner" style="margin:20px auto 8px;border-top-color:var(--green)"></div>
-      <p style="font-size:.78rem;color:var(--text-4)">Vérification en cours…</p>
+      <div class="spinner" style="margin:0 auto 16px;border-top-color:var(--primary)"></div>
+      <h2 style="font-family:var(--serif);font-size:1.4rem;font-weight:400;margin-bottom:6px">Vérification en cours…</h2>
+      <p style="font-size:.88rem;color:var(--text-3)">Nous confirmons votre paiement auprès de Stripe.</p>
     </div>`;
 
     // 1. Call verify endpoint to confirm payment with Stripe directly

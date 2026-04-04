@@ -365,9 +365,9 @@ router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) 
         ? groupMembers.map(m => m.id)
         : [bk.id];
 
-      // Check if the primary booking has a promotion_id
+      // H5 fix: Check ALL group members for promotion_id (not just primary — promo may be on a specific_service slot)
       const promoCheck = await client.query(
-        `SELECT promotion_id, promotion_discount_pct FROM bookings WHERE id = $1`, [promoIds[0]]
+        `SELECT promotion_id, promotion_discount_pct FROM bookings WHERE id = ANY($1::uuid[]) AND promotion_id IS NOT NULL LIMIT 1`, [promoIds]
       );
       const promoId = promoCheck.rows[0]?.promotion_id;
 

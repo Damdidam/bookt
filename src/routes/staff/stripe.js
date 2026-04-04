@@ -486,6 +486,9 @@ async function handleStripeWebhook(req, res) {
             const days = biz?.settings?.giftcard_expiry_days || 365;
             const expiresAt = new Date(Date.now() + days * 86400000);
 
+            // NOTE: No UNIQUE constraint on gift_cards.stripe_payment_intent_id —
+            // ON CONFLICT cannot be used here. Idempotency relies on the SELECT guard above.
+            // If a unique index is added later, replace with INSERT ... ON CONFLICT (stripe_payment_intent_id) DO NOTHING.
             const gc = await query(
               `INSERT INTO gift_cards (business_id, code, amount_cents, balance_cents,
                buyer_name, buyer_email, recipient_name, recipient_email, message,

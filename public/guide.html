@@ -129,6 +129,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:
     return icons[name] || '';
   }
 
+  // H4 fix: escape function for XSS prevention
+  function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
   function render(data) {
     const f = data.flows;
     const biz = data.business;
@@ -146,12 +149,12 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:
     }
 
     const logoHtml = biz.logo_url
-      ? `<div class="logo-icon"><img src="${biz.logo_url}" alt="${biz.name}"></div>`
-      : `<div class="logo-icon">${biz.name.charAt(0)}</div>`;
+      ? `<div class="logo-icon"><img src="${esc(biz.logo_url)}" alt="${esc(biz.name)}"></div>`
+      : `<div class="logo-icon">${esc(biz.name.charAt(0))}</div>`;
 
     let html = `
       <div class="header">
-        <a href="/${biz.slug}" class="logo-link">${logoHtml}<span class="biz-name">${biz.name}</span></a>
+        <a href="/${esc(biz.slug)}" class="logo-link">${logoHtml}<span class="biz-name">${esc(biz.name)}</span></a>
         <h1>Guide de reservation</h1>
         <p class="subtitle">Tout ce que vous devez savoir pour prendre rendez-vous</p>
       </div>`;

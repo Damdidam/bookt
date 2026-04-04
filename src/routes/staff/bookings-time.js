@@ -278,21 +278,24 @@ router.patch('/:id/move', async (req, res, next) => {
             await client.query(sql, params);
           }
 
-          // BK-V13-003: Recalculate deposit deadlines for group members (matching single-move logic)
-          for (const u of updates) {
-            const memberInfo = await client.query(
-              `SELECT deposit_required, deposit_deadline FROM bookings WHERE id = $1 AND business_id = $2`,
-              [u.id, bid]
-            );
-            const mi = memberInfo.rows[0];
-            if (mi?.deposit_required && mi.deposit_deadline) {
-              let newDeadline = new Date(new Date(mi.deposit_deadline).getTime() + delta);
-              const minDeadline = new Date(Date.now() + 60 * 60000);
-              if (newDeadline < minDeadline) newDeadline = minDeadline;
-              await client.query(
-                `UPDATE bookings SET deposit_deadline = $1 WHERE id = $2 AND business_id = $3`,
-                [newDeadline.toISOString(), u.id, bid]
+          // M5 fix: Recalculate deposit deadlines using computeDepositDeadline (fresh calc, not delta shift)
+          {
+            const { computeDepositDeadline } = require('../../routes/public/helpers');
+            const _depBizRes = await client.query(`SELECT settings FROM businesses WHERE id = $1`, [bid]);
+            const _depBizSettings = _depBizRes.rows[0]?.settings || {};
+            for (const u of updates) {
+              const memberInfo = await client.query(
+                `SELECT deposit_required, deposit_deadline, deposit_status, start_at FROM bookings WHERE id = $1 AND business_id = $2`,
+                [u.id, bid]
               );
+              const mi = memberInfo.rows[0];
+              if (mi?.deposit_required && mi.deposit_deadline && mi.deposit_status === 'pending') {
+                const newDeadline = computeDepositDeadline(new Date(mi.start_at), _depBizSettings);
+                await client.query(
+                  `UPDATE bookings SET deposit_deadline = $1 WHERE id = $2 AND business_id = $3`,
+                  [newDeadline.toISOString(), u.id, bid]
+                );
+              }
             }
           }
 
@@ -335,6 +338,19 @@ router.patch('/:id/move', async (req, res, next) => {
               const promoRes = await client.query(`SELECT * FROM promotions WHERE id = $1`, [grpPromoId]);
               const promo = promoRes.rows[0];
               if (promo) {
+                // H2 fix: Re-validate promo date range after group move
+                const _grpMovedDate = new Date(totalStart).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+                const _grpPromoValid = promo.is_active !== false
+                  && (!promo.valid_from || _grpMovedDate >= new Date(promo.valid_from).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' }))
+                  && (!promo.valid_until || _grpMovedDate <= new Date(promo.valid_until).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' }));
+                if (!_grpPromoValid) {
+                  for (const uid of updates.map(u => u.id)) {
+                    await client.query(
+                      `UPDATE bookings SET promotion_id = NULL, promotion_label = NULL, promotion_discount_cents = 0, promotion_discount_pct = NULL WHERE id = $1`,
+                      [uid]
+                    );
+                  }
+                } else {
                 const allIds = updates.map(u => u.id);
                 let groupTotal = 0;
                 for (const uid of allIds) {
@@ -383,6 +399,7 @@ router.patch('/:id/move', async (req, res, next) => {
                     );
                   }
                 }
+                } // end else _grpPromoValid
               }
             }
           }
@@ -673,7 +690,21 @@ router.patch('/:id/move', async (req, res, next) => {
           if (singlePromoId) {
             const promoRes = await client.query(`SELECT * FROM promotions WHERE id = $1`, [singlePromoId]);
             const promo = promoRes.rows[0];
+            // H2 fix: Re-validate promo date range after staff move (same as client reschedule)
             if (promo) {
+              const _promoStillValid = (() => {
+                if (!promo.is_active) return false;
+                const _movedDateStr = new Date(moved.start_at).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+                if (promo.valid_from && _movedDateStr < new Date(promo.valid_from).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' })) return false;
+                if (promo.valid_until && _movedDateStr > new Date(promo.valid_until).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' })) return false;
+                return true;
+              })();
+              if (!_promoStillValid) {
+                await client.query(
+                  `UPDATE bookings SET promotion_id = NULL, promotion_label = NULL, promotion_discount_cents = 0, promotion_discount_pct = NULL WHERE id = $1`,
+                  [id]
+                );
+              } else {
               const mRes = await client.query(
                 `SELECT COALESCE(sv.price_cents, s.price_cents, 0) AS eff_price, b.discount_pct
                  FROM bookings b
@@ -704,6 +735,7 @@ router.patch('/:id/move', async (req, res, next) => {
                   );
                 }
               }
+              } // end else _promoStillValid
             }
           }
         }
@@ -757,10 +789,12 @@ router.patch('/:id/move', async (req, res, next) => {
            JSON.stringify({ start_at: newStart.toISOString(), end_at: newEnd.toISOString(), practitioner_id })]
         );
 
+        // C2 fix: hoist sRefStart/sRefEnd so post-commit SMS can access them
+        const sRefStart = old_start_at || draggedBooking.start_at;
+        const sRefEnd = old_end_at || draggedBooking.end_at;
+
         // Pre-set modified_pending inside transaction if notify requested and time moved
         if (shouldNotify) {
-          const sRefStart = old_start_at || draggedBooking.start_at;
-          const sRefEnd = old_end_at || draggedBooking.end_at;
           const timeMoved = new Date(sRefStart).getTime() !== newStart.getTime() || new Date(sRefEnd).getTime() !== newEnd.getTime();
           if (timeMoved) {
             const curStatus = old.rows[0].status;

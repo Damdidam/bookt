@@ -514,16 +514,18 @@ router.post('/manual', async (req, res, next) => {
               results[0].status = 'pending_deposit';
               results[0].deposit_required = true;
               results[0].deposit_amount_cents = depCents;
-              // CRT-V10-7: Set pending_deposit status on ALL other group members (no deposit amount)
+              // M6 fix: Set pending_deposit + deposit fields on ALL group members (so cron can find them)
               if (results.length > 1) {
                 const otherIds = results.slice(1).map(b => b.id);
                 await client.query(
-                  `UPDATE bookings SET status = 'pending_deposit'
+                  `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
+                    deposit_status = 'pending', deposit_deadline = $3
                    WHERE id = ANY($1) AND business_id = $2`,
-                  [otherIds, bid]
+                  [otherIds, bid, deadline.toISOString()]
                 );
                 for (let i = 1; i < results.length; i++) {
                   results[i].status = 'pending_deposit';
+                  results[i].deposit_required = true;
                 }
               }
             }

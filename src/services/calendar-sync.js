@@ -18,7 +18,7 @@ const GOOGLE_SCOPES = 'https://www.googleapis.com/auth/calendar.events https://w
 function getGoogleAuthUrl(state) {
   const params = new URLSearchParams({
     client_id: process.env.GOOGLE_CLIENT_ID,
-    redirect_uri: `${process.env.APP_BASE_URL || process.env.BASE_URL}/api/calendar/google/callback`,
+    redirect_uri: `${process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be'}/api/calendar/google/callback`,
     response_type: 'code',
     scope: GOOGLE_SCOPES,
     access_type: 'offline',
@@ -36,7 +36,7 @@ async function exchangeGoogleCode(code) {
       code,
       client_id: process.env.GOOGLE_CLIENT_ID,
       client_secret: process.env.GOOGLE_CLIENT_SECRET,
-      redirect_uri: `${process.env.APP_BASE_URL || process.env.BASE_URL}/api/calendar/google/callback`,
+      redirect_uri: `${process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be'}/api/calendar/google/callback`,
       grant_type: 'authorization_code'
     }),
     signal: AbortSignal.timeout(15000)
@@ -106,7 +106,7 @@ const MS_SCOPES = 'Calendars.ReadWrite User.Read offline_access';
 function getOutlookAuthUrl(state) {
   const params = new URLSearchParams({
     client_id: process.env.OUTLOOK_CLIENT_ID,
-    redirect_uri: `${process.env.APP_BASE_URL || process.env.BASE_URL}/api/calendar/outlook/callback`,
+    redirect_uri: `${process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be'}/api/calendar/outlook/callback`,
     response_type: 'code',
     scope: MS_SCOPES,
     state
@@ -122,7 +122,7 @@ async function exchangeOutlookCode(code) {
       code,
       client_id: process.env.OUTLOOK_CLIENT_ID,
       client_secret: process.env.OUTLOOK_CLIENT_SECRET,
-      redirect_uri: `${process.env.APP_BASE_URL || process.env.BASE_URL}/api/calendar/outlook/callback`,
+      redirect_uri: `${process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be'}/api/calendar/outlook/callback`,
       grant_type: 'authorization_code'
     }),
     signal: AbortSignal.timeout(15000)

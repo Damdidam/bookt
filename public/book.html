@@ -1606,7 +1606,7 @@ function getEligiblePromos(){
   var cart=multiServiceMode?selectedServices:(selectedService?[selectedService]:[]);
   // BUG-M1: filter out services that are not promo_eligible
   var eligibleCart=cart.filter(function(s){return s.promo_eligible!==false;});
-  var cartTotal=eligibleCart.reduce(function(s,svc,i){var v=selectedVariantsByIdx[i]||selectedVariants[svc.id];return s+(v&&v.price_cents!=null?v.price_cents:(svc.price_cents||0));},0);
+  var cartTotal=eligibleCart.reduce(function(s,svc){var origIdx=cart.indexOf(svc);var v=selectedVariantsByIdx[origIdx]||selectedVariants[svc.id];return s+(v&&v.price_cents!=null?v.price_cents:(svc.price_cents||0));},0);
   var cartIds=eligibleCart.map(function(s){return s.id;});
   return promos.filter(function(p){
     if(p.reward_type!=='info_only'&&eligibleCart.length===0)return false; // no promo-eligible services

@@ -457,8 +457,14 @@ router.patch('/:id/status', async (req, res, next) => {
             newDepStatus = 'refunded';
           } else if (dep.deposit_status === 'pending') {
             newDepStatus = 'cancelled';
+          } else if (dep.deposit_status === 'waived') {
+            // C1 fix: waived deposit — no Stripe refund needed, but pass/GC must still be refunded
+            newDepStatus = 'cancelled';
           }
-          // ===== Stripe refund: actually refund the money when status is 'refunded' =====
+          // ===== Stripe refund: inside TX intentionally =====
+          // H6 note: Keeping Stripe call inside the transaction is safer than post-commit.
+          // If Stripe fails → newDepStatus falls back to 'cancelled' (deposit retained) = consistent.
+          // Moving Stripe post-commit would mean: DB shows 'refunded' but Stripe call might fail = worse.
           if (newDepStatus === 'refunded' && dep.deposit_payment_intent_id) {
             const key = process.env.STRIPE_SECRET_KEY;
             if (key) {
@@ -563,8 +569,19 @@ router.patch('/:id/status', async (req, res, next) => {
         await decrementPromoUsage(id, client).catch(e => console.warn('[PROMO DEC]', e.message));
       }
 
-      // C1 fix: Re-consume pass credits + GC balance when restoring a cancelled booking
+      // H1 fix: Re-increment promo usage when restoring a cancelled booking
       if (old.rows[0].status === 'cancelled' && status !== 'cancelled') {
+        const _promoRestore = await client.query(
+          `SELECT promotion_id FROM bookings WHERE id = $1 AND promotion_id IS NOT NULL`, [id]
+        );
+        if (_promoRestore.rows.length > 0) {
+          await client.query(
+            `UPDATE promotions SET current_uses = current_uses + 1 WHERE id = $1`,
+            [_promoRestore.rows[0].promotion_id]
+          ).catch(e => console.warn('[PROMO INC] restore:', e.message));
+        }
+
+        // C1 fix: Re-consume pass credits + GC balance when restoring a cancelled booking
         // Re-debit pass sessions that were refunded
         const _passRefunds = await client.query(
           `SELECT pt.pass_id, pt.sessions, pt.booking_id FROM pass_transactions pt WHERE pt.booking_id = $1 AND pt.type = 'refund'`, [id]

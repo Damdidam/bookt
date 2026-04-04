@@ -351,7 +351,17 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
         const wlStartBrussels = new Date(e.offer_booking_start).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
         const wlTodayBrussels = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
         const wlLmDeadline = wlBizSettings.last_minute_deadline || 'j-1';
-        if (isWithinLastMinuteWindow(wlStartBrussels, wlTodayBrussels, wlLmDeadline)) {
+        // H3 fix: also check promo_eligible and min_price before applying LM discount
+        const _wlSvcRes = await client.query(
+          `SELECT s.promo_eligible, COALESCE(sv.price_cents, s.price_cents, 0) AS eff_price
+           FROM services s LEFT JOIN service_variants sv ON sv.id = $2
+           WHERE s.id = $1`, [e.service_id, e.service_variant_id || null]
+        );
+        const _wlSvc = _wlSvcRes.rows[0];
+        const _wlLmMinPrice = wlBizSettings.last_minute_min_price_cents || 0;
+        if (isWithinLastMinuteWindow(wlStartBrussels, wlTodayBrussels, wlLmDeadline)
+            && _wlSvc && _wlSvc.promo_eligible !== false
+            && _wlSvc.eff_price > 0 && _wlSvc.eff_price >= _wlLmMinPrice) {
           const wlLmPct = wlBizSettings.last_minute_discount_pct || 10;
           const wlBookedPrice = Math.round(wlPrice * (100 - wlLmPct) / 100);
           await client.query(

@@ -307,7 +307,7 @@ function render(d) {
     html += `
       <p>Une fois annulé, le créneau sera libéré pour d'autres patients.</p>
       <textarea id="cancelReason" placeholder="Raison de l'annulation (optionnel)"></textarea>
-      <button class="btn-cancel" id="cancelBtn" onclick="cancelBooking()">Annuler mon rendez-vous</button>
+      <button class="btn-cancel" id="cancelBtn" onclick="confirmCancel()">Annuler mon rendez-vous</button>
     `;
     html += `</div>`;
   } else if (bk.status === 'cancelled') {
@@ -488,6 +488,23 @@ async function refuseModification() {
     if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
     document.getElementById('cardContent').innerHTML = `<div class="cancelled-msg"><div class="check"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div><h2>Modification refusée</h2><p>Votre rendez-vous a été annulé. Vous pouvez reprendre un nouveau créneau.</p></div>`;
   } catch (e) { btn.disabled = false; btn.innerHTML = '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Refuser'; showToast('Erreur: ' + e.message, 'error'); }
+}
+
+// H8 fix: confirmation dialog before cancel (especially important when deposit at risk)
+function confirmCancel() {
+  const hasDeposit = window._bookingData?.deposit_status === 'paid';
+  const msg = hasDeposit
+    ? 'Attention : votre acompte pourrait ne pas être remboursé si le délai d\'annulation est dépassé.\n\nConfirmer l\'annulation ?'
+    : 'Êtes-vous sûr(e) de vouloir annuler ce rendez-vous ?';
+  if (!window.GendaUI?.showConfirmDialog) { if (!confirm(msg)) return; cancelBooking(); return; }
+  GendaUI.showConfirmDialog({
+    title: 'Annuler le rendez-vous ?',
+    message: hasDeposit ? 'Votre acompte pourrait ne pas être remboursé si le délai d\'annulation est dépassé.' : 'Cette action est irréversible.',
+    confirmText: 'Oui, annuler',
+    cancelText: 'Non, garder',
+    danger: true,
+    onConfirm: () => cancelBooking()
+  });
 }
 
 async function cancelBooking() {

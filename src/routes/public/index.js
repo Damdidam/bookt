@@ -507,7 +507,14 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           const coveredSlot = chainedSlots[passPreMatchSlotIdx];
           const coveredPrice = servicePricesAfterLm[coveredSlot.service_id] || 0;
           totalPriceForPromo = totalPriceAfterLm - coveredPrice;
-          servicePricesForPromo = { ...servicePricesAfterLm, [coveredSlot.service_id]: 0 };
+          // M8 fix: only zero the map entry if this service_id appears once; otherwise reduce price
+          const svcIdCount = chainedSlots.filter(sl => sl.service_id === coveredSlot.service_id).length;
+          if (svcIdCount <= 1) {
+            servicePricesForPromo = { ...servicePricesAfterLm, [coveredSlot.service_id]: 0 };
+          } else {
+            // Duplicate service: keep the per-service price for promo calc (pass covers just one instance)
+            servicePricesForPromo = { ...servicePricesAfterLm };
+          }
         }
 
         // ── Promo validation (multi-service) — uses LM-adjusted prices, pass-excluded ──
@@ -825,11 +832,14 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         const _rawSvcPrice0 = multiServices[0]?.price_cents || 0;
         const groupSvcs = multiServices.map((s, _i) => {
           const rawPrice = s.price_cents || 0;
-          const adjPrice = multiBookings[_i]?.discount_pct ? Math.round(rawPrice * (100 - multiBookings[_i].discount_pct) / 100) : rawPrice;
+          const _bkDisc = multiBookings[_i]?.discount_pct;
+          const adjPrice = _bkDisc ? Math.round(rawPrice * (100 - _bkDisc) / 100) : rawPrice;
           return {
             name: s._variant_name ? s.name + ' \u2014 ' + s._variant_name : s.name,
             duration_min: s.duration_min,
             price_cents: adjPrice,
+            original_price_cents: rawPrice !== adjPrice ? rawPrice : undefined, // M7 fix: for LM visibility in email
+            discount_pct: _bkDisc || null,
             practitioner_name: isSplitMode ? null : null // filled by sendPostBookingComms after prac fetch
           };
         });

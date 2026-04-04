@@ -42,15 +42,20 @@ async function sendBookingConfirmation({ booking, business, groupServices }) {
     });
     const totalMin = groupServices.reduce((sum, s) => sum + (s.duration_min || 0), 0);
     const totalPrice = groupServices.reduce((sum, s) => sum + (s.price_cents || 0), 0);
+    // M7 fix: compute total original price to show LM discount in multi-service emails
+    const totalOriginal = groupServices.reduce((sum, s) => sum + (s.original_price_cents || s.price_cents || 0), 0);
+    const hasMultiLm = totalOriginal > totalPrice;
     const promoDiscount = booking.promotion_discount_cents || 0;
     const finalPrice = totalPrice - promoDiscount;
     const durStr = totalMin >= 60 ? Math.floor(totalMin / 60) + 'h' + (totalMin % 60 > 0 ? String(totalMin % 60).padStart(2, '0') : '') : totalMin + ' min';
     let priceHtml = '';
     if (totalPrice > 0) {
-      if (promoDiscount > 0 && booking.promotion_label) {
-        priceHtml = ` \u00b7 <s style="opacity:.6">${(totalPrice / 100).toFixed(2).replace('.', ',')} \u20ac</s> ${(finalPrice / 100).toFixed(2).replace('.', ',')} \u20ac`;
+      if (hasMultiLm || (promoDiscount > 0 && booking.promotion_label)) {
+        const displayBase = hasMultiLm ? totalOriginal : totalPrice;
+        priceHtml = ` \u00b7 <s style="opacity:.6">${(displayBase / 100).toFixed(2).replace('.', ',')} \u20ac</s> ${(finalPrice / 100).toFixed(2).replace('.', ',')} \u20ac`;
         detailLines += `<div style="font-size:14px;color:#15613A;margin-top:6px;font-weight:700">Total : ${durStr}${priceHtml}</div>`;
-        detailLines += `<div style="font-size:12px;color:#15613A;opacity:.8">${escHtml(booking.promotion_label)} : -${(promoDiscount / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
+        if (hasMultiLm) detailLines += `<div style="font-size:12px;color:#15613A;opacity:.8">Last Minute : -${((totalOriginal - totalPrice) / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
+        if (promoDiscount > 0 && booking.promotion_label) detailLines += `<div style="font-size:12px;color:#15613A;opacity:.8">${escHtml(booking.promotion_label)} : -${(promoDiscount / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
       } else {
         priceHtml = ` \u00b7 ${(totalPrice / 100).toFixed(2).replace('.', ',')} \u20ac`;
         detailLines += `<div style="font-size:14px;color:#15613A;margin-top:6px;font-weight:700">Total : ${durStr}${priceHtml}</div>`;
@@ -210,15 +215,20 @@ async function sendBookingConfirmationRequest({ booking, business, timeoutMin, g
     });
     const totalMinCR = groupServices.reduce((sum, s) => sum + (s.duration_min || 0), 0);
     const totalPriceCR = groupServices.reduce((sum, s) => sum + (s.price_cents || 0), 0);
+    // M7 fix: compute total original price for LM visibility (same as confirmation template)
+    const totalOriginalCR = groupServices.reduce((sum, s) => sum + (s.original_price_cents || s.price_cents || 0), 0);
+    const hasMultiLmCR = totalOriginalCR > totalPriceCR;
     const promoDiscountCR = booking.promotion_discount_cents || 0;
     const finalPriceCR = totalPriceCR - promoDiscountCR;
     const durStrCR = totalMinCR >= 60 ? Math.floor(totalMinCR / 60) + 'h' + (totalMinCR % 60 > 0 ? String(totalMinCR % 60).padStart(2, '0') : '') : totalMinCR + ' min';
     let priceHtmlCR = '';
     if (totalPriceCR > 0) {
-      if (promoDiscountCR > 0 && booking.promotion_label) {
-        priceHtmlCR = ` \u00b7 <s style="opacity:.6">${(totalPriceCR / 100).toFixed(2).replace('.', ',')} \u20ac</s> ${(finalPriceCR / 100).toFixed(2).replace('.', ',')} \u20ac`;
+      if (hasMultiLmCR || (promoDiscountCR > 0 && booking.promotion_label)) {
+        const displayBaseCR = hasMultiLmCR ? totalOriginalCR : totalPriceCR;
+        priceHtmlCR = ` \u00b7 <s style="opacity:.6">${(displayBaseCR / 100).toFixed(2).replace('.', ',')} \u20ac</s> ${(finalPriceCR / 100).toFixed(2).replace('.', ',')} \u20ac`;
         detailLines += `<div style="font-size:14px;color:#92700C;margin-top:6px;font-weight:700">Total : ${durStrCR}${priceHtmlCR}</div>`;
-        detailLines += `<div style="font-size:12px;color:#92700C;opacity:.8">${escHtml(booking.promotion_label)} : -${(promoDiscountCR / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
+        if (hasMultiLmCR) detailLines += `<div style="font-size:12px;color:#92700C;opacity:.8">Last Minute : -${((totalOriginalCR - totalPriceCR) / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
+        if (promoDiscountCR > 0 && booking.promotion_label) detailLines += `<div style="font-size:12px;color:#92700C;opacity:.8">${escHtml(booking.promotion_label)} : -${(promoDiscountCR / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
       } else {
         priceHtmlCR = ` \u00b7 ${(totalPriceCR / 100).toFixed(2).replace('.', ',')} \u20ac`;
         detailLines += `<div style="font-size:14px;color:#92700C;margin-top:6px;font-weight:700">Total : ${durStrCR}${priceHtmlCR}</div>`;
