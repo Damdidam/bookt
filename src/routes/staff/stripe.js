@@ -226,11 +226,15 @@ async function handleStripeWebhook(req, res) {
 
           const piId = session.payment_intent || null;
           // ST-6: Log amount mismatch as warning (don't block — payment already captured)
+          // Subtract GC amount to avoid false positives when GC partially covers deposit
           const paidAmountCents = session.amount_total || 0;
-          const expectedRes = await query(`SELECT deposit_amount_cents FROM bookings WHERE id = $1`, [bookingId]);
-          const expectedCents = expectedRes.rows[0]?.deposit_amount_cents || 0;
+          const expectedRes = await query(
+            `SELECT b.deposit_amount_cents, COALESCE(SUM(gct.amount_cents), 0) AS gc_paid
+             FROM bookings b LEFT JOIN gift_card_transactions gct ON gct.booking_id = b.id AND gct.type = 'debit'
+             WHERE b.id = $1 GROUP BY b.deposit_amount_cents`, [bookingId]);
+          const expectedCents = (expectedRes.rows[0]?.deposit_amount_cents || 0) - (parseInt(expectedRes.rows[0]?.gc_paid) || 0);
           if (paidAmountCents > 0 && expectedCents > 0 && Math.abs(paidAmountCents - expectedCents) > 100) {
-            console.warn(`[STRIPE WH] AMOUNT MISMATCH: booking ${bookingId} expected ${expectedCents}c, paid ${paidAmountCents}c`);
+            console.warn(`[STRIPE WH] AMOUNT MISMATCH: booking ${bookingId} expected ${expectedCents}c (after GC), paid ${paidAmountCents}c`);
           }
           console.log(`[STRIPE WH] Deposit paid for booking ${bookingId} (PI: ${piId}, amount: ${paidAmountCents}c)`);
 

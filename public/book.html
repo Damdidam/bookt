@@ -2055,7 +2055,9 @@ function goToStep(n){
     }
     buildModeSelector();
     // BK-3: Preserve slot selection when going back from step 4 to step 3
-    if(!selectedSlot||!Object.keys(slotsData).length){weekOffset=0;selectedDate=null;selectedSlot=null;slotsData={};loadSlots();}
+    // Reset if practitioner changed or no data
+    var slotPracChanged=selectedSlot&&selectedSlot.practitioner_id&&selectedPractitioner&&selectedSlot.practitioner_id!==selectedPractitioner.id;
+    if(!selectedSlot||!Object.keys(slotsData).length||slotPracChanged){weekOffset=0;selectedDate=null;selectedSlot=null;slotsData={};loadSlots();}
     else{renderSlots();}
   }
   if(n===4){
@@ -2281,6 +2283,8 @@ function renderSlots(){
     }else{
       btn.textContent=s.start_time;
     }
+    // BK-3: Re-highlight previously selected slot when going back
+    if(selectedSlot&&s.start_time===selectedSlot.start_time&&s.date===selectedSlot.date)btn.classList.add('sel');
     btn.addEventListener('click',()=>{
       selectedSlot=s;
       grid.querySelectorAll('.slot-btn').forEach(b=>b.classList.remove('sel'));
