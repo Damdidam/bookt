@@ -57,12 +57,26 @@ router.post('/signup', authLimiter, async (req, res, next) => {
       return res.status(400).json({ error: 'Format email invalide' });
     }
 
-    // Check email uniqueness
+    // Block disposable email providers
+    const { normalizeEmail, isDisposableEmail } = require('../public/helpers');
+    if (isDisposableEmail(email)) {
+      return res.status(400).json({ error: 'Les adresses email temporaires ne sont pas acceptées' });
+    }
+
+    // Normalize email: strip +tag, Gmail dots → canonical form for uniqueness
+    const normalizedEmail = normalizeEmail(email);
+
+    // Check email uniqueness — raw match first
     const existingUser = await query(
-      `SELECT id FROM users WHERE email = $1`, [email.toLowerCase().trim()]
+      `SELECT id FROM users WHERE LOWER(email) = $1`, [email.toLowerCase().trim()]
     );
     if (existingUser.rows.length > 0) {
       return res.status(409).json({ error: 'Un compte existe déjà avec cet email' });
+    }
+    // Then check normalized form (catches +tag aliases, Gmail dots)
+    const allEmails = await query(`SELECT email FROM users WHERE is_active = true`);
+    if (allEmails.rows.some(u => normalizeEmail(u.email) === normalizedEmail)) {
+      return res.status(409).json({ error: 'Un compte existe déjà avec cet email (alias détecté)' });
     }
 
     // Generate slug from business name

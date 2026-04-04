@@ -330,8 +330,55 @@ async function decrementPromoUsage(bookingId, dbClient) {
   await q(`UPDATE promotions SET current_uses = GREATEST(current_uses - 1, 0) WHERE id = $1 AND business_id = $2`, [promotion_id, business_id]);
 }
 
+/**
+ * Normalize an email for uniqueness checks:
+ * - lowercase + trim
+ * - Gmail/Googlemail: strip dots from local part + remove +tag
+ * - All providers: remove +tag portion
+ */
+function normalizeEmail(email) {
+  if (!email) return '';
+  let [local, domain] = email.toLowerCase().trim().split('@');
+  if (!domain) return email.toLowerCase().trim();
+
+  // Strip +tag for all providers
+  const plusIdx = local.indexOf('+');
+  if (plusIdx > 0) local = local.substring(0, plusIdx);
+
+  // Gmail/Googlemail: dots in local part are ignored
+  if (domain === 'gmail.com' || domain === 'googlemail.com') {
+    local = local.replace(/\./g, '');
+    domain = 'gmail.com'; // normalize googlemail → gmail
+  }
+
+  return `${local}@${domain}`;
+}
+
+/**
+ * Check if an email domain is a disposable/temporary email provider.
+ * Returns true if the domain is disposable (should be blocked for signup).
+ */
+const DISPOSABLE_DOMAINS = new Set([
+  'mailinator.com','guerrillamail.com','guerrillamail.net','tempmail.com','throwaway.email',
+  'temp-mail.org','fakeinbox.com','sharklasers.com','guerrillamailblock.com','grr.la',
+  'dispostable.com','trashmail.com','trashmail.net','yopmail.com','yopmail.fr',
+  'maildrop.cc','mailnesia.com','tempail.com','tempr.email','discard.email',
+  'mohmal.com','getnada.com','emailondeck.com','33mail.com','maildax.com',
+  'jetable.org','trash-mail.com','mytemp.email','temp-mail.io','tempmailo.com',
+  'minutemail.com','emailfake.com','crazymailing.com','armyspy.com','dayrep.com',
+  'einrot.com','fleckens.hu','gustr.com','jourrapide.com','rhyta.com','superrito.com',
+  'teleworm.us','10minutemail.com','10minutemail.net','mailcatch.com'
+]);
+
+function isDisposableEmail(email) {
+  if (!email) return false;
+  const domain = email.toLowerCase().trim().split('@')[1];
+  return DISPOSABLE_DOMAINS.has(domain);
+}
+
 module.exports = {
   UUID_RE, escHtml, stripeRefundDeposit, shouldRequireDeposit,
   computeDepositDeadline, isWithinLastMinuteWindow, SECTOR_PRACTITIONER,
-  _nextSlotCache, _minisiteCache, BASE_URL, validateAndCalcPromo, decrementPromoUsage
+  _nextSlotCache, _minisiteCache, BASE_URL, validateAndCalcPromo, decrementPromoUsage,
+  normalizeEmail, isDisposableEmail
 };
