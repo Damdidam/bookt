@@ -2864,16 +2864,28 @@ async function cancelFromConfirm(token){
 
 // ──────── WAITLIST ────────
 const WL_DAYS=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
+function _getWlPractitioners(){
+  // Find all practitioners competent for the selected service(s) with waitlist enabled
+  var svcId=selectedService?selectedService.id:null;
+  if(!svcId&&multiServiceMode&&selectedServices.length>0)svcId=selectedServices[0].id;
+  if(!svcId)return[];
+  return(siteData.practitioners||[]).filter(function(p){
+    return p.is_active!==false&&p.waitlist_mode&&p.waitlist_mode!=='off'&&p.service_ids&&p.service_ids.includes(svcId);
+  });
+}
 function renderWlCTA(){
   const area=document.getElementById('wlArea');if(!area)return;
   if(siteData&&siteData.business&&siteData.business.plan==='free'){area.innerHTML='';return;}
-  if(!selectedPractitioner||!selectedPractitioner.waitlist_mode||selectedPractitioner.waitlist_mode==='off'||noPrefSelected){area.innerHTML='';return;}
+  // Show waitlist CTA if any competent practitioner has waitlist enabled (even with "pas de préférence")
+  var wlPracs=selectedPractitioner&&selectedPractitioner.waitlist_mode&&selectedPractitioner.waitlist_mode!=='off'?[selectedPractitioner]:_getWlPractitioners();
+  if(!wlPracs.length){area.innerHTML='';return;}
   if(area.querySelector('.wl-form')||area.querySelector('.wl-success'))return;
   area.innerHTML='<div class="wl-cta"><div style="font-size:1.5rem;margin-bottom:6px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/></svg></div><div class="wl-cta-title">Aucun horaire ne vous convient ?</div><div class="wl-cta-sub">Inscrivez-vous sur la liste d\'attente.</div><button class="wl-cta-btn" onclick="wlShowForm()">Rejoindre la liste d\'attente</button></div>';
 }
 function wlShowForm(){
   const area=document.getElementById('wlArea');
-  area.innerHTML='<div class="wl-form" id="wlForm"><h3>Liste d\'attente</h3><p class="wl-form-sub">Pour <strong>'+escH(selectedService?.name||'cette prestation')+'</strong> avec <strong>'+escH(selectedPractitioner?.display_name||'')+'</strong></p>'
+  var wlPracLabel=selectedPractitioner?escH(selectedPractitioner.display_name):'tout praticien disponible';
+  area.innerHTML='<div class="wl-form" id="wlForm"><h3>Liste d\'attente</h3><p class="wl-form-sub">Pour <strong>'+escH(selectedService?.name||'cette prestation')+'</strong> avec <strong>'+wlPracLabel+'</strong></p>'
     +'<div class="fg"><label class="fl">Prénom et nom *</label><input class="fi" id="wlName" placeholder="Marie Dupont"></div>'
     +'<div class="fg"><label class="fl">Email *</label><input class="fi" type="email" id="wlEmail" placeholder="marie@example.com"></div>'
     +'<div class="fg"><label class="fl">Téléphone</label><div class="phone-wrap"><select id="wlPhonePrefix" class="phone-prefix" onchange="onWlPhonePrefixChange()"><option value="+32" selected>🇧🇪 +32</option><option value="+33">🇫🇷 +33</option><option value="+352">🇱🇺 +352</option></select><input class="fi" id="wlPhone" placeholder="4XX XX XX XX" inputmode="tel" maxlength="15"></div></div>'
@@ -2884,21 +2896,31 @@ function wlShowForm(){
   area.querySelectorAll('.wl-day').forEach(b=>b.addEventListener('click',()=>b.classList.toggle('on')));
 }
 async function wlSubmit(){
-  if(!selectedPractitioner){showError('Veuillez choisir un praticien.');return;}
   const name=document.getElementById('wlName').value.trim(),email=document.getElementById('wlEmail').value.trim();
   const phoneRaw=document.getElementById('wlPhone').value.trim();
   if(!name||!email){showError('Nom et email requis.');return;}
   if(!validateEmailStrict(email)){showError('Email invalide.');return;}
   const days=[];document.querySelectorAll('.wl-day.on').forEach(b=>days.push(parseInt(b.dataset.day)));
   if(!days.length){showError('Sélectionnez au moins un jour.');return;}
+  var wlPracs=selectedPractitioner?[selectedPractitioner]:_getWlPractitioners();
+  if(!wlPracs.length){showError('Aucun praticien avec liste d\'attente activée.');return;}
+  var svcId=selectedService?selectedService.id:(multiServiceMode&&selectedServices.length?selectedServices[0].id:null);
+  if(!svcId){showError('Prestation requise.');return;}
   const btn=document.getElementById('wlSubmitBtn');btn.disabled=true;btn.textContent='Inscription...';hideError();
+  const phone=phoneRaw?(document.getElementById('wlPhonePrefix')?.value||'+32')+sanitizePhone(phoneRaw):null;
+  const time=document.getElementById('wlTime').value;
   try{
-    const res=await fetch('/api/public/'+slug+'/waitlist',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({practitioner_id:selectedPractitioner.id,service_id:selectedService.id,
-        client_name:name,client_email:email,client_phone:phoneRaw?(document.getElementById('wlPhonePrefix')?.value||'+32')+sanitizePhone(phoneRaw):null,
-        preferred_days:days,preferred_time:document.getElementById('wlTime').value,note:null})});
-    const data=await res.json();if(!res.ok)throw new Error(data.error||'Erreur');
-    document.getElementById('wlForm').outerHTML='<div class="wl-success"><div style="font-size:2rem;margin-bottom:8px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div><h3>Inscrit·e !</h3><p>Nous vous préviendrons à <strong>'+email+'</strong> dès qu\'un créneau se libère.</p><div class="position">#'+data.position+' dans la file</div></div>';
+    var lastPos=0;
+    for(var pi=0;pi<wlPracs.length;pi++){
+      const res=await fetch('/api/public/'+slug+'/waitlist',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({practitioner_id:wlPracs[pi].id,service_id:svcId,
+          client_name:name,client_email:email,client_phone:phone,
+          preferred_days:days,preferred_time:time,note:null})});
+      const data=await res.json();
+      if(!res.ok&&res.status!==409)throw new Error(data.error||'Erreur');
+      if(data.position)lastPos=data.position;
+    }
+    document.getElementById('wlForm').outerHTML='<div class="wl-success"><div style="font-size:2rem;margin-bottom:8px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div><h3>Inscrit·e !</h3><p>Nous vous préviendrons à <strong>'+escH(email)+'</strong> dès qu\'un créneau se libère'+(wlPracs.length>1?' chez l\'un des praticiens disponibles':'')+'.</p>'+(lastPos?'<div class="position">#'+lastPos+' dans la file</div>':'')+'</div>';
   }catch(err){showError(err.message);btn.disabled=false;btn.textContent='S\'inscrire →';}
 }
 
