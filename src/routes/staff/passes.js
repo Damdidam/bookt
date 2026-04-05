@@ -7,6 +7,12 @@ router.use(requireAuth);
 router.use(requireOwner);
 router.use(requirePro);
 
+/** Read passes_enabled from business settings. Defaults to false if unset. */
+async function isPassesFeatureEnabled(bid) {
+  const r = await queryWithRLS(bid, `SELECT settings FROM businesses WHERE id = $1`, [bid]);
+  return !!r.rows[0]?.settings?.passes_enabled;
+}
+
 /** Generate unique pass code: PS-XXXX-XXXX */
 function generateCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no I/O/0/1
@@ -52,6 +58,9 @@ router.get('/templates', async (req, res, next) => {
 router.post('/templates', async (req, res, next) => {
   try {
     const bid = req.businessId;
+    if (!(await isPassesFeatureEnabled(bid))) {
+      return res.status(403).json({ error: 'Les abonnements sont désactivés. Activez-les dans Paramètres > Abonnements.' });
+    }
     const { service_id, service_variant_id, name, description, sessions_count, price_cents, validity_days } = req.body;
 
     if (!name || !sessions_count || !price_cents) {
@@ -248,7 +257,8 @@ router.get('/', async (req, res, next) => {
       FROM passes WHERE business_id = $1
     `, [bid]);
 
-    res.json({ passes: result.rows, stats: stats.rows[0] });
+    const feature_enabled = await isPassesFeatureEnabled(bid);
+    res.json({ passes: result.rows, stats: stats.rows[0], feature_enabled });
   } catch (err) { next(err); }
 });
 
@@ -258,6 +268,9 @@ router.get('/', async (req, res, next) => {
 router.post('/', async (req, res, next) => {
   try {
     const bid = req.businessId;
+    if (!(await isPassesFeatureEnabled(bid))) {
+      return res.status(403).json({ error: 'Les abonnements sont désactivés. Activez-les dans Paramètres > Abonnements.' });
+    }
     const {
       pass_template_id,
       service_id, name, sessions_total, price_cents, validity_days,

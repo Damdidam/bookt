@@ -16,6 +16,8 @@ let _gcClientCache={};
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function fmtEur(cents){return((cents||0)/100).toFixed(2).replace('.',',')+' \u20ac';}
 
+let _gcFeatureEnabled=true;
+
 async function loadGiftCards(){
   if (!isPro()) { showProGate(document.getElementById('contentArea'), 'Cartes cadeau'); return; }
   const c=document.getElementById('contentArea');
@@ -27,6 +29,7 @@ async function loadGiftCards(){
     const data=await api.get(`/api/gift-cards?${params}`);
     const cards=data.gift_cards||[];
     _lastCards=cards;
+    _gcFeatureEnabled=data.feature_enabled !== false;
     const st=data.stats||{};
     renderGiftCards(c,cards,st);
   }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${esc(e.message)}</div>`;}
@@ -36,6 +39,15 @@ function renderGiftCards(c,cards,st){
   cards=cards||_lastCards;
   st=st||{};
   let h='';
+
+  // Feature disabled banner: the feature toggle is off in settings, legacy cards
+  // can still be managed (refund, debit) but no new creation.
+  if(!_gcFeatureEnabled){
+    h+=`<div class="card" style="padding:14px 18px;margin-bottom:14px;background:#FFF8E1;border-left:4px solid #F9A825">
+      <div style="font-size:.85rem;font-weight:600;color:#5D4037">Les cartes cadeau sont désactivées</div>
+      <div style="font-size:.78rem;color:#6D5344;margin-top:4px">Vous ne pouvez pas en créer de nouvelles tant que la fonctionnalité est désactivée. Les cartes existantes restent gérables (remboursement, débit). Pour activer : <a href="#" onclick="document.querySelector('[data-section=settings]')?.click();return false" style="color:#F9A825;font-weight:600;text-decoration:underline">Paramètres &rsaquo; Cartes cadeau</a>.</div>
+    </div>`;
+  }
 
   // ── KPI CARDS ──
   h+=`<div class="stats" style="grid-template-columns:repeat(4,1fr)">
@@ -62,7 +74,9 @@ function renderGiftCards(c,cards,st){
     ${filterBtns}
     <div style="flex:1"></div>
     <input type="text" placeholder="Rechercher par code ou nom..." value="${esc(gcSearch)}" onkeydown="if(event.key==='Enter'){gcSearch=this.value;loadGiftCards()}" onblur="gcSearch=this.value;loadGiftCards()" style="padding:6px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.78rem;min-width:200px">
-    <button onclick="openCreateGiftCardModal()" class="btn-primary btn-sm"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px;margin-right:4px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Créer une carte</button>
+    ${_gcFeatureEnabled
+      ? `<button onclick="openCreateGiftCardModal()" class="btn-primary btn-sm"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px;margin-right:4px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Créer une carte</button>`
+      : `<button disabled title="Activez la fonctionnalité dans les Paramètres" class="btn-primary btn-sm" style="opacity:.5;cursor:not-allowed"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px;margin-right:4px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Créer une carte</button>`}
   </div>`;
 
   // ── TABLE ──

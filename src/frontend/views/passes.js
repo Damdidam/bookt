@@ -12,6 +12,8 @@ let _lastPasses=[];
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function fmtEur(cents){return((cents||0)/100).toFixed(2).replace('.',',')+' €';}
 
+let _passFeatureEnabled=true;
+
 export async function loadPasses(){
   if (!isPro()) { showProGate(document.getElementById('contentArea'), 'Abonnements'); return; }
   const c=document.getElementById('contentArea');
@@ -23,6 +25,7 @@ export async function loadPasses(){
     const data=await api.get(`/api/passes?${params}`);
     const passes=data.passes||[];
     _lastPasses=passes;
+    _passFeatureEnabled=data.feature_enabled !== false;
     const st=data.stats||{};
     renderPasses(c,passes,st);
   }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${esc(e.message)}</div>`;}
@@ -32,6 +35,14 @@ function renderPasses(c,passes,st){
   passes=passes||_lastPasses;
   st=st||{};
   let h='';
+
+  // Feature disabled banner
+  if(!_passFeatureEnabled){
+    h+=`<div class="card" style="padding:14px 18px;margin-bottom:14px;background:#FFF8E1;border-left:4px solid #F9A825">
+      <div style="font-size:.85rem;font-weight:600;color:#5D4037">Les abonnements sont désactivés</div>
+      <div style="font-size:.78rem;color:#6D5344;margin-top:4px">Vous ne pouvez pas en créer de nouveaux tant que la fonctionnalité est désactivée. Les pass existants restent gérables (débit, remboursement). Pour activer : <a href="#" onclick="document.querySelector('[data-section=settings]')?.click();return false" style="color:#F9A825;font-weight:600;text-decoration:underline">Paramètres &rsaquo; Abonnements</a>.</div>
+    </div>`;
+  }
 
   // ── KPI CARDS ──
   h+=`<div class="stats" style="grid-template-columns:repeat(4,1fr)">
@@ -58,7 +69,9 @@ function renderPasses(c,passes,st){
     ${filterBtns}
     <div style="flex:1"></div>
     <input type="text" placeholder="Rechercher par code ou nom..." value="${esc(passSearch)}" onkeydown="if(event.key==='Enter'){passSearch=this.value;loadPasses()}" onblur="passSearchInput(this.value)" style="padding:6px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.78rem;min-width:200px">
-    <button onclick="openCreatePass()" class="btn-primary btn-sm"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px;margin-right:4px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Créer un pass</button>
+    ${_passFeatureEnabled
+      ? `<button onclick="openCreatePass()" class="btn-primary btn-sm"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px;margin-right:4px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Créer un pass</button>`
+      : `<button disabled title="Activez la fonctionnalité dans les Paramètres" class="btn-primary btn-sm" style="opacity:.5;cursor:not-allowed"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px;margin-right:4px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Créer un pass</button>`}
   </div>`;
 
   // ── TABLE ──

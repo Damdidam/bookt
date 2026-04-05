@@ -7,6 +7,12 @@ router.use(requireAuth);
 router.use(requireOwner);
 router.use(requirePro);
 
+/** Read giftcard_enabled from business settings. Defaults to false if unset. */
+async function isGiftCardFeatureEnabled(bid) {
+  const r = await queryWithRLS(bid, `SELECT settings FROM businesses WHERE id = $1`, [bid]);
+  return !!r.rows[0]?.settings?.giftcard_enabled;
+}
+
 /** Generate unique gift card code: GC-XXXX-XXXX */
 function generateCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no I/O/0/1
@@ -64,7 +70,8 @@ router.get('/', async (req, res, next) => {
       FROM gift_cards WHERE business_id = $1
     `, [bid]);
 
-    res.json({ gift_cards: result.rows, stats: stats.rows[0] });
+    const feature_enabled = await isGiftCardFeatureEnabled(bid);
+    res.json({ gift_cards: result.rows, stats: stats.rows[0], feature_enabled });
   } catch (err) { next(err); }
 });
 
@@ -74,6 +81,11 @@ router.get('/', async (req, res, next) => {
 router.post('/', async (req, res, next) => {
   try {
     const bid = req.businessId;
+    // Gate: the feature must be enabled in settings. Staff-created GCs were
+    // bypassing the public-route check (gift-cards-passes.js) — now aligned.
+    if (!(await isGiftCardFeatureEnabled(bid))) {
+      return res.status(403).json({ error: 'Les cartes cadeau sont désactivées. Activez-les dans Paramètres > Cartes cadeau.' });
+    }
     const { amount_cents, recipient_name, recipient_email, buyer_name, buyer_email, message, expiry_days } = req.body;
 
     if (!amount_cents || amount_cents < 100) {
