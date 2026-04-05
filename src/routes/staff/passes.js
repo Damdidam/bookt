@@ -154,7 +154,11 @@ router.post('/templates/sync', async (req, res, next) => {
     const svc = await queryWithRLS(bid, 'SELECT 1 FROM services WHERE id = $1 AND business_id = $2', [service_id, bid]);
     if (svc.rows.length === 0) return res.status(400).json({ error: 'Service introuvable' });
 
+    // Feature gate: if passes are disabled, skip INSERT of NEW templates but still
+    // allow UPDATE/deactivation of existing ones (legacy management).
+    const featureEnabled = await isPassesFeatureEnabled(bid);
     const upsertedIds = [];
+    let skippedNew = 0;
 
     for (const tpl of templates) {
       const { id, name, description, service_variant_id, sessions_count, price_cents, validity_days } = tpl;
@@ -169,31 +173,38 @@ router.post('/templates/sync', async (req, res, next) => {
           [name, description || null, service_variant_id || null, sessions_count, price_cents, validity_days || null, id, bid, service_id]
         );
         if (r.rows.length > 0) upsertedIds.push(r.rows[0].id);
-      } else {
+      } else if (featureEnabled) {
         const r = await queryWithRLS(bid,
           `INSERT INTO pass_templates (business_id, service_id, service_variant_id, name, description, sessions_count, price_cents, validity_days)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
           [bid, service_id, service_variant_id || null, name, description || null, sessions_count, price_cents, validity_days || null]
         );
         upsertedIds.push(r.rows[0].id);
+      } else {
+        skippedNew++;
       }
     }
 
-    // Deactivate templates for this service not in the list
+    // Deactivate templates for this service not in the list.
+    // Important: distinguish "explicit empty list" (deactivate all) from
+    // "list had items but all were skipped due to feature-off" (do nothing —
+    // do NOT wipe existing templates silently).
     if (upsertedIds.length > 0) {
       await queryWithRLS(bid,
         `UPDATE pass_templates SET is_active = false, updated_at = NOW()
          WHERE business_id = $1 AND service_id = $2 AND id != ALL($3::uuid[])`,
         [bid, service_id, upsertedIds]
       );
-    } else {
-      // No templates submitted — deactivate all for this service
+    } else if (templates.length === 0) {
+      // Explicit empty list from caller — deactivate all for this service
       await queryWithRLS(bid,
         `UPDATE pass_templates SET is_active = false, updated_at = NOW()
          WHERE business_id = $1 AND service_id = $2`,
         [bid, service_id]
       );
     }
+    // else: templates were sent but all skipped (feature off + only new items)
+    //       → leave existing templates untouched
 
     // Return updated list
     const result = await queryWithRLS(bid,
@@ -205,7 +216,7 @@ router.post('/templates/sync', async (req, res, next) => {
       [bid, service_id]
     );
 
-    res.json({ templates: result.rows });
+    res.json({ templates: result.rows, feature_disabled_skipped: skippedNew > 0 ? skippedNew : undefined });
   } catch (err) { next(err); }
 });
 
