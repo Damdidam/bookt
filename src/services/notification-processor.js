@@ -583,7 +583,7 @@ async function processNotifications() {
             const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
             const amtStr = meta.amount ? ((meta.amount / 100).toFixed(2).replace('.', ',') + ' €') : '?';
             await sendEmail({
-              to: biz.email, toName: biz.name,
+              to: bk.biz_email, toName: bk.biz_name,
               subject: `⚠ Litige Stripe — ${amtStr} — action requise`,
               html: buildEmailHTML({
                 title: 'Litige reçu', preheader: `Un litige de ${amtStr} a été ouvert`,
@@ -594,45 +594,37 @@ async function processNotifications() {
                   </div>
                   <p style="font-size:13px;color:#6B6560">Connectez-vous à votre dashboard Stripe pour répondre au litige dans les délais.</p>`,
                 ctaText: 'Voir dans le dashboard', ctaUrl: `${baseUrl}/dashboard`,
-                businessName: biz.name, primaryColor: safeColor(biz.theme?.primary_color),
-                footerText: `${biz.name} · Via Genda.be`
+                businessName: bk.biz_name, primaryColor: safeColor(bk.biz_theme?.primary_color),
+                footerText: `${bk.biz_name} · Via Genda.be`
               }), fromName: 'Genda'
             });
             result = { success: true };
             break;
           }
           case 'email_deposit_orphan': {
-            const meta = notif.metadata || {};
-            const { sendEmail, buildEmailHTML, escHtml, safeColor } = require('./email-utils');
-            const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
-            await sendEmail({
-              to: biz.email, toName: biz.name,
+            const { sendEmail: _sendOrphan, buildEmailHTML: _buildOrphan, safeColor: _scOrphan } = require('./email-utils');
+            const _baseOrphan = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+            await _sendOrphan({
+              to: bk.biz_email, toName: bk.biz_name,
               subject: `Paiement orphelin détecté — vérification requise`,
-              html: buildEmailHTML({
+              html: _buildOrphan({
                 title: 'Paiement orphelin', preheader: 'Un paiement a été reçu pour un RDV annulé',
                 bodyHTML: `<p>Un paiement Stripe a été reçu pour un rendez-vous qui a été annulé ou n'existe plus.</p>
                   <div style="background:#FEF9C3;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #F59E0B">
                     <div style="font-size:14px;color:#3D3832">Un remboursement automatique a été tenté. Vérifiez votre dashboard Stripe.</div>
                   </div>`,
-                ctaText: 'Voir dans le dashboard', ctaUrl: `${baseUrl}/dashboard`,
-                businessName: biz.name, primaryColor: safeColor(biz.theme?.primary_color),
-                footerText: `${biz.name} · Via Genda.be`
+                ctaText: 'Voir dans le dashboard', ctaUrl: `${_baseOrphan}/dashboard`,
+                businessName: bk.biz_name, primaryColor: _scOrphan(bk.biz_theme?.primary_color),
+                footerText: `${bk.biz_name} · Via Genda.be`
               }), fromName: 'Genda'
             });
             result = { success: true };
             break;
           }
           case 'email_waitlist_offer': {
-            // Send waitlist offer email directly (client-facing)
-            try {
-              const { sendWaitlistOfferEmail } = require('./waitlist');
-              if (typeof sendWaitlistOfferEmail === 'function') {
-                await sendWaitlistOfferEmail(notif.booking_id, notif.metadata);
-              }
-              result = { success: true };
-            } catch (wlErr) {
-              result = { success: false, error: wlErr.message };
-            }
+            // Waitlist offers are sent directly at queue time (waitlist.js sendOfferEmail).
+            // If queued here, mark as sent (it was already sent or is a legacy entry).
+            result = { success: true };
             break;
           }
           default:

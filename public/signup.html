@@ -470,7 +470,7 @@ async function doSignup() {
   if (!bizName) return showError('Le nom du salon est requis.');
   if (phone && !/^\+?[\d\s\-().]{7,20}$/.test(phone)) return showError('Le numéro de téléphone n\'est pas valide.');
   if (!sector) return showError('Choisissez votre secteur d\'activité.');
-  if (pass && pass.length < 8) return showError('Le mot de passe doit faire au moins 8 caractères.');
+  if (!pass || pass.length < 8) return showError('Le mot de passe doit faire au moins 8 caractères.');
 
   const btn = document.getElementById('btnSignup');
   GendaUI.btnLoading(btn, true);
