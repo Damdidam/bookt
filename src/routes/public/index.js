@@ -527,11 +527,20 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         }
 
         // Insert each booking with group_id and group_order
+        // Promo carrier: for specific_service promos, only the FIRST matching service in the combo
+        // carries the promo (prevents double-counting when a combo has 2× the same service).
         const bookings = [];
+        let specificPromoAssigned = false;
         for (let _slotIdx = 0; _slotIdx < chainedSlots.length; _slotIdx++) {
           const slot = chainedSlots[_slotIdx];
           const slotPracId = slot.practitioner_id || practitioner_id;
           const slotDiscount = slotDiscounts[_slotIdx];
+          const isPromoCarrier = promoResult.valid && (
+            promoResult.condition_type === 'specific_service'
+              ? (!specificPromoAssigned && slot.service_id === promoResult.condition_service_id)
+              : slot.group_order === 0
+          );
+          if (isPromoCarrier && promoResult.condition_type === 'specific_service') specificPromoAssigned = true;
           const bk = await client.query(
             `INSERT INTO bookings (business_id, practitioner_id, service_id, service_variant_id, client_id,
               channel, appointment_mode, start_at, end_at, status, comment_client,
@@ -546,10 +555,10 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
              needsConfirmation ? new Date(Date.now() + confirmTimeoutMin * 60000).toISOString() : null,
              slot.processing_time || 0, slot.processing_start || 0, bookingStatus === 'confirmed' ? true : multiLocked,
              slotDiscount,
-             (promoResult.valid && (promoResult.condition_type === 'specific_service' ? slot.service_id === promoResult.condition_service_id : slot.group_order === 0)) ? promotion_id : null,
-             (promoResult.valid && (promoResult.condition_type === 'specific_service' ? slot.service_id === promoResult.condition_service_id : slot.group_order === 0)) ? promoResult.label : null,
-             (promoResult.valid && (promoResult.condition_type === 'specific_service' ? slot.service_id === promoResult.condition_service_id : slot.group_order === 0)) ? promoResult.discount_pct : null,
-             (promoResult.valid && (promoResult.condition_type === 'specific_service' ? slot.service_id === promoResult.condition_service_id : slot.group_order === 0)) ? promoResult.discount_cents : 0,
+             isPromoCarrier ? promotion_id : null,
+             isPromoCarrier ? promoResult.label : null,
+             isPromoCarrier ? promoResult.discount_pct : null,
+             isPromoCarrier ? promoResult.discount_cents : 0,
              slotBookedPrices[_slotIdx]]
           );
           bookings.push(bk.rows[0]);

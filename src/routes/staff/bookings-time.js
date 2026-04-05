@@ -500,7 +500,7 @@ router.patch('/:id/move', async (req, res, next) => {
             );
             // Apply discount_pct to get post-LM prices
             siblingsRes.rows.forEach(r => {
-              if (r.discount_pct && r.price_cents) r.price_cents = Math.round(r.price_cents * (100 - r.discount_pct) / 100);
+              if (r.discount_pct && r.price_cents) { r.original_price_cents = r.price_cents; r.price_cents = Math.round(r.price_cents * (100 - r.discount_pct) / 100); }
             });
             const groupServices = siblingsRes.rows;
 
@@ -1506,7 +1506,7 @@ router.patch('/:id/modify', async (req, res, next) => {
           );
           if (siblingsRes.rows.length > 1) {
             siblingsRes.rows.forEach(r => {
-              if (r.discount_pct && r.price_cents) r.price_cents = Math.round(r.price_cents * (100 - r.discount_pct) / 100);
+              if (r.discount_pct && r.price_cents) { r.original_price_cents = r.price_cents; r.price_cents = Math.round(r.price_cents * (100 - r.discount_pct) / 100); }
             });
             groupServices = siblingsRes.rows;
           }
@@ -1762,6 +1762,7 @@ router.post('/:id/send-reminder', async (req, res, next) => {
             // Apply last-minute discount to each group member's price
             grp.rows.forEach(r => {
               if (r.discount_pct && r.price_cents) {
+                r.original_price_cents = r.price_cents;
                 r.price_cents = Math.round(r.price_cents * (100 - r.discount_pct) / 100);
               }
             });

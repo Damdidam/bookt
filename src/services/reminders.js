@@ -144,6 +144,7 @@ async function process24hReminders(stats) {
           // Apply last-minute discount to each group member's price
           grp.rows.forEach(r => {
             if (r.discount_pct && r.price_cents) {
+              r.original_price_cents = r.price_cents;
               r.price_cents = Math.round(r.price_cents * (100 - r.discount_pct) / 100);
             }
           });
@@ -383,6 +384,7 @@ async function process2hReminders(stats) {
           // Apply last-minute discount to each group member's price
           grp.rows.forEach(r => {
             if (r.discount_pct && r.price_cents) {
+              r.original_price_cents = r.price_cents;
               r.price_cents = Math.round(r.price_cents * (100 - r.discount_pct) / 100);
             }
           });

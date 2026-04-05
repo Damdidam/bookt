@@ -209,7 +209,7 @@ async function processExpiredPendingBookings() {
           if (grp.rows.length > 1) {
             const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
             if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
-            grp.rows.forEach(r => { if (r.discount_pct && r.price_cents) r.price_cents = Math.round(r.price_cents * (100 - r.discount_pct) / 100); });
+            grp.rows.forEach(r => { if (r.discount_pct && r.price_cents) { r.original_price_cents = r.price_cents; r.price_cents = Math.round(r.price_cents * (100 - r.discount_pct) / 100); } });
             groupServices = grp.rows;
           }
         }

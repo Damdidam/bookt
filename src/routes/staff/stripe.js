@@ -376,7 +376,7 @@ async function handleStripeWebhook(req, res) {
                     const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
                     if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
                     groupServices = grp.rows;
-                    groupServices.forEach(r => { if (r.discount_pct && r.price_cents) r.price_cents = Math.round(r.price_cents * (100 - r.discount_pct) / 100); });
+                    groupServices.forEach(r => { if (r.discount_pct && r.price_cents) { r.original_price_cents = r.price_cents; r.price_cents = Math.round(r.price_cents * (100 - r.discount_pct) / 100); } });
                   }
                 } else if (d.group_id) {
                   const grp = await query(
@@ -396,7 +396,7 @@ async function handleStripeWebhook(req, res) {
                     const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
                     if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
                     groupServices = grp.rows;
-                    groupServices.forEach(r => { if (r.discount_pct && r.price_cents) r.price_cents = Math.round(r.price_cents * (100 - r.discount_pct) / 100); });
+                    groupServices.forEach(r => { if (r.discount_pct && r.price_cents) { r.original_price_cents = r.price_cents; r.price_cents = Math.round(r.price_cents * (100 - r.discount_pct) / 100); } });
                   }
                 }
                 if (groupServices) d.end_at = groupServices[groupServices.length - 1].end_at;

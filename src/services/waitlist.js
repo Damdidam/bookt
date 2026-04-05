@@ -193,7 +193,7 @@ async function processWaitlistForCancellation(bookingId, businessId) {
 
     broadcast(bk.business_id, 'waitlist_match', {
       mode: 'auto',
-      client_name: entry.client_name,
+      offered_to: entry.client_name,
       practitioner_name: bk.practitioner_name,
       service_name: bk.service_name,
       slot_start: bk.start_at,
@@ -358,7 +358,7 @@ async function processExpiredOffers() {
 
           broadcast(entry.business_id, 'waitlist_match', {
             mode: 'auto_cascade',
-            client_name: next.rows[0].client_name,
+            offered_to: next.rows[0].client_name,
             expired_from: entry.client_name,
             slot_start: entry.offer_booking_start
           });
