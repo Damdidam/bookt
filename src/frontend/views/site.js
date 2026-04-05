@@ -191,25 +191,20 @@ async function loadSiteSection(){
         <div class="tp-nav" style="background:rgba(255,250,247,.95);backdrop-filter:blur(8px)">
           <div class="dot" style="background:linear-gradient(135deg,#E8694A,#F15BB5)">G</div>
           <span class="tp-name" style="color:#1E1210;font-family:'Sora',sans-serif;font-weight:800;font-size:7px">GLOW</span>
-          <span class="tp-cta" style="background:#E8694A;font-family:'Sora',sans-serif;border-radius:100px;font-size:6px">Réserver ✨</span>
+          <span class="tp-cta" style="background:#E8694A;color:#fff;font-family:'Sora',sans-serif;border-radius:100px;font-size:5px;padding:2px 6px">Réserver</span>
         </div>
-        <div style="display:grid;grid-template-columns:1.2fr 1fr;gap:6px;padding:6px 8px 4px;align-items:center">
-          <div style="text-align:left">
-            <div style="display:inline-block;padding:1px 6px;border-radius:20px;background:#FFF3ED;font-size:4px;color:#E8694A;font-weight:700;margin-bottom:3px">● Dispo</div>
-            <div style="font-family:'Sora',sans-serif;font-size:8px;font-weight:800;color:#1E1210;line-height:1.1;letter-spacing:-.3px">Votre moment<br><span style="font-family:'Playfair Display',serif;font-style:italic;font-weight:400">beauté</span></div>
-            <div style="margin-top:3px"><span style="display:inline-block;padding:2px 8px;background:#E8694A;color:#fff;border-radius:20px;font-size:4px;font-weight:700;font-family:'Sora',sans-serif">Réserver</span></div>
-          </div>
-          <div style="aspect-ratio:1;border-radius:40% 60% 55% 45%/55% 40% 60% 45%;background:linear-gradient(135deg,#FFF3ED,#FFE8DA,#FFEAF5);display:flex;align-items:center;justify-content:center"><span style="font-family:'Playfair Display',serif;font-size:14px;color:#E8694A;opacity:.15;font-style:italic">glow</span></div>
-        </div>
-        <div style="display:flex;justify-content:center;gap:16px;padding:3px 8px;border-top:1px solid #F5E6DB;border-bottom:1px solid #F5E6DB">
-          <div style="text-align:center"><span style="font-size:7px;font-weight:800;background:linear-gradient(135deg,#E8694A,#F15BB5);-webkit-background-clip:text;-webkit-text-fill-color:transparent">500+</span><div style="font-size:3px;color:#B8A49A">Clientes</div></div>
-          <div style="text-align:center"><span style="font-size:7px;font-weight:800;background:linear-gradient(135deg,#E8694A,#F15BB5);-webkit-background-clip:text;-webkit-text-fill-color:transparent">4.9★</span><div style="font-size:3px;color:#B8A49A">Avis</div></div>
+        <div style="text-align:center;padding:10px 8px 6px">
+          <div style="display:inline-block;padding:1px 6px;border-radius:20px;background:#FFF3ED;font-size:3.5px;letter-spacing:1px;color:#E8694A;font-weight:700;margin-bottom:4px;text-transform:uppercase">● Dispo</div>
+          <div style="font-family:'Sora',sans-serif;font-size:10px;font-weight:800;color:#1E1210;line-height:1.1;letter-spacing:-.3px">Votre moment<br><span style="font-family:'Playfair Display',serif;font-style:italic;font-weight:400;color:#E8694A">beauté</span></div>
+          <div style="margin-top:5px"><span style="display:inline-block;padding:2px 8px;background:#E8694A;color:#fff;border-radius:20px;font-size:4px;font-weight:700;font-family:'Sora',sans-serif">Réserver ✨</span></div>
         </div>
       </div>
       <div class="theme-info">
         <h4>Funky</h4>
         <p>Corail + gradients. Punchy, fun, salons beauté.</p>
-        <p style="font-size:.6rem;color:var(--text-4);margin-top:3px">Sora + Playfair Display</p>
+        <div style="display:flex;gap:6px;margin-top:6px;align-items:center">
+          ${FAMILIES[0].presets.map(v=>`<div onclick="event.stopPropagation();selectTheme('${v.key}')" style="width:18px;height:18px;border-radius:50%;background:${v.color};cursor:pointer;border:2px solid ${v.key===currentThemePreset?'var(--text)':'transparent'};transition:all .2s;box-shadow:${v.key===currentThemePreset?'0 0 0 2px var(--bg), 0 0 0 4px var(--text)':'none'}" title="${v.label}"></div>`).join('')}
+        </div>
       </div>
     </div>`;
 

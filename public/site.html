@@ -1336,9 +1336,9 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'&&document.ge
     charbon: { accent:'#555555', bg:'#FEFEFE', text:'#1A1A1A', subtle:'#F5F5F5', border:'#E0E0E0', textLight:'#888' },
     /* ── Bold (dark) ── */
     nuit:       { accent:'#D4AF37', bg:'#111827', text:'#F9FAFB', subtle:'#1F2937', border:'#374151', textLight:'#9CA3AF' },
-    foret:      { accent:'#6EE7B7', bg:'#0F172A', text:'#F1F5F9', subtle:'#1E293B', border:'#334155', textLight:'#94A3B8' },
-    bordeaux:   { accent:'#F87171', bg:'#1C1017', text:'#FBF0F0', subtle:'#2D1A24', border:'#4A2535', textLight:'#B08898' },
-    electrique: { accent:'#818CF8', bg:'#0F0F23', text:'#F0F0FF', subtle:'#1A1A3E', border:'#2E2E5E', textLight:'#9898C8' },
+    foret:      { accent:'#A8C5A0', bg:'#0F1D1A', text:'#F0F4ED', subtle:'#1A2E28', border:'#2D4A3E', textLight:'#8A9E85' },
+    bordeaux:   { accent:'#E8A0BF', bg:'#1A0F18', text:'#FBF0F5', subtle:'#2D1B2E', border:'#4A2D45', textLight:'#B08A9E' },
+    electrique: { accent:'#4ECDC4', bg:'#0F1419', text:'#F0F8F7', subtle:'#1A2332', border:'#2D4A55', textLight:'#7BA8A3' },
     /* ── Funky (warm) ── */
     funky:      { accent:'#E8694A', bg:'#FFFAF7', text:'#1E1210', subtle:'#FFF3ED', border:'#F0D5C4', textLight:'#8A7068' }
   };
@@ -1621,6 +1621,13 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'&&document.ge
     // Apply theme
     var family = getFamily(preset);
     applyTheme(getVariant(preset), family);
+    // Custom primary_color override takes precedence
+    if (b.theme && b.theme.primary_color) {
+      var r = document.documentElement;
+      r.style.setProperty('--accent', b.theme.primary_color);
+      var meta = document.getElementById('themeColor');
+      if (meta) meta.content = b.theme.primary_color;
+    }
 
     // SEO
     var title = b.seo_title || b.name + ' \u2014 ' + (b.tagline || 'Prenez rendez-vous en ligne');

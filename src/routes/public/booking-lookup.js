@@ -381,11 +381,29 @@ router.post('/:slug/lookup-my-bookings', lookupLimiter, async (req, res, next) =
     if (bizRes.rows.length === 0) return res.json(genericResponse);
     const business = bizRes.rows[0];
 
-    // Find upcoming active bookings for this email at this business
+    // Find upcoming active bookings for this email at this business.
+    // For grouped (multi-service) bookings, aggregate all sibling services
+    // into a single label so the lookup email shows the complete prestation list.
     const bkRes = await query(
       `SELECT b.id, b.public_token, b.start_at,
-              CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
-              p.display_name AS practitioner_name
+              COALESCE(
+                (SELECT string_agg(
+                   CASE WHEN sv2.name IS NOT NULL THEN s2.name || ' — ' || sv2.name ELSE s2.name END,
+                   ' + ' ORDER BY b2.group_order, b2.start_at)
+                 FROM bookings b2
+                 LEFT JOIN services s2 ON s2.id = b2.service_id
+                 LEFT JOIN service_variants sv2 ON sv2.id = b2.service_variant_id
+                 WHERE b2.group_id = b.group_id AND b.group_id IS NOT NULL),
+                CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END
+              ) AS service_name,
+              CASE
+                WHEN b.group_id IS NOT NULL AND (
+                  SELECT COUNT(DISTINCT b3.practitioner_id)
+                  FROM bookings b3
+                  WHERE b3.group_id = b.group_id
+                ) > 1 THEN NULL
+                ELSE p.display_name
+              END AS practitioner_name
        FROM bookings b
        LEFT JOIN clients c ON c.id = b.client_id
        LEFT JOIN services s ON s.id = b.service_id
