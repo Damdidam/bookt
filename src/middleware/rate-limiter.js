@@ -86,4 +86,16 @@ const adminLimiter = rateLimit({
   legacyHeaders: false
 });
 
-module.exports = { bookingLimiter, slotsLimiter, authLimiter, clientPhoneLimiter, depositLimiter, bookingActionLimiter, adminLimiter };
+/**
+ * Rate limiter for authenticated staff routes.
+ * 120 requests per minute per IP — prevent abuse from compromised tokens.
+ */
+const staffLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  message: { error: 'Trop de requêtes. Réessayez dans une minute.' },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+module.exports = { bookingLimiter, slotsLimiter, authLimiter, clientPhoneLimiter, depositLimiter, bookingActionLimiter, adminLimiter, staffLimiter };

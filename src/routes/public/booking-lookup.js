@@ -2,12 +2,13 @@ const router = require('express').Router();
 const { query } = require('../../services/db');
 const { getCategoryLabels } = require('../../services/email');
 const { SECTOR_PRACTITIONER } = require('./helpers');
+const { bookingActionLimiter } = require('../../middleware/rate-limiter');
 
 // ============================================================
 // GET /api/public/booking/:token
 // Read-only booking view (for booking confirmation pages)
 // ============================================================
-router.get('/booking/:token', async (req, res, next) => {
+router.get('/booking/:token', bookingActionLimiter, async (req, res, next) => {
   try {
     const { token } = req.params;
     const result = await query(
@@ -157,7 +158,7 @@ router.get('/booking/:token', async (req, res, next) => {
 // GET /api/public/manage/:token
 // Booking details + reschedule eligibility
 // ============================================================
-router.get('/manage/:token', async (req, res, next) => {
+router.get('/manage/:token', bookingActionLimiter, async (req, res, next) => {
   try {
     const { token } = req.params;
     const result = await query(

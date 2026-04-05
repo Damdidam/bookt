@@ -515,7 +515,7 @@ async function processNotifications() {
       `SELECT id, business_id, booking_id, type, metadata, created_at
        FROM notifications
        WHERE status = 'queued'
-         AND type IN ('email_new_booking_pro', 'email_cancellation_pro', 'email_reschedule_pro', 'email_modification_confirmed', 'email_modification_rejected', 'email_post_rdv')
+         AND type IN ('email_new_booking_pro', 'email_cancellation_pro', 'email_reschedule_pro', 'email_modification_confirmed', 'email_modification_rejected', 'email_post_rdv', 'email_dispute_alert', 'email_deposit_orphan', 'email_waitlist_offer')
          AND (metadata->>'delay_until' IS NULL OR (metadata->>'delay_until')::timestamptz <= NOW())
        ORDER BY created_at ASC
        LIMIT 50
@@ -576,6 +576,65 @@ async function processNotifications() {
           case 'email_post_rdv':
             result = await sendReviewEmail(bk, notif.metadata);
             break;
+          case 'email_dispute_alert': {
+            // Send dispute alert email to merchant
+            const meta = notif.metadata || {};
+            const { sendEmail, buildEmailHTML, escHtml, safeColor } = require('./email-utils');
+            const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+            const amtStr = meta.amount ? ((meta.amount / 100).toFixed(2).replace('.', ',') + ' €') : '?';
+            await sendEmail({
+              to: biz.email, toName: biz.name,
+              subject: `⚠ Litige Stripe — ${amtStr} — action requise`,
+              html: buildEmailHTML({
+                title: 'Litige reçu', preheader: `Un litige de ${amtStr} a été ouvert`,
+                bodyHTML: `<p>Un litige a été ouvert sur un paiement.</p>
+                  <div style="background:#FEF2F2;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #EF4444">
+                    <div style="font-size:15px;font-weight:600;color:#DC2626">Litige de ${amtStr}</div>
+                    <div style="font-size:14px;color:#3D3832;margin-top:4px">Motif : ${escHtml(meta.reason || 'Non spécifié')}</div>
+                  </div>
+                  <p style="font-size:13px;color:#6B6560">Connectez-vous à votre dashboard Stripe pour répondre au litige dans les délais.</p>`,
+                ctaText: 'Voir dans le dashboard', ctaUrl: `${baseUrl}/dashboard`,
+                businessName: biz.name, primaryColor: safeColor(biz.theme?.primary_color),
+                footerText: `${biz.name} · Via Genda.be`
+              }), fromName: 'Genda'
+            });
+            result = { success: true };
+            break;
+          }
+          case 'email_deposit_orphan': {
+            const meta = notif.metadata || {};
+            const { sendEmail, buildEmailHTML, escHtml, safeColor } = require('./email-utils');
+            const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+            await sendEmail({
+              to: biz.email, toName: biz.name,
+              subject: `Paiement orphelin détecté — vérification requise`,
+              html: buildEmailHTML({
+                title: 'Paiement orphelin', preheader: 'Un paiement a été reçu pour un RDV annulé',
+                bodyHTML: `<p>Un paiement Stripe a été reçu pour un rendez-vous qui a été annulé ou n'existe plus.</p>
+                  <div style="background:#FEF9C3;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #F59E0B">
+                    <div style="font-size:14px;color:#3D3832">Un remboursement automatique a été tenté. Vérifiez votre dashboard Stripe.</div>
+                  </div>`,
+                ctaText: 'Voir dans le dashboard', ctaUrl: `${baseUrl}/dashboard`,
+                businessName: biz.name, primaryColor: safeColor(biz.theme?.primary_color),
+                footerText: `${biz.name} · Via Genda.be`
+              }), fromName: 'Genda'
+            });
+            result = { success: true };
+            break;
+          }
+          case 'email_waitlist_offer': {
+            // Send waitlist offer email directly (client-facing)
+            try {
+              const { sendWaitlistOfferEmail } = require('./waitlist');
+              if (typeof sendWaitlistOfferEmail === 'function') {
+                await sendWaitlistOfferEmail(notif.booking_id, notif.metadata);
+              }
+              result = { success: true };
+            } catch (wlErr) {
+              result = { success: false, error: wlErr.message };
+            }
+            break;
+          }
           default:
             result = { success: false, error: 'unknown_type' };
         }

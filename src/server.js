@@ -184,31 +184,32 @@ app.use('/api/auth', signupRoutes);
 // Admin API (superadmin only)
 app.use('/api/admin', adminRoutes);
 
-// Staff API (auth required — dashboard)
-app.use('/api/dashboard', dashboardRoutes);
-app.use('/api/bookings', bookingsRoutes);
-app.use('/api/services', servicesRoutes);
-app.use('/api/clients', clientsRoutes);
-app.use('/api/availabilities', availabilityRoutes);
-app.use('/api/business', settingsRoutes);
-app.use('/api/site', siteRoutes);
-app.use('/api/practitioners', practitionerRoutes);
-app.use('/api/invoices', invoiceRoutes);
-app.use('/api/deposits', depositRoutes);
-app.use('/api/calendar', calendarRoutes);
-app.use('/api/waitlist', waitlistRoutes);
-app.use('/api/gallery', galleryRoutes);
-app.use('/api/realisations', realisationsRoutes);
-app.use('/api/news', newsRoutes);
-app.use('/api/reviews', reviewRoutes);
-app.use('/api/featured-slots', featuredSlotsRoutes);
-app.use('/api/planning', planningRoutes);
-app.use('/api/tasks', taskRoutes);
-app.use('/api/business-hours', requireAuth, businessHoursRoutes);
-app.use('/api/stripe', stripeRoutes);
-app.use('/api/gift-cards', giftCardRoutes);
-app.use('/api/passes', passRoutes);
-app.use('/api/promotions', promotionRoutes);
+// Staff API (auth required — dashboard) — RATE-4: global staff rate limit
+const { staffLimiter: _staffLimiter } = require('./middleware/rate-limiter');
+app.use('/api/dashboard', _staffLimiter, dashboardRoutes);
+app.use('/api/bookings', _staffLimiter, bookingsRoutes);
+app.use('/api/services', _staffLimiter, servicesRoutes);
+app.use('/api/clients', _staffLimiter, clientsRoutes);
+app.use('/api/availabilities', _staffLimiter, availabilityRoutes);
+app.use('/api/business', _staffLimiter, settingsRoutes);
+app.use('/api/site', _staffLimiter, siteRoutes);
+app.use('/api/practitioners', _staffLimiter, practitionerRoutes);
+app.use('/api/invoices', _staffLimiter, invoiceRoutes);
+app.use('/api/deposits', _staffLimiter, depositRoutes);
+app.use('/api/calendar', _staffLimiter, calendarRoutes);
+app.use('/api/waitlist', _staffLimiter, waitlistRoutes);
+app.use('/api/gallery', _staffLimiter, galleryRoutes);
+app.use('/api/realisations', _staffLimiter, realisationsRoutes);
+app.use('/api/news', _staffLimiter, newsRoutes);
+app.use('/api/reviews', _staffLimiter, reviewRoutes);
+app.use('/api/featured-slots', _staffLimiter, featuredSlotsRoutes);
+app.use('/api/planning', _staffLimiter, planningRoutes);
+app.use('/api/tasks', _staffLimiter, taskRoutes);
+app.use('/api/business-hours', requireAuth, _staffLimiter, businessHoursRoutes);
+app.use('/api/stripe', _staffLimiter, stripeRoutes);
+app.use('/api/gift-cards', _staffLimiter, giftCardRoutes);
+app.use('/api/passes', _staffLimiter, passRoutes);
+app.use('/api/promotions', _staffLimiter, promotionRoutes);
 
 // Webhooks (Twilio)
 app.use('/webhooks/twilio', twilioWebhooks);
@@ -266,8 +267,9 @@ button:hover{background:#0A5E61}
 </body></html>`;
 }
 
-// Minisite test mode — password verification
-app.post('/:slug/access', async (req, res) => {
+// Minisite test mode — password verification (RATE-1: add auth limiter to prevent brute force)
+const { authLimiter: _accessLimiter } = require('./middleware/rate-limiter');
+app.post('/:slug/access', _accessLimiter, async (req, res) => {
   try {
     const { rows } = await pool.query(
       'SELECT settings FROM businesses WHERE slug = $1 AND is_active = true LIMIT 1',

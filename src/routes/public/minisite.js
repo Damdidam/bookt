@@ -3,6 +3,7 @@ const { query, queryWithRLS } = require('../../services/db');
 const { getAvailableSlots } = require('../../services/slot-engine');
 const { getCategoryLabels } = require('../../services/email');
 const { _nextSlotCache, _minisiteCache, SECTOR_PRACTITIONER } = require('./helpers');
+const { slotsLimiter } = require('../../middleware/rate-limiter');
 
 // ============================================================
 // GET /api/public/sector-categories
@@ -29,7 +30,7 @@ router.get('/sector-categories', async (req, res) => {
 // FULL mini-site data — everything needed to render the public page
 // UI: The entire booking-minisite-public.html
 // ============================================================
-router.get('/:slug', async (req, res, next) => {
+router.get('/:slug', slotsLimiter, async (req, res, next) => {
   try {
     const { slug } = req.params;
 

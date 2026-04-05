@@ -1,11 +1,12 @@
 const router = require('express').Router();
 const { query } = require('../../services/db');
+const { bookingActionLimiter } = require('../../middleware/rate-limiter');
 
 // ============================================================
 // GET /api/public/booking/:token/calendar.ics
 // ICS calendar export (legacy endpoint)
 // ============================================================
-router.get('/booking/:token/calendar.ics', async (req, res, next) => {
+router.get('/booking/:token/calendar.ics', bookingActionLimiter, async (req, res, next) => {
   try {
     const { token } = req.params;
     const result = await query(
@@ -89,7 +90,7 @@ router.get('/booking/:token/calendar.ics', async (req, res, next) => {
 // GET /api/public/booking/:token/ics
 // ICS calendar export (new endpoint)
 // ============================================================
-router.get('/booking/:token/ics', async (req, res, next) => {
+router.get('/booking/:token/ics', bookingActionLimiter, async (req, res, next) => {
   try {
     const result = await query(
       `SELECT b.id, b.start_at, b.end_at, b.appointment_mode, b.group_id, b.business_id,

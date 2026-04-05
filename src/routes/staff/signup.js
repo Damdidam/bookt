@@ -3,7 +3,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { query } = require('../../services/db');
 const { authLimiter } = require('../../middleware/rate-limiter');
-const { sendEmail, buildEmailHTML } = require('../../services/email-utils');
+const { sendEmail, buildEmailHTML, escHtml } = require('../../services/email-utils');
 
 // ============================================================
 // POST /api/auth/signup
@@ -268,13 +268,13 @@ router.post('/signup', authLimiter, async (req, res, next) => {
               businessName: 'Genda Admin',
               primaryColor: '#0D7377',
               bodyHTML: `
-                <p style="margin:0 0 12px"><strong>${business_name}</strong> vient de s'inscrire sur Genda.</p>
+                <p style="margin:0 0 12px"><strong>${escHtml(business_name)}</strong> vient de s'inscrire sur Genda.</p>
                 <table style="font-size:14px;line-height:1.8;color:#3D3832">
-                  <tr><td style="font-weight:600;padding-right:12px">Propriétaire</td><td>${full_name}</td></tr>
-                  <tr><td style="font-weight:600;padding-right:12px">Email</td><td>${email}</td></tr>
-                  <tr><td style="font-weight:600;padding-right:12px">Secteur</td><td>${sector || 'autre'}</td></tr>
-                  <tr><td style="font-weight:600;padding-right:12px">Téléphone</td><td>${business_phone || '—'}</td></tr>
-                  <tr><td style="font-weight:600;padding-right:12px">Adresse</td><td>${finalAddress || '—'}</td></tr>
+                  <tr><td style="font-weight:600;padding-right:12px">Propriétaire</td><td>${escHtml(full_name)}</td></tr>
+                  <tr><td style="font-weight:600;padding-right:12px">Email</td><td>${escHtml(email)}</td></tr>
+                  <tr><td style="font-weight:600;padding-right:12px">Secteur</td><td>${escHtml(sector || 'autre')}</td></tr>
+                  <tr><td style="font-weight:600;padding-right:12px">Téléphone</td><td>${escHtml(business_phone || '—')}</td></tr>
+                  <tr><td style="font-weight:600;padding-right:12px">Adresse</td><td>${escHtml(finalAddress || '—')}</td></tr>
                   <tr><td style="font-weight:600;padding-right:12px">Minisite</td><td><a href="${baseUrl}/${slug}" style="color:#0D7377">${baseUrl}/${slug}</a></td></tr>
                 </table>`,
               ctaText: 'Voir dans le panel admin',
