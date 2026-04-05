@@ -72,7 +72,8 @@ app.use(helmet({
       fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
       frameSrc: ["https://js.stripe.com", "https://maps.google.com", "https://www.google.com"],
       objectSrc: ["'none'"],
-      baseUri: ["'self'"]
+      baseUri: ["'self'"],
+      frameAncestors: ["'self'", "https:", "http:"]
     }
   },
   crossOriginEmbedderPolicy: false

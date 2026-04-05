@@ -84,8 +84,13 @@ async function generateInvoicePDF(invoice, items, opts = {}) {
     doc.text('Total', cols.total, y + 6, { width: 55, align: 'right' });
     y += 26;
 
-    // Table rows
+    // Table rows (with page overflow handling)
+    const PAGE_BOTTOM = doc.page.height - 120; // leave space for totals + footer
     items.forEach((item, i) => {
+      if (y > PAGE_BOTTOM) {
+        doc.addPage();
+        y = 50;
+      }
       if (i % 2 === 0) {
         doc.rect(50, y - 2, W, 20).fillColor('#FAFAF9').fill();
       }
@@ -100,7 +105,8 @@ async function generateInvoicePDF(invoice, items, opts = {}) {
       y += 22;
     });
 
-    // Divider
+    // Divider (ensure totals section starts on a page with enough space)
+    if (y > doc.page.height - 180) { doc.addPage(); y = 50; }
     y += 4;
     doc.moveTo(350, y).lineTo(W + 50, y).strokeColor(BORDER).lineWidth(0.5).stroke();
     y += 10;
@@ -178,8 +184,10 @@ async function generateInvoicePDF(invoice, items, opts = {}) {
  * Based on invoice number, with modulo 97 check digit
  */
 function generateStructuredComm(invoiceNumber) {
-  // Extract digits from invoice number
-  const digits = invoiceNumber.replace(/\D/g, '');
+  // Extract digits from invoice number + encode type prefix for uniqueness
+  // F=1, NC=2, D=3 — so F-2026-0001 and NC-2026-0001 produce different communications
+  const typePrefix = invoiceNumber.startsWith('NC') ? '2' : invoiceNumber.startsWith('D') ? '3' : '1';
+  const digits = typePrefix + invoiceNumber.replace(/\D/g, '');
   // Pad to 10 digits
   const base = digits.padStart(10, '0').slice(-10);
   const num = BigInt(base);
@@ -221,7 +229,7 @@ async function getNextInvoiceNumber(queryFn, businessId, type) {
 }
 
 function formatMoney(cents) {
-  const val = (cents / 100).toFixed(2);
+  const val = ((cents || 0) / 100).toFixed(2);
   return val.replace('.', ',') + ' €';
 }
 
