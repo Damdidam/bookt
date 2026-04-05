@@ -164,14 +164,19 @@ router.post('/sms/inbound', async (req, res) => {
             let groupServices = null;
             if (row.group_id) {
               const grp = await query(
-                `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' — ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name, COALESCE(sv.duration_min, s.duration_min) AS duration_min, COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at, b.practitioner_id, p.display_name AS practitioner_name FROM bookings b LEFT JOIN services s ON s.id = b.service_id LEFT JOIN service_variants sv ON sv.id = b.service_variant_id LEFT JOIN practitioners p ON p.id = b.practitioner_id WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
+                `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' — ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name, COALESCE(sv.duration_min, s.duration_min) AS duration_min, COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.discount_pct, b.end_at, b.practitioner_id, p.display_name AS practitioner_name FROM bookings b LEFT JOIN services s ON s.id = b.service_id LEFT JOIN service_variants sv ON sv.id = b.service_variant_id LEFT JOIN practitioners p ON p.id = b.practitioner_id WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
                 [row.group_id, row.business_id]
               );
-              if (grp.rows.length > 1) groupServices = grp.rows;
+              if (grp.rows.length > 1) {
+                grp.rows.forEach(r => { if (r.discount_pct && r.price_cents) { r.original_price_cents = r.price_cents; r.price_cents = Math.round(r.price_cents * (100 - r.discount_pct) / 100); } });
+                groupServices = grp.rows;
+              }
             }
             const { sendBookingConfirmation } = require('../../services/email');
+            // service_price_cents passed as raw catalog; email template applies LM via discount_pct.
+            // Pre-reducing here AND passing discount_pct would double-reduce (booked_price_cents not selected).
             await sendBookingConfirmation({
-              booking: { public_token: row.public_token, start_at: row.start_at, end_at: groupServices ? groupServices[groupServices.length - 1].end_at : row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, service_category: row.service_category, service_price_cents: row.discount_pct ? Math.round(row.service_price_cents * (100 - row.discount_pct) / 100) : row.service_price_cents, duration_min: row.duration_min, practitioner_name: row.practitioner_name, comment: row.comment_client, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_payment_intent_id: row.deposit_payment_intent_id, promotion_label: row.promotion_label, promotion_discount_cents: row.promotion_discount_cents, promotion_discount_pct: row.promotion_discount_pct, discount_pct: row.discount_pct },
+              booking: { public_token: row.public_token, start_at: row.start_at, end_at: groupServices ? groupServices[groupServices.length - 1].end_at : row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, service_category: row.service_category, service_price_cents: row.service_price_cents, duration_min: row.duration_min, practitioner_name: row.practitioner_name, comment: row.comment_client, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_payment_intent_id: row.deposit_payment_intent_id, promotion_label: row.promotion_label, promotion_discount_cents: row.promotion_discount_cents, promotion_discount_pct: row.promotion_discount_pct, discount_pct: row.discount_pct },
               business: { name: row.biz_name, email: row.biz_email, phone: row.biz_phone, address: row.biz_address, theme: row.biz_theme, settings: row.biz_settings },
               groupServices
             });

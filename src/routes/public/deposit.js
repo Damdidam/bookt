@@ -437,8 +437,9 @@ router.post('/deposit/:token/verify', depositLimiter, async (req, res, next) => 
         );
         if (bkData.rows.length > 0 && bkData.rows[0].client_email) {
           const d = bkData.rows[0];
-          // Apply last-minute discount to service_price_cents
-          if (d.discount_pct && d.service_price_cents) d.service_price_cents = Math.round(d.service_price_cents * (100 - d.discount_pct) / 100);
+          // NOTE: service_price_cents kept as raw catalog price. The email template
+          // applies LM via discount_pct itself — overwriting here would double-reduce
+          // (since booked_price_cents is not selected, template falls back to manual calc).
           let groupServices = null;
           const allLinkedIds = [bk.id, ...sibIds];
           if (allLinkedIds.length > 1) {

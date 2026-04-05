@@ -463,7 +463,7 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
             const grp = await query(
               `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS name,
                       COALESCE(sv.duration_min, s.duration_min) AS duration_min,
-                      COALESCE(sv.price_cents, s.price_cents) AS price_cents,
+                      COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.discount_pct,
                       b.practitioner_id, p.display_name AS practitioner_name, b.end_at
                FROM bookings b LEFT JOIN services s ON s.id = b.service_id
                LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
@@ -475,6 +475,7 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
             if (grp.rows.length > 1) {
               const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
               if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
+              grp.rows.forEach(r => { if (r.discount_pct && r.price_cents) { r.original_price_cents = r.price_cents; r.price_cents = Math.round(r.price_cents * (100 - r.discount_pct) / 100); } });
               groupServices = grp.rows;
               bkRow.end_at = grp.rows[grp.rows.length - 1].end_at;
             }

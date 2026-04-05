@@ -561,8 +561,8 @@ router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) 
         );
         if (bkData.rows.length) {
           const r = bkData.rows[0];
-          // Apply last-minute discount to service_price_cents
-          if (r.discount_pct && r.service_price_cents) r.service_price_cents = Math.round(r.service_price_cents * (100 - r.discount_pct) / 100);
+          // NOTE: service_price_cents kept as raw catalog price. Email template applies
+          // LM via discount_pct — overwriting here would double-reduce the displayed price.
           // Fetch group services for split bookings
           let groupSvcs = null;
           if (r.group_id) {
