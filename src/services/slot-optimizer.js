@@ -20,22 +20,49 @@ function gcdArray(arr) {
 
 /**
  * Compute optimal slot granularity from an array of service durations.
+ * Tests practical increments (10, 15, 20, 30) and picks the largest one
+ * that creates minimal wasted time between appointments.
+ *
+ * "Waste" = dead time between end of service and next available slot.
+ * For a service of X min with increment G: waste = (G - (X % G)) % G
+ *
+ * Example: services [20, 30, 45]
+ *   G=15: waste avg = (10+0+0)/3 = 3.3 min → ✓ acceptable, pick 15
+ *   G=10: waste avg = (0+0+5)/3  = 1.7 min → ✓ but 10 < 15, so 15 wins
+ *   G=5:  waste = 0 everywhere    → too granular, unnecessary
+ *
  * @param {number[]} durations — all active service durations in minutes
- * @returns {number} granularity in minutes, clamped [5, 30]
+ * @returns {number} granularity in minutes, one of [5, 10, 15, 20, 30]
  */
 function computeOptimalGranularity(durations) {
-  if (!durations || durations.length === 0) return 15; // fallback
+  if (!durations || durations.length === 0) return 15;
 
-  // Filter out invalid values
   const valid = durations.filter(d => d > 0);
   if (valid.length === 0) return 15;
 
+  // Unique durations weighted by frequency (more common = more important)
+  const freqMap = {};
+  for (const d of valid) freqMap[d] = (freqMap[d] || 0) + 1;
+  const unique = Object.keys(freqMap).map(Number);
+  const totalWeight = valid.length;
+
+  // Test practical increments from largest to smallest
+  const candidates = [30, 20, 15, 10];
+  const MAX_AVG_WASTE = 5; // max 5 min average waste acceptable
+
+  for (const g of candidates) {
+    let weightedWaste = 0;
+    for (const d of unique) {
+      const waste = (g - (d % g)) % g;
+      weightedWaste += waste * freqMap[d];
+    }
+    const avgWaste = weightedWaste / totalWeight;
+    if (avgWaste <= MAX_AVG_WASTE) return g;
+  }
+
+  // Fallback: GCD approach for unusual durations (7, 13, etc.)
   let g = gcdArray(valid);
-
-  // If GCD > 30, halve until reasonable
   while (g > 30) g = Math.floor(g / 2);
-
-  // Clamp minimum to 5
   return Math.max(g, 5);
 }
 
