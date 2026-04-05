@@ -302,6 +302,14 @@ router.delete('/:id', requireAuth, requireOwner, async (req, res, next) => {
   try {
     if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid promotion ID' });
 
+    // FK bookings.promotion_id has ON DELETE NO ACTION, so we must unlink historical
+    // bookings first. Denormalized fields (promotion_label, promotion_discount_cents,
+    // promotion_discount_pct) remain on each booking for historical reporting.
+    await queryWithRLS(req.businessId,
+      `UPDATE bookings SET promotion_id = NULL WHERE promotion_id = $1 AND business_id = $2`,
+      [req.params.id, req.businessId]
+    );
+
     const result = await queryWithRLS(req.businessId,
       `DELETE FROM promotions WHERE id = $1 AND business_id = $2 RETURNING id`,
       [req.params.id, req.businessId]
