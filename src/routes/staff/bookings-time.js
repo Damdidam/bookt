@@ -338,19 +338,10 @@ router.patch('/:id/move', async (req, res, next) => {
               const promoRes = await client.query(`SELECT * FROM promotions WHERE id = $1`, [grpPromoId]);
               const promo = promoRes.rows[0];
               if (promo) {
-                // H2 fix: Re-validate promo date range after group move
-                const _grpMovedDate = new Date(totalStart).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
-                const _grpPromoValid = promo.is_active !== false
-                  && (!promo.condition_start_date || _grpMovedDate >= new Date(promo.condition_start_date).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' }))
-                  && (!promo.condition_end_date || _grpMovedDate <= new Date(promo.condition_end_date).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' }));
-                if (!_grpPromoValid) {
-                  for (const uid of updates.map(u => u.id)) {
-                    await client.query(
-                      `UPDATE bookings SET promotion_id = NULL, promotion_label = NULL, promotion_discount_cents = 0, promotion_discount_pct = NULL WHERE id = $1`,
-                      [uid]
-                    );
-                  }
-                } else {
+                // Promo earned at booking time stays earned on move — we no longer
+                // wipe when the new date falls outside condition_start_date/end_date
+                // or when is_active flipped to false. Only the discount amount is
+                // recalculated below (relevant if LM% changed).
                 const allIds = updates.map(u => u.id);
                 let groupTotal = 0;
                 for (const uid of allIds) {
@@ -399,7 +390,6 @@ router.patch('/:id/move', async (req, res, next) => {
                     );
                   }
                 }
-                } // end else _grpPromoValid
               }
             }
           }
@@ -690,21 +680,9 @@ router.patch('/:id/move', async (req, res, next) => {
           if (singlePromoId) {
             const promoRes = await client.query(`SELECT * FROM promotions WHERE id = $1`, [singlePromoId]);
             const promo = promoRes.rows[0];
-            // H2 fix: Re-validate promo date range after staff move (same as client reschedule)
+            // Promo earned at booking time stays earned on move — no longer wiped
+            // when the new date is out of condition range or is_active flipped.
             if (promo) {
-              const _promoStillValid = (() => {
-                if (!promo.is_active) return false;
-                const _movedDateStr = new Date(moved.start_at).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
-                if (promo.condition_start_date && _movedDateStr < new Date(promo.condition_start_date).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' })) return false;
-                if (promo.condition_end_date && _movedDateStr > new Date(promo.condition_end_date).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' })) return false;
-                return true;
-              })();
-              if (!_promoStillValid) {
-                await client.query(
-                  `UPDATE bookings SET promotion_id = NULL, promotion_label = NULL, promotion_discount_cents = 0, promotion_discount_pct = NULL WHERE id = $1`,
-                  [id]
-                );
-              } else {
               const mRes = await client.query(
                 `SELECT COALESCE(sv.price_cents, s.price_cents, 0) AS eff_price, b.discount_pct
                  FROM bookings b
@@ -735,7 +713,6 @@ router.patch('/:id/move', async (req, res, next) => {
                   );
                 }
               }
-              } // end else _promoStillValid
             }
           }
         }

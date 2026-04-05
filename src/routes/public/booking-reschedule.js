@@ -375,31 +375,13 @@ router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) 
         const promoRes = await client.query(`SELECT * FROM promotions WHERE id = $1`, [promoId]);
         const promo = promoRes.rows[0];
 
-        // Re-validate promo conditions for new date
-        const promoValid = (() => {
-          if (!promo) return false;
-          if (!promo.is_active) return false;
-          // Check date range
-          if (promo.condition_start_date) {
-            const newStartDate = new Date(start_at).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
-            if (newStartDate < new Date(promo.condition_start_date).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' })) return false;
-          }
-          if (promo.condition_end_date) {
-            const newStartDate = new Date(start_at).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
-            if (newStartDate > new Date(promo.condition_end_date).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' })) return false;
-          }
-          return true;
-        })();
-
-        if (!promoValid) {
-          // Promo no longer valid for new date — remove it
-          for (const uid of promoIds) {
-            await client.query(
-              `UPDATE bookings SET promotion_id = NULL, promotion_label = NULL, promotion_discount_cents = 0, promotion_discount_pct = NULL WHERE id = $1`,
-              [uid]
-            );
-          }
-        } else if (promo) {
+        // Once earned, a promo stays earned. We no longer wipe it when the new
+        // start_at falls outside condition_start_date/condition_end_date or when
+        // the promo has been deactivated — the client acquired the discount at
+        // booking time and reschedule must not retroactively revoke it. The
+        // discount amount IS still recalculated below to reflect any change in
+        // the LM-adjusted base price.
+        if (promo) {
           // Fetch each member's adjusted price (after LM discount) and sum for group total
           let groupTotal = 0;
           const memberPrices = [];
