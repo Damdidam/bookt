@@ -8,6 +8,10 @@ import { isPro, showProGate } from '../utils/plan-gate.js';
 
 let gcFilter='all',gcSearch='';
 let _lastCards=[];
+// Recipient autocomplete state (create gift card modal)
+let _gcClientSearchTimer=null;
+let _gcClientSearchSeq=0;
+let _gcClientCache={};
 
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function fmtEur(cents){return((cents||0)/100).toFixed(2).replace('.',',')+' \u20ac';}
@@ -145,7 +149,10 @@ function openCreateGiftCardModal(){
 
       <div style="margin-bottom:14px">
         <label style="font-size:.78rem;font-weight:600;color:var(--text-2);display:block;margin-bottom:6px">Nom du destinataire</label>
-        <input type="text" id="gcRecipientName" placeholder="Prénom Nom" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.85rem;box-sizing:border-box">
+        <div style="position:relative">
+          <input type="text" id="gcRecipientName" placeholder="Tapez 3+ lettres pour chercher un client existant" oninput="gcClientLiveSearch(this.value)" onfocus="if(this.value.length>=3)gcClientLiveSearch(this.value)" onblur="setTimeout(()=>{const d=document.getElementById('gcClientAcDrop');if(d)d.style.display='none'},200)" autocomplete="off" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.85rem;box-sizing:border-box">
+          <div id="gcClientAcDrop" class="ac-results" style="display:none"></div>
+        </div>
       </div>
 
       <div style="margin-bottom:14px">
@@ -182,6 +189,48 @@ function selectGcAmount(cents){
   // clear custom input if pill was clicked
   const customInput=document.getElementById('gcCustomAmount');
   if(customInput&&!customInput.matches(':focus')){customInput.value='';}
+}
+
+// Live autocomplete for the gift card recipient name input.
+// Fetches /api/clients with debounce + stale-response protection.
+function gcClientLiveSearch(q){
+  clearTimeout(_gcClientSearchTimer);
+  const dd=document.getElementById('gcClientAcDrop');
+  if(!dd)return;
+  if(q.length<3){dd.style.display='none';return;}
+  _gcClientSearchTimer=setTimeout(async()=>{
+    const seq=++_gcClientSearchSeq;
+    try{
+      const r=await fetch(`/api/clients?search=${encodeURIComponent(q)}&limit=8`,{headers:{'Authorization':'Bearer '+api.getToken()}});
+      if(seq!==_gcClientSearchSeq)return; // stale response
+      const d=await r.json();
+      const cls=d.clients||[];
+      if(cls.length===0){
+        dd.innerHTML=`<div style="padding:12px;text-align:center;font-size:.8rem;color:var(--text-4)">Aucun client trouvé pour "${esc(q)}" — laissez le champ tel quel pour un nouveau destinataire</div>`;
+        dd.style.display='block';return;
+      }
+      // Cache clients by id so the onclick can look them up without inline string escaping
+      _gcClientCache={};
+      cls.forEach(c=>{_gcClientCache[c.id]=c;});
+      dd.innerHTML=cls.map(c=>{
+        const meta=[c.phone,c.email].filter(Boolean).join(' · ');
+        return `<div class="ac-item" onmousedown="event.preventDefault();gcPickClient('${c.id}')"><div class="ac-name">${esc(c.full_name)}</div><div class="ac-meta">${esc(meta)||'—'}</div></div>`;
+      }).join('');
+      dd.style.display='block';
+    }catch(e){dd.style.display='none';}
+  },250);
+}
+
+// Click handler for a suggestion: fill both name + email inputs with the chosen client.
+function gcPickClient(id){
+  const c=_gcClientCache[id];
+  if(!c)return;
+  const nameInput=document.getElementById('gcRecipientName');
+  const emailInput=document.getElementById('gcRecipientEmail');
+  if(nameInput)nameInput.value=c.full_name||'';
+  if(emailInput)emailInput.value=c.email||'';
+  const dd=document.getElementById('gcClientAcDrop');
+  if(dd)dd.style.display='none';
 }
 
 async function submitCreateGiftCard(){
@@ -349,6 +398,6 @@ async function cancelGiftCard(id){
 Object.defineProperty(window,'gcFilter',{get(){return gcFilter;},set(v){gcFilter=v;},configurable:true});
 Object.defineProperty(window,'gcSearch',{get(){return gcSearch;},set(v){gcSearch=v;},configurable:true});
 
-bridge({loadGiftCards,openCreateGiftCardModal,selectGcAmount,submitCreateGiftCard,openDebitGiftCard,submitDebitGiftCard,refundGiftCard,submitRefundGiftCard,cancelGiftCard});
+bridge({loadGiftCards,openCreateGiftCardModal,selectGcAmount,submitCreateGiftCard,openDebitGiftCard,submitDebitGiftCard,refundGiftCard,submitRefundGiftCard,cancelGiftCard,gcClientLiveSearch,gcPickClient});
 
 export {loadGiftCards,renderGiftCards};
