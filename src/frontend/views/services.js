@@ -265,7 +265,7 @@ function openCategoryModal(catLabel){
   m+=`<div class="svc-form-row" style="margin-bottom:14px"><div class="field"><label>Nom *</label><input id="cat_modal_name" value="${esc(label)}" placeholder="Ex: Épilation, Soins visage..."></div>`;
   m+=`<div class="field-color"><label>Couleur</label><div id="cat_color_wrap"></div></div></div>`;
   m+=`<div class="field"><label>Description <span style="font-weight:400;color:var(--text-4)">(visible par les clients)</span></label><textarea id="cat_modal_desc" rows="3" placeholder="Décrivez cette catégorie pour vos clients...">${esc(desc)}</textarea></div>`;
-  m+=`</div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('catModalOverlay')">Annuler</button><button class="m-btn m-btn-primary" onclick="saveCategory('${jsAttr(catId)}','${jsAttr(label)}')">${isEdit?'Enregistrer':'Créer'}</button></div></div></div>`;
+  m+=`</div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('catModalOverlay')">Annuler</button><button id="cat_save_btn" class="m-btn m-btn-primary" onclick="saveCategory('${jsAttr(catId)}','${jsAttr(label)}')">${isEdit?'Enregistrer':'Créer'}</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend',m);
   guardModal(document.getElementById('catModalOverlay'), { noBackdropClose: true });
   document.getElementById('cat_color_wrap').innerHTML=cswHTML('cat_color',color,true);
@@ -277,6 +277,8 @@ async function saveCategory(catId,oldLabel){
   const desc=document.getElementById('cat_modal_desc').value.trim()||null;
   const color=document.getElementById('cat_color')?.value||null;
   if(!name){GendaUI.toast('Nom requis','error');return;}
+  const catSaveBtn=document.getElementById('cat_save_btn');
+  if(catSaveBtn){catSaveBtn.disabled=true;catSaveBtn.textContent='Enregistrement...';}
   try{
     if(catId){
       // Update existing business_category
@@ -306,6 +308,7 @@ async function saveCategory(catId,oldLabel){
     GendaUI.toast(oldLabel?'Catégorie modifiée':'Catégorie créée','success');
     loadServices();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+  finally{if(catSaveBtn){catSaveBtn.disabled=false;catSaveBtn.textContent='Enregistrer';}}
 }
 
 async function svcDeleteCategory(cat){
@@ -746,7 +749,7 @@ function renderServiceModal(svc,sectorCats,prefill,existingPromo){
     m+=`<input type="hidden" id="svc_promo_existing_id" value="${existingPromo?.id||''}">`;
   }
 
-  m+=`</div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('svcModalOverlay')">Annuler</button><button class="m-btn m-btn-primary" onclick="saveService(${isEdit?"'"+svc.id+"'":'null'})">${isEdit?'Enregistrer':'Créer'}</button></div></div></div>`;
+  m+=`</div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('svcModalOverlay')">Annuler</button><button id="svc_save_btn" class="m-btn m-btn-primary" onclick="saveService(${isEdit?"'"+svc.id+"'":'null'})">${isEdit?'Enregistrer':'Créer'}</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend',m);
   svcTogglePose(); // sync variant pose row visibility with toggle state
   guardModal(document.getElementById('svcModalOverlay'), { noBackdropClose: true });
@@ -885,6 +888,8 @@ function svcDayPillClick(btn){
 // ===== SAVE SERVICE =====
 
 async function saveService(id){
+  const saveBtn=document.getElementById('svc_save_btn');
+  if(saveBtn){saveBtn.disabled=true;saveBtn.textContent='Enregistrement...';}
   const modes=['cabinet'];
   const priceVal=document.getElementById('svc_price').value;
   const selectedCat=document.getElementById('svc_cat').value||null;
@@ -952,6 +957,7 @@ async function saveService(id){
     document.getElementById('svcModalOverlay')?._dirtyGuard?.markClean(); closeModal('svcModalOverlay');
     GendaUI.toast(id?categoryLabels.service+' modifiée':categoryLabels.service+' créée','success');loadServices();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+  finally{if(saveBtn){saveBtn.disabled=false;saveBtn.textContent=id?'Enregistrer':'Créer';}}
 }
 
 // ===== SERVICE CRUD =====

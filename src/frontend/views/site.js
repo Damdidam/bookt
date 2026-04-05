@@ -390,7 +390,7 @@ async function loadSiteSection(){
     }else{
       valueItems.forEach(v=>{
         h+=`<div class="news-item" data-id="${v.id}">
-          <div class="news-date" style="font-size:1.4rem">${v.icon||(v.icon===''?'':'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.7 10.3a2.41 2.41 0 0 0 0 3.41l7.59 7.59a2.41 2.41 0 0 0 3.41 0l7.59-7.59a2.41 2.41 0 0 0 0-3.41l-7.59-7.59a2.41 2.41 0 0 0-3.41 0Z"/></svg>')}</div>
+          <div class="news-date" style="font-size:1.4rem">${v.icon?esc(v.icon):'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.7 10.3a2.41 2.41 0 0 0 0 3.41l7.59 7.59a2.41 2.41 0 0 0 3.41 0l7.59-7.59a2.41 2.41 0 0 0 0-3.41l-7.59-7.59a2.41 2.41 0 0 0-3.41 0Z"/></svg>'}</div>
           <div class="news-body">
             <div class="news-title-row"><span class="news-title">${esc(v.title||'')}</span></div>
             <div class="news-excerpt">${esc(v.description||'')}</div>
@@ -604,9 +604,18 @@ async function saveGalleryItem(id){
   try{
     let r;
     if(galPendingPhoto&&!id){
-      // Upload file (new only)
+      // Upload file (new)
       r=await fetch('/api/gallery/upload',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
         body:JSON.stringify({photo:galPendingPhoto,title:title||null,caption:caption||null})});
+    }else if(galPendingPhoto&&id){
+      // Upload new file then update existing record with new URL
+      const upRes=await fetch('/api/gallery/upload',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
+        body:JSON.stringify({photo:galPendingPhoto,title:title||null,caption:caption||null})});
+      if(!upRes.ok){const d=await upRes.json();throw new Error(d.error);}
+      const upData=await upRes.json();
+      // Delete old, keep new
+      await fetch('/api/gallery/'+id,{method:'DELETE',headers:{'Authorization':'Bearer '+api.getToken()}}).catch(()=>{});
+      r={ok:true,json:async()=>upData};
     }else{
       // URL-based (create or edit)
       const imgUrl=galPendingPhoto?undefined:url;
@@ -799,13 +808,14 @@ async function handleBrandingFile(file,type){
   if(file.size>maxSize){GendaUI.toast(`Image trop lourde (max ${type==='logo'?'1':'2'} Mo)`,'error');return;}
   const reader=new FileReader();
   reader.onload=async e=>{
-    const zone=document.getElementById(type==='logo'?'logoDropZone':'coverDropZone');
+    const zoneId=type==='logo'?'logoDropZone':type==='about'?'aboutDropZone':'coverDropZone';
+    const zone=document.getElementById(zoneId);
     zone.innerHTML='<div class="spinner" style="width:24px;height:24px"></div>';
     try{
       const r=await fetch('/api/business/upload-image',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({photo:e.target.result,type})});
       if(!r.ok){const d=await r.json();throw new Error(d.error);}
       const d=await r.json();
-      GendaUI.toast(type==='logo'?'Logo mis à jour':'Bannière mise à jour','success');
+      GendaUI.toast(type==='logo'?'Logo mis à jour':type==='about'?'Photo mise à jour':'Bannière mise à jour','success');
       loadSiteSection();
     }catch(err){GendaUI.toast('Erreur: '+err.message,'error');loadSiteSection();}
   };

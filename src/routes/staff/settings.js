@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const { query, queryWithRLS } = require('../../services/db');
 const { requireAuth, requireOwner } = require('../../middleware/auth');
+const { sanitizeRichText } = require('../../services/email-utils');
 
 // V11-025: Strip HTML tags from text fields to prevent injection
 function stripHtml(str) {
@@ -352,7 +353,7 @@ router.patch('/', requireOwner, async (req, res, next) => {
         street || null, street_number || null, postal_code || null, city || null,
         language_default,
         mergedSettings ? JSON.stringify(mergedSettings) : null,
-        tagline, description, logo_url, cover_image_url,
+        tagline, description ? sanitizeRichText(description) : null, logo_url, cover_image_url,
         founded_year ? parseInt(founded_year) : null,
         accreditation, bce_number, parking_info,
         langArray,

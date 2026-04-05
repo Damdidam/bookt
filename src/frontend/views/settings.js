@@ -693,7 +693,7 @@ async function saveAllSettings(){
       settings_deposit_duration_threshold_min:parseInt(el('s_dep_dur_thresh')?.value)||0,
       settings_deposit_threshold_mode:el('s_dep_thresh_mode')?.value||'any',
       settings_cancel_deadline_hours:parseInt(el('s_cancel_deadline')?.value)||24,
-      settings_cancel_grace_minutes:(parseInt(el('s_cancel_grace')?.value)||4)*60,
+      settings_cancel_grace_minutes:(Number.isFinite(parseInt(el('s_cancel_grace')?.value))?parseInt(el('s_cancel_grace')?.value):4)*60,
       settings_cancel_policy_text:el('s_cancel_policy')?.value||'',
       settings_refund_policy:document.querySelector('input[name="refund_policy"]:checked')?.value||'full',
       settings_cancel_abuse_enabled:el('s_cancel_abuse_on')?.checked||false,
@@ -740,7 +740,8 @@ async function saveAllSettings(){
     if(el('s_booking_confirm_required'))Object.assign(body,{
       settings_booking_confirmation_required:el('s_booking_confirm_required').checked,
       settings_booking_confirmation_timeout:parseInt(el('s_booking_confirm_timeout')?.value)||30,
-      settings_booking_confirmation_channel:el('s_booking_confirm_channel')?.value||'email'
+      settings_booking_confirmation_channel:el('s_booking_confirm_channel')?.value||'email',
+      settings_notify_new_booking_pro:el('s_notify_new_booking_pro')?.checked??true
     });
 
     // Send ONE PATCH
