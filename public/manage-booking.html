@@ -286,7 +286,7 @@ function render(d) {
         <button style="flex:1;padding:12px;background:var(--red);color:#fff;border:none;border-radius:var(--radius-sm);font-family:var(--sans);font-size:.9rem;font-weight:600;cursor:pointer" id="refuseBtn" onclick="refuseModification()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Refuser</button>
       </div>
     </div>`;
-  } else if (['confirmed', 'pending_deposit', 'pending'].includes(bk.status)) {
+  } else if (['confirmed', 'pending_deposit', 'pending'].includes(bk.status) && start > new Date()) {
     const deadlineStr = can.deadline ? new Date(can.deadline).toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' }) + ' à ' + new Date(can.deadline).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' }) : '';
 
     html += `<div class="cancel-section">

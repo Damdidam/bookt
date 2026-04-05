@@ -43,10 +43,15 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
       return res.status(400).json({ error: 'Ce rendez-vous ne peut plus être annulé' });
     }
 
+    // Block cancellation of past bookings (start_at already passed)
+    if (new Date(bk.start_at) < new Date()) {
+      return res.status(400).json({ error: 'Ce rendez-vous est déjà passé' });
+    }
+
     // Cancel deadline (declared at function scope for both deadline check and deposit refund SQL)
     const cancelWindowHours = bk.business_settings?.cancel_deadline_hours ?? bk.business_settings?.cancellation_window_hours ?? 24;
 
-    // Client can ALWAYS cancel — the deposit refund SQL handles the financial consequence
+    // Client can ALWAYS cancel future bookings — the deposit refund SQL handles the financial consequence
     // (refund if before deadline, retain if after deadline)
 
     // Deposit refund logic — atomic CASE WHEN to avoid race condition
@@ -939,7 +944,12 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
       return res.send(confirmationPage('Action impossible', 'Ce rendez-vous ne peut plus \u00eatre annul\u00e9.', '#A68B3C', bk.business_name));
     }
 
-    // Client can ALWAYS cancel — the deposit refund SQL handles the financial consequence
+    // Block cancellation of past bookings
+    if (new Date(bk.start_at) < new Date()) {
+      return res.send(confirmationPage('Rendez-vous pass\u00e9', 'Ce rendez-vous est d\u00e9j\u00e0 pass\u00e9 et ne peut plus \u00eatre annul\u00e9.', '#A68B3C', bk.business_name));
+    }
+
+    // Client can ALWAYS cancel future bookings — the deposit refund SQL handles the financial consequence
     const cancelWindowHours = bk.business_settings?.cancel_deadline_hours ?? bk.business_settings?.cancellation_window_hours ?? 24;
 
     // Atomic: primary cancel + sibling propagation in one transaction
