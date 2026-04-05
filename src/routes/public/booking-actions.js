@@ -451,12 +451,11 @@ router.post('/booking/:token/reject', async (req, res, next) => {
       return res.status(404).json({ error: 'Rendez-vous introuvable' });
     }
     const bkData = bkCheck.rows[0];
-    const cancelWindowHours = bkData.business_settings?.cancel_deadline_hours ?? bkData.business_settings?.cancellation_window_hours ?? 24;
 
-    // Deposit refund logic — same deadline + grace period as cancel route
-    const graceMin = bkData.business_settings?.cancel_grace_minutes ?? 240;
-
-    // Atomic: primary reject + sibling cancellation in one transaction
+    // Reject = client refuses a staff-initiated modification. The client did not
+    // initiate this change, so the deadline-based retention logic from /cancel must
+    // NOT apply here. Always refund a paid deposit on reject, regardless of how
+    // close the new start_at is to now.
     const txClient = await pool.connect();
     let result;
     let gcRefundReject = { refunded: 0 };
@@ -466,10 +465,7 @@ router.post('/booking/:token/reject', async (req, res, next) => {
       result = await txClient.query(
         `UPDATE bookings SET status = 'cancelled', cancel_reason = 'client_rejected_modification',
           deposit_status = CASE
-            WHEN deposit_required = true AND deposit_status = 'paid' THEN
-              CASE WHEN (start_at - INTERVAL '1 minute' * $2) > NOW()
-                     OR (NOW() - created_at) <= INTERVAL '1 minute' * $3
-                   THEN 'refunded' ELSE 'cancelled' END
+            WHEN deposit_required = true AND deposit_status = 'paid' THEN 'refunded'
             WHEN deposit_required = true AND deposit_status = 'pending' THEN 'cancelled'
             ELSE deposit_status
           END,
@@ -477,7 +473,7 @@ router.post('/booking/:token/reject', async (req, res, next) => {
          WHERE public_token = $1 AND status = 'modified_pending'
          RETURNING id, status, start_at, end_at, business_id, group_id,
                    deposit_required, deposit_status, deposit_payment_intent_id`,
-        [token, cancelWindowHours * 60, graceMin]
+        [token]
       );
 
       if (result.rows.length === 0) {
@@ -499,22 +495,19 @@ router.post('/booking/:token/reject', async (req, res, next) => {
 
       const rejBk = result.rows[0];
 
-      // Cancel group siblings if multi-service booking
+      // Cancel group siblings if multi-service booking — same unconditional-refund policy as primary
       if (rejBk.group_id) {
         await txClient.query(
           `UPDATE bookings SET status = 'cancelled', cancel_reason = 'client_rejected_modification',
             deposit_status = CASE
-              WHEN deposit_required = true AND deposit_status = 'paid' THEN
-                CASE WHEN (start_at - INTERVAL '1 minute' * $4) > NOW()
-                       OR (NOW() - created_at) <= INTERVAL '1 minute' * $5
-                     THEN 'refunded' ELSE 'cancelled' END
+              WHEN deposit_required = true AND deposit_status = 'paid' THEN 'refunded'
               WHEN deposit_required = true AND deposit_status = 'pending' THEN 'cancelled'
               ELSE deposit_status
             END,
             updated_at = NOW()
            WHERE group_id = $1 AND business_id = $2 AND id != $3
              AND status IN ('confirmed', 'pending_deposit', 'pending', 'modified_pending')`,
-          [rejBk.group_id, rejBk.business_id, rejBk.id, cancelWindowHours * 60, graceMin]
+          [rejBk.group_id, rejBk.business_id, rejBk.id]
         );
       }
       // Refund gift card debits inside transaction — only if deposit was refunded or no deposit
