@@ -1,8 +1,8 @@
 const router = require('express').Router();
 const { query } = require('../../services/db');
-const { getCategoryLabels } = require('../../services/email');
+const { getCategoryLabels, sendBookingLookupEmail } = require('../../services/email');
 const { SECTOR_PRACTITIONER } = require('./helpers');
-const { bookingActionLimiter } = require('../../middleware/rate-limiter');
+const { bookingActionLimiter, lookupLimiter } = require('../../middleware/rate-limiter');
 
 // ============================================================
 // GET /api/public/booking/:token
@@ -353,6 +353,60 @@ router.get('/manage/:token', bookingActionLimiter, async (req, res, next) => {
         discount_cents: promoSib2.promotion_discount_cents
       } : null
     });
+  } catch (err) { next(err); }
+});
+
+// ============================================================
+// POST /api/public/:slug/lookup-my-bookings
+// Client forgot their booking email link — send a fresh email with
+// all upcoming bookings matching this email for this business.
+// Response is always generic to prevent email enumeration.
+// ============================================================
+router.post('/:slug/lookup-my-bookings', lookupLimiter, async (req, res, next) => {
+  try {
+    const { slug } = req.params;
+    const { email } = req.body || {};
+
+    // Always return the same response to prevent enumeration
+    const genericResponse = { success: true, message: 'Si un rendez-vous existe avec cet email, vous recevrez un lien dans quelques instants.' };
+
+    if (!email || typeof email !== 'string') return res.json(genericResponse);
+    const cleanEmail = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail) || cleanEmail.length > 320) return res.json(genericResponse);
+
+    const bizRes = await query(
+      `SELECT id, name, slug, email, theme FROM businesses WHERE slug = $1 AND is_active = true LIMIT 1`,
+      [slug]
+    );
+    if (bizRes.rows.length === 0) return res.json(genericResponse);
+    const business = bizRes.rows[0];
+
+    // Find upcoming active bookings for this email at this business
+    const bkRes = await query(
+      `SELECT b.id, b.public_token, b.start_at,
+              CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+              p.display_name AS practitioner_name
+       FROM bookings b
+       LEFT JOIN clients c ON c.id = b.client_id
+       LEFT JOIN services s ON s.id = b.service_id
+       LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+       LEFT JOIN practitioners p ON p.id = b.practitioner_id
+       WHERE b.business_id = $1
+         AND LOWER(c.email) = $2
+         AND b.status IN ('pending', 'confirmed', 'pending_deposit', 'modified_pending')
+         AND b.start_at > NOW()
+         AND (b.group_order IS NULL OR b.group_order = 0)
+       ORDER BY b.start_at ASC
+       LIMIT 20`,
+      [business.id, cleanEmail]
+    );
+
+    if (bkRes.rows.length > 0) {
+      sendBookingLookupEmail({ email: cleanEmail, bookings: bkRes.rows, business })
+        .catch(e => console.warn('[BOOKING LOOKUP] Email send failed:', e.message));
+    }
+
+    return res.json(genericResponse);
   } catch (err) { next(err); }
 });
 

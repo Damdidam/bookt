@@ -343,4 +343,50 @@ async function sendPassPurchaseProEmail({ pass, business }) {
   return sendEmail({ to: business.email, toName: business.name, subject: `Pass acheté — ${escHtml(pass.name)} — ${buyerName}`, html, fromName: 'Genda' });
 }
 
-module.exports = { sendSessionNotesEmail, sendPasswordResetEmail, sendReviewRequestEmail, sendGiftCardEmail, sendGiftCardReceiptEmail, sendPassPurchaseEmail, sendGiftCardPurchaseProEmail, sendPassPurchaseProEmail };
+// ── "Retrouver mon RDV" — send list of upcoming bookings to client ──
+async function sendBookingLookupEmail({ email, bookings, business }) {
+  if (!email || !bookings || bookings.length === 0) return;
+  const color = safeColor(business.theme?.primary_color);
+  const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+  const safeBizName = escHtml(business.name);
+
+  const bookingRows = bookings.map(bk => {
+    const dateStr = new Date(bk.start_at).toLocaleDateString('fr-BE', {
+      timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long'
+    });
+    const timeStr = new Date(bk.start_at).toLocaleTimeString('fr-BE', {
+      timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit'
+    });
+    const svcLabel = escHtml(bk.service_name || 'Rendez-vous');
+    const pracLabel = bk.practitioner_name ? ' · ' + escHtml(bk.practitioner_name) : '';
+    const manageUrl = `${baseUrl}/booking/${bk.public_token}`;
+    return `
+      <div style="background:#FAFAF9;border:1px solid #E8E4DF;border-radius:8px;padding:14px 16px;margin-bottom:10px">
+        <div style="font-size:14px;font-weight:600;color:#3D3832;margin-bottom:4px">${svcLabel}${pracLabel}</div>
+        <div style="font-size:13px;color:#6B6560;margin-bottom:10px">${escHtml(dateStr)} · ${escHtml(timeStr)}</div>
+        <a href="${manageUrl}" style="display:inline-block;padding:8px 18px;background:${color};color:#fff;text-decoration:none;border-radius:6px;font-size:13px;font-weight:600">Gérer ce rendez-vous</a>
+      </div>`;
+  }).join('');
+
+  const html = buildEmailHTML({
+    title: 'Vos rendez-vous',
+    preheader: `Vous avez ${bookings.length} rendez-vous à venir chez ${safeBizName}`,
+    bodyHTML: `
+      <p>Voici vos rendez-vous à venir chez <strong>${safeBizName}</strong> :</p>
+      ${bookingRows}
+      <p style="font-size:13px;color:#6B6560;margin-top:16px">Cliquez sur "Gérer ce rendez-vous" pour voir les détails, annuler ou modifier.</p>`,
+    businessName: business.name,
+    primaryColor: color,
+    footerText: `${business.name} · Via Genda.be`
+  });
+
+  return sendEmail({
+    to: email,
+    subject: `Vos rendez-vous chez ${business.name}`,
+    html,
+    fromName: business.name,
+    replyTo: business.email || undefined
+  });
+}
+
+module.exports = { sendSessionNotesEmail, sendPasswordResetEmail, sendReviewRequestEmail, sendGiftCardEmail, sendGiftCardReceiptEmail, sendPassPurchaseEmail, sendGiftCardPurchaseProEmail, sendPassPurchaseProEmail, sendBookingLookupEmail };

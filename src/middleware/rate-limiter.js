@@ -98,4 +98,16 @@ const staffLimiter = rateLimit({
   legacyHeaders: false
 });
 
-module.exports = { bookingLimiter, slotsLimiter, authLimiter, clientPhoneLimiter, depositLimiter, bookingActionLimiter, adminLimiter, staffLimiter };
+/**
+ * Rate limiter for "retrouver mon RDV" feature (email lookup).
+ * 5 requests per 15 minutes per IP — prevent spam relay + email enumeration.
+ */
+const lookupLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: { error: 'Trop de tentatives. Réessayez dans 15 minutes.' },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+module.exports = { bookingLimiter, slotsLimiter, authLimiter, clientPhoneLimiter, depositLimiter, bookingActionLimiter, adminLimiter, staffLimiter, lookupLimiter };
