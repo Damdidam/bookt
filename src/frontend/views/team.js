@@ -21,6 +21,7 @@ let teamEditServiceIds = new Set(); // service IDs assigned to this practitioner
 let teamAllServices = []; // all active services fetched from API
 
 const esc=s=>s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'):'';
+const escJs=s=>s==null?'':String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\n/g,'\\n').replace(/\r/g,'\\r').replace(/\u2028/g,'\\u2028').replace(/\u2029/g,'\\u2029');
 function escH(s) { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
 const ICONS = {
@@ -363,11 +364,11 @@ function renderPractModal(p) {
                   <div style="font-size:.82rem;font-weight:600;color:var(--text-1)">${esc(p.login_email || p.user_email || '')}</div>
                   <div style="font-size:.72rem;color:var(--text-4);margin-top:2px">Rôle : ${p.role === 'owner' || p.user_role === 'owner' ? 'Propriétaire' : sectorLabels.practitioner}${p.last_login_at ? ' · Dernière connexion : ' + new Date(p.last_login_at).toLocaleDateString('fr-BE', {day:'numeric',month:'short',timeZone:'Europe/Brussels'}) : ' · Jamais connecté'}</div>
                 </div>
-                <button class="m-btn m-btn-ghost" style="font-size:.72rem" onclick="closeTeamModal();openRoleModal('${p.id}','${esc(p.display_name)}','${p.role || p.user_role || 'practitioner'}')">Changer le rôle</button>
+                <button class="m-btn m-btn-ghost" style="font-size:.72rem" onclick="closeTeamModal();openRoleModal('${p.id}','${escJs(p.display_name)}','${p.role || p.user_role || 'practitioner'}')">Changer le rôle</button>
               </div>`
             : `<div style="padding:10px 14px;background:var(--surface);border-radius:8px;display:flex;align-items:center;justify-content:space-between">
                 <span style="font-size:.82rem;color:var(--text-3)">Aucun accès au dashboard</span>
-                <button class="m-btn m-btn-primary" style="font-size:.72rem" onclick="closeTeamModal();openInviteModal('${p.id}','${esc(p.display_name)}')">Créer un accès</button>
+                <button class="m-btn m-btn-primary" style="font-size:.72rem" onclick="closeTeamModal();openInviteModal('${p.id}','${escJs(p.display_name)}')">Créer un accès</button>
               </div>`
           }
         </div>` : ''}
@@ -378,8 +379,8 @@ function renderPractModal(p) {
     <!-- BOTTOM BAR -->
     <div class="m-bottom">
       ${isEdit ? `<div style="display:flex;gap:8px">
-        <button class="m-btn m-btn-danger" onclick="confirmDeactivatePract('${p.id}','${esc(p.display_name)}')">Désactiver</button>
-        <button class="m-btn m-btn-ghost" style="color:var(--red);font-size:.72rem" onclick="confirmDeletePract('${p.id}','${esc(p.display_name)}')">Supprimer</button>
+        <button class="m-btn m-btn-danger" onclick="confirmDeactivatePract('${p.id}','${escJs(p.display_name)}')">Désactiver</button>
+        <button class="m-btn m-btn-ghost" style="color:var(--red);font-size:.72rem" onclick="confirmDeletePract('${p.id}','${escJs(p.display_name)}')">Supprimer</button>
       </div>` : ''}
       <div style="flex:1"></div>
       <button class="m-btn m-btn-ghost" onclick="closeTeamModal()">Annuler</button>
@@ -468,7 +469,7 @@ function renderServicesList() {
     const someChecked = catAssigned > 0 && !allChecked;
 
     h += `<div class="svc-assign-group">
-      <label class="svc-assign-cat" onclick="event.preventDefault();teamToggleCatServices('${esc(cat)}')">
+      <label class="svc-assign-cat" onclick="event.preventDefault();teamToggleCatServices('${escJs(cat)}')">
         <input type="checkbox" ${allChecked ? 'checked' : ''} tabindex="-1" style="accent-color:var(--primary)">
         <span class="svc-assign-cat-name">${escH(cat)}</span>
         <span class="svc-assign-cat-count">${catAssigned}/${services.length}</span>

@@ -8,6 +8,16 @@ export function esc(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
+/**
+ * Escape a string for safe interpolation inside a JS string literal embedded in
+ * an HTML onclick attribute — e.g. onclick="foo('${escJs(name)}')".
+ * Using esc() there breaks: &#39; decodes back to ' and closes the JS string.
+ */
+export function escJs(str) {
+  if (str == null) return '';
+  return String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
+}
+
 /** Sanitize an ID for safe use in onclick handler strings — strip all non-safe characters */
 export function safeId(id) {
   return String(id).replace(/[^a-zA-Z0-9_-]/g, '');

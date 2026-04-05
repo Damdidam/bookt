@@ -2,7 +2,7 @@
  * Waitlist (Liste d'attente) view module.
  */
 import { api, GendaUI, viewState } from '../state.js';
-import { esc } from '../utils/dom.js';
+import { esc, escJs } from '../utils/dom.js';
 import { bridge } from '../utils/window-bridge.js';
 import { IC } from '../utils/icons.js';
 import { closeModal, guardModal, showConfirmDialog } from '../utils/dirty-guard.js';
@@ -247,7 +247,7 @@ function wlDetail(idx){
   // Actions
   m+=`<div class="wl-action-row">`;
   if(e.status==='waiting'){
-    m+=`<button class="wl-btn primary" onclick="closeModal('wlDetailModal');wlOffer('${e.id}','${esc(e.client_name).replace(/'/g,"\\'")}','${e.practitioner_id}','${e.service_id}')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Proposer un cr\u00e9neau</button>`;
+    m+=`<button class="wl-btn primary" onclick="closeModal('wlDetailModal');wlOffer('${e.id}','${escJs(e.client_name)}','${e.practitioner_id}','${e.service_id}')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Proposer un cr\u00e9neau</button>`;
     m+=`<button class="wl-btn" onclick="wlChangeStatus('${e.id}','booked')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> RDV obtenu</button>`;
     m+=`<button class="wl-btn danger" onclick="wlRemove('${e.id}')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg> Retirer</button>`;
   }else if(e.status==='offered'){

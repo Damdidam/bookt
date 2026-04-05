@@ -109,7 +109,7 @@ function renderPromotions(c, promos) {
         </td>
         <td style="padding:10px;text-align:center;white-space:nowrap">
           <button onclick="openPromoModal('${p.id}')" title="Modifier" style="background:none;border:none;cursor:pointer;color:var(--primary);padding:4px 6px">${IC.edit}</button>
-          <button onclick="deletePromo('${p.id}','${esc(p.title)}')" title="Supprimer" style="background:none;border:none;cursor:pointer;color:var(--red);padding:4px 6px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+          <button onclick="deletePromo('${p.id}')" title="Supprimer" style="background:none;border:none;cursor:pointer;color:var(--red);padding:4px 6px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
         </td>
       </tr>`;
     });
@@ -358,7 +358,9 @@ async function togglePromo(id, active) {
   } catch (e) { GendaUI.toast(e.message || 'Erreur', 'error'); }
 }
 
-async function deletePromo(id, title) {
+async function deletePromo(id) {
+  const promo = _lastPromos.find(p => p.id === id);
+  const title = promo?.title || 'cette promotion';
   if (!(await showConfirmDialog(`Supprimer définitivement la promotion "${title}" ? Cette action est irréversible.`))) return;
   try {
     await api.delete(`/api/promotions/${id}`);
