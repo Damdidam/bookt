@@ -367,9 +367,14 @@ router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) 
 
       // H5 fix: Check ALL group members for promotion_id (not just primary — promo may be on a specific_service slot)
       const promoCheck = await client.query(
-        `SELECT promotion_id, promotion_discount_pct FROM bookings WHERE id = ANY($1::uuid[]) AND promotion_id IS NOT NULL LIMIT 1`, [promoIds]
+        `SELECT promotion_id, promotion_discount_pct, promotion_discount_cents FROM bookings WHERE id = ANY($1::uuid[]) AND promotion_id IS NOT NULL LIMIT 1`, [promoIds]
       );
       const promoId = promoCheck.rows[0]?.promotion_id;
+      // "Earned is earned": use the rate/amount stored on the booking at creation
+      // time, not the current promo.reward_value — an admin can lower a promo after
+      // bookings were made and the client should keep their original discount.
+      const storedPct = promoCheck.rows[0]?.promotion_discount_pct;
+      const storedCents = promoCheck.rows[0]?.promotion_discount_cents;
 
       if (promoId) {
         const promoRes = await client.query(`SELECT * FROM promotions WHERE id = $1`, [promoId]);
@@ -403,12 +408,16 @@ router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) 
             }
           }
 
-          // Recalculate promo discount on group total
+          // Recalculate promo discount on group total using STORED values (earned-is-earned)
           let newPromoCents = 0;
           if (promo.reward_type === 'discount_pct') {
-            newPromoCents = Math.round(groupTotal * promo.reward_value / 100);
+            // Use the pct stored at booking time — falls back to current reward_value only if missing (legacy bookings)
+            const pct = storedPct != null ? storedPct : promo.reward_value;
+            newPromoCents = Math.round(groupTotal * pct / 100);
           } else if (promo.reward_type === 'discount_fixed') {
-            newPromoCents = Math.min(promo.reward_value, groupTotal);
+            // Fixed amounts don't depend on base — keep exactly what was stored
+            const cents = storedCents != null ? storedCents : promo.reward_value;
+            newPromoCents = Math.min(cents, groupTotal);
           } else if (promo.reward_type === 'free_service' && promo.reward_service_id) {
             // Free service: discount = the price of that service in the group (after LM)
             const freeRes = await client.query(

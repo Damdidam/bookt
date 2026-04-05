@@ -330,10 +330,12 @@ router.patch('/:id/move', async (req, res, next) => {
           // Recalculate promotion discount after LM discount change (group)
           {
             const grpPromoCheck = await client.query(
-              `SELECT promotion_id FROM bookings WHERE id = ANY($1::uuid[]) AND promotion_id IS NOT NULL LIMIT 1`,
+              `SELECT promotion_id, promotion_discount_pct, promotion_discount_cents FROM bookings WHERE id = ANY($1::uuid[]) AND promotion_id IS NOT NULL LIMIT 1`,
               [updates.map(u => u.id)]
             );
             const grpPromoId = grpPromoCheck.rows[0]?.promotion_id;
+            const grpStoredPct = grpPromoCheck.rows[0]?.promotion_discount_pct;
+            const grpStoredCents = grpPromoCheck.rows[0]?.promotion_discount_cents;
             if (grpPromoId) {
               const promoRes = await client.query(`SELECT * FROM promotions WHERE id = $1`, [grpPromoId]);
               const promo = promoRes.rows[0];
@@ -341,7 +343,9 @@ router.patch('/:id/move', async (req, res, next) => {
                 // Promo earned at booking time stays earned on move — we no longer
                 // wipe when the new date falls outside condition_start_date/end_date
                 // or when is_active flipped to false. Only the discount amount is
-                // recalculated below (relevant if LM% changed).
+                // recalculated below (relevant if LM% changed), using the RATE/AMOUNT
+                // stored on the booking at creation — not promo.reward_value — so
+                // an admin lowering the promo doesn't shrink a client's earned discount.
                 const allIds = updates.map(u => u.id);
                 let groupTotal = 0;
                 for (const uid of allIds) {
@@ -361,9 +365,11 @@ router.patch('/:id/move', async (req, res, next) => {
                 }
                 let newPromoCents = 0;
                 if (promo.reward_type === 'discount_pct') {
-                  newPromoCents = Math.round(groupTotal * promo.reward_value / 100);
+                  const pct = grpStoredPct != null ? grpStoredPct : promo.reward_value;
+                  newPromoCents = Math.round(groupTotal * pct / 100);
                 } else if (promo.reward_type === 'discount_fixed') {
-                  newPromoCents = Math.min(promo.reward_value, groupTotal);
+                  const cents = grpStoredCents != null ? grpStoredCents : promo.reward_value;
+                  newPromoCents = Math.min(cents, groupTotal);
                 } else if (promo.reward_type === 'free_service' && promo.reward_service_id) {
                   const freeRes = await client.query(
                     `SELECT COALESCE(sv.price_cents, s.price_cents, 0) AS eff_price, b.discount_pct
@@ -674,14 +680,18 @@ router.patch('/:id/move', async (req, res, next) => {
         // Recalculate promotion discount after LM discount change (single)
         if (moved) {
           const singlePromoCheck = await client.query(
-            `SELECT promotion_id FROM bookings WHERE id = $1 AND promotion_id IS NOT NULL`, [id]
+            `SELECT promotion_id, promotion_discount_pct, promotion_discount_cents FROM bookings WHERE id = $1 AND promotion_id IS NOT NULL`, [id]
           );
           const singlePromoId = singlePromoCheck.rows[0]?.promotion_id;
+          const singleStoredPct = singlePromoCheck.rows[0]?.promotion_discount_pct;
+          const singleStoredCents = singlePromoCheck.rows[0]?.promotion_discount_cents;
           if (singlePromoId) {
             const promoRes = await client.query(`SELECT * FROM promotions WHERE id = $1`, [singlePromoId]);
             const promo = promoRes.rows[0];
             // Promo earned at booking time stays earned on move — no longer wiped
             // when the new date is out of condition range or is_active flipped.
+            // Recalc uses the rate/amount STORED on the booking (earned-is-earned),
+            // not promo.reward_value, so admin edits don't shrink past discounts.
             if (promo) {
               const mRes = await client.query(
                 `SELECT COALESCE(sv.price_cents, s.price_cents, 0) AS eff_price, b.discount_pct
@@ -697,9 +707,11 @@ router.patch('/:id/move', async (req, res, next) => {
                   : m.eff_price;
                 let newPromoCents = 0;
                 if (promo.reward_type === 'discount_pct') {
-                  newPromoCents = Math.round(adjPrice * promo.reward_value / 100);
+                  const pct = singleStoredPct != null ? singleStoredPct : promo.reward_value;
+                  newPromoCents = Math.round(adjPrice * pct / 100);
                 } else if (promo.reward_type === 'discount_fixed') {
-                  newPromoCents = Math.min(promo.reward_value, adjPrice);
+                  const cents = singleStoredCents != null ? singleStoredCents : promo.reward_value;
+                  newPromoCents = Math.min(cents, adjPrice);
                 } else if (promo.reward_type === 'free_service' && promo.reward_service_id) {
                   // For single booking with free_service, discount = service price
                   newPromoCents = adjPrice;
