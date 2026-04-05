@@ -236,6 +236,21 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
     });
   }
 
+  // 6a. Fetch internal tasks (lunch, admin blocks, etc.) — they block slots like bookings
+  const tasksResult = await queryWithRLS(businessId,
+    `SELECT practitioner_id, start_at, end_at FROM internal_tasks
+     WHERE business_id = $1 AND practitioner_id = ANY($2) AND status = 'planned'
+     AND end_at > ($3::date AT TIME ZONE 'Europe/Brussels')
+     AND start_at <= (($4::date + INTERVAL '1 day') AT TIME ZONE 'Europe/Brussels')`,
+    [businessId, practitionerIds, dateFrom, dateTo]
+  );
+  for (const row of tasksResult.rows) {
+    const dateStr = row.start_at.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+    const key = `${row.practitioner_id}-${dateStr}`;
+    if (!bookingMap[key]) bookingMap[key] = [];
+    bookingMap[key].push({ start: row.start_at, end: row.end_at, buffer_before_min: 0, buffer_after_min: 0 });
+  }
+
   // 6b. Fetch busy blocks from external calendars (Google/Outlook)
   try {
     for (const pracId of practitionerIds) {
@@ -596,6 +611,23 @@ async function getAvailableSlotsMulti({ businessId, serviceIds, practitionerId, 
       buffer_before_min: row.buffer_before_min || 0,
       buffer_after_min: row.buffer_after_min || 0
     });
+  }
+
+  // Internal tasks block slots like bookings
+  {
+    const taskRes = await queryWithRLS(businessId,
+      `SELECT practitioner_id, start_at, end_at FROM internal_tasks
+       WHERE business_id = $1 AND practitioner_id = ANY($2) AND status = 'planned'
+       AND end_at > ($3::date AT TIME ZONE 'Europe/Brussels')
+       AND start_at <= (($4::date + INTERVAL '1 day') AT TIME ZONE 'Europe/Brussels')`,
+      [businessId, practitionerIds, dateFrom, dateTo]
+    );
+    for (const row of taskRes.rows) {
+      const dateStr = row.start_at.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+      const key = `${row.practitioner_id}-${dateStr}`;
+      if (!bookingMap[key]) bookingMap[key] = [];
+      bookingMap[key].push({ start: row.start_at, end: row.end_at, buffer_before_min: 0, buffer_after_min: 0 });
+    }
   }
 
   // 6b. Fetch business schedule, closures, holidays (same as getAvailableSlots)
@@ -1011,6 +1043,23 @@ async function getAvailableSlotsMultiPractitioner({ businessId, serviceIds, date
       buffer_before_min: row.buffer_before_min || 0,
       buffer_after_min: row.buffer_after_min || 0
     });
+  }
+
+  // Internal tasks block slots like bookings
+  {
+    const taskRes = await queryWithRLS(businessId,
+      `SELECT practitioner_id, start_at, end_at FROM internal_tasks
+       WHERE business_id = $1 AND practitioner_id = ANY($2) AND status = 'planned'
+       AND end_at > ($3::date AT TIME ZONE 'Europe/Brussels')
+       AND start_at <= (($4::date + INTERVAL '1 day') AT TIME ZONE 'Europe/Brussels')`,
+      [businessId, practitionerIds, dateFrom, dateTo]
+    );
+    for (const row of taskRes.rows) {
+      const dateStr = row.start_at.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+      const key = `${row.practitioner_id}-${dateStr}`;
+      if (!bookingMap[key]) bookingMap[key] = [];
+      bookingMap[key].push({ start: row.start_at, end: row.end_at, buffer_before_min: 0, buffer_after_min: 0 });
+    }
   }
 
   // Business schedule, closures, holidays

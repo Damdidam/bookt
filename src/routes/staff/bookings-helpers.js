@@ -260,7 +260,15 @@ async function checkBookingConflicts(client, { bid, pracId, newStart, newEnd, ex
     params
   );
 
-  return result.rows;
+  // Also check for overlap with planned internal_tasks (lunch, admin blocks, etc.)
+  const taskConflicts = await client.query(
+    `SELECT id FROM internal_tasks
+     WHERE business_id = $1 AND practitioner_id = $2 AND status = 'planned'
+     AND start_at < $4 AND end_at > $3`,
+    [bid, pracId, newStart, newEnd]
+  );
+
+  return [...result.rows, ...taskConflicts.rows];
 }
 
 module.exports = { calSyncPush, calSyncDelete, businessAllowsOverlap, checkPracAvailability, getMaxConcurrent, checkBookingConflicts };
