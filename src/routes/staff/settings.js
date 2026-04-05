@@ -198,7 +198,11 @@ router.patch('/', requireOwner, async (req, res, next) => {
       if (settings_multi_service_enabled !== undefined) cur.multi_service_enabled = !!settings_multi_service_enabled;
       // Calendar settings
       if (settings_slot_increment_min !== undefined) { const _v = parseInt(settings_slot_increment_min); cur.slot_increment_min = [5,10,15,20,30,45,60].includes(_v) ? _v : 15; }
-      if (settings_waitlist_mode !== undefined) { cur.waitlist_mode = ['off','manual','auto'].includes(settings_waitlist_mode) ? settings_waitlist_mode : 'off'; }
+      if (settings_waitlist_mode !== undefined) {
+        cur.waitlist_mode = ['off','manual','auto'].includes(settings_waitlist_mode) ? settings_waitlist_mode : 'off';
+        // Propagate to all practitioners so the backend waitlist service picks it up
+        await queryWithRLS(bid, `UPDATE practitioners SET waitlist_mode = $1 WHERE business_id = $2`, [cur.waitlist_mode, bid]).catch(() => {});
+      }
       if (settings_calendar_color_mode !== undefined) { cur.calendar_color_mode = ['category','practitioner'].includes(settings_calendar_color_mode) ? settings_calendar_color_mode : 'category'; }
       if (settings_slot_auto_optimize !== undefined) { cur.slot_auto_optimize = !!settings_slot_auto_optimize; if (!settings_slot_auto_optimize) delete cur.optimized_granularity; }
       if (settings_gap_analyzer_enabled !== undefined) cur.gap_analyzer_enabled = !!settings_gap_analyzer_enabled;
