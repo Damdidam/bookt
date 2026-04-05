@@ -88,6 +88,14 @@ router.post('/checkout', requireAuth, requireOwner, async (req, res, next) => {
       );
     }
 
+    // Determine trial eligibility: only if business has NEVER had a subscription before
+    const trialDays = parseInt(process.env.TRIAL_DAYS, 10) || 14;
+    const hadSubBefore = await query(
+      `SELECT stripe_subscription_id, plan_changed_at FROM businesses WHERE id = $1`,
+      [bid]
+    );
+    const isEligibleForTrial = !hadSubBefore.rows[0]?.plan_changed_at && !hadSubBefore.rows[0]?.stripe_subscription_id;
+
     // Create Checkout Session
     const baseUrl = process.env.APP_BASE_URL || 'https://genda.be';
 
@@ -100,7 +108,8 @@ router.post('/checkout', requireAuth, requireOwner, async (req, res, next) => {
         quantity: 1
       }],
       subscription_data: {
-        metadata: { business_id: bid, plan }
+        metadata: { business_id: bid, plan },
+        ...(isEligibleForTrial && trialDays > 0 ? { trial_period_days: trialDays } : {})
       },
       success_url: `${baseUrl}/dashboard?subscription=success&plan=${plan}`,
       cancel_url: `${baseUrl}/dashboard?subscription=cancel`,
