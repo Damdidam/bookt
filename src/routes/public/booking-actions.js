@@ -128,22 +128,66 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
         } catch (e) { console.error('[GC REFUND] sibling cancel error:', e.message); }
       }
 
+      // Stripe refund INSIDE transaction — if it fails, rollback deposit_status to 'cancelled'
+      const postCancelBkFinal = cancelResult.rows[0];
+      if (postCancelBkFinal.deposit_status === 'refunded' && postCancelBkFinal.deposit_payment_intent_id) {
+        const _piRaw = postCancelBkFinal.deposit_payment_intent_id;
+        if (_piRaw && (_piRaw.startsWith('pi_') || _piRaw.startsWith('cs_'))) {
+          const _stripeKey = process.env.STRIPE_SECRET_KEY;
+          if (_stripeKey) {
+            try {
+              const _stripe = require('stripe')(_stripeKey);
+              let _piId = _piRaw;
+              if (_piId.startsWith('cs_')) {
+                const _sess = await _stripe.checkout.sessions.retrieve(_piId);
+                _piId = _sess.payment_intent;
+              }
+              if (_piId && _piId.startsWith('pi_')) {
+                const _refundPolicy = bk.business_settings?.refund_policy || 'full';
+                if (_refundPolicy === 'net' && postCancelBkFinal.deposit_amount_cents) {
+                  const _gcPaidRes = await txClient.query(
+                    `SELECT COALESCE(SUM(amount_cents), 0) AS gc_paid_cents
+                     FROM gift_card_transactions WHERE booking_id = $1 AND type = 'debit'`,
+                    [postCancelBkFinal.id]
+                  );
+                  const _gcPaid = parseInt(_gcPaidRes.rows[0]?.gc_paid_cents) || 0;
+                  const _actualCharge = Math.max(postCancelBkFinal.deposit_amount_cents - _gcPaid, 0);
+                  const _fees = _actualCharge > 0 ? Math.round(_actualCharge * 0.015) + 25 : 0;
+                  const _netRefund = Math.max(_actualCharge - _fees, 0);
+                  if (_netRefund > 0) await _stripe.refunds.create({ payment_intent: _piId, amount: _netRefund });
+                } else {
+                  await _stripe.refunds.create({ payment_intent: _piId });
+                }
+              }
+            } catch (_stripeErr) {
+              if (_stripeErr.code !== 'charge_already_refunded') {
+                console.error('[PUBLIC CANCEL] Stripe refund failed — deposit retained:', _stripeErr.message);
+                // Rollback deposit_status to 'cancelled' (retained) before commit
+                await txClient.query(
+                  `UPDATE bookings SET deposit_status = 'cancelled' WHERE id = $1`,
+                  [postCancelBkFinal.id]
+                );
+                if (bk.group_id) {
+                  await txClient.query(
+                    `UPDATE bookings SET deposit_status = 'cancelled'
+                     WHERE group_id = $1 AND business_id = $2 AND deposit_status = 'refunded'`,
+                    [bk.group_id, bk.business_id]
+                  );
+                }
+                // Re-read for correct downstream data
+                cancelResult = await txClient.query(`SELECT * FROM bookings WHERE id = $1`, [postCancelBkFinal.id]);
+              }
+            }
+          }
+        }
+      }
+
       await txClient.query('COMMIT');
     } catch (txErr) {
       await txClient.query('ROLLBACK').catch(() => {});
       throw txErr;
     } finally {
       txClient.release();
-    }
-
-    // Stripe refund if deposit was refunded (must be outside transaction — external API call)
-    const cancelledBk = cancelResult.rows[0];
-    if (cancelledBk.deposit_status === 'refunded' && cancelledBk.deposit_payment_intent_id) {
-      await stripeRefundDeposit(cancelledBk.deposit_payment_intent_id, 'POST CANCEL', {
-        refundPolicy: bk.business_settings?.refund_policy || 'full',
-        depositAmountCents: cancelledBk.deposit_amount_cents,
-        bookingId: cancelledBk.id
-      });
     }
 
     // Log client cancellation in audit_logs (shows in staff modal "Historique" tab)
@@ -471,7 +515,7 @@ router.post('/booking/:token/reject', async (req, res, next) => {
           updated_at = NOW()
          WHERE public_token = $1 AND status = 'modified_pending'
          RETURNING id, status, start_at, end_at, business_id, group_id,
-                   deposit_required, deposit_status, deposit_payment_intent_id`,
+                   deposit_required, deposit_status, deposit_amount_cents, deposit_payment_intent_id`,
         [token]
       );
 
@@ -532,6 +576,39 @@ router.post('/booking/:token/reject', async (req, res, next) => {
       // Decrement promo usage on reject (same as cancel)
       await decrementPromoUsage(rejBkTx.id, txClient).catch(e => console.warn('[PROMO DEC]', e.message));
 
+      // Stripe refund INSIDE transaction — if it fails, rollback deposit_status
+      const rejBkFinal = result.rows[0];
+      if (rejBkFinal.deposit_status === 'refunded' && rejBkFinal.deposit_payment_intent_id) {
+        const _piRaw = rejBkFinal.deposit_payment_intent_id;
+        if (_piRaw && (_piRaw.startsWith('pi_') || _piRaw.startsWith('cs_'))) {
+          const _stripeKey = process.env.STRIPE_SECRET_KEY;
+          if (_stripeKey) {
+            try {
+              const _stripe = require('stripe')(_stripeKey);
+              let _piId = _piRaw;
+              if (_piId.startsWith('cs_')) { const _s = await _stripe.checkout.sessions.retrieve(_piId); _piId = _s.payment_intent; }
+              if (_piId && _piId.startsWith('pi_')) {
+                const _rp = bkData.business_settings?.refund_policy || 'full';
+                if (_rp === 'net' && rejBkFinal.deposit_amount_cents) {
+                  const _gcR = await txClient.query(`SELECT COALESCE(SUM(amount_cents), 0) AS gc FROM gift_card_transactions WHERE booking_id = $1 AND type = 'debit'`, [rejBkFinal.id]);
+                  const _gc = parseInt(_gcR.rows[0]?.gc) || 0;
+                  const _ch = Math.max(rejBkFinal.deposit_amount_cents - _gc, 0);
+                  const _net = Math.max(_ch - (_ch > 0 ? Math.round(_ch * 0.015) + 25 : 0), 0);
+                  if (_net > 0) await _stripe.refunds.create({ payment_intent: _piId, amount: _net });
+                } else { await _stripe.refunds.create({ payment_intent: _piId }); }
+              }
+            } catch (_e) {
+              if (_e.code !== 'charge_already_refunded') {
+                console.error('[REJECT] Stripe refund failed — deposit retained:', _e.message);
+                await txClient.query(`UPDATE bookings SET deposit_status = 'cancelled' WHERE id = $1`, [rejBkFinal.id]);
+                if (rejBkFinal.group_id) await txClient.query(`UPDATE bookings SET deposit_status = 'cancelled' WHERE group_id = $1 AND deposit_status = 'refunded'`, [rejBkFinal.group_id]);
+                result = await txClient.query(`SELECT * FROM bookings WHERE id = $1`, [rejBkFinal.id]);
+              }
+            }
+          }
+        }
+      }
+
       await txClient.query('COMMIT');
     } catch (txErr) {
       await txClient.query('ROLLBACK').catch(() => {});
@@ -540,15 +617,7 @@ router.post('/booking/:token/reject', async (req, res, next) => {
       txClient.release();
     }
 
-    // Stripe refund AFTER transaction commits (external API call shouldn't hold open DB transaction)
     const rejBk = result.rows[0];
-    if (rejBk.deposit_status === 'refunded' && rejBk.deposit_payment_intent_id) {
-      await stripeRefundDeposit(rejBk.deposit_payment_intent_id, 'REJECT', {
-        refundPolicy: bkData.business_settings?.refund_policy || 'full',
-        depositAmountCents: bkData.deposit_amount_cents,
-        bookingId: rejBk.id
-      });
-    }
 
     // Auto-void draft/sent invoices for this booking (+ group siblings)
     try {
@@ -1014,6 +1083,39 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
       // Decrement promo usage on cancel-booking (same as cancel)
       await decrementPromoUsage(postCancelBk2.id, txClient2).catch(e => console.warn('[PROMO DEC]', e.message));
 
+      // Stripe refund INSIDE transaction — if it fails, rollback deposit_status
+      const cancelBkFinal = cancelResult.rows[0];
+      if (cancelBkFinal.deposit_status === 'refunded' && cancelBkFinal.deposit_payment_intent_id) {
+        const _piRaw = cancelBkFinal.deposit_payment_intent_id;
+        if (_piRaw && (_piRaw.startsWith('pi_') || _piRaw.startsWith('cs_'))) {
+          const _stripeKey = process.env.STRIPE_SECRET_KEY;
+          if (_stripeKey) {
+            try {
+              const _stripe = require('stripe')(_stripeKey);
+              let _piId = _piRaw;
+              if (_piId.startsWith('cs_')) { const _s = await _stripe.checkout.sessions.retrieve(_piId); _piId = _s.payment_intent; }
+              if (_piId && _piId.startsWith('pi_')) {
+                const _rp = bk.business_settings?.refund_policy || 'full';
+                if (_rp === 'net' && cancelBkFinal.deposit_amount_cents) {
+                  const _gcR = await txClient2.query(`SELECT COALESCE(SUM(amount_cents), 0) AS gc FROM gift_card_transactions WHERE booking_id = $1 AND type = 'debit'`, [cancelBkFinal.id]);
+                  const _gc = parseInt(_gcR.rows[0]?.gc) || 0;
+                  const _ch = Math.max(cancelBkFinal.deposit_amount_cents - _gc, 0);
+                  const _net = Math.max(_ch - (_ch > 0 ? Math.round(_ch * 0.015) + 25 : 0), 0);
+                  if (_net > 0) await _stripe.refunds.create({ payment_intent: _piId, amount: _net });
+                } else { await _stripe.refunds.create({ payment_intent: _piId }); }
+              }
+            } catch (_e) {
+              if (_e.code !== 'charge_already_refunded') {
+                console.error('[CANCEL-BOOKING] Stripe refund failed — deposit retained:', _e.message);
+                await txClient2.query(`UPDATE bookings SET deposit_status = 'cancelled' WHERE id = $1`, [cancelBkFinal.id]);
+                if (bk.group_id) await txClient2.query(`UPDATE bookings SET deposit_status = 'cancelled' WHERE group_id = $1 AND deposit_status = 'refunded'`, [bk.group_id]);
+                cancelResult = await txClient2.query(`SELECT * FROM bookings WHERE id = $1`, [cancelBkFinal.id]);
+              }
+            }
+          }
+        }
+      }
+
       await txClient2.query('COMMIT');
     } catch (txErr2) {
       await txClient2.query('ROLLBACK').catch(() => {});
@@ -1022,15 +1124,7 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
       txClient2.release();
     }
 
-    // Stripe refund AFTER transaction commits (external API call shouldn't hold open DB transaction)
     const cancelledBk = cancelResult.rows[0];
-    if (cancelledBk.deposit_status === 'refunded' && cancelledBk.deposit_payment_intent_id) {
-      await stripeRefundDeposit(cancelledBk.deposit_payment_intent_id, 'CANCEL-BOOKING', {
-        refundPolicy: bk.business_settings?.refund_policy || 'full',
-        depositAmountCents: cancelledBk.deposit_amount_cents,
-        bookingId: cancelledBk.id
-      });
-    }
 
     // Audit log
     try {
