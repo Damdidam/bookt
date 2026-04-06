@@ -436,7 +436,7 @@ router.get('/export', async (req, res, next) => {
       `SELECT i.*,
               COALESCE(
                 (SELECT string_agg(
-                  ii.description || ' x' || ii.quantity || ' @ ' || ((ii.unit_price_cents || 0)::float / 100)::text || '€',
+                  ii.description || ' x' || ii.quantity || ' @ ' || (COALESCE(ii.unit_price_cents, 0)::float / 100)::text || '€',
                   ' | '
                   ORDER BY ii.id)
                  FROM invoice_items ii WHERE ii.invoice_id = i.id
