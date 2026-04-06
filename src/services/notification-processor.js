@@ -155,7 +155,8 @@ async function sendReviewEmail(bk, metadata) {
       service_category: bk.service_category,
       practitioner_name: bk.practitioner_name,
       review_token: reviewToken,
-      start_at: bk.start_at
+      start_at: bk.start_at,
+      service_price_cents: bk.booked_price_cents || bk.service_price_cents || 0
     },
     business: {
       name: bk.biz_name,

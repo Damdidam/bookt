@@ -243,10 +243,9 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
           const groupEndAt = groupServices ? groupServices[groupServices.length - 1].end_at : null;
           const { getGcPaidCents } = require('../../services/gift-card-refund');
           const gcPaidCancel = await getGcPaidCents(bk.id);
-          const _adjSvcPrice1 = row.discount_pct ? Math.round((row.service_price_cents || 0) * (100 - row.discount_pct) / 100) : (row.service_price_cents || 0);
           const { sendCancellationEmail } = require('../../services/email');
           await sendCancellationEmail({
-            booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, service_category: row.service_category, custom_label: row.custom_label, practitioner_name: row.practitioner_name, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_paid_at: row.deposit_paid_at, deposit_payment_intent_id: row.deposit_payment_intent_id, gc_paid_cents: gcPaidCancel, gc_refunded_cents: gcRefundResult.refunded || 0, pass_refunded: (passRefundResult.refunded || 0) !== 0, promotion_label: row.promotion_label, promotion_discount_cents: row.promotion_discount_cents, promotion_discount_pct: row.promotion_discount_pct, service_price_cents: _adjSvcPrice1, duration_min: row.duration_min },
+            booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, service_category: row.service_category, custom_label: row.custom_label, practitioner_name: row.practitioner_name, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_paid_at: row.deposit_paid_at, deposit_payment_intent_id: row.deposit_payment_intent_id, gc_paid_cents: gcPaidCancel, gc_refunded_cents: gcRefundResult.refunded || 0, pass_refunded: (passRefundResult.refunded || 0) !== 0, promotion_label: row.promotion_label, promotion_discount_cents: row.promotion_discount_cents, promotion_discount_pct: row.promotion_discount_pct, service_price_cents: row.service_price_cents, booked_price_cents: row.booked_price_cents, discount_pct: row.discount_pct, duration_min: row.duration_min, cancel_reason: row.cancel_reason },
             business: { name: row.biz_name, email: row.biz_email, phone: row.biz_phone, address: row.biz_address, theme: row.biz_theme, slug: row.biz_slug, settings: bk.business_settings },
             groupServices
           });
@@ -618,9 +617,8 @@ router.post('/booking/:token/reject', async (req, res, next) => {
           const { sendCancellationEmail } = require('../../services/email');
           const { getGcPaidCents } = require('../../services/gift-card-refund');
           const gcPaidReject = await getGcPaidCents(rejBk.id);
-          const _adjSvcPrice2 = row.discount_pct ? Math.round((row.service_price_cents || 0) * (100 - row.discount_pct) / 100) : (row.service_price_cents || 0);
           await sendCancellationEmail({
-            booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, service_category: row.service_category, custom_label: row.custom_label, practitioner_name: row.practitioner_name, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_paid_at: row.deposit_paid_at, deposit_payment_intent_id: row.deposit_payment_intent_id, gc_paid_cents: gcPaidReject, gc_refunded_cents: gcRefundReject.refunded || 0, pass_refunded: (passRefundReject.refunded || 0) !== 0, promotion_label: row.promotion_label, promotion_discount_cents: row.promotion_discount_cents, promotion_discount_pct: row.promotion_discount_pct, service_price_cents: _adjSvcPrice2, duration_min: row.duration_min },
+            booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, service_category: row.service_category, custom_label: row.custom_label, practitioner_name: row.practitioner_name, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_paid_at: row.deposit_paid_at, deposit_payment_intent_id: row.deposit_payment_intent_id, gc_paid_cents: gcPaidReject, gc_refunded_cents: gcRefundReject.refunded || 0, pass_refunded: (passRefundReject.refunded || 0) !== 0, promotion_label: row.promotion_label, promotion_discount_cents: row.promotion_discount_cents, promotion_discount_pct: row.promotion_discount_pct, service_price_cents: row.service_price_cents, booked_price_cents: row.booked_price_cents, discount_pct: row.discount_pct, duration_min: row.duration_min },
             business: { name: row.biz_name, email: row.biz_email, phone: row.biz_phone, address: row.biz_address, theme: row.biz_theme, slug: row.biz_slug, settings: row.biz_settings },
             groupServices
           });
@@ -1130,9 +1128,8 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
           const { sendCancellationEmail } = require('../../services/email');
           const { getGcPaidCents } = require('../../services/gift-card-refund');
           const gcPaidCancel2 = await getGcPaidCents(bk.id);
-          const _adjSvcPrice3 = row.discount_pct ? Math.round((row.service_price_cents || 0) * (100 - row.discount_pct) / 100) : (row.service_price_cents || 0);
           await sendCancellationEmail({
-            booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, service_category: row.service_category, custom_label: row.custom_label, practitioner_name: row.practitioner_name, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_paid_at: row.deposit_paid_at, deposit_payment_intent_id: row.deposit_payment_intent_id, gc_paid_cents: gcPaidCancel2, gc_refunded_cents: gcRefundResult2.refunded || 0, pass_refunded: (passRefundResult2.refunded || 0) !== 0, promotion_label: row.promotion_label, promotion_discount_cents: row.promotion_discount_cents, promotion_discount_pct: row.promotion_discount_pct, service_price_cents: _adjSvcPrice3, duration_min: row.duration_min },
+            booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, service_category: row.service_category, custom_label: row.custom_label, practitioner_name: row.practitioner_name, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_paid_at: row.deposit_paid_at, deposit_payment_intent_id: row.deposit_payment_intent_id, gc_paid_cents: gcPaidCancel2, gc_refunded_cents: gcRefundResult2.refunded || 0, pass_refunded: (passRefundResult2.refunded || 0) !== 0, promotion_label: row.promotion_label, promotion_discount_cents: row.promotion_discount_cents, promotion_discount_pct: row.promotion_discount_pct, service_price_cents: row.service_price_cents, booked_price_cents: row.booked_price_cents, discount_pct: row.discount_pct, duration_min: row.duration_min, cancel_reason: row.cancel_reason },
             business: { name: row.biz_name, email: row.biz_email, phone: row.biz_phone, address: row.biz_address, theme: row.biz_theme, slug: row.biz_slug, settings: row.biz_settings },
             groupServices
           });
@@ -1283,12 +1280,11 @@ router.post('/booking/:token/confirm-booking', async (req, res, next) => {
             }
           }
           const groupEndAt = groupServices ? groupServices[groupServices.length - 1].end_at : null;
-          const _adjSvcPrice4 = row.discount_pct ? Math.round((row.service_price_cents || 0) * (100 - row.discount_pct) / 100) : (row.service_price_cents || 0);
           await sendBookingConfirmation({
             booking: {
               public_token: row.public_token, start_at: row.start_at, end_at: groupEndAt || row.end_at,
               client_name: row.client_name, client_email: row.client_email,
-              service_name: row.service_name, service_category: row.service_category, service_price_cents: _adjSvcPrice4, duration_min: row.duration_min, practitioner_name: row.practitioner_name,
+              service_name: row.service_name, service_category: row.service_category, service_price_cents: row.service_price_cents, booked_price_cents: row.booked_price_cents, discount_pct: row.discount_pct, duration_min: row.duration_min, practitioner_name: row.practitioner_name,
               comment: row.comment_client,
               deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_payment_intent_id: row.deposit_payment_intent_id,
               promotion_label: row.promotion_label, promotion_discount_cents: row.promotion_discount_cents, promotion_discount_pct: row.promotion_discount_pct

@@ -35,28 +35,36 @@ async function sendCancellationEmail({ booking, business, groupServices }) {
     });
     const totalMinCL = groupServices.reduce((sum, s) => sum + (s.duration_min || 0), 0);
     const totalPriceCL = groupServices.reduce((sum, s) => sum + (s.price_cents || 0), 0);
+    const totalOriginalCL = groupServices.reduce((sum, s) => sum + (s.original_price_cents || s.price_cents || 0), 0);
+    const hasMultiLmCL = totalOriginalCL > totalPriceCL;
     const promoDiscCL = booking.promotion_discount_cents || 0;
     const finalPriceCL = totalPriceCL - promoDiscCL;
     const durStrCL = totalMinCL >= 60 ? Math.floor(totalMinCL / 60) + 'h' + (totalMinCL % 60 > 0 ? String(totalMinCL % 60).padStart(2, '0') : '') : totalMinCL + ' min';
     if (totalPriceCL > 0) {
-      if (promoDiscCL > 0 && booking.promotion_label) {
-        serviceDetailHTML += `<div style="font-size:14px;color:#6B6560;margin-top:6px;font-weight:700">Total : ${durStrCL} \u00b7 <s style="opacity:.6">${(totalPriceCL / 100).toFixed(2).replace('.', ',')} \u20ac</s> ${(finalPriceCL / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
-        serviceDetailHTML += `<div style="font-size:12px;color:#6B6560;opacity:.8">${escHtml(booking.promotion_label)} : -${(promoDiscCL / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
+      if (hasMultiLmCL || (promoDiscCL > 0 && booking.promotion_label)) {
+        const displayBaseCL = hasMultiLmCL ? totalOriginalCL : totalPriceCL;
+        serviceDetailHTML += `<div style="font-size:14px;color:#6B6560;margin-top:6px;font-weight:700">Total : ${durStrCL} \u00b7 <s style="opacity:.6">${(displayBaseCL / 100).toFixed(2).replace('.', ',')} \u20ac</s> ${(finalPriceCL / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
+        if (hasMultiLmCL) serviceDetailHTML += `<div style="font-size:12px;color:#6B6560;opacity:.8">Last Minute : -${((totalOriginalCL - totalPriceCL) / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
+        if (promoDiscCL > 0 && booking.promotion_label) serviceDetailHTML += `<div style="font-size:12px;color:#6B6560;opacity:.8">${escHtml(booking.promotion_label)} : -${(promoDiscCL / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
       } else {
         serviceDetailHTML += `<div style="font-size:14px;color:#6B6560;margin-top:6px;font-weight:700">Total : ${durStrCL} \u00b7 ${(totalPriceCL / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
       }
     }
   } else {
     serviceDetailHTML = `<div style="font-size:14px;color:#3D3832">${safeServiceName}</div>`;
-    // Single-service: show price + promo
-    const singlePriceCL = booking.booked_price_cents || (booking.discount_pct ? Math.round((booking.service_price_cents || 0) * (100 - booking.discount_pct) / 100) : (booking.service_price_cents || 0));
+    // Single-service: show price + LM discount + promo
+    const rawPriceCL = booking.service_price_cents || 0;
+    const singlePriceCL = booking.booked_price_cents || (booking.discount_pct ? Math.round(rawPriceCL * (100 - booking.discount_pct) / 100) : rawPriceCL);
     if (singlePriceCL > 0) {
       const singleDurCL = booking.duration_min || '';
       const promoDiscSingleCL = booking.promotion_discount_cents || 0;
-      if (promoDiscSingleCL > 0 && booking.promotion_label) {
-        const finalSingleCL = singlePriceCL - promoDiscSingleCL;
-        serviceDetailHTML += `<div style="font-size:14px;color:#6B6560;margin-top:6px;font-weight:700">${singleDurCL ? singleDurCL + ' min · ' : ''}<s style="opacity:.6">${(singlePriceCL / 100).toFixed(2).replace('.', ',')} €</s> ${(finalSingleCL / 100).toFixed(2).replace('.', ',')} €</div>`;
-        serviceDetailHTML += `<div style="font-size:12px;color:#6B6560;opacity:.8">${escHtml(booking.promotion_label)} : -${(promoDiscSingleCL / 100).toFixed(2).replace('.', ',')} €</div>`;
+      const hasLmCL = booking.discount_pct && rawPriceCL > singlePriceCL;
+      const finalSingleCL = singlePriceCL - promoDiscSingleCL;
+      if (hasLmCL || (promoDiscSingleCL > 0 && booking.promotion_label)) {
+        const displayBaseCL = hasLmCL ? rawPriceCL : singlePriceCL;
+        serviceDetailHTML += `<div style="font-size:14px;color:#6B6560;margin-top:6px;font-weight:700">${singleDurCL ? singleDurCL + ' min · ' : ''}<s style="opacity:.6">${(displayBaseCL / 100).toFixed(2).replace('.', ',')} €</s> ${(finalSingleCL / 100).toFixed(2).replace('.', ',')} €</div>`;
+        if (hasLmCL) serviceDetailHTML += `<div style="font-size:12px;color:#6B6560;opacity:.8">Last Minute -${booking.discount_pct}%</div>`;
+        if (promoDiscSingleCL > 0 && booking.promotion_label) serviceDetailHTML += `<div style="font-size:12px;color:#6B6560;opacity:.8">${escHtml(booking.promotion_label)} : -${(promoDiscSingleCL / 100).toFixed(2).replace('.', ',')} €</div>`;
       } else {
         serviceDetailHTML += `<div style="font-size:14px;color:#3D3832;margin-top:4px">${singleDurCL ? singleDurCL + ' min · ' : ''}${(singlePriceCL / 100).toFixed(2).replace('.', ',')} €</div>`;
       }
@@ -192,18 +200,24 @@ async function sendRescheduleConfirmationEmail({ booking, business, oldStartAt, 
     });
     const totalMin = groupServices.reduce((sum, s) => sum + (s.duration_min || 0), 0);
     const totalPrice = groupServices.reduce((sum, s) => sum + (s.price_cents || 0), 0);
+    const totalOriginalRS = groupServices.reduce((sum, s) => sum + (s.original_price_cents || s.price_cents || 0), 0);
+    const hasMultiLmRS = totalOriginalRS > totalPrice;
     const promoDiscount = booking.promotion_discount_cents || 0;
     const finalPrice = totalPrice - promoDiscount;
     const durStr = totalMin >= 60 ? Math.floor(totalMin / 60) + 'h' + (totalMin % 60 > 0 ? String(totalMin % 60).padStart(2, '0') : '') : totalMin + ' min';
     let totalCellContent = `Total : ${durStr}`;
     if (totalPrice > 0) {
-      if (promoDiscount > 0 && booking.promotion_label) {
-        totalCellContent += ` \u00b7 <s style="opacity:.6">${(totalPrice / 100).toFixed(2).replace('.', ',')} \u20ac</s> ${(finalPrice / 100).toFixed(2).replace('.', ',')} \u20ac`;
+      if (hasMultiLmRS || (promoDiscount > 0 && booking.promotion_label)) {
+        const displayBaseRS = hasMultiLmRS ? totalOriginalRS : totalPrice;
+        totalCellContent += ` \u00b7 <s style="opacity:.6">${(displayBaseRS / 100).toFixed(2).replace('.', ',')} \u20ac</s> ${(finalPrice / 100).toFixed(2).replace('.', ',')} \u20ac`;
       } else {
         totalCellContent += ` \u00b7 ${(totalPrice / 100).toFixed(2).replace('.', ',')} \u20ac`;
       }
     }
     detailLines += `<tr><td style="padding:6px 0 2px;font-weight:700;border-top:1px solid #E0DDD8">${totalCellContent}</td></tr>`;
+    if (hasMultiLmRS) {
+      detailLines += `<tr><td style="padding:2px 0;font-size:12px;opacity:.8">Last Minute : -${((totalOriginalRS - totalPrice) / 100).toFixed(2).replace('.', ',')} \u20ac</td></tr>`;
+    }
     if (promoDiscount > 0 && booking.promotion_label) {
       detailLines += `<tr><td style="padding:2px 0;font-size:12px;opacity:.8">${escHtml(booking.promotion_label)} : -${(promoDiscount / 100).toFixed(2).replace('.', ',')} \u20ac</td></tr>`;
     }
@@ -212,15 +226,19 @@ async function sendRescheduleConfirmationEmail({ booking, business, oldStartAt, 
     }
   } else {
     detailLines = `<tr><td style="padding:4px 0;color:#7A7470;width:100px">Prestation</td><td style="padding:4px 0;font-weight:600">${escHtml(serviceName)}</td></tr>`;
-    // Single-service: show price + promo
-    const singlePriceRS = booking.booked_price_cents || (booking.discount_pct ? Math.round((booking.service_price_cents || 0) * (100 - booking.discount_pct) / 100) : (booking.service_price_cents || 0));
+    // Single-service: show price + LM discount + promo
+    const rawPriceRS = booking.service_price_cents || 0;
+    const singlePriceRS = booking.booked_price_cents || (booking.discount_pct ? Math.round(rawPriceRS * (100 - booking.discount_pct) / 100) : rawPriceRS);
     if (singlePriceRS > 0) {
       const singleDurRS = booking.duration_min || '';
       const promoDiscSingleRS = booking.promotion_discount_cents || 0;
-      if (promoDiscSingleRS > 0 && booking.promotion_label) {
-        const finalSingleRS = singlePriceRS - promoDiscSingleRS;
-        detailLines += `<tr><td style="padding:4px 0;color:#7A7470">Prix</td><td style="padding:4px 0;font-weight:700">${singleDurRS ? singleDurRS + ' min · ' : ''}<s style="opacity:.6">${(singlePriceRS / 100).toFixed(2).replace('.', ',')} €</s> ${(finalSingleRS / 100).toFixed(2).replace('.', ',')} €</td></tr>`;
-        detailLines += `<tr><td></td><td style="padding:2px 0;font-size:12px;opacity:.8">${escHtml(booking.promotion_label)} : -${(promoDiscSingleRS / 100).toFixed(2).replace('.', ',')} €</td></tr>`;
+      const hasLmRS = booking.discount_pct && rawPriceRS > singlePriceRS;
+      const finalSingleRS = singlePriceRS - promoDiscSingleRS;
+      if (hasLmRS || (promoDiscSingleRS > 0 && booking.promotion_label)) {
+        const displayBaseSingleRS = hasLmRS ? rawPriceRS : singlePriceRS;
+        detailLines += `<tr><td style="padding:4px 0;color:#7A7470">Prix</td><td style="padding:4px 0;font-weight:700">${singleDurRS ? singleDurRS + ' min · ' : ''}<s style="opacity:.6">${(displayBaseSingleRS / 100).toFixed(2).replace('.', ',')} €</s> ${(finalSingleRS / 100).toFixed(2).replace('.', ',')} €</td></tr>`;
+        if (hasLmRS) detailLines += `<tr><td></td><td style="padding:2px 0;font-size:12px;opacity:.8">Last Minute -${booking.discount_pct}%</td></tr>`;
+        if (promoDiscSingleRS > 0 && booking.promotion_label) detailLines += `<tr><td></td><td style="padding:2px 0;font-size:12px;opacity:.8">${escHtml(booking.promotion_label)} : -${(promoDiscSingleRS / 100).toFixed(2).replace('.', ',')} €</td></tr>`;
       } else {
         detailLines += `<tr><td style="padding:4px 0;color:#7A7470">Prix</td><td style="padding:4px 0;font-weight:600">${singleDurRS ? singleDurRS + ' min · ' : ''}${(singlePriceRS / 100).toFixed(2).replace('.', ',')} €</td></tr>`;
       }

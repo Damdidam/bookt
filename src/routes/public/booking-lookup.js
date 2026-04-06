@@ -385,7 +385,9 @@ router.post('/:slug/lookup-my-bookings', lookupLimiter, async (req, res, next) =
     // For grouped (multi-service) bookings, aggregate all sibling services
     // into a single label so the lookup email shows the complete prestation list.
     const bkRes = await query(
-      `SELECT b.id, b.public_token, b.start_at,
+      `SELECT b.id, b.public_token, b.start_at, b.end_at,
+              s.category AS service_category,
+              COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents, 0) AS price_cents,
               COALESCE(
                 (SELECT string_agg(
                    CASE WHEN sv2.name IS NOT NULL THEN s2.name || ' — ' || sv2.name ELSE s2.name END,

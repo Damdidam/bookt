@@ -56,13 +56,17 @@ async function sendModificationEmail({ booking, business, groupServices }) {
     });
     const totalMinMod = groupServices.reduce((sum, s) => sum + (s.duration_min || 0), 0);
     const totalPriceMod = groupServices.reduce((sum, s) => sum + (s.price_cents || 0), 0);
+    const totalOriginalMod = groupServices.reduce((sum, s) => sum + (s.original_price_cents || s.price_cents || 0), 0);
+    const hasMultiLmMod = totalOriginalMod > totalPriceMod;
     const promoDiscMod = booking.promotion_discount_cents || 0;
     const finalPriceMod = totalPriceMod - promoDiscMod;
     const durStrMod = totalMinMod >= 60 ? Math.floor(totalMinMod / 60) + 'h' + (totalMinMod % 60 > 0 ? String(totalMinMod % 60).padStart(2, '0') : '') : totalMinMod + ' min';
     if (totalPriceMod > 0) {
-      if (promoDiscMod > 0 && booking.promotion_label) {
-        serviceDetailNew += `<div style="font-size:13px;color:#15613A;margin-top:6px;font-weight:700">Total : ${durStrMod} \u00b7 <s style="opacity:.6">${(totalPriceMod / 100).toFixed(2).replace('.', ',')} \u20ac</s> ${(finalPriceMod / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
-        serviceDetailNew += `<div style="font-size:11px;color:#15613A;opacity:.8">${escHtml(booking.promotion_label)} : -${(promoDiscMod / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
+      if (hasMultiLmMod || (promoDiscMod > 0 && booking.promotion_label)) {
+        const displayBaseMod = hasMultiLmMod ? totalOriginalMod : totalPriceMod;
+        serviceDetailNew += `<div style="font-size:13px;color:#15613A;margin-top:6px;font-weight:700">Total : ${durStrMod} \u00b7 <s style="opacity:.6">${(displayBaseMod / 100).toFixed(2).replace('.', ',')} \u20ac</s> ${(finalPriceMod / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
+        if (hasMultiLmMod) serviceDetailNew += `<div style="font-size:11px;color:#15613A;opacity:.8">Last Minute : -${((totalOriginalMod - totalPriceMod) / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
+        if (promoDiscMod > 0 && booking.promotion_label) serviceDetailNew += `<div style="font-size:11px;color:#15613A;opacity:.8">${escHtml(booking.promotion_label)} : -${(promoDiscMod / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
       } else {
         serviceDetailNew += `<div style="font-size:13px;color:#15613A;margin-top:6px;font-weight:700">Total : ${durStrMod} \u00b7 ${(totalPriceMod / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
       }
@@ -70,15 +74,19 @@ async function sendModificationEmail({ booking, business, groupServices }) {
     const hasSplitPracMod = groupServices.some(s => s.practitioner_name);
     if (safePracName && !hasSplitPracMod) serviceDetailNew += `<div style="font-size:13px;color:#15613A;margin-top:4px">${safePracName}</div>`;
   } else {
-    // Single-service: show price + promo
-    const singlePriceMod = booking.booked_price_cents || (booking.discount_pct ? Math.round((booking.service_price_cents || 0) * (100 - booking.discount_pct) / 100) : (booking.service_price_cents || 0));
+    // Single-service: show price + LM discount + promo
+    const rawPriceMod = booking.service_price_cents || 0;
+    const singlePriceMod = booking.booked_price_cents || (booking.discount_pct ? Math.round(rawPriceMod * (100 - booking.discount_pct) / 100) : rawPriceMod);
     if (singlePriceMod > 0) {
       const singleDurMod = booking.duration_min || '';
       const promoDiscSingleMod = booking.promotion_discount_cents || 0;
-      if (promoDiscSingleMod > 0 && booking.promotion_label) {
-        const finalSingleMod = singlePriceMod - promoDiscSingleMod;
-        serviceDetailNew += `<div style="font-size:13px;color:#15613A;margin-top:6px;font-weight:700">${singleDurMod ? singleDurMod + ' min \u00b7 ' : ''}<s style="opacity:.6">${(singlePriceMod / 100).toFixed(2).replace('.', ',')} \u20ac</s> ${(finalSingleMod / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
-        serviceDetailNew += `<div style="font-size:11px;color:#15613A;opacity:.8">${escHtml(booking.promotion_label)} : -${(promoDiscSingleMod / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
+      const hasLmMod = booking.discount_pct && rawPriceMod > singlePriceMod;
+      const finalSingleMod = singlePriceMod - promoDiscSingleMod;
+      if (hasLmMod || (promoDiscSingleMod > 0 && booking.promotion_label)) {
+        const displayBaseMod = hasLmMod ? rawPriceMod : singlePriceMod;
+        serviceDetailNew += `<div style="font-size:13px;color:#15613A;margin-top:6px;font-weight:700">${singleDurMod ? singleDurMod + ' min \u00b7 ' : ''}<s style="opacity:.6">${(displayBaseMod / 100).toFixed(2).replace('.', ',')} \u20ac</s> ${(finalSingleMod / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
+        if (hasLmMod) serviceDetailNew += `<div style="font-size:11px;color:#15613A;opacity:.8">Last Minute -${booking.discount_pct}%</div>`;
+        if (promoDiscSingleMod > 0 && booking.promotion_label) serviceDetailNew += `<div style="font-size:11px;color:#15613A;opacity:.8">${escHtml(booking.promotion_label)} : -${(promoDiscSingleMod / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
       } else {
         serviceDetailNew += `<div style="font-size:13px;color:#15613A;margin-top:4px">${singleDurMod ? singleDurMod + ' min \u00b7 ' : ''}${(singlePriceMod / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
       }

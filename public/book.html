@@ -1683,19 +1683,20 @@ function calcPromoDiscAmount(promoOrId,cart){
   var p=typeof promoOrId==='object'?promoOrId:(siteData&&siteData.promotions||[]).find(function(x){return x.id===promoOrId;});
   if(!p||!p.reward_type||p.reward_type==='info_only')return 0;
   var lmActive=selectedSlot&&selectedSlot.is_last_minute&&selectedSlot.discount_pct;
-  function getLmPrice(svc,i){
-    var v=selectedVariantsByIdx[i]||selectedVariants[svc.id];
+  function getLmPrice(svc){
+    var realIdx=multiServiceMode?selectedServices.indexOf(svc):-1;
+    var v=(realIdx>=0?selectedVariantsByIdx[realIdx]:null)||selectedVariants[svc.id];
     var pc=v&&v.price_cents!=null?v.price_cents:(svc.price_cents||0);
     if(lmActive&&svc.promo_eligible!==false&&pc>0) pc=Math.round(pc*(100-selectedSlot.discount_pct)/100);
     return pc;
   }
-  var cartTotal=cart.reduce(function(s,svc,i){return s+getLmPrice(svc,i);},0);
+  var cartTotal=cart.reduce(function(s,svc){return s+getLmPrice(svc);},0);
   if(p.reward_type==='discount_pct'){
     if(p.condition_type==='specific_service'){
       var svcIdx=-1;var svc=null;
       for(var ci=0;ci<cart.length;ci++){if(cart[ci].id===p.condition_service_id){svc=cart[ci];svcIdx=ci;break;}}
       if(!svc)return 0;
-      return Math.round(getLmPrice(svc,svcIdx)*p.reward_value/100);
+      return Math.round(getLmPrice(svc)*p.reward_value/100);
     }
     return Math.round(cartTotal*p.reward_value/100);
   }
@@ -1703,7 +1704,7 @@ function calcPromoDiscAmount(promoOrId,cart){
     if(p.condition_type==='specific_service'){
       var svcIdx2=-1;var svc2=null;
       for(var ci2=0;ci2<cart.length;ci2++){if(cart[ci2].id===p.condition_service_id){svc2=cart[ci2];svcIdx2=ci2;break;}}
-      var sp=svc2?getLmPrice(svc2,svcIdx2):cartTotal;
+      var sp=svc2?getLmPrice(svc2):cartTotal;
       return Math.min(p.reward_value||0,sp);
     }
     return Math.min(p.reward_value||0,cartTotal);

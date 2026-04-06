@@ -666,7 +666,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                     passMatchedBookingId = bookings[matchIdx].id;
                     await client.query(
                       `INSERT INTO pass_transactions (id, pass_id, business_id, booking_id, sessions, type, note)
-                       VALUES (gen_random_uuid(), $1, $2, $3, 1, 'debit', $4)`,
+                       VALUES (gen_random_uuid(), $1, $2, $3, -1, 'debit', $4)`,
                       [pass.id, businessId, passMatchedBookingId, `Séance — pass ${pass.code}`]
                     );
                     passUsed = pass.code;
@@ -1258,7 +1258,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                   );
                   await client.query(
                     `INSERT INTO pass_transactions (id, pass_id, business_id, booking_id, sessions, type, note)
-                     VALUES (gen_random_uuid(), $1, $2, $3, 1, 'debit', $4)`,
+                     VALUES (gen_random_uuid(), $1, $2, $3, -1, 'debit', $4)`,
                     [pass.id, businessId, booking.rows[0].id, `Séance — pass ${pass.code}`]
                   );
                   passUsed = pass.code;

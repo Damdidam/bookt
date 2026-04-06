@@ -168,20 +168,28 @@ async function process24hReminders(stats) {
         }).join('');
         const totalMin = groupServices.reduce((sum, s) => sum + (s.duration_min || 0), 0);
         const totalPrice = groupServices.reduce((sum, s) => sum + (s.price_cents || 0), 0);
+        const totalOriginal24 = groupServices.reduce((sum, s) => sum + (s.original_price_cents || s.price_cents || 0), 0);
+        const hasMultiLm24 = totalOriginal24 > totalPrice;
         const durStr = totalMin >= 60 ? Math.floor(totalMin / 60) + 'h' + (totalMin % 60 > 0 ? String(totalMin % 60).padStart(2, '0') : '') : totalMin + ' min';
-        if (totalPrice > 0 && promoDiscount > 0 && promoLabel) {
-          const finalPrice = totalPrice - promoDiscount;
-          serviceHTML += `<div style="padding:4px 0;font-weight:700">Total : ${durStr} \u00b7 <s style="opacity:.6">${(totalPrice / 100).toFixed(2).replace('.', ',')} \u20ac</s> ${(finalPrice / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
-          serviceHTML += `<div style="padding:2px 0;font-size:12px;color:#7A7470">${escHtml(promoLabel)} : -${(promoDiscount / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
+        const finalPrice = totalPrice - promoDiscount;
+        if (totalPrice > 0 && (hasMultiLm24 || (promoDiscount > 0 && promoLabel))) {
+          const displayBase24 = hasMultiLm24 ? totalOriginal24 : totalPrice;
+          serviceHTML += `<div style="padding:4px 0;font-weight:700">Total : ${durStr} \u00b7 <s style="opacity:.6">${(displayBase24 / 100).toFixed(2).replace('.', ',')} \u20ac</s> ${(finalPrice / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
+          if (hasMultiLm24) serviceHTML += `<div style="padding:2px 0;font-size:12px;color:#7A7470">Last Minute : -${((totalOriginal24 - totalPrice) / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
+          if (promoDiscount > 0 && promoLabel) serviceHTML += `<div style="padding:2px 0;font-size:12px;color:#7A7470">${escHtml(promoLabel)} : -${(promoDiscount / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
         } else {
           const totalPriceStr = totalPrice > 0 ? ' \u00b7 ' + (totalPrice / 100).toFixed(2).replace('.', ',') + ' \u20ac' : '';
           serviceHTML += `<div style="padding:4px 0;font-weight:700">Total : ${durStr}${totalPriceStr}</div>`;
         }
       } else {
-        if (adjPriceCents && promoDiscount > 0 && promoLabel) {
+        const rawPrice24 = bk.price_cents || 0;
+        const hasLm24 = bk.discount_pct && rawPrice24 > adjPriceCents;
+        if (adjPriceCents && (hasLm24 || (promoDiscount > 0 && promoLabel))) {
+          const displayBase24 = hasLm24 ? rawPrice24 : adjPriceCents;
           const finalSingle = adjPriceCents - promoDiscount;
-          serviceHTML = `<span style="font-weight:600">${escHtml(bk.service_name)} (${bk.duration_min} min \u00b7 <s style="opacity:.6">${(adjPriceCents / 100).toFixed(2).replace('.', ',')} \u20ac</s> ${(finalSingle / 100).toFixed(2).replace('.', ',')} \u20ac)</span>`;
-          serviceHTML += `<div style="font-size:12px;color:#7A7470">${escHtml(promoLabel)} : -${(promoDiscount / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
+          serviceHTML = `<span style="font-weight:600">${escHtml(bk.service_name)} (${bk.duration_min} min \u00b7 <s style="opacity:.6">${(displayBase24 / 100).toFixed(2).replace('.', ',')} \u20ac</s> ${(finalSingle / 100).toFixed(2).replace('.', ',')} \u20ac)</span>`;
+          if (hasLm24) serviceHTML += `<div style="font-size:12px;color:#7A7470">Last Minute -${bk.discount_pct}%</div>`;
+          if (promoDiscount > 0 && promoLabel) serviceHTML += `<div style="font-size:12px;color:#7A7470">${escHtml(promoLabel)} : -${(promoDiscount / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
         } else {
           const singlePrice = adjPriceCents ? ' \u00b7 ' + (adjPriceCents / 100).toFixed(2).replace('.', ',') + ' \u20ac' : '';
           serviceHTML = `<span style="font-weight:600">${escHtml(bk.service_name)} (${bk.duration_min} min${singlePrice})</span>`;
@@ -454,20 +462,28 @@ async function process2hReminders(stats) {
           }).join('');
           const totalMin = groupServices.reduce((sum, s) => sum + (s.duration_min || 0), 0);
           const totalPrice2h = groupServices.reduce((sum, s) => sum + (s.price_cents || 0), 0);
+          const totalOriginal2h = groupServices.reduce((sum, s) => sum + (s.original_price_cents || s.price_cents || 0), 0);
+          const hasMultiLm2h = totalOriginal2h > totalPrice2h;
           const durStr = totalMin >= 60 ? Math.floor(totalMin / 60) + 'h' + (totalMin % 60 > 0 ? String(totalMin % 60).padStart(2, '0') : '') : totalMin + ' min';
-          if (totalPrice2h > 0 && promoDiscount2h > 0 && promoLabel2h) {
-            const finalPrice2h = totalPrice2h - promoDiscount2h;
-            serviceHTML += `<div style="padding:4px 0;font-weight:700">Total : ${durStr} \u00b7 <s style="opacity:.6">${(totalPrice2h / 100).toFixed(2).replace('.', ',')} \u20ac</s> ${(finalPrice2h / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
-            serviceHTML += `<div style="padding:2px 0;font-size:12px;color:#7A7470">${escHtml(promoLabel2h)} : -${(promoDiscount2h / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
+          const finalPrice2h = totalPrice2h - promoDiscount2h;
+          if (totalPrice2h > 0 && (hasMultiLm2h || (promoDiscount2h > 0 && promoLabel2h))) {
+            const displayBase2h = hasMultiLm2h ? totalOriginal2h : totalPrice2h;
+            serviceHTML += `<div style="padding:4px 0;font-weight:700">Total : ${durStr} \u00b7 <s style="opacity:.6">${(displayBase2h / 100).toFixed(2).replace('.', ',')} \u20ac</s> ${(finalPrice2h / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
+            if (hasMultiLm2h) serviceHTML += `<div style="padding:2px 0;font-size:12px;color:#7A7470">Last Minute : -${((totalOriginal2h - totalPrice2h) / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
+            if (promoDiscount2h > 0 && promoLabel2h) serviceHTML += `<div style="padding:2px 0;font-size:12px;color:#7A7470">${escHtml(promoLabel2h)} : -${(promoDiscount2h / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
           } else {
             const totalPriceStr2h = totalPrice2h > 0 ? ' \u00b7 ' + (totalPrice2h / 100).toFixed(2).replace('.', ',') + ' \u20ac' : '';
             serviceHTML += `<div style="padding:4px 0;font-weight:700">Total : ${durStr}${totalPriceStr2h}</div>`;
           }
         } else {
-          if (adjPriceCents2h && promoDiscount2h > 0 && promoLabel2h) {
+          const rawPrice2h = bk.price_cents || 0;
+          const hasLm2h = bk.discount_pct && rawPrice2h > adjPriceCents2h;
+          if (adjPriceCents2h && (hasLm2h || (promoDiscount2h > 0 && promoLabel2h))) {
+            const displayBase2h = hasLm2h ? rawPrice2h : adjPriceCents2h;
             const finalSingle2h = adjPriceCents2h - promoDiscount2h;
-            serviceHTML = `<strong>${escHtml(bk.service_name)}</strong> (${bk.duration_min} min \u00b7 <s style="opacity:.6">${(adjPriceCents2h / 100).toFixed(2).replace('.', ',')} \u20ac</s> ${(finalSingle2h / 100).toFixed(2).replace('.', ',')} \u20ac)`;
-            serviceHTML += `<div style="font-size:12px;color:#7A7470">${escHtml(promoLabel2h)} : -${(promoDiscount2h / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
+            serviceHTML = `<strong>${escHtml(bk.service_name)}</strong> (${bk.duration_min} min \u00b7 <s style="opacity:.6">${(displayBase2h / 100).toFixed(2).replace('.', ',')} \u20ac</s> ${(finalSingle2h / 100).toFixed(2).replace('.', ',')} \u20ac)`;
+            if (hasLm2h) serviceHTML += `<div style="font-size:12px;color:#7A7470">Last Minute -${bk.discount_pct}%</div>`;
+            if (promoDiscount2h > 0 && promoLabel2h) serviceHTML += `<div style="font-size:12px;color:#7A7470">${escHtml(promoLabel2h)} : -${(promoDiscount2h / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
           } else {
             const singlePrice2h = adjPriceCents2h ? ' \u00b7 ' + (adjPriceCents2h / 100).toFixed(2).replace('.', ',') + ' \u20ac' : '';
             serviceHTML = `<strong>${escHtml(bk.service_name)}</strong> (${bk.duration_min} min${singlePrice2h})`;
@@ -477,13 +493,18 @@ async function process2hReminders(stats) {
         const addressHTML = bk.business_address
           ? `<p style="font-size:13px;color:#7A7470;margin:8px 0 0">\ud83d\udccd <a href="https://maps.google.com/?q=${encodeURIComponent(bk.business_address)}" style="color:#7A7470;text-decoration:underline">${escHtml(bk.business_address)}</a></p>` : '';
         let singlePriceBody2h;
-        if (adjPriceCents2h && promoDiscount2h > 0 && promoLabel2h) {
+        const rawPriceBody2h = bk.price_cents || 0;
+        const hasLmBody2h = bk.discount_pct && rawPriceBody2h > adjPriceCents2h;
+        if (adjPriceCents2h && (hasLmBody2h || (promoDiscount2h > 0 && promoLabel2h))) {
+          const displayBaseBody2h = hasLmBody2h ? rawPriceBody2h : adjPriceCents2h;
           const fs2h = adjPriceCents2h - promoDiscount2h;
-          singlePriceBody2h = ` \u00b7 <s style="opacity:.6">${(adjPriceCents2h / 100).toFixed(2).replace('.', ',')} \u20ac</s> ${(fs2h / 100).toFixed(2).replace('.', ',')} \u20ac`;
+          singlePriceBody2h = ` \u00b7 <s style="opacity:.6">${(displayBaseBody2h / 100).toFixed(2).replace('.', ',')} \u20ac</s> ${(fs2h / 100).toFixed(2).replace('.', ',')} \u20ac`;
         } else {
           singlePriceBody2h = adjPriceCents2h ? ' \u00b7 ' + (adjPriceCents2h / 100).toFixed(2).replace('.', ',') + ' \u20ac' : '';
         }
-        const promoLine2h = (!isMulti && promoDiscount2h > 0 && promoLabel2h) ? `<p style="font-size:12px;color:#7A7470;margin:4px 0 0">${escHtml(promoLabel2h)} : -${(promoDiscount2h / 100).toFixed(2).replace('.', ',')} \u20ac</p>` : '';
+        let promoLine2h = '';
+        if (!isMulti && hasLmBody2h) promoLine2h += `<p style="font-size:12px;color:#7A7470;margin:4px 0 0">Last Minute -${bk.discount_pct}%</p>`;
+        if (!isMulti && promoDiscount2h > 0 && promoLabel2h) promoLine2h += `<p style="font-size:12px;color:#7A7470;margin:4px 0 0">${escHtml(promoLabel2h)} : -${(promoDiscount2h / 100).toFixed(2).replace('.', ',')} \u20ac</p>`;
         const endTimeSuffix2h = endTimeStr2h ? ' \u2013 ' + endTimeStr2h : '';
         const contactBlock2h = (() => { const cp = []; if (bk.business_phone) cp.push('📞 ' + escHtml(bk.business_phone)); if (bk.business_email) cp.push('✉️ ' + escHtml(bk.business_email)); return cp.length > 0 ? '<p style="font-size:13px;color:#7A7470;margin:12px 0">' + cp.join(' · ') + '</p>' : ''; })();
         const depositBlock2h = (() => {

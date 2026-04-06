@@ -108,7 +108,7 @@ async function sendReviewRequestEmail({ booking, business }) {
 
   const bodyHTML = `
     <p>Bonjour ${firstName},</p>
-    <p>Merci d'avoir choisi <strong>${safeBizName}</strong> pour ${serviceName}${rdvDateStr}${practitioner}. Nous espérons que vous avez pass\u00e9 un agr\u00e9able moment !</p>
+    <p>Merci d'avoir choisi <strong>${safeBizName}</strong> pour ${serviceName}${rdvDateStr}${practitioner}${booking.service_price_cents ? ' (' + (booking.service_price_cents / 100).toFixed(2).replace('.', ',') + '\u00a0\u20ac)' : ''}. Nous espérons que vous avez pass\u00e9 un agr\u00e9able moment !</p>
     <p style="margin:20px 0 8px;font-weight:600">Comment évalueriez-vous votre expérience ?</p>
     <div style="text-align:center;margin:16px 0">${starsHTML}</div>
     <p style="color:#9C958E;font-size:13px;text-align:center">Cliquez sur les étoiles ou sur le bouton ci-dessous pour donner votre avis.</p>
@@ -357,13 +357,15 @@ async function sendBookingLookupEmail({ email, bookings, business }) {
     const timeStr = new Date(bk.start_at).toLocaleTimeString('fr-BE', {
       timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit'
     });
-    const svcLabel = escHtml(bk.service_name || 'Rendez-vous');
+    const svcLabel = escHtml(bk.service_category ? bk.service_category + ' — ' + (bk.service_name || 'RDV') : (bk.service_name || 'Rendez-vous'));
     const pracLabel = bk.practitioner_name ? ' · ' + escHtml(bk.practitioner_name) : '';
+    const endTimeStr = bk.end_at ? new Date(bk.end_at).toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' }) : null;
+    const priceStr = bk.price_cents ? (bk.price_cents / 100).toFixed(2).replace('.', ',') + ' €' : '';
     const manageUrl = `${baseUrl}/booking/${bk.public_token}`;
     return `
       <div style="background:#FAFAF9;border:1px solid #E8E4DF;border-radius:8px;padding:14px 16px;margin-bottom:10px">
         <div style="font-size:14px;font-weight:600;color:#3D3832;margin-bottom:4px">${svcLabel}${pracLabel}</div>
-        <div style="font-size:13px;color:#6B6560;margin-bottom:10px">${escHtml(dateStr)} · ${escHtml(timeStr)}</div>
+        <div style="font-size:13px;color:#6B6560;margin-bottom:10px">${escHtml(dateStr)} · ${escHtml(timeStr)}${endTimeStr ? ' – ' + endTimeStr : ''}${priceStr ? ' · ' + priceStr : ''}</div>
         <a href="${manageUrl}" style="display:inline-block;padding:8px 18px;background:${color};color:#fff;text-decoration:none;border-radius:6px;font-size:13px;font-weight:600">Gérer ce rendez-vous</a>
       </div>`;
   }).join('');
