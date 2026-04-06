@@ -1632,7 +1632,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'&&document.ge
     // SEO
     var title = b.seo_title || b.name + ' \u2014 ' + (b.tagline || 'Prenez rendez-vous en ligne');
     document.getElementById('pageTitle').textContent = title;
-    document.getElementById('pageMeta').content = b.seo_description || b.description || '';
+    document.getElementById('pageMeta').content = b.seo_description || (b.description ? b.description.replace(/<[^>]*>/g,'') : '') || '';
     document.getElementById('ogTitle').content = title;
     document.getElementById('ogDesc').content = b.seo_description || b.tagline || '';
     document.getElementById('ogUrl').content = window.location.href;
@@ -1711,7 +1711,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'&&document.ge
     var aboutImg = b.about_image_url || b.cover_image_url;
     if (sec.about !== false && (b.description || aboutImg)) {
       document.getElementById('about').style.display = '';
-      if (b.description) document.getElementById('aboutText').innerHTML = esc(b.description).replace(/\n/g, '<br>');
+      if (b.description) document.getElementById('aboutText').innerHTML = b.description;
       if (aboutImg) {
         var ai = document.getElementById('aboutImage');
         ai.style.backgroundImage = 'url(' + esc(aboutImg) + ')';
