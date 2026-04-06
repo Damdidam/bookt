@@ -570,23 +570,55 @@ router.post('/waitlist/:token/decline', async (req, res, next) => {
              LIMIT 1
              FOR UPDATE SKIP LOCKED
            ) AND status = 'waiting'
-           RETURNING id, client_email`,
+           RETURNING id, client_email, client_name`,
           [offerToken, entry.offer_booking_start, entry.offer_booking_end,
            expiresAt.toISOString(),
            entry.practitioner_id, entry.service_id, entry.business_id,
            JSON.stringify([weekday]), timeOfDay]
         );
 
-        // PUB-6: Send notification email to next client if offer was made
+        // Send offer email inline to next client (notification processor does not handle this type)
         if (offerResult.rows.length > 0) {
           try {
-            await query(
-              `INSERT INTO notifications (business_id, type, recipient_email, status, metadata)
-               VALUES ($1, 'email_waitlist_offer', $2, 'queued', $3::jsonb)`,
-              [entry.business_id, offerResult.rows[0].client_email,
-               JSON.stringify({ waitlist_entry_id: offerResult.rows[0].id })]
-            );
-          } catch (notifErr) { console.warn('[WAITLIST] Notification error:', notifErr.message); }
+            const { sendEmail: _sendOffer, buildEmailHTML: _buildOffer, escHtml: _escOffer, safeColor: _scOffer } = require('../../services/email-utils');
+            const _baseOffer = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+            const _offerUrl = `${_baseOffer}/waitlist/${offerToken}`;
+            // Fetch service + practitioner + business for the email
+            const _svcRes = await query(`SELECT s.name AS service_name, COALESCE(s.duration_min, 0) AS duration_min, COALESCE(s.price_cents, 0) AS price_cents FROM services s WHERE s.id = $1`, [entry.service_id]);
+            const _pracRes = await query(`SELECT display_name FROM practitioners WHERE id = $1`, [entry.practitioner_id]);
+            const _bizRes = await query(`SELECT name, theme, address, phone, email FROM businesses WHERE id = $1`, [entry.business_id]);
+            const _svc = _svcRes.rows[0] || {};
+            const _prac = _pracRes.rows[0] || {};
+            const _biz = _bizRes.rows[0] || { name: 'Genda' };
+            const _dateFmt = new Date(entry.offer_booking_start).toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Brussels' });
+            const _timeFmt = new Date(entry.offer_booking_start).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
+            const _endFmt = (entry.offer_booking_end ? new Date(entry.offer_booking_end) : new Date(new Date(entry.offer_booking_start).getTime() + (_svc.duration_min || 0) * 60000))
+              .toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
+            const _nextClient = offerResult.rows[0];
+            _sendOffer({
+              to: _nextClient.client_email,
+              toName: _nextClient.client_name,
+              subject: `Créneau disponible — ${_svc.service_name || 'Prestation'} le ${_dateFmt}`,
+              html: _buildOffer({
+                title: 'Un créneau s\'est libéré !',
+                preheader: `${_svc.service_name || 'Prestation'} chez ${_prac.display_name || ''} — ${_dateFmt} à ${_timeFmt}`,
+                bodyHTML: `<p>Bonjour ${_escOffer(_nextClient.client_name)},</p>
+                  <p>Bonne nouvelle ! Un créneau s'est libéré pour votre demande :</p>
+                  <div style="background:#F5F4F1;border-radius:8px;padding:16px;margin:16px 0">
+                    <p style="margin:0 0 6px"><strong>${_escOffer(_svc.service_name || 'Prestation')}</strong> (${_svc.duration_min} min)</p>
+                    ${_svc.price_cents ? `<p style="margin:0 0 4px;font-size:14px;color:#3D3832">${(_svc.price_cents / 100).toFixed(2).replace('.', ',')} \u20ac</p>` : ''}
+                    <p style="margin:0 0 4px;font-size:14px;color:#3D3832">Avec ${_escOffer(_prac.display_name || '')}</p>
+                    <p style="margin:0;font-size:14px;color:#3D3832">${_escOffer(_dateFmt)} à ${_escOffer(_timeFmt)} \u2013 ${_endFmt}</p>
+                  </div>
+                  <p style="font-weight:600;color:#D97706">\u23f1 Vous avez 2 heures pour réserver ce créneau.</p>`,
+                ctaText: 'Réserver maintenant', ctaUrl: _offerUrl,
+                businessName: _biz.name, primaryColor: _scOffer(_biz.theme?.primary_color),
+                footerText: `${_biz.name}${_biz.address ? ' \u00b7 ' + _biz.address : ''} \u00b7 Via Genda.be`
+              }),
+              fromName: _biz.name, replyTo: _biz.email || undefined
+            }).catch(e => console.warn('[WAITLIST] Decline cascade email error:', e.message));
+            try { broadcast(entry.business_id, 'waitlist_match', { mode: 'auto_cascade', offered_to: _nextClient.client_name, slot_start: entry.offer_booking_start }); } catch (_) {}
+          } catch (emailErr) { console.warn('[WAITLIST] Decline cascade email build error:', emailErr.message); }
         }
         } // end if (!tooSoon && !slotTaken)
       }

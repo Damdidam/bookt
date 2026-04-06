@@ -581,6 +581,15 @@ router.patch('/:id/move', async (req, res, next) => {
 
       broadcast(bid, 'booking_update', { action: 'moved' });
       updates.forEach(u => calSyncPush(bid, u.id).catch(() => {}));
+
+      // Notify waitlist for freed OLD slots — one per group member (non-blocking)
+      try {
+        const { processWaitlistForCancellation } = require('../../services/waitlist');
+        for (const gm of groupMembers) {
+          await processWaitlistForCancellation(gm.id, bid, { start_at: gm.start_at, end_at: gm.end_at }).catch(() => {});
+        }
+      } catch (_) {}
+
       return res.json({ updated: true, group_moved: true, count: updates.length, notification: groupNotifResult });
     }
 
@@ -630,17 +639,12 @@ router.patch('/:id/move', async (req, res, next) => {
 
         const r = await client.query(sql, params);
 
-        // Recalculate deposit deadline if booking has pending deposit
-        // Bug M11 fix: Ensure deadline doesn't shift to the past
+        // Recalculate deposit deadline using fresh calculation (matches group move pattern)
         const moved = r.rows[0];
         if (moved && moved.deposit_required && moved.deposit_deadline) {
-          const timeDelta = newStart.getTime() - new Date(draggedBooking.start_at).getTime();
-          let newDeadline = new Date(new Date(moved.deposit_deadline).getTime() + timeDelta);
-          // If new deadline would be in the past, set to NOW() + 1 hour minimum buffer
-          const minDeadline = new Date(Date.now() + 60 * 60000);
-          if (newDeadline < minDeadline) {
-            newDeadline = minDeadline;
-          }
+          const { computeDepositDeadline } = require('../../routes/public/helpers');
+          const _depBizSingle = await client.query(`SELECT settings FROM businesses WHERE id = $1`, [bid]);
+          const newDeadline = computeDepositDeadline(new Date(moved.start_at), _depBizSingle.rows[0]?.settings || {});
           await client.query(
             `UPDATE bookings SET deposit_deadline = $1 WHERE id = $2 AND business_id = $3`,
             [newDeadline.toISOString(), id, bid]
@@ -880,7 +884,7 @@ router.patch('/:id/move', async (req, res, next) => {
               const manageLink = `${baseUrl}/booking/${bk.public_token}`;
               const newDateStr = new Date(bk.start_at).toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
               const newTimeStr = new Date(bk.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
-              const timeMoved = new Date(sRefStart).getTime() !== new Date(bk.start_at).getTime() || new Date(sRefEnd).getTime() !== new Date(bk.end_at).getTime();
+              const timeMoved = new Date(old_start_at || draggedBooking.start_at).getTime() !== new Date(bk.start_at).getTime() || new Date(old_end_at || draggedBooking.end_at).getTime() !== new Date(bk.end_at).getTime();
               const _svcLabel = bk.service_name || 'prestation';
               const smsBody = timeMoved
                 ? `${bk.business_name}: Votre RDV "${_svcLabel}" a été modifié — ${newDateStr} à ${newTimeStr}. Détails : ${manageLink}`
@@ -897,6 +901,13 @@ router.patch('/:id/move', async (req, res, next) => {
 
     broadcast(bid, 'booking_update', { action: 'moved' });
     calSyncPush(bid, id).catch(() => {});
+
+    // Notify waitlist for the freed OLD slot (non-blocking)
+    try {
+      const { processWaitlistForCancellation } = require('../../services/waitlist');
+      await processWaitlistForCancellation(id, bid, { start_at: old_start_at || draggedBooking.start_at, end_at: old_end_at || draggedBooking.end_at });
+    } catch (_) {}
+
     res.json({ updated: true, booking: moveResult.rows[0], notification: notificationResult });
   } catch (err) {
     console.error('[MOVE] Crash for booking', req.params.id, ':', err.message, err.stack?.split('\n')[1]);

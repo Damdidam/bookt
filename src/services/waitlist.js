@@ -19,7 +19,7 @@ const { sendEmail, buildEmailHTML, escHtml, safeColor } = require('./email');
  * @param {string} businessId - The business ID (defense-in-depth isolation)
  * @returns {object} { processed: boolean, mode: string, offered_to: string|null }
  */
-async function processWaitlistForCancellation(bookingId, businessId) {
+async function processWaitlistForCancellation(bookingId, businessId, overrideSlot) {
   // 1. Get booking + practitioner details
   // Bug H7 fix: Add business_id filter for tenant isolation
   const bkResult = await queryWithRLS(businessId,
@@ -37,6 +37,12 @@ async function processWaitlistForCancellation(bookingId, businessId) {
   if (bkResult.rows.length === 0) return { processed: false, reason: 'booking_not_found' };
 
   const bk = bkResult.rows[0];
+
+  // Override slot times when called from reschedule/move (booking already has new times)
+  if (overrideSlot) {
+    if (overrideSlot.start_at) bk.start_at = overrideSlot.start_at;
+    if (overrideSlot.end_at) bk.end_at = overrideSlot.end_at;
+  }
 
   // Check if waitlist is enabled for this practitioner
   if (!bk.waitlist_mode || bk.waitlist_mode === 'off') {

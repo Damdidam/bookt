@@ -62,18 +62,15 @@ router.get('/manage/:token/slots', slotsLimiter, async (req, res, next) => {
 
     // Re-check eligibility
     const reschEnabled = !!settings.reschedule_enabled;
-    const reschDeadlineHours = settings.reschedule_deadline_hours ?? 24;
     const reschMaxCount = settings.reschedule_max_count ?? 1;
     const reschWindowDays = settings.reschedule_window_days ?? 30;
     const now = new Date();
-    const reschDeadline = new Date(new Date(bk.start_at).getTime() - reschDeadlineHours * 3600000);
-
     if (!reschEnabled) return res.status(403).json({ error: 'La modification en ligne n\'est pas activée.' });
     if (!['confirmed', 'pending_deposit', 'modified_pending'].includes(bk.status)) return res.status(403).json({ error: 'Ce rendez-vous ne peut pas être modifié.' });
     // locked flag no longer blocks client reschedule
     if ((bk.reschedule_count || 0) >= reschMaxCount) return res.status(403).json({ error: 'Nombre maximum de modifications atteint.' });
     if (new Date(bk.start_at) <= now) return res.status(403).json({ error: 'Ce rendez-vous est déjà passé.' });
-    if (now >= reschDeadline) return res.status(403).json({ error: `La modification doit être faite au moins ${reschDeadlineHours}h avant le rendez-vous.` });
+    // Deadline does NOT block reschedule — client can always reschedule (deposit follows the booking)
 
     // Validate date range
     const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
@@ -165,7 +162,6 @@ router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) 
 
     const bk = result.rows[0];
     const settings = bk.business_settings || {};
-    const reschDeadlineHours = settings.reschedule_deadline_hours ?? 24;
     const reschMaxCount = settings.reschedule_max_count ?? 1;
     const reschWindowDays = settings.reschedule_window_days ?? 30;
     const now = new Date();
@@ -176,8 +172,7 @@ router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) 
     // locked flag no longer blocks client reschedule
     if ((bk.reschedule_count || 0) >= reschMaxCount) { await client.query('ROLLBACK'); return res.status(403).json({ error: 'Nombre maximum de modifications atteint.' }); }
     if (new Date(bk.start_at) <= now) { await client.query('ROLLBACK'); return res.status(403).json({ error: 'Ce rendez-vous est déjà passé.' }); }
-    const reschDeadline = new Date(new Date(bk.start_at).getTime() - reschDeadlineHours * 3600000);
-    if (now >= reschDeadline) { await client.query('ROLLBACK'); return res.status(403).json({ error: `La modification doit être faite au moins ${reschDeadlineHours}h avant le rendez-vous.` }); }
+    // Deadline does NOT block reschedule — client can always reschedule (deposit follows the booking)
 
     // Validate date within window
     const today = now.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
@@ -523,6 +518,18 @@ router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) 
 
     // Post-commit: SSE broadcast
     try { broadcast(bk.business_id, 'booking_update', { action: 'rescheduled', bookingId: bk.id, source: 'client' }); } catch (_) {}
+
+    // Post-commit: notify waitlist for freed OLD slot(s) (non-blocking)
+    try {
+      const { processWaitlistForCancellation } = require('../../services/waitlist');
+      if (bk.group_id && groupMembers.length > 0) {
+        for (const gm of groupMembers) {
+          await processWaitlistForCancellation(gm.id, bk.business_id, { start_at: gm.start_at, end_at: gm.end_at }).catch(() => {});
+        }
+      } else {
+        await processWaitlistForCancellation(bk.id, bk.business_id, { start_at: bk.start_at, end_at: bk.end_at });
+      }
+    } catch (_) {}
 
     // Post-commit: sync to external Google Calendar (fire-and-forget)
     try {

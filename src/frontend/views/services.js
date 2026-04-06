@@ -1082,6 +1082,7 @@ function qsRenderStep1(){
   closeModal('qsModalOverlay');
   document.body.insertAdjacentHTML('beforeend',m);
   qsOverlay=document.querySelector('.qs-overlay');
+  guardModal(qsOverlay, { noBackdropClose: true });
 }
 
 function qsToggleCat(el){

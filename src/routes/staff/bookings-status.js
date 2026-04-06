@@ -714,6 +714,14 @@ router.patch('/:id/status', async (req, res, next) => {
           catch (e) { console.warn('[WAITLIST] Sibling processing error:', e.message); }
         }
       }
+
+      // Queue pro cancellation notification (mirrors public cancel + auto-cancel crons)
+      try {
+        await queryWithRLS(bid,
+          `INSERT INTO notifications (business_id, booking_id, type, status) VALUES ($1, $2, 'email_cancellation_pro', 'queued')`,
+          [bid, id]
+        );
+      } catch (e) { console.warn('[NOTIF] email_cancellation_pro queue error:', e.message); }
     }
 
     // Reset active waitlist offers when un-cancelling (cancelled → confirmed/pending_deposit)
@@ -1220,6 +1228,18 @@ router.patch('/:id/deposit-refund', async (req, res, next) => {
          JSON.stringify({ status: bk.rows[0].status, deposit_status: bk.rows[0].deposit_status, deposit_amount_cents: bk.rows[0].deposit_amount_cents }),
          JSON.stringify({ deposit_status: 'refunded', status: 'cancelled', amount_cents: bk.rows[0].deposit_amount_cents })]
       );
+
+      // Void draft/sent invoices (mirrors staff cancel)
+      const voidIds = [id, ...affectedSiblingIds];
+      await client.query(
+        `UPDATE invoices SET status = 'cancelled', updated_at = NOW()
+         WHERE booking_id = ANY($1::uuid[]) AND status IN ('draft', 'sent')`,
+        [voidIds]
+      );
+
+      // Decrement promo usage (mirrors staff cancel)
+      const { decrementPromoUsage } = require('../../routes/public/helpers');
+      await decrementPromoUsage(id, client).catch(e => console.warn('[PROMO DEC]', e.message));
 
       return { ok: true, affectedSiblingIds };
     });

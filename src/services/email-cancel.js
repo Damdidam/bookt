@@ -111,7 +111,7 @@ async function sendCancellationEmail({ booking, business, groupServices }) {
 
   let bodyHTML = `
     <p>Bonjour <strong>${safeClientName}</strong>,</p>
-    <p>Votre rendez-vous a \u00e9t\u00e9 annul\u00e9.</p>
+    <p>Votre rendez-vous a \u00e9t\u00e9 annul\u00e9.${booking.cancel_reason ? ' <span style="color:#6B6560;font-size:14px">(' + escHtml(booking.cancel_reason) + ')</span>' : ''}</p>
     <div style="background:#FEF2F2;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #EF4444">
       <div style="font-size:15px;font-weight:600;color:#DC2626;margin-bottom:4px">${_ic('calendar-dk')} ${dateStr}</div>
       <div style="font-size:14px;color:#DC2626">${_ic('clock-dk')} ${timeStr}${endTimeStr ? ' \u2013 ' + endTimeStr : ''}</div>

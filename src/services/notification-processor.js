@@ -342,7 +342,8 @@ async function sendRescheduleProEmail(bk, groupServices, metadata) {
       ${bk.client_email ? `<div style="font-size:13px;color:#6B6560">${escHtml(bk.client_email)}</div>` : ''}
       ${bk.client_phone ? `<div style="font-size:13px;color:#6B6560">${escHtml(bk.client_phone)}</div>` : ''}
     </div>
-    ${depositHTML}`;
+    ${depositHTML}
+    ${bk.comment_client ? `<div style="background:#FFFBEB;border-radius:8px;padding:10px 14px;margin:12px 0;border-left:3px solid #F59E0B"><div style="font-size:13px;color:#92700C"><strong>Note du client :</strong> ${escHtml(bk.comment_client)}</div></div>` : ''}`;
 
   const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
   const html = buildEmailHTML({
@@ -400,7 +401,8 @@ async function sendModificationConfirmedProEmail(bk, groupServices) {
       ${bk.client_email ? `<div style="font-size:13px;color:#6B6560">${escHtml(bk.client_email)}</div>` : ''}
       ${bk.client_phone ? `<div style="font-size:13px;color:#6B6560">${escHtml(bk.client_phone)}</div>` : ''}
     </div>
-    ${depositHTML}`;
+    ${depositHTML}
+    ${bk.comment_client ? `<div style="background:#FFFBEB;border-radius:8px;padding:10px 14px;margin:12px 0;border-left:3px solid #F59E0B"><div style="font-size:13px;color:#92700C"><strong>Note du client :</strong> ${escHtml(bk.comment_client)}</div></div>` : ''}`;
 
   const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
   const html = buildEmailHTML({
@@ -471,6 +473,7 @@ async function sendModificationRejectedProEmail(bk, groupServices) {
       ${bk.client_phone ? `<div style="font-size:13px;color:#6B6560">${escHtml(bk.client_phone)}</div>` : ''}
     </div>
     ${depositHTML}
+    ${bk.comment_client ? `<div style="background:#FFFBEB;border-radius:8px;padding:10px 14px;margin:12px 0;border-left:3px solid #F59E0B"><div style="font-size:13px;color:#92700C"><strong>Note du client :</strong> ${escHtml(bk.comment_client)}</div></div>` : ''}
     <p style="font-size:14px;color:#3D3832">Vous pouvez contacter le client pour trouver un autre cr\u00e9neau.</p>`;
 
   const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';

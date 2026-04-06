@@ -8,7 +8,7 @@ import { api, GendaUI, sectorLabels } from '../state.js';
 import { esc } from '../utils/dom.js';
 import { bridge } from '../utils/window-bridge.js';
 import { IC } from '../utils/icons.js';
-import { closeModal, showConfirmDialog } from '../utils/dirty-guard.js';
+import { closeModal, showConfirmDialog, guardModal } from '../utils/dirty-guard.js';
 
 const DAY_NAMES = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
 const MONTH_NAMES = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
@@ -416,6 +416,7 @@ function planOpenSendModal() {
     </div>`;
 
   document.body.appendChild(overlay);
+  guardModal(overlay, { noBackdropClose: true });
 }
 
 async function planDoSendPlanning() {
@@ -617,6 +618,7 @@ function planOpenModal(pracId, dateStr, absId) {
     </div>`;
 
   document.body.appendChild(overlay);
+  guardModal(overlay, { noBackdropClose: true });
   planUpdateSubtitle();
   if (pracId || absData) setTimeout(planCheckImpact, 100);
 }

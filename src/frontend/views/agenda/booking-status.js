@@ -11,6 +11,12 @@ import { storeUndoAction } from './booking-undo.js';
 
 async function fcSetStatus(newStatus) {
   if (fcSetStatus._busy) return;
+  // Destructive status changes require confirmation
+  if (newStatus === 'cancelled') {
+    if (!(await showConfirmDialog('Annuler ce RDV ?', 'Le client sera notifié et le créneau libéré.', 'Annuler le RDV', 'danger'))) return;
+  } else if (newStatus === 'no_show') {
+    if (!(await showConfirmDialog('Marquer no-show ?', 'Le client sera comptabilisé comme absent.', 'Confirmer no-show', 'danger'))) return;
+  }
   fcSetStatus._busy = true;
   const _stBtns = document.querySelectorAll('.m-st-btn');
   _stBtns.forEach(b => { b.disabled = true; b.classList.add('is-loading'); });
