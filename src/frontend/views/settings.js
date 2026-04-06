@@ -44,7 +44,6 @@ async function loadSettings(){
       <div class="field"><label>Adresse</label><input id="s_address" value="${esc(b.address||'')}" placeholder="Ex: Rue de la Loi 42, 1000 Bruxelles"></div>
       <div class="field-row"><div class="field"><label>N° BCE / TVA</label><input id="s_bce" value="${esc(b.bce_number||'')}" placeholder="BE 0xxx.xxx.xxx"></div><div class="field"><label>Année de fondation</label><input id="s_year" type="number" value="${b.founded_year||''}"></div></div>
       <div class="field"><label>Tagline</label><input id="s_tagline" value="${esc(b.tagline||'')}" placeholder="Phrase d'accroche affichée sur votre page"></div>
-      <div class="field"><label>Description</label><textarea id="s_desc">${esc(b.description||'')}</textarea></div>
       <div class="field"><label>Info parking</label><input id="s_parking" value="${esc(b.parking_info||'')}" placeholder="Ex: Parking gratuit à 50m"></div>
       <div style="height:1px;background:var(--border);margin:10px 0"></div>
       <div style="font-size:.75rem;font-weight:700;color:var(--text-3);text-transform:uppercase;margin-bottom:6px">Facturation</div>
@@ -639,7 +638,7 @@ async function saveAllSettings(){
       name:el('s_name').value,slug:el('s_slug').value,email:el('s_email').value,
       phone:el('s_phone').value,address:el('s_address').value,
       bce_number:el('s_bce').value,
-      tagline:el('s_tagline').value,description:el('s_desc').value,
+      tagline:el('s_tagline').value,
       founded_year:el('s_year').value||null,
       parking_info:el('s_parking').value,
       settings_iban:el('s_iban').value,settings_bic:el('s_bic').value,
