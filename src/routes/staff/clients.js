@@ -233,27 +233,27 @@ router.get('/export', requireOwner, async (req, res, next) => {
     const fmtEur = (c) => ((c || 0) / 100).toFixed(2).replace('.', ',');
     const esc = (s) => `"${(s || '').replace(/"/g, '""')}"`;
 
-    const header = 'Nom;Email;Téléphone;Langue;Consentement SMS;Consentement email;Consentement marketing;BCE;Notes;Remarques;Date anniversaire;VIP;Créé le;Source;RDV total;No-shows;Annulations;Dernière visite;CA total (€)\n';
+    const header = '"Nom";"Email";"Téléphone";"Langue";"Consentement SMS";"Consentement email";"Consentement marketing";"BCE";"Notes";"Remarques";"Date anniversaire";"VIP";"Créé le";"Source";"RDV total";"No-shows";"Annulations";"Dernière visite";"CA total (€)"\n';
     const rows = result.rows.map(r => [
       esc(r.full_name),
-      r.email || '',
-      r.phone || '',
-      r.language_preference || '',
-      r.consent_sms ? 'Oui' : 'Non',
-      r.consent_email !== false ? 'Oui' : 'Non',
-      r.consent_marketing ? 'Oui' : 'Non',
-      r.bce_number || '',
+      esc(r.email || ''),
+      esc(r.phone || ''),
+      esc(r.language_preference || ''),
+      esc(r.consent_sms ? 'Oui' : 'Non'),
+      esc(r.consent_email !== false ? 'Oui' : 'Non'),
+      esc(r.consent_marketing ? 'Oui' : 'Non'),
+      esc(r.bce_number || ''),
       esc(r.notes),
       esc(r.remarks),
-      r.birthday || '',
-      r.is_vip ? 'Oui' : '',
-      fmt(r.created_at),
-      r.created_from || '',
-      r.total_bookings || 0,
-      r.no_shows || 0,
-      r.cancellations || 0,
-      fmt(r.last_visit),
-      fmtEur(parseInt(r.total_revenue_cents) || 0)
+      esc(r.birthday || ''),
+      esc(r.is_vip ? 'Oui' : ''),
+      esc(fmt(r.created_at)),
+      esc(r.created_from || ''),
+      esc(String(r.total_bookings || 0)),
+      esc(String(r.no_shows || 0)),
+      esc(String(r.cancellations || 0)),
+      esc(fmt(r.last_visit)),
+      esc(fmtEur(parseInt(r.total_revenue_cents) || 0))
     ].join(';')).join('\n');
 
     const csv = '\uFEFF' + header + rows;

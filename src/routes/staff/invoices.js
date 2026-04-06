@@ -452,28 +452,28 @@ router.get('/export', async (req, res, next) => {
     const fmtEur = (c) => ((c || 0) / 100).toFixed(2).replace('.', ',');
     const esc = (s) => `"${(s || '').replace(/"/g, '""')}"`;
 
-    const header = 'Numéro;Type;Statut;Date émission;Date échéance;Date paiement;Client;Email client;Tél client;Adresse client;BCE client;Sous-total (€);TVA (€);Total (€);Taux TVA;Moyen paiement;Communication structurée;Notes;Lignes détail\n';
+    const header = '"Numéro";"Type";"Statut";"Date émission";"Date échéance";"Date paiement";"Client";"Email client";"Tél client";"Adresse client";"BCE client";"Sous-total (€)";"TVA (€)";"Total (€)";"Taux TVA";"Moyen paiement";"Communication structurée";"Notes";"Lignes détail"\n';
     const typeLabels = { invoice: 'Facture', quote: 'Devis', credit_note: 'Note de crédit' };
     const statusLabels = { draft: 'Brouillon', sent: 'Envoyée', paid: 'Payée', overdue: 'En retard', cancelled: 'Annulée' };
 
     const rows = result.rows.map(r => [
-      r.invoice_number || '',
-      typeLabels[r.type] || r.type || '',
-      statusLabels[r.status] || r.status || '',
-      fmt(r.issue_date),
-      fmt(r.due_date),
-      fmt(r.paid_date),
+      esc(r.invoice_number || ''),
+      esc(typeLabels[r.type] || r.type || ''),
+      esc(statusLabels[r.status] || r.status || ''),
+      esc(fmt(r.issue_date)),
+      esc(fmt(r.due_date)),
+      esc(fmt(r.paid_date)),
       esc(r.client_name),
-      r.client_email || '',
-      r.client_phone || '',
+      esc(r.client_email || ''),
+      esc(r.client_phone || ''),
       esc(r.client_address),
-      r.client_bce || '',
-      fmtEur(r.subtotal_cents),
-      fmtEur(r.vat_amount_cents),
-      fmtEur(r.total_cents),
-      r.vat_rate != null ? `${r.vat_rate}%` : '',
-      r.payment_method || '',
-      r.structured_comm || '',
+      esc(r.client_bce || ''),
+      esc(fmtEur(r.subtotal_cents)),
+      esc(fmtEur(r.vat_amount_cents)),
+      esc(fmtEur(r.total_cents)),
+      esc(r.vat_rate != null ? `${r.vat_rate}%` : ''),
+      esc(r.payment_method || ''),
+      esc(r.structured_comm || ''),
       esc(r.notes),
       esc(r.items_summary)
     ].join(';')).join('\n');
