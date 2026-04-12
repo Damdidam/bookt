@@ -997,7 +997,7 @@ router.patch('/:id/edit', async (req, res, next) => {
       } else {
         if (!UUID_RE.test(service_id)) return res.status(400).json({ error: 'service_id invalide' });
         const svcCheck = await queryWithRLS(bid,
-          `SELECT id, duration_min, buffer_before_min, buffer_after_min, processing_time, processing_start, price_cents
+          `SELECT id, duration_min, buffer_before_min, buffer_after_min, processing_time, processing_start, price_cents, quote_only
            FROM services WHERE id = $1 AND business_id = $2 AND is_active = true`,
           [service_id, bid]);
         if (svcCheck.rows.length === 0) return res.status(400).json({ error: 'Service introuvable ou inactif' });
@@ -1020,14 +1020,22 @@ router.patch('/:id/edit', async (req, res, next) => {
         }
 
         // Compute new booked_price_cents from service/variant price + booking discount_pct
-        let newPriceCents = varPriceCents != null ? varPriceCents : (svc.price_cents || 0);
+        // For conversion TO a quote_only service, preserve existing booked_price_cents (merchant manually set it)
         const bkForEnd = await queryWithRLS(bid,
-          `SELECT start_at, discount_pct FROM bookings WHERE id = $1 AND business_id = $2`, [id, bid]);
+          `SELECT start_at, discount_pct, booked_price_cents FROM bookings WHERE id = $1 AND business_id = $2`, [id, bid]);
         const bkRow = bkForEnd.rows[0];
+        let newPriceCents;
+        if (svc.quote_only) {
+          // Keep existing price if set, else 0 (merchant must set via fcSaveQuotePrice)
+          newPriceCents = bkRow.booked_price_cents || 0;
+        } else {
+          newPriceCents = varPriceCents != null ? varPriceCents : (svc.price_cents || 0);
+        }
         const startAt = new Date(bkRow.start_at);
         // M5 fix: Re-check LM eligibility for the new service before applying discount
+        // SKIP for quote_only — LM doesn't apply to custom-priced bookings
         let newDiscountPct = null;
-        if (bkRow.discount_pct) {
+        if (bkRow.discount_pct && !svc.quote_only) {
           const lmCheck = await queryWithRLS(bid,
             `SELECT s.promo_eligible, biz.settings FROM services s, businesses biz WHERE s.id = $1 AND biz.id = $2`, [service_id, bid]);
           const lmc = lmCheck.rows[0];

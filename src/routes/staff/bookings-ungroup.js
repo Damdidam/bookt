@@ -463,7 +463,14 @@ router.delete('/:id/group-remove', async (req, res, next) => {
         const depositWasPaid = depositCarrier.deposit_status === 'paid';
         let newDepositCents = 0;
 
-        if (depositCarrier.deposit_required && remaining.length > 0) {
+        // Check if any remaining service is quote_only — skip recalc in that case
+        const _ungQo = await client.query(
+          `SELECT 1 FROM bookings b LEFT JOIN services s ON s.id = b.service_id WHERE b.id = ANY($1::uuid[]) AND s.quote_only = true LIMIT 1`,
+          [remaining.map(m => m.id)]
+        );
+        const _ungIsQuoteOnly = _ungQo.rows.length > 0;
+
+        if (depositCarrier.deposit_required && remaining.length > 0 && !_ungIsQuoteOnly) {
           // Fetch business settings for deposit calculation
           const bizRes = await client.query(
             `SELECT settings FROM businesses WHERE id = $1`, [bid]
@@ -917,8 +924,12 @@ router.post('/:id/group-add', async (req, res, next) => {
           }
         }
 
-        // Recalculate deposit if still pending
-        if (booking.deposit_required && booking.deposit_status === 'pending') {
+        // Recalculate deposit if still pending (SKIP for quote_only groups)
+        const _addQo = await client.query(
+          `SELECT 1 FROM bookings b LEFT JOIN services s ON s.id = b.service_id WHERE b.group_id = $1 AND s.quote_only = true LIMIT 1`,
+          [booking.group_id]
+        );
+        if (booking.deposit_required && booking.deposit_status === 'pending' && _addQo.rows.length === 0) {
           // M2 fix: subtract promo discount from total (consistent with reschedule/move)
           const grpTotalDep = await client.query(
             `SELECT COALESCE(SUM(COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents, 0)), 0) AS total,

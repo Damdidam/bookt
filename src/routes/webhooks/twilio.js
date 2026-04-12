@@ -173,10 +173,9 @@ router.post('/sms/inbound', async (req, res) => {
               }
             }
             const { sendBookingConfirmation } = require('../../services/email');
-            // service_price_cents passed as raw catalog; email template applies LM via discount_pct.
-            // Pre-reducing here AND passing discount_pct would double-reduce (booked_price_cents not selected).
+            // service_price_cents = raw catalog; booked_price_cents = post-LM/merchant-set. Template uses booked_price_cents when present.
             await sendBookingConfirmation({
-              booking: { public_token: row.public_token, start_at: row.start_at, end_at: groupServices ? groupServices[groupServices.length - 1].end_at : row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, service_category: row.service_category, service_price_cents: row.service_price_cents, duration_min: row.duration_min, practitioner_name: row.practitioner_name, comment: row.comment_client, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_payment_intent_id: row.deposit_payment_intent_id, promotion_label: row.promotion_label, promotion_discount_cents: row.promotion_discount_cents, promotion_discount_pct: row.promotion_discount_pct, discount_pct: row.discount_pct },
+              booking: { public_token: row.public_token, start_at: row.start_at, end_at: groupServices ? groupServices[groupServices.length - 1].end_at : row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, service_category: row.service_category, service_price_cents: row.service_price_cents, booked_price_cents: row.booked_price_cents, duration_min: row.duration_min, practitioner_name: row.practitioner_name, comment: row.comment_client, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_payment_intent_id: row.deposit_payment_intent_id, promotion_label: row.promotion_label, promotion_discount_cents: row.promotion_discount_cents, promotion_discount_pct: row.promotion_discount_pct, discount_pct: row.discount_pct },
               business: { name: row.biz_name, email: row.biz_email, phone: row.biz_phone, address: row.biz_address, theme: row.biz_theme, settings: row.biz_settings },
               groupServices
             });
