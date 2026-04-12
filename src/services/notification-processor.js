@@ -33,6 +33,7 @@ async function fetchBookingData(bookingId) {
     `SELECT b.*,
             CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS service_name,
             s.category AS service_category,
+            s.quote_only AS service_quote_only,
             COALESCE(sv.price_cents, s.price_cents, 0) AS service_price_cents,
             COALESCE(sv.duration_min, s.duration_min, 0) AS duration_min,
             p.display_name AS practitioner_name,
@@ -193,8 +194,11 @@ async function sendNewBookingProEmail(bk, groupServices) {
     </div>`;
   }
 
+  const quoteOnlyBadge = bk.service_quote_only ? `<div style="display:inline-block;background:#F0FDF4;color:#0D7377;font-size:12px;font-weight:700;padding:3px 10px;border-radius:4px;margin-bottom:8px;border:1px solid #0D737733">SUR DEVIS \u2014 Fixez le prix et demandez un acompte</div>` : '';
+
   const bodyHTML = `
     <p>Nouvelle r\u00e9servation re\u00e7ue !</p>
+    ${quoteOnlyBadge}
     <div style="background:#F0F9FF;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid ${color}">
       <div style="font-size:15px;font-weight:600;color:#1A1816;margin-bottom:6px">${dateStr}</div>
       <div style="font-size:14px;color:#3D3832;margin-bottom:8px">${timeStr}${endTimeStr ? ' \u2013 ' + endTimeStr : ''}</div>

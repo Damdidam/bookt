@@ -19,7 +19,8 @@ router.post('/:slug/quote-request', bookingLimiter, async (req, res, next) => {
     const { slug } = req.params;
     const {
       service_id, client_name, client_email, client_phone,
-      description, body_zone, approx_size, images
+      description, body_zone, approx_size, images,
+      booking_start_at, booking_end_at, practitioner_name, booking_token
     } = req.body;
 
     // ── Validate business ──
@@ -119,10 +120,19 @@ router.post('/:slug/quote-request', bookingLimiter, async (req, res, next) => {
 
     // ── Email to business owner ──
     if (ownerEmail) {
+      let bookingDateHTML = '';
+      if (booking_start_at) {
+        const _pd = new Date(booking_start_at);
+        const _pdStr = _pd.toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Brussels' });
+        const _ptStr = _pd.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
+        bookingDateHTML = `<tr><td style="padding:8px 12px;font-weight:600;color:#666">Créneau</td><td style="padding:8px 12px"><strong>${escHtml(_pdStr)} à ${escHtml(_ptStr)}</strong>${practitioner_name ? ' avec ' + escHtml(practitioner_name) : ''}</td></tr>`;
+      }
+
       let bodyHTML = `
         <p>Vous avez reçu une nouvelle demande de devis.</p>
         <table style="width:100%;border-collapse:collapse;margin:16px 0">
           <tr><td style="padding:8px 12px;font-weight:600;color:#666;width:140px">Service</td><td style="padding:8px 12px">${escHtml(svc.name)}</td></tr>
+          ${bookingDateHTML}
           <tr style="background:#F9F9F8"><td style="padding:8px 12px;font-weight:600;color:#666">Client</td><td style="padding:8px 12px">${escHtml(client_name)}</td></tr>
           <tr><td style="padding:8px 12px;font-weight:600;color:#666">Email</td><td style="padding:8px 12px"><a href="mailto:${escHtml(client_email)}">${escHtml(client_email)}</a></td></tr>`;
 
@@ -170,18 +180,39 @@ router.post('/:slug/quote-request', bookingLimiter, async (req, res, next) => {
     }
 
     // ── Confirmation email to client ──
+    let bookingInfoHTML = '';
+    if (booking_start_at) {
+      const _d = new Date(booking_start_at);
+      const _dateStr = _d.toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Brussels' });
+      const _timeStr = _d.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
+      let _endStr = '';
+      if (booking_end_at) {
+        _endStr = ' — ' + new Date(booking_end_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
+      }
+      bookingInfoHTML = `<table style="width:100%;border-collapse:collapse;margin:12px 0">
+        <tr><td style="padding:6px 12px;font-weight:600;color:#666;width:100px">Date</td><td style="padding:6px 12px">${escHtml(_dateStr)}</td></tr>
+        <tr style="background:#F9F9F8"><td style="padding:6px 12px;font-weight:600;color:#666">Heure</td><td style="padding:6px 12px">${escHtml(_timeStr)}${escHtml(_endStr)}</td></tr>
+        ${practitioner_name ? `<tr><td style="padding:6px 12px;font-weight:600;color:#666">Avec</td><td style="padding:6px 12px">${escHtml(practitioner_name)}</td></tr>` : ''}
+      </table>`;
+    }
+
+    const manageUrl = booking_token ? `${BASE_URL}/booking/${booking_token}` : null;
+
     const clientBodyHTML = `
       <p>Bonjour ${escHtml(client_name)},</p>
       <p>Votre demande de devis pour <strong>${escHtml(svc.name)}</strong> a bien été envoyée à <strong>${escHtml(biz.name)}</strong>.</p>
-      <p>Vous recevrez une réponse par email dans les meilleurs délais.</p>
+      ${bookingInfoHTML}
+      <p>Vous recevrez une réponse par email dans les meilleurs délais avec le prix et les détails de paiement.</p>
       ${biz.phone ? `<p>Vous pouvez aussi les contacter au <a href="tel:${escHtml(biz.phone)}">${escHtml(biz.phone)}</a>.</p>` : ''}
-      <p style="margin-top:20px;font-size:13px;color:#888">Récapitulatif de votre demande :</p>
+      <p style="margin-top:20px;font-size:13px;color:#888">Récapitulatif de votre projet :</p>
       <div style="background:#F9F9F8;padding:12px 16px;border-radius:8px;margin:8px 0;white-space:pre-wrap;font-size:14px;color:#555">${escHtml(description)}</div>`;
 
     const clientHtml = buildEmailHTML({
       title: 'Demande de devis envoyée',
       preheader: `Votre demande pour ${svc.name} a été transmise`,
       bodyHTML: clientBodyHTML,
+      ctaText: manageUrl ? 'Gérer mon rendez-vous' : undefined,
+      ctaUrl: manageUrl || undefined,
       businessName: biz.name,
       primaryColor
     });

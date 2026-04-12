@@ -104,6 +104,7 @@ function buildEventContent() {
     const sTimeSpan = sStart ? '<span class="ev-time">' + sStart + (sEnd ? ' \u2013 ' + sEnd : '') + '</span>' : '';
     const vipBadge = p.client_is_vip ? '<span class="ev-badge-vip" title="VIP">' + IC.crown + '</span>' : '';
     const depBadge = !p.deposit_required ? '' : p.deposit_status === 'paid' ? '<span class="ev-badge-dep paid" title="Acompte pay\u00e9">' + IC.dollar + '</span>' : ['refunded','waived'].includes(p.deposit_status) ? '<span class="ev-badge-dep" style="opacity:.4" title="Acompte ' + p.deposit_status + '">' + IC.dollar + '</span>' : p.deposit_status === 'cancelled' ? '<span class="ev-badge-dep" style="color:var(--red)" title="Acompte retenu">' + IC.dollar + '</span>' : '<span class="ev-badge-dep" title="Acompte en attente">' + IC.dollar + '</span>';
+    const quoteBadge = p.service_quote_only ? '<span class="ev-badge-quote" title="Sur devis" style="color:var(--primary)">' + IC.fileText + '</span>' : '';
     const promoBadge = (p.discount_pct || p.promotion_discount_cents > 0 || p.promotion_id) ? '<span class="ev-badge-promo" title="Promo' + (p.discount_pct ? ' -' + p.discount_pct + '%' : '') + '">' + IC.tag + '</span>' : '';
     const lockBadge = p.locked ? '<span class="ev-badge-lock" title="Verrouill\u00e9">' + IC.lock + '</span>' : '';
     const hasNote = p.internal_note || p.notes_count > 0 || p.client_notes || p.comment_client;
@@ -111,7 +112,7 @@ function buildEventContent() {
     const stColor = ST_COLORS[p.status] || ST_COLORS.confirmed;
     const stDot = '<span class="ev-badge ev-badge-st" style="background:' + stColor + '"></span>';
     const freeTag = !p.service_name ? '<span style="font-size:.68rem;opacity:.85;margin-left:3px">' + gi(IC.sparkle) + '</span>' : '';
-    const sBadges = stDot + vipBadge + lockBadge + depBadge + promoBadge + noteBadge;
+    const sBadges = stDot + vipBadge + lockBadge + depBadge + quoteBadge + promoBadge + noteBadge;
     return { html: `<div class="ev-inner" style="color:${darkAccent}"><span class="ev-client">${esc(p.client_name || arg.event.title)} ${sTimeSpan}${freeTag}</span><div class="ev-badges">${sBadges}</div><span class="ev-service">${svcLabel}</span></div>` };
   };
 }

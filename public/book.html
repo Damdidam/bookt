@@ -570,7 +570,7 @@ body.theme-dark .promo-banner-arrow{background:rgba(30,30,30,.9);border-color:va
         <div style="font-size:.85rem;font-weight:700;color:var(--primary);margin-bottom:2px">Décrivez votre projet</div>
         <div style="font-size:.72rem;color:var(--text-3)">Ces informations nous aideront à préparer votre devis.</div>
       </div>
-      <div class="fg"><label class="fl">Description du projet *</label><textarea class="fi ft" id="qDesc" maxlength="2000" rows="4" placeholder="Décrivez votre projet en détail..."></textarea></div>
+      <div class="fg"><label class="fl">Description du projet *</label><textarea class="fi ft" id="qDesc" maxlength="2000" rows="4" placeholder="Décrivez votre projet en détail..." oninput="var c=document.getElementById('qDescCount');if(c)c.textContent=this.value.length+'/2000'"></textarea><div id="qDescCount" style="text-align:right;font-size:.7rem;color:#9CA3AF;margin-top:2px"></div></div>
       <div id="quoteTattooFields" style="display:none">
         <div class="fg"><label class="fl">Zone du corps</label>
           <select class="fi" id="qBodyZone"><option value="">— Sélectionnez —</option><option>Bras</option><option>Avant-bras</option><option>Épaule</option><option>Dos</option><option>Torse</option><option>Jambe</option><option>Cheville</option><option>Poignet</option><option>Cou</option><option>Main</option><option>Autre</option></select>
@@ -2154,6 +2154,8 @@ function goToStep(n){
     // Show quote project fields if any selected service is quote_only
     var anyQuote=multiServiceMode?selectedServices.some(function(s){return s.quote_only;}):selectedService&&selectedService.quote_only;
     var qpf=document.getElementById('quoteProjectFields');
+    var _step4Btn=document.getElementById('btnStep4');
+    if(_step4Btn)_step4Btn.textContent=anyQuote?'Envoyer ma demande de devis \u2192':'Confirmer le rendez-vous \u2192';
     if(qpf){
       qpf.style.display=anyQuote?'':'none';
       if(anyQuote){
@@ -2729,7 +2731,7 @@ async function submitBooking(){
   const consent=!!document.getElementById('bkConsent').checked;
 
   const btn=document.getElementById('btnStep4');
-  btn.disabled=true;btn.textContent='Réservation en cours...';
+  btn.disabled=true;btn.textContent=_hasQuoteSvc?'Envoi en cours...':'R\u00e9servation en cours...';
 
   try{
     var bookingPracId=selectedPractitioner?selectedPractitioner.id:(selectedSlot?selectedSlot.practitioner_id:null);
@@ -2778,6 +2780,8 @@ async function submitBooking(){
         var qImgFiles=document.getElementById('qImages')?.files||[];
         var qImages=[];
         for(var qi=0;qi<qImgFiles.length;qi++){qImages.push({data:await fileToBase64(qImgFiles[qi]),name:qImgFiles[qi].name});}
+        var _bkToken=data.booking?data.booking.public_token:(data.bookings?data.bookings[0]?.public_token:null);
+        var _pracName=selectedPractitioner?selectedPractitioner.display_name:null;
         await fetch('/api/public/'+slug+'/quote-request',{
           method:'POST',headers:{'Content-Type':'application/json'},
           body:JSON.stringify({
@@ -2785,8 +2789,12 @@ async function submitBooking(){
             client_name:name,client_email:email,client_phone:phone||null,
             description:document.getElementById('qDesc')?.value?.trim()||comment||'(Pas de description)',
             body_zone:document.getElementById('qBodyZone')?.value||null,
-            approx_size:document.getElementById('qApproxSize')?.value||null,
-            images:qImages
+            approx_size:null,
+            images:qImages,
+            booking_start_at:selectedSlot.start_at,
+            booking_end_at:selectedSlot.end_at||null,
+            practitioner_name:_pracName,
+            booking_token:_bkToken
           })
         });
       }catch(qe){/* quote request is best-effort, booking already confirmed */}

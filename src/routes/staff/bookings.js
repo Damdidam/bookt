@@ -35,7 +35,7 @@ router.get('/', async (req, res, next) => {
              b.booked_price_cents,
              b.confirmation_expires_at, b.deposit_deadline,
              b.processing_time, b.processing_start,
-             s.name AS service_name, s.category AS service_category, s.duration_min, s.buffer_before_min, s.price_cents, s.color AS service_color,
+             s.name AS service_name, s.category AS service_category, s.duration_min, s.buffer_before_min, s.price_cents, s.color AS service_color, s.quote_only AS service_quote_only,
              sv.name AS variant_name, sv.duration_min AS variant_duration_min, sv.price_cents AS variant_price_cents,
              p.id AS practitioner_id, p.display_name AS practitioner_name, p.color AS practitioner_color,
              c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email, c.is_vip AS client_is_vip, c.notes AS client_notes,
