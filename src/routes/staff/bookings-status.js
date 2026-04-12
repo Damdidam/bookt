@@ -1030,7 +1030,7 @@ router.patch('/:id/status', async (req, res, next) => {
             booking: {
               start_at: d.start_at, end_at: d.end_at,
               client_name: d.client_name, client_email: d.client_email,
-              service_name: d.service_name, service_category: d.service_category, service_price_cents: d.service_price_cents, duration_min: d.duration_min, practitioner_name: d.practitioner_name,
+              service_name: d.service_name, service_category: d.service_category, service_price_cents: d.service_price_cents, booked_price_cents: d.booked_price_cents, discount_pct: d.discount_pct, duration_min: d.duration_min, practitioner_name: d.practitioner_name,
               comment: d.comment_client, custom_label: d.custom_label,
               public_token: d.public_token,
               deposit_required: d.deposit_required, deposit_status: d.deposit_status, deposit_amount_cents: d.deposit_amount_cents, deposit_payment_intent_id: d.deposit_payment_intent_id,
