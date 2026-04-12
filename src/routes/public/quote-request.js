@@ -82,10 +82,10 @@ router.post('/:slug/quote-request', bookingLimiter, async (req, res, next) => {
         // Accept both raw base64 strings and {data, name} objects
         const raw = typeof img === 'string' ? img : img?.data;
         const origName = typeof img === 'object' ? img?.name : null;
-        const match = raw?.match(/^data:image\/(jpeg|jpg|png|webp);base64,(.+)$/);
+        const match = raw?.match(/^data:image\/(jpeg|jpg|png|webp|gif|heic|heif|avif);base64,(.+)$/);
         if (!match) continue;
 
-        const ext = match[1] === 'jpg' ? 'jpeg' : match[1];
+        const ext = match[1] === 'jpg' ? 'jpeg' : match[1] === 'heif' ? 'heic' : match[1];
         const buffer = Buffer.from(match[2], 'base64');
 
         if (buffer.length > MAX_IMAGE_BYTES) continue;
