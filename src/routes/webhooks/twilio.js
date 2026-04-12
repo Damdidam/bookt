@@ -207,7 +207,7 @@ router.post('/sms/inbound', async (req, res) => {
         [from]
       );
       if (hasPending.rows.length > 0) {
-        return res.type('text/xml').send(twiml('<Message>Répondez OUI pour confirmer votre rendez-vous.</Message>'));
+        return res.type('text/xml').send(twiml('<Message>Vous avez un rendez-vous en attente. Confirmez via le lien dans votre SMS ou email.</Message>'));
       }
       // No pending booking — silent (no charge)
       return res.type('text/xml').send('<Response/>');
