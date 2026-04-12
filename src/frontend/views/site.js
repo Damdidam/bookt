@@ -13,6 +13,30 @@ const esc=s=>s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g
 const escAttr=s=>(s||'').replace(/"/g,'&quot;');
 const GRIP_SVG='<svg class="gi" viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/></svg>';
 
+// Clean pasted/stored HTML — keep only safe tags, strip all attributes except href
+function _cleanDescHtml(html){
+  if(!html)return '';
+  const tmp=document.createElement('div');
+  tmp.innerHTML=html;
+  const allowed=new Set(['P','BR','B','STRONG','I','EM','U','UL','OL','LI','A','SPAN']);
+  function walk(node){
+    const out=[];
+    for(const ch of node.childNodes){
+      if(ch.nodeType===3){out.push(ch.textContent);continue;}
+      if(ch.nodeType!==1)continue;
+      if(!allowed.has(ch.tagName)){out.push(walk(ch));continue;}
+      const tag=ch.tagName.toLowerCase();
+      let attrs='';
+      if(tag==='a'&&ch.getAttribute('href'))attrs=` href="${ch.getAttribute('href')}"`;
+      const inner=walk(ch);
+      if(tag==='br'){out.push('<br>');continue;}
+      if(inner.trim()||tag==='br')out.push(`<${tag}${attrs}>${inner}</${tag}>`);
+    }
+    return out.join('');
+  }
+  return walk(tmp)||'';
+}
+
 // Only 3 template families remain: Funky, Épuré, Bold
 const THEMES={
   funky:{name:'Funky',family:'funky'},
@@ -130,7 +154,7 @@ async function loadSiteSection(){
               <button type="button" style="padding:2px 8px;background:none;border:1px solid var(--border-light);border-radius:4px;cursor:pointer;font-size:.82rem" onclick="document.execCommand('insertUnorderedList')" title="Liste">• Liste</button>
               <button type="button" style="padding:2px 8px;background:none;border:1px solid var(--border-light);border-radius:4px;cursor:pointer;font-size:.82rem" onclick="document.execCommand('insertOrderedList')" title="Liste numérotée">1. Liste</button>
             </div>
-            <div id="siteDescription" contenteditable="true" style="min-height:80px;max-height:300px;overflow-y:auto;padding:10px 13px;font-family:var(--sans);font-size:var(--text-base);line-height:1.6;outline:none;color:var(--text)" data-placeholder="Décrivez votre cabinet en quelques phrases...">${b.description||''}</div>
+            <div id="siteDescription" contenteditable="true" style="min-height:80px;max-height:300px;overflow-y:auto;padding:10px 13px;font-family:var(--sans);font-size:var(--text-base);line-height:1.6;outline:none;color:var(--text)" data-placeholder="Décrivez votre cabinet en quelques phrases...">${_cleanDescHtml(b.description||'')}</div>
           </div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 2fr;gap:16px;margin-top:8px">
@@ -457,6 +481,19 @@ async function loadSiteSection(){
     </div>`;
 
     c.innerHTML=h;
+    // Intercept paste on description — strip foreign HTML, keep plain text + basic formatting
+    const descEl=document.getElementById('siteDescription');
+    if(descEl)descEl.addEventListener('paste',e=>{
+      e.preventDefault();
+      const html=e.clipboardData.getData('text/html');
+      const plain=e.clipboardData.getData('text/plain');
+      if(html){
+        const clean=_cleanDescHtml(html);
+        document.execCommand('insertHTML',false,clean||esc(plain));
+      }else{
+        document.execCommand('insertText',false,plain);
+      }
+    });
     // Load storage quota
     loadStorageQuota();
     // Init branding color swatches

@@ -26,32 +26,38 @@ function fmtSvcLabel(category, serviceName, variantName, customLabel) {
  */
 function sanitizeRichText(html) {
   if (!html) return '';
-  const blocked = 'script|iframe|object|embed|form|textarea|input|select|button|svg|math|style|details|template|link|meta|base|img|video|audio|body|marquee|noscript|plaintext|xmp|listing|head|html|applet|layer|ilayer|bgsound|title';
+  // Allowlist approach: only keep safe tags, strip everything else
+  const allowedTags = new Set(['p', 'br', 'b', 'strong', 'i', 'em', 'u', 'ul', 'ol', 'li', 'a', 'span']);
   let s = html;
+  // Strip all tags not in allowlist (keep their content)
+  s = s.replace(/<\/?([a-z][a-z0-9]*)\b[^>]*\/?>/gi, (match, tag) => {
+    const t = tag.toLowerCase();
+    if (!allowedTags.has(t)) return '';
+    // For allowed tags, strip all attributes except href on <a>
+    if (t === 'a') {
+      const hrefMatch = match.match(/href\s*=\s*("[^"]*"|'[^']*')/i);
+      if (hrefMatch) {
+        const val = hrefMatch[1].slice(1, -1);
+        if (/^\s*(javascript|data|vbscript|blob)\s*:/i.test(val)) return `<${match.startsWith('</') ? '/' : ''}a>`;
+        return match.startsWith('</') ? '</a>' : `<a href="${val.replace(/"/g, '&quot;')}">`;
+      }
+      return match.startsWith('</') ? '</a>' : '<a>';
+    }
+    // Self-closing
+    if (t === 'br') return '<br>';
+    // Opening or closing, no attributes
+    return match.startsWith('</') ? `</${t}>` : `<${t}>`;
+  });
+  // Remove event handlers that might survive
   let prev;
-  // Remove dangerous tags and their content (loop until stable for nested tags)
   do {
     prev = s;
-    s = s.replace(new RegExp('<(' + blocked + ')[^>]*>[\\s\\S]*?<\\/\\1>', 'gi'), '');
-    s = s.replace(new RegExp('<(' + blocked + ')[^>]*\\/?>', 'gi'), '');
-  } while (s !== prev);
-  // Remove event handlers (on*="...")
-  let prev2;
-  do {
-    prev2 = s;
     s = s.replace(/[\s"'/<]on\s*\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, '');
-  } while (s !== prev2);
-  // Remove dangerous protocol URLs in href/src/action
-  s = s.replace(/(href|src|action)\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, (match, attr, val) => {
-    const decoded = val.replace(/&#x([0-9a-f]+);?/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
-                       .replace(/&#(\d+);?/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)))
-                       .replace(/&[a-z]+;/gi, '');
-    if (/^\s*["']?\s*(javascript|data|vbscript|blob)\s*:/i.test(decoded)) {
-      return attr + '=""';
-    }
-    return match;
-  });
-  return s;
+  } while (s !== prev);
+  // Collapse excessive whitespace/empty paragraphs
+  s = s.replace(/(<br\s*\/?>){3,}/gi, '<br><br>');
+  s = s.replace(/(<p>\s*<\/p>\s*){2,}/gi, '<p></p>');
+  return s.trim();
 }
 
 /** Validate that a string is a valid hex color; returns fallback if not */
