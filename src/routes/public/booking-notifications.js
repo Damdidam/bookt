@@ -179,11 +179,11 @@ async function sendPostBookingComms({
             if (groupServices) {
               // Multi-service: use grouped label
               const _svcLabel = groupServices.length > 1 ? `${groupServices[0].name} +${groupServices.length - 1}` : groupServices[0].name;
-              await sendSMS({ to: clientPhone, body: `${bizRow.rows[0].name} : RDV "${_svcLabel}" le ${_sDate} \u00e0 ${_sTime} avec ${practitionerName}. R\u00e9pondez OUI pour confirmer ou cliquez ici : ${link}`, businessId });
+              await sendSMS({ to: clientPhone, body: `${bizRow.rows[0].name} : RDV "${_svcLabel}" le ${_sDate} \u00e0 ${_sTime} avec ${practitionerName}. Confirmez ici : ${link}`, businessId });
             } else {
               // Single-service: use service name + optional practitioner
               console.log(`[SMS] Attempting confirmation SMS to ${clientPhone} for booking ${createdBooking.id}, channel=${confirmChannel}`);
-              const smsResult = await sendSMS({ to: clientPhone, body: `${bizRow.rows[0].name} : RDV "${serviceName}" le ${_sDate} \u00e0 ${_sTime}${practitionerName ? ' avec ' + practitionerName : ''}. R\u00e9pondez OUI pour confirmer ou cliquez ici : ${link}`, businessId });
+              const smsResult = await sendSMS({ to: clientPhone, body: `${bizRow.rows[0].name} : RDV "${serviceName}" le ${_sDate} \u00e0 ${_sTime}${practitionerName ? ' avec ' + practitionerName : ''}. Confirmez ici : ${link}`, businessId });
               console.log(`[SMS] Confirmation SMS result:`, JSON.stringify(smsResult));
               await query(`INSERT INTO notifications (business_id, booking_id, type, recipient_phone, status, sent_at, error) VALUES ($1,$2,'sms_confirmation',$3,$4,NOW(),$5)`,
                 [businessId, createdBooking.id, clientPhone, smsResult.success ? 'sent' : 'failed', smsResult.error || null]);
