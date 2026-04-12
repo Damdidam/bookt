@@ -949,6 +949,11 @@ function initPage(){
       seenSvcIds[dedupKey]=true;
       var svc=siteData.services.find(function(s){return s.id===svcId;});
       if(!svc)return;
+      // Block mixing quote_only and normal services from URL params
+      if(selectedServices.length>0){
+        var urlCartHasQuote=selectedServices.some(function(s){return s.quote_only;});
+        if(svc.quote_only!==!!urlCartHasQuote&&selectedServices.length>0)return;
+      }
       selectedServices.push(svc);
       var foundVar=null;
       if(varId&&svc.variants){
@@ -1347,7 +1352,12 @@ function selectService(id){
   if(!svc||svc.bookable_online===false)return;
   // Services with variants are handled by selectVariant() — this is for non-variant services only
   if(multiServiceMode){
-    // BUG-m5: Allow adding the same service multiple times (no toggle)
+    // Block mixing quote_only and normal services
+    if(selectedServices.length>0){
+      var cartHasQuote=selectedServices.some(function(s){return s.quote_only;});
+      if(svc.quote_only&&!cartHasQuote){showWarning('Les prestations sur devis ne peuvent pas \u00eatre combin\u00e9es avec des prestations classiques.');return;}
+      if(!svc.quote_only&&cartHasQuote){showWarning('Les prestations classiques ne peuvent pas \u00eatre combin\u00e9es avec des prestations sur devis.');return;}
+    }
     if(selectedServices.length<5){
       selectedServices.push(svc);
       selectedVariantsByIdx.push(null);
@@ -1388,6 +1398,12 @@ function selectVariant(svcId, varIdx){
       selectedPractitioner=null;noPrefSelected=false;selectedMode=null;selectedDate=null;selectedSlot=null;
       computeStepOrder();
     }else if(selectedServices.length<5){
+      // Block mixing quote_only and normal services
+      if(selectedServices.length>0){
+        var cartHasQuote2=selectedServices.some(function(s){return s.quote_only;});
+        if(svc.quote_only&&!cartHasQuote2){showWarning('Les prestations sur devis ne peuvent pas \u00eatre combin\u00e9es avec des prestations classiques.');return;}
+        if(!svc.quote_only&&cartHasQuote2){showWarning('Les prestations classiques ne peuvent pas \u00eatre combin\u00e9es avec des prestations sur devis.');return;}
+      }
       // Add new (same service with different variant is allowed)
       selectedVariants[svcId]=variant;
       selectedServices.push(svc);
