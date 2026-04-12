@@ -1718,6 +1718,7 @@ router.post('/:id/require-deposit', async (req, res, next) => {
       const bk = await client.query(
         `SELECT b.id, b.status, b.deposit_required, b.deposit_status, b.start_at, b.end_at,
                 b.group_id, b.practitioner_id, b.public_token, b.service_id, b.service_variant_id,
+                b.booked_price_cents, b.discount_pct,
                 b.promotion_label, b.promotion_discount_cents, b.promotion_discount_pct,
                 c.full_name AS client_name, c.email AS client_email, c.phone AS client_phone,
                 CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,

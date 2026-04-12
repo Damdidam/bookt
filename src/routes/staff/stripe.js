@@ -332,6 +332,7 @@ async function handleStripeWebhook(req, res) {
             try {
               const bkData = await query(
                 `SELECT b.start_at, b.end_at, b.deposit_amount_cents, b.group_id, b.public_token,
+                        b.booked_price_cents, b.discount_pct,
                         b.promotion_label, b.promotion_discount_cents, b.promotion_discount_pct,
                         c.full_name AS client_name, c.email AS client_email,
                         CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,

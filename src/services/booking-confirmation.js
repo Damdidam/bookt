@@ -25,12 +25,15 @@ async function processExpiredPendingBookings() {
     // Find pending bookings whose confirmation window has elapsed
     // OR whose start time has already passed (no-show prevention)
     const expired = await client.query(
-      `SELECT id, business_id, service_id, practitioner_id, start_at, end_at, group_id, client_id
-       FROM bookings
-       WHERE status = 'pending'
+      `SELECT b.id, b.business_id, b.service_id, b.practitioner_id, b.start_at, b.end_at, b.group_id, b.client_id,
+              b.confirmation_expires_at,
+              COALESCE(s.quote_only, false) AS service_quote_only
+       FROM bookings b
+       LEFT JOIN services s ON s.id = b.service_id
+       WHERE b.status = 'pending'
          AND (
-           (confirmation_expires_at IS NOT NULL AND confirmation_expires_at < NOW())
-           OR start_at <= NOW()
+           (b.confirmation_expires_at IS NOT NULL AND b.confirmation_expires_at < NOW())
+           OR b.start_at <= NOW()
          )
        FOR UPDATE SKIP LOCKED`
     );
@@ -41,12 +44,15 @@ async function processExpiredPendingBookings() {
       const bk = expired.rows[i];
       await client.query(`SAVEPOINT sp_${i}`);
       try {
-      // Cancel the booking
+      // Cancel the booking — reason depends on type
+      const cancelReason = bk.service_quote_only
+        ? 'Devis non traité avant la date du rendez-vous'
+        : 'Confirmation non reçue dans le délai imparti';
       const upd = await client.query(
-        `UPDATE bookings SET status = 'cancelled', cancel_reason = 'Confirmation non reçue dans le délai imparti', updated_at = NOW(), confirmation_expires_at = NULL
+        `UPDATE bookings SET status = 'cancelled', cancel_reason = $2, updated_at = NOW(), confirmation_expires_at = NULL
          WHERE id = $1 AND status = 'pending'
          RETURNING id`,
-        [bk.id]
+        [bk.id, cancelReason]
       );
       if (upd.rows.length === 0) continue;
 
