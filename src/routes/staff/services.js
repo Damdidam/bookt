@@ -65,6 +65,9 @@ router.post('/', requireOwner, async (req, res, next) => {
     if (!name || !duration_min) {
       return res.status(400).json({ error: 'name et duration_min requis' });
     }
+    if (quote_only && req.businessPlan === 'free') {
+      return res.status(403).json({ error: 'upgrade_required', message: 'Les prestations sur devis sont disponibles avec le plan Pro.' });
+    }
 
     // V12-023: Limit practitioner_ids array size
     if (practitioner_ids && practitioner_ids.length > 100) {
@@ -205,6 +208,10 @@ router.patch('/:id', requireOwner, async (req, res, next) => {
     const bid = req.businessId;
     const { id } = req.params;
     const fields = req.body;
+
+    if (fields.quote_only === true && req.businessPlan === 'free') {
+      return res.status(403).json({ error: 'upgrade_required', message: 'Les prestations sur devis sont disponibles avec le plan Pro.' });
+    }
 
     // Validate numeric fields
     const numericFields = ['duration_min', 'buffer_before_min', 'buffer_after_min', 'price_cents', 'processing_time', 'processing_start'];
