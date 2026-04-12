@@ -401,16 +401,17 @@ router.patch('/:id/move', async (req, res, next) => {
           }
 
           // Recalculate booked_price_cents for each group member after LM discount changes
+          // SKIP for quote_only services (merchant-set price)
           for (const u of updates) {
             const pRes = await client.query(
-              `SELECT COALESCE(sv.price_cents, s.price_cents, 0) AS eff_price, b.discount_pct
+              `SELECT COALESCE(sv.price_cents, s.price_cents, 0) AS eff_price, b.discount_pct, s.quote_only
                FROM bookings b
                LEFT JOIN services s ON s.id = b.service_id
                LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
                WHERE b.id = $1`, [u.id]
             );
             const p = pRes.rows[0];
-            if (p) {
+            if (p && !p.quote_only) {
               const bookedPrice = p.discount_pct
                 ? Math.round(p.eff_price * (100 - p.discount_pct) / 100)
                 : p.eff_price;
@@ -422,13 +423,18 @@ router.patch('/:id/move', async (req, res, next) => {
           }
 
           // Recalculate deposit_amount_cents for group after price changes
+          // SKIP for quote_only groups — merchant set a specific amount manually
           if (draggedBooking.deposit_required) {
+            const _gdQo = await client.query(
+              `SELECT 1 FROM bookings b LEFT JOIN services s ON s.id = b.service_id WHERE b.group_id = $1 AND s.quote_only = true LIMIT 1`,
+              [draggedBooking.group_id]
+            );
             const _gdRes = await client.query(`SELECT settings FROM businesses WHERE id = $1`, [bid]);
             const _gds = _gdRes.rows[0]?.settings || {};
             const _gdType = _gds.deposit_type || 'percent';
             const _gdPct = parseInt(_gds.deposit_percent) || 0;
             const _gdFixed = parseInt(_gds.deposit_fixed_cents) || 0;
-            if ((_gdType === 'percent' && _gdPct > 0) || (_gdType === 'fixed' && _gdFixed > 0)) {
+            if (_gdQo.rows.length === 0 && ((_gdType === 'percent' && _gdPct > 0) || (_gdType === 'fixed' && _gdFixed > 0))) {
               const _gtRes = await client.query(
                 `SELECT COALESCE(SUM(booked_price_cents), 0) AS total,
                         COALESCE(SUM(CASE WHEN group_order = 0 THEN promotion_discount_cents ELSE 0 END), 0) AS promo
@@ -734,16 +740,17 @@ router.patch('/:id/move', async (req, res, next) => {
         }
 
         // Recalculate booked_price_cents after LM discount change (single)
+        // SKIP for quote_only services (merchant-set price)
         if (moved) {
           const pRes = await client.query(
-            `SELECT COALESCE(sv.price_cents, s.price_cents, 0) AS eff_price, b.discount_pct
+            `SELECT COALESCE(sv.price_cents, s.price_cents, 0) AS eff_price, b.discount_pct, s.quote_only
              FROM bookings b
              LEFT JOIN services s ON s.id = b.service_id
              LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
              WHERE b.id = $1`, [id]
           );
           const p = pRes.rows[0];
-          if (p) {
+          if (p && !p.quote_only) {
             const bookedPrice = p.discount_pct
               ? Math.round(p.eff_price * (100 - p.discount_pct) / 100)
               : p.eff_price;
@@ -755,13 +762,16 @@ router.patch('/:id/move', async (req, res, next) => {
         }
 
         // M2 fix: Recalculate deposit_amount_cents when price changed on move (handles both percent AND fixed)
+        // SKIP for quote_only — merchant set a specific amount manually
         if (moved && moved.deposit_required) {
           const _depRes = await client.query(
-            `SELECT biz.settings AS biz_settings, b.booked_price_cents, b.promotion_discount_cents
-             FROM bookings b JOIN businesses biz ON biz.id = b.business_id WHERE b.id = $1 AND b.business_id = $2`, [id, bid]
+            `SELECT biz.settings AS biz_settings, b.booked_price_cents, b.promotion_discount_cents, s.quote_only
+             FROM bookings b JOIN businesses biz ON biz.id = b.business_id
+             LEFT JOIN services s ON s.id = b.service_id
+             WHERE b.id = $1 AND b.business_id = $2`, [id, bid]
           );
           const _dr = _depRes.rows[0];
-          if (_dr) {
+          if (_dr && !_dr.quote_only) {
             const _ds = _dr.biz_settings || {};
             const _depType = _ds.deposit_type || 'percent';
             const _depPct = parseInt(_ds.deposit_percent) || 0;

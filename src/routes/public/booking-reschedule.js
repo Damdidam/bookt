@@ -449,20 +449,21 @@ router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) 
     }
 
     // Recalculate booked_price_cents after LM + promo discount changes
+    // SKIP for quote_only services — the merchant manually set the price, don't overwrite it
     {
       const priceIds = (bk.group_id && groupMembers.length > 0)
         ? groupMembers.map(m => m.id)
         : [bk.id];
       for (const uid of priceIds) {
         const pRes = await client.query(
-          `SELECT COALESCE(sv.price_cents, s.price_cents, 0) AS eff_price, b.discount_pct
+          `SELECT COALESCE(sv.price_cents, s.price_cents, 0) AS eff_price, b.discount_pct, s.quote_only
            FROM bookings b
            LEFT JOIN services s ON s.id = b.service_id
            LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
            WHERE b.id = $1`, [uid]
         );
         const p = pRes.rows[0];
-        if (p) {
+        if (p && !p.quote_only) {
           const bookedPrice = p.discount_pct
             ? Math.round(p.eff_price * (100 - p.discount_pct) / 100)
             : p.eff_price;
@@ -475,12 +476,20 @@ router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) 
     }
 
     // Recalculate deposit_amount_cents when price changed after LM recalculation
+    // SKIP for quote_only — merchant set a specific amount manually via "Exiger un acompte"
     {
       const depIds = (bk.group_id && groupMembers.length > 0)
         ? groupMembers.map(m => m.id) : [bk.id];
 
-      // Only recalculate if deposit is still pending
-      if (bk.deposit_status === 'pending') {
+      // Check if any service in the deposit scope is quote_only
+      const _qoDep = await client.query(
+        `SELECT 1 FROM bookings b LEFT JOIN services s ON s.id = b.service_id WHERE b.id = ANY($1::uuid[]) AND s.quote_only = true LIMIT 1`,
+        [depIds]
+      );
+      const _isDepQuoteOnly = _qoDep.rows.length > 0;
+
+      // Only recalculate if deposit is still pending AND not a quote_only booking
+      if (bk.deposit_status === 'pending' && !_isDepQuoteOnly) {
         const bizRes = await client.query(`SELECT settings FROM businesses WHERE id = $1`, [bk.business_id]);
         const _depSettings = bizRes.rows[0]?.settings || {};
         const _depType = _depSettings.deposit_type || 'percent';
