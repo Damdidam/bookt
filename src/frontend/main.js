@@ -30,6 +30,24 @@ if (!api.isLoggedIn()) {
   window.location.href = '/login.html';
 }
 
+// ── Refresh business plan from server (handles plan changes made outside the UI) ──
+(async () => {
+  try {
+    const r = await fetch('/api/business', { headers: { 'Authorization': 'Bearer ' + api.getToken() } });
+    if (r.ok) {
+      const d = await r.json();
+      if (d.business) {
+        const cached = api.getBusiness() || {};
+        if (d.business.plan !== cached.plan || d.business.sector !== cached.sector) {
+          Object.assign(cached, { plan: d.business.plan, sector: d.business.sector });
+          api.setBusiness(cached);
+          window._businessPlan = d.business.plan;
+        }
+      }
+    }
+  } catch (_) {}
+})();
+
 // ── Display user info in sidebar ──
 if (userRole === 'practitioner') {
   document.getElementById('userName').textContent = user?.practitioner_name || user?.email || '—';
