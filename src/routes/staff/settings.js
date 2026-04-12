@@ -270,7 +270,8 @@ router.patch('/', requireOwner, async (req, res, next) => {
     // Sector validation & category derivation
     const SECTOR_TO_CAT = {
       medecin:'sante', dentiste:'sante', kine:'sante', osteopathe:'sante', bien_etre:'sante',
-      coiffeur:'beaute', esthetique:'beaute', barbier:'beaute',
+      massage:'sante', bienetre:'sante',
+      coiffeur:'beaute', esthetique:'beaute', barbier:'beaute', onglerie:'beaute', tatouage:'beaute',
       comptable:'juridique_finance', avocat:'juridique_finance',
       photographe:'creatif', coaching:'sante',
       veterinaire:'autre', garage:'autre', autre:'autre'
