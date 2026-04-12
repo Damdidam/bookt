@@ -159,7 +159,7 @@ async function sendPostBookingComms({
           if (groupServices) emailOpts.groupServices = groupServices;
           await sendBookingConfirmationRequest(emailOpts);
         }
-        if (confirmChannel === 'sms' || confirmChannel === 'both') {
+        if ((confirmChannel === 'sms' || confirmChannel === 'both') && clientPhone && bizRow.rows[0].plan !== 'free') {
           try {
             const { sendSMS } = require('../../services/sms');
             const baseUrl = BASE_URL;
