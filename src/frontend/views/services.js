@@ -140,7 +140,7 @@ async function loadServices(){
         h+=`<div class="svc-cat-actions">`;
         const catHasActive=groupSvcs.some(s=>s.is_active!==false);
         h+=`<label class="svc-toggle" title="${catHasActive?'Désactiver la catégorie':'Activer la catégorie'}" onclick="event.stopPropagation()"><input type="checkbox"${catHasActive?' checked':''} onchange="toggleCategory('${safeCat}',this.checked)"><span class="svc-toggle-slider"></span></label>`;
-        if(cat!=='Autres') h+=`<button class="svc-icon-btn" onclick="event.stopPropagation();openCategoryModal('${safeCat}')" title="Modifier">${PENCIL_SVG}</button>`;
+        h+=`<button class="svc-icon-btn" onclick="event.stopPropagation();openCategoryModal('${safeCat}')" title="Modifier">${PENCIL_SVG}</button>`;
         if(cat!=='Autres') h+=`<button class="svc-icon-btn danger" onclick="event.stopPropagation();svcDeleteCategory('${safeCat}')" title="Supprimer">${TRASH_SVG}</button>`;
         h+=`</div>`;
         h+=`<span class="svc-cat-chevron">${CHEVRON_SVG}</span>`;
@@ -296,7 +296,7 @@ async function saveCategory(catId,oldLabel){
     }
     // If name or color changed, update all services in this category
     const srcLabel=oldLabel||name;
-    const svcsToUpdate=allServices.filter(s=>s.category===srcLabel);
+    const svcsToUpdate=allServices.filter(s=>srcLabel==='Autres'?(!s.category||s.category==='Autres'):s.category===srcLabel);
     const updates={};
     if(oldLabel&&oldLabel!==name)updates.category=name;
     if(color&&color!==(catMeta[srcLabel]?.color||null))updates.color=color;
