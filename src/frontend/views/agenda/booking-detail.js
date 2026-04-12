@@ -233,7 +233,7 @@ async function fcOpenDetail(bookingId) {
               <div id="mReReqDepPanel" style="display:none;margin-top:8px;padding:10px 14px;border-radius:8px;border:1.5px solid var(--amber);background:var(--amber-bg)">
                 <div style="display:flex;gap:12px;align-items:end;flex-wrap:wrap">
                   <div><label style="font-size:.7rem;font-weight:600;color:#92700C;display:block;margin-bottom:2px">Montant (\u20ac)</label><input type="number" id="mReqDepAmount" min="1" step="0.01" value="${(defCents / 100).toFixed(2)}" class="m-input" style="width:90px;padding:5px 8px;font-size:.8rem"></div>
-                  <div><label style="font-size:.7rem;font-weight:600;color:#92700C;display:block;margin-bottom:2px">D\u00e9lai (h avant RDV)</label><input type="number" id="mReqDepDeadline" min="1" value="${defDlH}" class="m-input" style="width:70px;padding:5px 8px;font-size:.8rem"></div>
+                  <div><label style="font-size:.7rem;font-weight:600;color:#92700C;display:block;margin-bottom:2px">D\u00e9lai pour payer (h)</label><input type="number" id="mReqDepDeadline" min="1" value="${defDlH}" class="m-input" style="width:70px;padding:5px 8px;font-size:.8rem"></div>
                   <div style="display:flex;gap:6px"><button class="m-st-btn green" onclick="fcRequireDeposit()">Confirmer</button><button class="m-st-btn" onclick="document.getElementById('mReReqDepPanel').style.display='none';document.getElementById('mReReqDepBtn').style.display=''">Annuler</button></div>
                 </div>
               </div>`;
@@ -331,7 +331,7 @@ async function fcOpenDetail(bookingId) {
           <div id="mReqDepPanel" style="display:none;margin-top:8px;padding:12px 16px;border-radius:10px;border:1.5px solid var(--amber);background:var(--amber-bg)">
             <div style="display:flex;gap:12px;align-items:end;flex-wrap:wrap">
               <div><label style="font-size:.7rem;font-weight:600;color:#92700C;display:block;margin-bottom:2px">Montant (\u20ac)</label><input type="number" id="mReqDepAmount" min="1" step="0.01" value="${(defaultCents / 100).toFixed(2)}" class="m-input" style="width:90px;padding:5px 8px;font-size:.8rem"></div>
-              <div><label style="font-size:.7rem;font-weight:600;color:#92700C;display:block;margin-bottom:2px">D\u00e9lai (h avant RDV)</label><input type="number" id="mReqDepDeadline" min="1" value="${defaultDlHours}" class="m-input" style="width:70px;padding:5px 8px;font-size:.8rem"></div>
+              <div><label style="font-size:.7rem;font-weight:600;color:#92700C;display:block;margin-bottom:2px">D\u00e9lai pour payer (h)</label><input type="number" id="mReqDepDeadline" min="1" value="${defaultDlHours}" class="m-input" style="width:70px;padding:5px 8px;font-size:.8rem"></div>
               <div style="display:flex;gap:6px"><button class="m-st-btn green" onclick="fcRequireDeposit()">Confirmer</button><button class="m-st-btn" onclick="document.getElementById('mReqDepPanel').style.display='none';document.getElementById('mReqDepBtn').style.display=''">Annuler</button></div>
             </div>
           </div>`;

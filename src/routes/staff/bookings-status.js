@@ -1759,9 +1759,9 @@ router.post('/:id/require-deposit', async (req, res, next) => {
         return { error: 400, message: `Trop proche du RDV pour exiger un acompte (moins de ${bizCancelH}h avant).` };
       }
 
-      // Calculate deadline: same as confirmation timeout
-      const timeoutMin = parseInt(b.settings?.booking_confirmation_timeout_min) || 30;
-      let deadline = new Date(Date.now() + timeoutMin * 60000);
+      // Calculate deadline: NOW + deadline_hours (from frontend panel), capped at 2h before RDV
+      const dlH = parseInt(deadline_hours) || 48;
+      let deadline = new Date(Date.now() + dlH * 3600000);
       const minBefore = new Date(new Date(b.start_at).getTime() - 2 * 3600000);
       if (minBefore.getTime() > Date.now() && minBefore < deadline) deadline = minBefore;
       if (deadline.getTime() < Date.now() + 5 * 60000) deadline = new Date(Date.now() + 5 * 60000);
