@@ -438,9 +438,8 @@ router.post('/deposit/:token/verify', depositLimiter, async (req, res, next) => 
         );
         if (bkData.rows.length > 0 && bkData.rows[0].client_email) {
           const d = bkData.rows[0];
-          // NOTE: service_price_cents kept as raw catalog price. The email template
-          // applies LM via discount_pct itself — overwriting here would double-reduce
-          // (since booked_price_cents is not selected, template falls back to manual calc).
+          // service_price_cents stays as raw catalog price. Template uses
+          // booked_price_cents when set (quote_only or post-LM), falls back otherwise.
           let groupServices = null;
           const allLinkedIds = [bk.id, ...sibIds];
           if (allLinkedIds.length > 1) {
