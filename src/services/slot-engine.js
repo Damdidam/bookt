@@ -57,13 +57,15 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
 
   // 2. Fetch service details
   const svcResult = await queryWithRLS(businessId,
-    `SELECT id, duration_min, buffer_before_min, buffer_after_min, mode_options, available_schedule, min_booking_notice_hours
+    `SELECT id, duration_min, buffer_before_min, buffer_after_min, mode_options, available_schedule, min_booking_notice_hours, quote_only
      FROM services WHERE id = $1 AND business_id = $2 AND is_active = true`,
     [serviceId, businessId]
   );
   if (svcResult.rows.length === 0) throw Object.assign(new Error('Prestation introuvable'), { type: 'not_found' });
 
   const service = svcResult.rows[0];
+  // Quote-only services need minimum 72h notice for the merchant to review and set a price
+  if (service.quote_only && (service.min_booking_notice_hours || 0) < 72) service.min_booking_notice_hours = 72;
 
   // Override duration from variant if provided
   if (variantId) {
@@ -446,7 +448,7 @@ async function getAvailableSlotsMulti({ businessId, serviceIds, practitionerId, 
   // 2. Fetch all unique services in one query, then expand to match serviceIds order (supports duplicates)
   const uniqueServiceIds = [...new Set(serviceIds)];
   const svcResult = await queryWithRLS(businessId,
-    `SELECT id, duration_min, buffer_before_min, buffer_after_min, mode_options, available_schedule, min_booking_notice_hours
+    `SELECT id, duration_min, buffer_before_min, buffer_after_min, mode_options, available_schedule, min_booking_notice_hours, quote_only
      FROM services WHERE id = ANY($1) AND business_id = $2 AND is_active = true`,
     [uniqueServiceIds, businessId]
   );
@@ -456,6 +458,10 @@ async function getAvailableSlotsMulti({ businessId, serviceIds, practitionerId, 
     const foundIds = new Set(svcResult.rows.map(r => r.id));
     const missing = uniqueServiceIds.filter(id => !foundIds.has(id));
     throw Object.assign(new Error(`Prestation(s) introuvable(s): ${missing.join(', ')}`), { type: 'not_found' });
+  }
+  // Quote-only services: enforce minimum 72h notice
+  for (const svc of svcResult.rows) {
+    if (svc.quote_only && (svc.min_booking_notice_hours || 0) < 72) svc.min_booking_notice_hours = 72;
   }
 
   // Build a lookup and expand to match serviceIds order (duplicates get independent copies)
@@ -894,7 +900,7 @@ async function getAvailableSlotsMultiPractitioner({ businessId, serviceIds, date
 
   // 2. Fetch all unique services in one query, then expand to match serviceIds order (supports duplicates)
   const svcResult = await queryWithRLS(businessId,
-    `SELECT id, duration_min, buffer_before_min, buffer_after_min, mode_options, available_schedule, min_booking_notice_hours
+    `SELECT id, duration_min, buffer_before_min, buffer_after_min, mode_options, available_schedule, min_booking_notice_hours, quote_only
      FROM services WHERE id = ANY($1) AND business_id = $2 AND is_active = true`,
     [uniqueServiceIds, businessId]
   );
@@ -902,6 +908,10 @@ async function getAvailableSlotsMultiPractitioner({ businessId, serviceIds, date
     const foundIds = new Set(svcResult.rows.map(r => r.id));
     const missing = uniqueServiceIds.filter(id => !foundIds.has(id));
     throw Object.assign(new Error(`Prestation(s) introuvable(s): ${missing.join(', ')}`), { type: 'not_found' });
+  }
+  // Quote-only services: enforce minimum 72h notice
+  for (const svc of svcResult.rows) {
+    if (svc.quote_only && (svc.min_booking_notice_hours || 0) < 72) svc.min_booking_notice_hours = 72;
   }
 
   // Build a lookup and expand to match serviceIds order (duplicates get independent copies)
