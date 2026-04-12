@@ -114,7 +114,7 @@ router.patch('/', requireOwner, async (req, res, next) => {
     if (req.businessPlan === 'free' && settings_last_minute_enabled === true) {
       return res.status(403).json({ error: 'upgrade_required', message: 'Les promotions last-minute sont disponibles avec le plan Pro.' });
     }
-    if (req.businessPlan === 'free' && (settings_deposit_enabled === true || settings_deposit_percent !== undefined)) {
+    if (req.businessPlan === 'free' && settings_deposit_enabled === true) {
       return res.status(403).json({ error: 'upgrade_required', message: 'Les acomptes sont disponibles avec le plan Pro.' });
     }
     if (req.businessPlan === 'free' && req.body.settings_giftcard_enabled === true) {
