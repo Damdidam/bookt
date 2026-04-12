@@ -395,7 +395,7 @@ function renderBooking(data) {
     } else {
       priceEl.textContent = booking.service.price_cents
         ? `${(booking.service.price_cents / 100).toFixed(2).replace('.',',')} \u20ac`
-        : (booking.service.price_label || '');
+        : (booking.service.quote_only ? 'Sur devis' : (booking.service.price_label || ''));
     }
   }
 

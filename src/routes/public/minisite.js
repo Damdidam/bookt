@@ -348,7 +348,7 @@ router.get('/:slug', slotsLimiter, async (req, res, next) => {
         category: s.category,
         duration_min: s.duration_min,
         price_cents: s.price_cents,
-        price_label: s.price_label || (s.price_cents ? `${(s.price_cents / 100).toFixed(2).replace('.', ',')} €` : 'Gratuit'),
+        price_label: s.price_label || (s.price_cents ? `${(s.price_cents / 100).toFixed(2).replace('.', ',')} €` : (s.quote_only ? 'Sur devis' : 'Gratuit')),
         mode_options: s.mode_options,
         prep_instructions_fr: s.prep_instructions_fr,
         prep_instructions_nl: s.prep_instructions_nl,

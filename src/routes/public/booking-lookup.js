@@ -21,7 +21,7 @@ router.get('/booking/:token', bookingActionLimiter, async (req, res, next) => {
                   s.category AS service_category,
               COALESCE(sv.duration_min, s.duration_min) AS duration_min,
               COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents) AS price_cents,
-              s.color AS service_color,
+              s.quote_only AS service_quote_only, s.color AS service_color,
               p.display_name AS practitioner_name, p.title AS practitioner_title,
               c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email,
               biz.name AS business_name, biz.slug AS business_slug, biz.phone AS business_phone,
@@ -100,7 +100,7 @@ router.get('/booking/:token', bookingActionLimiter, async (req, res, next) => {
     const groupRawTotal = grpRows ? grpRows.reduce((sum, r) => sum + (r.price_cents || 0), 0) : 0;
     const serviceInfo = groupServices
       ? { name: groupServices.map(s => s.name).join(' + '), duration_min: groupServices.reduce((sum, s) => sum + (s.duration_min || 0), 0), price_cents: groupRawTotal, color: bk.service_color, members: groupServices }
-      : { name: (bk.service_category ? bk.service_category + ' - ' : '') + (bk.service_name || ''), duration_min: bk.duration_min, price_cents: bk.price_cents, color: bk.service_color };
+      : { name: (bk.service_category ? bk.service_category + ' - ' : '') + (bk.service_name || ''), duration_min: bk.duration_min, price_cents: bk.price_cents, quote_only: !!bk.service_quote_only, color: bk.service_color };
 
     // Resolve promotion: for grouped bookings, find the sibling carrying the promo (group_order=0)
     const promoSib = bk.group_id && grpRows
@@ -173,7 +173,7 @@ router.get('/manage/:token', bookingActionLimiter, async (req, res, next) => {
               s.category AS service_category,
               COALESCE(sv.duration_min, s.duration_min) AS duration_min,
               COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents) AS price_cents,
-              s.color AS service_color,
+              s.quote_only AS service_quote_only, s.color AS service_color,
               p.display_name AS practitioner_name, p.title AS practitioner_title,
               c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email,
               biz.name AS business_name, biz.slug AS business_slug, biz.phone AS business_phone,
@@ -285,7 +285,7 @@ router.get('/manage/:token', bookingActionLimiter, async (req, res, next) => {
     const groupRawTotal2 = grpRows2 ? grpRows2.reduce((sum, r) => sum + (r.price_cents || 0), 0) : 0;
     const serviceInfo = groupServices
       ? { name: groupServices.map(s => s.name).join(' + '), duration_min: groupServices.reduce((sum, s) => sum + (s.duration_min || 0), 0), price_cents: groupRawTotal2, color: bk.service_color, members: groupServices }
-      : { name: (bk.service_category ? bk.service_category + ' - ' : '') + (bk.service_name || ''), duration_min: bk.duration_min, price_cents: bk.price_cents, color: bk.service_color };
+      : { name: (bk.service_category ? bk.service_category + ' - ' : '') + (bk.service_name || ''), duration_min: bk.duration_min, price_cents: bk.price_cents, quote_only: !!bk.service_quote_only, color: bk.service_color };
 
     // Resolve promotion: for grouped bookings, find the sibling carrying the promo
     const promoSib2 = bk.group_id && grpRows2

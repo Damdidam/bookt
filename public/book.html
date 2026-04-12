@@ -2780,7 +2780,7 @@ async function submitBooking(){
         var qImgFiles=document.getElementById('qImages')?.files||[];
         var qImages=[];
         for(var qi=0;qi<qImgFiles.length;qi++){qImages.push({data:await fileToBase64(qImgFiles[qi]),name:qImgFiles[qi].name});}
-        var _bkToken=data.booking?data.booking.public_token:(data.bookings?data.bookings[0]?.public_token:null);
+        var _bkToken=data.booking?data.booking.token:(data.bookings?data.bookings[0]?.token:null);
         var _pracName=selectedPractitioner?selectedPractitioner.display_name:null;
         await fetch('/api/public/'+slug+'/quote-request',{
           method:'POST',headers:{'Content-Type':'application/json'},
