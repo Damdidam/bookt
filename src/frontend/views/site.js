@@ -408,11 +408,13 @@ async function loadSiteSection(){
       h+=`<div class="empty" style="padding:24px;text-align:center;color:var(--text-4)">Aucune valeur personnalisée. Des valeurs par défaut sont affichées.</div>`;
     }else{
       valueItems.forEach(v=>{
-        h+=`<div class="news-item" data-id="${v.id}">
-          <div class="news-date" style="font-size:1.4rem">${v.icon?esc(v.icon):'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.7 10.3a2.41 2.41 0 0 0 0 3.41l7.59 7.59a2.41 2.41 0 0 0 3.41 0l7.59-7.59a2.41 2.41 0 0 0 0-3.41l-7.59-7.59a2.41 2.41 0 0 0-3.41 0Z"/></svg>'}</div>
-          <div class="news-body">
-            <div class="news-title-row"><span class="news-title">${esc(v.title||'')}</span></div>
-            <div class="news-excerpt">${esc(v.description||'')}</div>
+        const iconHtml=v.icon&&v.icon.startsWith('<')?v.icon:esc(v.icon||'');
+        const defaultIcon='<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.7 10.3a2.41 2.41 0 0 0 0 3.41l7.59 7.59a2.41 2.41 0 0 0 3.41 0l7.59-7.59a2.41 2.41 0 0 0 0-3.41l-7.59-7.59a2.41 2.41 0 0 0-3.41 0Z"/></svg>';
+        h+=`<div class="val-item" data-id="${v.id}">
+          <div class="val-icon">${iconHtml||defaultIcon}</div>
+          <div class="val-body">
+            <div class="val-title">${esc(v.title||'')}</div>
+            <div class="val-desc">${esc(v.description||'')}</div>
           </div>
           <div class="news-actions">
             <button onclick="editValue('${v.id}')" title="Modifier"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
