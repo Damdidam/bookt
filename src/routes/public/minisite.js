@@ -121,7 +121,7 @@ router.get('/:slug', slotsLimiter, async (req, res, next) => {
                 mode_options, prep_instructions_fr, prep_instructions_nl, color, description, bookable_online,
                 processing_time, processing_start,
                 flexibility_enabled, flexibility_discount_pct, available_schedule, min_booking_notice_hours,
-                promo_eligible
+                promo_eligible, quote_only
          FROM services
          WHERE business_id = $1 AND is_active = true
          ORDER BY sort_order, name`,
@@ -356,6 +356,7 @@ router.get('/:slug', slotsLimiter, async (req, res, next) => {
         description: s.description || null,
         bookable_online: s.bookable_online !== false,
         promo_eligible: s.promo_eligible !== false,
+        quote_only: !!s.quote_only,
         available_schedule: s.available_schedule || null,
         variants: (varByService[s.id] || []).map(v => ({
           id: v.id, name: v.name, description: v.description || null, duration_min: v.duration_min,

@@ -60,7 +60,7 @@ router.post('/', requireOwner, async (req, res, next) => {
             prep_instructions_nl, color, description, available_schedule, practitioner_ids, variants,
             bookable_online, processing_time, processing_start,
             flexibility_enabled, flexibility_discount_pct, promo_eligible,
-            min_booking_notice_hours } = req.body;
+            min_booking_notice_hours, quote_only } = req.body;
 
     if (!name || !duration_min) {
       return res.status(400).json({ error: 'name et duration_min requis' });
@@ -87,8 +87,8 @@ router.post('/', requireOwner, async (req, res, next) => {
           buffer_before_min, buffer_after_min, price_cents, price_label,
           mode_options, prep_instructions_fr, prep_instructions_nl, color, description, available_schedule, bookable_online,
           processing_time, processing_start, flexibility_enabled, flexibility_discount_pct, promo_eligible,
-          min_booking_notice_hours)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+          min_booking_notice_hours, quote_only)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
          RETURNING *`,
         [bid, name, category || null, duration_min,
          buffer_before_min || 0, buffer_after_min || 0,
@@ -101,7 +101,8 @@ router.post('/', requireOwner, async (req, res, next) => {
          parseInt(processing_time) || 0, parseInt(processing_start) || 0,
          !!flexibility_enabled, parseInt(flexibility_discount_pct) || 0,
          promo_eligible !== false,
-         parseInt(min_booking_notice_hours) || 0]
+         parseInt(min_booking_notice_hours) || 0,
+         !!quote_only]
       );
 
       const svc = result.rows[0];
@@ -195,7 +196,7 @@ router.patch('/:id', requireOwner, async (req, res, next) => {
       'prep_instructions_fr', 'prep_instructions_nl', 'is_active', 'color', 'sort_order', 'description', 'available_schedule', 'bookable_online',
       'processing_time', 'processing_start',
       'flexibility_enabled', 'flexibility_discount_pct', 'promo_eligible',
-      'min_booking_notice_hours'];
+      'min_booking_notice_hours', 'quote_only'];
 
     const sets = [];
     const params = [id, bid];
