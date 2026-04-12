@@ -108,11 +108,13 @@ router.post('/signup', authLimiter, async (req, res, next) => {
       // Derive category from sector if not provided
       const SECTOR_TO_CAT = {
         medecin:'sante', dentiste:'sante', kine:'sante', osteopathe:'sante', bien_etre:'sante',
-        coiffeur:'beaute', esthetique:'beaute',
+        coiffeur:'beaute', esthetique:'beaute', barbier:'beaute', onglerie:'beaute',
+        massage:'sante', bienetre:'sante',
+        tatouage:'beaute',
         comptable:'juridique_finance', avocat:'juridique_finance',
         photographe:'creatif',
         veterinaire:'autre',
-        barbier: 'beaute', coaching: 'sante', garage: 'autre',
+        coaching:'sante', garage:'autre',
         autre:'autre'
       };
       const validCategories = ['sante','beaute','juridique_finance','education','creatif','autre'];

@@ -10,7 +10,8 @@ ALTER TABLE businesses
     CHECK (sector IN (
       'coiffeur', 'esthetique', 'bien_etre', 'osteopathe',
       'veterinaire', 'photographe', 'medecin', 'dentiste',
-      'kine', 'comptable', 'avocat', 'autre'
+      'kine', 'comptable', 'avocat', 'barbier', 'massage',
+      'onglerie', 'tatouage', 'bienetre', 'autre'
     ));
 
 -- 2. Expand user roles
