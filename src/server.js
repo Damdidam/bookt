@@ -92,6 +92,13 @@ app.use('/webhooks/twilio', express.urlencoded({ extended: false }));
 // Stripe webhooks need raw body for signature verification
 app.post('/webhooks/stripe', express.raw({ type: 'application/json' }), handleStripeWebhook);
 
+// Quote-request needs larger body limit for base64 images (3 × 5MB × 1.33 = ~22MB)
+app.use('/api/public', (req, res, next) => {
+  if (req.path.endsWith('/quote-request')) {
+    return express.json({ limit: '22mb' })(req, res, next);
+  }
+  next();
+});
 app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: false }));
 

@@ -10,15 +10,11 @@ const { bookingLimiter } = require('../../middleware/rate-limiter');
 const { UUID_RE, escHtml, BASE_URL } = require('./helpers');
 const { sendEmail, buildEmailHTML } = require('../../services/email-utils');
 
-const express = require('express');
 const MAX_IMAGES = 3;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB
 const MAX_DESCRIPTION_CHARS = 2000;
 
-// 3 images × 5MB × 1.33 (base64 overhead) + JSON = ~22MB
-const quoteJsonParser = express.json({ limit: '22mb' });
-
-router.post('/:slug/quote-request', quoteJsonParser, bookingLimiter, async (req, res, next) => {
+router.post('/:slug/quote-request', bookingLimiter, async (req, res, next) => {
   try {
     const { slug } = req.params;
     const {
