@@ -295,9 +295,9 @@ router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) 
       );
     }
 
-    // Deposit deadline: recalculate based on new start (same as confirmation timeout)
+    // Deposit deadline: keep existing if still valid, cap at 2h before new start_at
     if (bk.deposit_deadline && bk.deposit_status === 'pending') {
-      const newDeadline = computeDepositDeadline(newStart, settings);
+      const newDeadline = computeDepositDeadline(newStart, settings, bk.deposit_deadline);
 
       const updateIds = bk.group_id
         ? (await client.query(`SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2`, [bk.group_id, bk.business_id])).rows.map(r => r.id)

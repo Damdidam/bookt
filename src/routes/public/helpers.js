@@ -117,12 +117,14 @@ function shouldRequireDeposit(bizSettings, totalPriceCents, totalDurationMin, no
  * @param {object} bizSettings - Business settings
  * @returns {Date} deadline
  */
-function computeDepositDeadline(startAt, bizSettings) {
-  const timeoutMin = parseInt(bizSettings?.booking_confirmation_timeout_min) || 30;
-  const confirmDeadline = new Date(Date.now() + timeoutMin * 60000);
-  const minBefore = new Date(startAt.getTime() - 3 * 3600000); // 3h before RDV
-  // Use confirmation timeout, but don't exceed start_at - 3h
-  let deadline = confirmDeadline;
+function computeDepositDeadline(startAt, bizSettings, existingDeadline) {
+  // Use the business-configured deposit deadline hours (default 48h), not the confirmation timeout
+  const hoursDefault = parseInt(bizSettings?.deposit_deadline_hours) || 48;
+  const fromNow = new Date(Date.now() + hoursDefault * 3600000);
+  const minBefore = new Date(startAt.getTime() - 2 * 3600000); // 2h before RDV
+  // Start from existing deadline if still valid, else use NOW + configured hours
+  let deadline = existingDeadline && new Date(existingDeadline) > new Date() ? new Date(existingDeadline) : fromNow;
+  // Cap at 2h before new start_at
   if (minBefore.getTime() > Date.now() && minBefore < deadline) {
     deadline = minBefore;
   }

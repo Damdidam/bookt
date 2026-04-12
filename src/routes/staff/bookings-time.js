@@ -290,7 +290,7 @@ router.patch('/:id/move', async (req, res, next) => {
               );
               const mi = memberInfo.rows[0];
               if (mi?.deposit_required && mi.deposit_deadline && mi.deposit_status === 'pending') {
-                const newDeadline = computeDepositDeadline(new Date(mi.start_at), _depBizSettings);
+                const newDeadline = computeDepositDeadline(new Date(mi.start_at), _depBizSettings, mi.deposit_deadline);
                 await client.query(
                   `UPDATE bookings SET deposit_deadline = $1 WHERE id = $2 AND business_id = $3`,
                   [newDeadline.toISOString(), u.id, bid]
@@ -650,7 +650,7 @@ router.patch('/:id/move', async (req, res, next) => {
         if (moved && moved.deposit_required && moved.deposit_deadline) {
           const { computeDepositDeadline } = require('../../routes/public/helpers');
           const _depBizSingle = await client.query(`SELECT settings FROM businesses WHERE id = $1`, [bid]);
-          const newDeadline = computeDepositDeadline(new Date(moved.start_at), _depBizSingle.rows[0]?.settings || {});
+          const newDeadline = computeDepositDeadline(new Date(moved.start_at), _depBizSingle.rows[0]?.settings || {}, moved.deposit_deadline);
           await client.query(
             `UPDATE bookings SET deposit_deadline = $1 WHERE id = $2 AND business_id = $3`,
             [newDeadline.toISOString(), id, bid]
