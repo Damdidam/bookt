@@ -185,6 +185,7 @@ function renderServiceRow(s,sortIdx){
     badges+=`<span class="svc-row-badge sched"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> ${days}</span>`;
   }
   if(s.is_active===false) badges+=`<span class="svc-row-badge" style="background:var(--red-bg);color:var(--red)">Désactivée</span>`;
+  if(s.quote_only) badges+=`<span class="svc-row-badge" style="background:var(--primary-bg);color:var(--primary)">Sur devis</span>`;
 
   let h=`<div class="svc-row${s.is_active===false?' inactive':''}" data-id="${s.id}" data-sort="${sortIdx}" draggable="true" ondragstart="svcDragStart(event,'svc')" ondragover="svcDragOver(event,'svc')" ondragleave="svcDragLeave(event)" ondrop="svcDrop(event,'svc')">`;
   h+=`<div class="svc-color" style="background:${s.color||'var(--primary)'}"></div>`;
@@ -641,6 +642,7 @@ function renderServiceModal(svc,sectorCats,prefill,existingPromo){
   const hasVars=existingVars.length>0;
   const durVal=svc?.duration_min||pf.duration_min||30;
   const priceVal=svc?.price_cents?(svc.price_cents/100):(pf.price_cents?(pf.price_cents/100):'');
+  m+=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:10px 14px;background:var(--surface);border-radius:var(--radius-xs)"><label class="svc-toggle"><input type="checkbox" id="svc_quote_only" ${svc?.quote_only?'checked':''}><span class="svc-toggle-slider"></span></label><div><div style="font-size:.85rem;font-weight:600">Sur devis</div><div style="font-size:.72rem;color:var(--text-4)">Le client envoie une demande au lieu de réserver directement</div></div></div>`;
   m+=`<div id="svc_pricing_main"${hasVars?' style="display:none"':''}>`;
   m+=`<div class="svc-form-row" style="margin-bottom:12px"><div class="field"><label>Durée (min) *</label><input type="number" id="svc_dur" value="${durVal}" min="5" step="5" oninput="svcPoseSync()"></div><div class="field"><label>Prix (€)</label><input type="number" id="svc_price" value="${priceVal}" step="0.01" placeholder="Laisser vide si sur devis"></div><div class="field"><label>Label prix</label><input id="svc_plabel" value="${esc(svc?.price_label||'')}" placeholder="Sur devis..."></div></div>`;
   m+=`</div>`;
@@ -752,6 +754,8 @@ function renderServiceModal(svc,sectorCats,prefill,existingPromo){
   m+=`</div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('svcModalOverlay')">Annuler</button><button id="svc_save_btn" class="m-btn m-btn-primary" onclick="saveService(${isEdit?"'"+svc.id+"'":'null'})">${isEdit?'Enregistrer':'Créer'}</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend',m);
   svcTogglePose(); // sync variant pose row visibility with toggle state
+  const qoEl=document.getElementById('svc_quote_only');
+  if(qoEl) qoEl.addEventListener('change',function(){const plabelEl=document.getElementById('svc_plabel');if(this.checked&&plabelEl&&!plabelEl.value.trim()){plabelEl.value='Sur devis';}});
   guardModal(document.getElementById('svcModalOverlay'), { noBackdropClose: true });
 }
 
@@ -897,6 +901,7 @@ async function saveService(id){
   const body={name:document.getElementById('svc_name').value,duration_min:parseInt(document.getElementById('svc_dur').value),price_cents:priceVal?Math.round(parseFloat(priceVal)*100):null,price_label:document.getElementById('svc_plabel').value||null,buffer_before_min:parseInt(document.getElementById('svc_bbefore').value)||0,buffer_after_min:parseInt(document.getElementById('svc_bafter').value)||0,category:selectedCat,color:catColorVal||'#1E3A8A',mode_options:modes.length?modes:['cabinet'],practitioner_ids:svcGetPracOrder(),processing_time:parseInt(document.getElementById('svc_pose_time')?.value)||0,processing_start:parseInt(document.getElementById('svc_pose_start')?.value)||0};
   body.description=document.getElementById('svc_desc')?.value.trim()||null;
   body.min_booking_notice_hours=parseInt(document.getElementById('svc_min_notice')?.value)||0;
+  body.quote_only=!!document.getElementById('svc_quote_only')?.checked;
   body.bookable_online=document.getElementById('svc_bookable_online').checked;
   body.flexibility_enabled=document.getElementById('svc_flexibility').checked;
   body.flexibility_discount_pct=parseInt(document.getElementById('svc_flex_discount')?.value)||0;
