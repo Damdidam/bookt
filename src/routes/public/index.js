@@ -22,6 +22,7 @@ router.use('/', require('./waitlist'));
 router.use('/', require('./booking-reschedule'));
 router.use('/', require('./deposit'));
 router.use('/', require('./booking-actions'));
+router.use('/', require('./quote-request'));
 
 // ============================================================
 // POST /api/public/:slug/bookings
