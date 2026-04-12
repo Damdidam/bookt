@@ -18,10 +18,10 @@ const { BASE_URL } = require('./helpers');
  * @param {string} params.savepointPrefix - Unique prefix for savepoint names (e.g. 'notif_multi' or 'notif')
  */
 async function queueBookingNotifications(txClient, {
-  businessId, bookingId, bookingStatus, clientEmail, clientPhone, savepointPrefix, notifyProEnabled = true
+  businessId, bookingId, bookingStatus, clientEmail, clientPhone, savepointPrefix, notifyProEnabled = true, skipClientEmail = false
 }) {
-  // Queue client confirmation email (skip if deposit pending — deposit email replaces it)
-  if (bookingStatus !== 'pending_deposit') {
+  // Queue client confirmation email (skip if deposit pending or quote_only service)
+  if (bookingStatus !== 'pending_deposit' && !skipClientEmail) {
     try {
       await txClient.query(`SAVEPOINT ${savepointPrefix}_sp1`);
       await txClient.query(
@@ -90,6 +90,13 @@ async function sendPostBookingComms({
 }) {
   (async () => {
     try {
+      // Skip client confirmation email for quote_only services — the quote-request endpoint sends its own email
+      // Pro notification is already queued via queueBookingNotifications (notification-processor handles it)
+      if (createdBooking.service_id) {
+        const _qoCheck = await query(`SELECT quote_only FROM services WHERE id = $1`, [createdBooking.service_id]);
+        if (_qoCheck.rows[0]?.quote_only) return;
+      }
+
       const bizRow = await query(`SELECT name, email, phone, address, theme, settings, plan FROM businesses WHERE id = $1`, [businessId]);
       if (!bizRow.rows[0]) return;
 

@@ -817,11 +817,14 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           }
         }
 
-        // Queue notifications for first booking (skip email_confirmation if deposit active)
+        // Queue notifications for first booking (skip client email for quote_only services)
+        const _qoMulti = await client.query(`SELECT 1 FROM services WHERE id = ANY($1) AND quote_only = true LIMIT 1`, [service_ids]);
+        const _multiHasQuote = _qoMulti.rows.length > 0;
         await queueBookingNotifications(client, {
           businessId, bookingId: bookings[0].id, bookingStatus: bookings[0].status,
           clientEmail: client_email, clientPhone: client_phone, savepointPrefix: 'notif_multi',
-          notifyProEnabled: _bizSettings.notify_new_booking_pro !== false
+          notifyProEnabled: _bizSettings.notify_new_booking_pro !== false,
+          skipClientEmail: _multiHasQuote
         });
 
         return { bookings, needsConfirmation, confirmTimeoutMin, confirmChannel, gcPartialCents };
@@ -1383,11 +1386,14 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         }
       }
 
-      // Queue notifications (skip email_confirmation if deposit active)
+      // Queue notifications (skip client email for quote_only services — quote-request sends its own)
+      const _qoSvc = await client.query(`SELECT quote_only FROM services WHERE id = $1`, [effectiveServiceId]);
+      const _isQuoteOnly = !!_qoSvc.rows[0]?.quote_only;
       await queueBookingNotifications(client, {
         businessId, bookingId: booking.rows[0].id, bookingStatus: booking.rows[0].status,
         clientEmail: client_email, clientPhone: client_phone, savepointPrefix: 'notif',
-        notifyProEnabled: _bizSettings.notify_new_booking_pro !== false
+        notifyProEnabled: _bizSettings.notify_new_booking_pro !== false,
+        skipClientEmail: _isQuoteOnly
       });
 
       return { booking: booking.rows[0], needsConfirmation, confirmTimeoutMin, confirmChannel, gcPartialCents, svcPrice, svcDuration };
