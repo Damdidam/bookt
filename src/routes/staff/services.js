@@ -171,6 +171,34 @@ router.patch('/reorder', requireOwner, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// PATCH /api/services/category-toggle — bulk activate/deactivate all services in a category (MUST be before /:id)
+router.patch('/category-toggle', requireOwner, async (req, res, next) => {
+  try {
+    const { category, is_active } = req.body;
+    if (!category || typeof is_active !== 'boolean') return res.status(400).json({ error: 'category and is_active required' });
+    const result = await queryWithRLS(req.businessId,
+      `UPDATE services SET is_active = $1, updated_at = NOW()
+       WHERE business_id = $2 AND category = $3
+       RETURNING id`,
+      [is_active, req.businessId, category]
+    );
+    let active_bookings = 0;
+    if (!is_active && result.rows.length > 0) {
+      const ids = result.rows.map(r => r.id);
+      const upcoming = await queryWithRLS(req.businessId,
+        `SELECT COUNT(*)::int AS cnt FROM bookings
+         WHERE service_id = ANY($1) AND business_id = $2
+           AND start_at > NOW() AND status IN ('pending','confirmed','pending_deposit')`,
+        [ids, req.businessId]
+      );
+      active_bookings = upcoming.rows[0].cnt;
+    }
+    res.json({ toggled: result.rows.length, is_active, active_bookings });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // PATCH /api/services/:id — update a service
 router.patch('/:id', requireOwner, async (req, res, next) => {
   try {
@@ -372,33 +400,6 @@ router.patch('/:id/deactivate', requireOwner, async (req, res, next) => {
   }
 });
 
-// PATCH /api/services/category-toggle — bulk activate/deactivate all services in a category
-router.patch('/category-toggle', requireOwner, async (req, res, next) => {
-  try {
-    const { category, is_active } = req.body;
-    if (!category || typeof is_active !== 'boolean') return res.status(400).json({ error: 'category and is_active required' });
-    const result = await queryWithRLS(req.businessId,
-      `UPDATE services SET is_active = $1, updated_at = NOW()
-       WHERE business_id = $2 AND category = $3
-       RETURNING id`,
-      [is_active, req.businessId, category]
-    );
-    let active_bookings = 0;
-    if (!is_active && result.rows.length > 0) {
-      const ids = result.rows.map(r => r.id);
-      const upcoming = await queryWithRLS(req.businessId,
-        `SELECT COUNT(*)::int AS cnt FROM bookings
-         WHERE service_id = ANY($1) AND business_id = $2
-           AND start_at > NOW() AND status IN ('pending','confirmed','pending_deposit')`,
-        [ids, req.businessId]
-      );
-      active_bookings = upcoming.rows[0].cnt;
-    }
-    res.json({ toggled: result.rows.length, is_active, active_bookings });
-  } catch (err) {
-    next(err);
-  }
-});
 
 // DELETE /api/services/:id — permanent delete (blocked only if active bookings exist)
 // M7: Wrapped in transaction to prevent TOCTOU race (booking created between check & delete)
