@@ -382,10 +382,11 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         // Booking confirmation setting
         const _bizConf = await client.query(`SELECT settings FROM businesses WHERE id = $1`, [businessId]);
         const _bizSettings = _bizConf.rows[0]?.settings || {};
-        // Quote-only services bypass booking confirmation (merchant confirms via deposit flow instead)
+        // Quote-only services: status=pending with NO expiry (merchant confirms via deposit flow)
         const _qoAny = await client.query(`SELECT 1 FROM services WHERE id = ANY($1) AND quote_only = true LIMIT 1`, [service_ids]);
-        const needsConfirmation = _qoAny.rows.length > 0 ? false : !!_bizSettings.booking_confirmation_required;
-        const bookingStatus = needsConfirmation ? 'pending' : 'confirmed';
+        const _isQuoteOnlyBooking = _qoAny.rows.length > 0;
+        const needsConfirmation = _isQuoteOnlyBooking ? false : !!_bizSettings.booking_confirmation_required;
+        const bookingStatus = _isQuoteOnlyBooking ? 'pending' : (needsConfirmation ? 'pending' : 'confirmed');
         const confirmTimeoutMin = parseInt(_bizSettings.booking_confirmation_timeout_min) || 30;
         const confirmChannel = _bizSettings.booking_confirmation_channel || 'email';
 
@@ -1043,10 +1044,11 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       // Booking confirmation setting
       const _bizConf = await client.query(`SELECT settings FROM businesses WHERE id = $1`, [businessId]);
       const _bizSettings = _bizConf.rows[0]?.settings || {};
-      // Quote-only services bypass booking confirmation (merchant confirms via deposit flow instead)
+      // Quote-only services: status=pending with NO expiry (merchant confirms via deposit flow)
       const _qoSingle = await client.query(`SELECT quote_only FROM services WHERE id = $1`, [effectiveServiceId]);
-      const needsConfirmation = _qoSingle.rows[0]?.quote_only ? false : !!_bizSettings.booking_confirmation_required;
-      const bookingStatus = needsConfirmation ? 'pending' : 'confirmed';
+      const _isQuoteOnlyBooking = !!_qoSingle.rows[0]?.quote_only;
+      const needsConfirmation = _isQuoteOnlyBooking ? false : !!_bizSettings.booking_confirmation_required;
+      const bookingStatus = _isQuoteOnlyBooking ? 'pending' : (needsConfirmation ? 'pending' : 'confirmed');
       const confirmTimeoutMin = parseInt(_bizSettings.booking_confirmation_timeout_min) || 30;
       const confirmChannel = _bizSettings.booking_confirmation_channel || 'email';
 
