@@ -577,9 +577,10 @@ body.theme-dark .promo-banner-arrow{background:rgba(30,30,30,.9);border-color:va
         </div>
       </div>
       <div class="fg"><label class="fl">Images de référence <span style="font-weight:400;color:var(--text-4)">(max 3, 5 Mo chacune)</span></label>
-        <input type="file" id="qImages" accept="image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif,image/avif" multiple style="font-size:.85rem">
+        <input type="file" id="qImagePicker" accept="image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif,image/avif" style="display:none">
+        <div id="quoteImgPreviews" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px"></div>
+        <button type="button" id="qAddImageBtn" onclick="document.getElementById('qImagePicker').click()" style="padding:8px 14px;font-size:.82rem;background:var(--surface);border:1.5px dashed var(--border);border-radius:8px;cursor:pointer;color:var(--text-3)">+ Ajouter une photo</button>
       </div>
-      <div id="quoteImgPreviews" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px"></div>
     </div>
 
     <div class="fg" style="margin-top:8px">
@@ -2163,19 +2164,19 @@ function goToStep(n){
         var ph={tatouage:'Décrivez votre projet : style souhaité, éléments, signification...',photographe:'Décrivez votre projet : type d\'événement, lieu, nombre de personnes...',esthetique:'Décrivez ce que vous recherchez : occasion, style souhaité...'};
         document.getElementById('qDesc').placeholder=ph[sector]||'Décrivez votre projet en détail...';
         document.getElementById('quoteTattooFields').style.display=sector==='tatouage'?'':'none';
-        // Wire image preview
-        var imgInput=document.getElementById('qImages');
-        imgInput.onchange=function(){
-          var previews=document.getElementById('quoteImgPreviews');
-          previews.innerHTML='';
-          if(this.files.length>3){alert('Maximum 3 images');this.value='';return;}
+        // Wire image accumulator
+        window._quoteImages=window._quoteImages||[];
+        window._quoteImages=[];
+        var picker=document.getElementById('qImagePicker');
+        picker.onchange=function(){
+          if(!this.files||!this.files.length)return;
           for(var i=0;i<this.files.length;i++){
-            if(this.files[i].size>5*1024*1024){alert('Image '+(i+1)+' trop lourde (max 5 Mo)');this.value='';previews.innerHTML='';return;}
-            var img=document.createElement('img');
-            img.src=URL.createObjectURL(this.files[i]);
-            img.style.cssText='width:70px;height:70px;object-fit:cover;border-radius:8px;border:1.5px solid var(--border)';
-            previews.appendChild(img);
+            if(window._quoteImages.length>=3){alert('Maximum 3 images');break;}
+            if(this.files[i].size>5*1024*1024){alert('Image trop lourde (max 5 Mo)');continue;}
+            window._quoteImages.push(this.files[i]);
           }
+          this.value='';
+          _renderQuoteImgPreviews();
         };
       }
     }
@@ -2777,7 +2778,7 @@ async function submitBooking(){
     if(_anyQuote){
       try{
         var qSvc=multiServiceMode?selectedServices.find(function(s){return s.quote_only;}):selectedService;
-        var qImgFiles=document.getElementById('qImages')?.files||[];
+        var qImgFiles=window._quoteImages||[];
         var qImages=[];
         for(var qi=0;qi<qImgFiles.length;qi++){qImages.push({data:await fileToBase64(qImgFiles[qi]),name:qImgFiles[qi].name});}
         var _bkToken=data.booking?data.booking.token:(data.bookings?data.bookings[0]?.token:null);
@@ -3068,6 +3069,28 @@ function downloadICS(){
 function showError(msg){const el=document.getElementById('errMsg');el.textContent=msg;el.classList.add('show');el.scrollIntoView({behavior:'smooth',block:'center'});}
 function hideError(){document.getElementById('errMsg').classList.remove('show');}
 function showWarning(msg){var el=document.getElementById('bkWarningToast');if(!el){el=document.createElement('div');el.id='bkWarningToast';el.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:10px 20px;background:#F59E0B;color:#fff;font-size:.82rem;font-weight:600;border-radius:8px;z-index:99999;box-shadow:0 4px 12px rgba(0,0,0,.2);transition:opacity .3s';document.body.appendChild(el);}el.textContent=msg;el.style.opacity='1';clearTimeout(el._timer);el._timer=setTimeout(function(){el.style.opacity='0';},3000);}
+
+function _renderQuoteImgPreviews(){
+  var c=document.getElementById('quoteImgPreviews');
+  var btn=document.getElementById('qAddImageBtn');
+  if(!c)return;
+  c.innerHTML='';
+  (window._quoteImages||[]).forEach(function(f,idx){
+    var wrap=document.createElement('div');
+    wrap.style.cssText='position:relative;width:70px;height:70px;flex-shrink:0';
+    var img=document.createElement('img');
+    img.src=URL.createObjectURL(f);
+    img.style.cssText='width:70px;height:70px;object-fit:cover;border-radius:8px;border:1.5px solid var(--border)';
+    var del=document.createElement('button');
+    del.type='button';
+    del.textContent='\u00d7';
+    del.style.cssText='position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:#C62828;color:#fff;border:none;font-size:14px;line-height:20px;text-align:center;cursor:pointer;padding:0';
+    del.onclick=function(){window._quoteImages.splice(idx,1);_renderQuoteImgPreviews();};
+    wrap.appendChild(img);wrap.appendChild(del);
+    c.appendChild(wrap);
+  });
+  if(btn)btn.style.display=(window._quoteImages||[]).length>=3?'none':'';
+}
 
 function fileToBase64(file){
   return new Promise(function(resolve,reject){
