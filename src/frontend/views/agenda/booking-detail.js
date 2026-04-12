@@ -672,6 +672,28 @@ async function fcOpenDetail(bookingId) {
     // -- Comment --
     document.getElementById('uComment').value = b.comment_client || '';
 
+    // -- Quote project details --
+    const qr = d.quote_request;
+    const mqp = document.getElementById('mQuoteProject');
+    if (mqp) {
+      if (qr && qr.description) {
+        mqp.style.display = '';
+        document.getElementById('mQuoteDesc').textContent = qr.description;
+        const zoneEl = document.getElementById('mQuoteZone');
+        if (qr.body_zone) { zoneEl.style.display = ''; zoneEl.textContent = 'Zone : ' + qr.body_zone + (qr.approx_size ? ' · ' + qr.approx_size : ''); }
+        else { zoneEl.style.display = 'none'; }
+        const imgCont = document.getElementById('mQuoteImages');
+        imgCont.innerHTML = '';
+        if (qr.images && qr.images.length > 0) {
+          for (const img of qr.images) {
+            imgCont.innerHTML += `<a href="${esc(img.image_url)}" target="_blank"><img src="${esc(img.image_url)}" style="width:70px;height:70px;object-fit:cover;border-radius:8px;border:1px solid var(--border)" alt="${esc(img.original_filename || 'Photo')}"></a>`;
+          }
+        }
+      } else {
+        mqp.style.display = 'none';
+      }
+    }
+
     // -- Lock toggle (hidden input + bottom bar button) --
     // For groups: locked if ANY sibling is locked (matches calendar badge logic)
     const groupSiblings = calState.fcDetailData?.group_siblings || d.group_siblings || [];

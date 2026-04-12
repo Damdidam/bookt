@@ -223,12 +223,32 @@ router.get('/:id/detail', async (req, res, next) => {
       groupSiblings = grp.rows;
     }
 
+    // Fetch quote request details if the service is quote_only
+    let quoteRequest = null;
+    if (bk.service_id && bk.client_email) {
+      const qr = await queryWithRLS(bid,
+        `SELECT qr.id, qr.description, qr.body_zone, qr.approx_size, qr.created_at
+         FROM quote_requests qr
+         WHERE qr.business_id = $1 AND qr.service_id = $2 AND qr.client_email = $3
+         ORDER BY qr.created_at DESC LIMIT 1`,
+        [bid, bk.service_id, bk.client_email]
+      );
+      if (qr.rows.length > 0) {
+        const imgs = await queryWithRLS(bid,
+          `SELECT image_url, original_filename FROM quote_request_images WHERE quote_request_id = $1 ORDER BY created_at`,
+          [qr.rows[0].id]
+        );
+        quoteRequest = { ...qr.rows[0], images: imgs.rows };
+      }
+    }
+
     res.json({
       booking: bk,
       notes: notes.rows,
       todos: todos.rows,
       reminders: reminders.rows,
-      group_siblings: groupSiblings
+      group_siblings: groupSiblings,
+      quote_request: quoteRequest
     });
   } catch (err) {
     next(err);

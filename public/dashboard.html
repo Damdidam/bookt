@@ -151,6 +151,13 @@
             <div><label class="m-field-label" for="uBufAfter">Après (min)</label><input class="m-input" type="number" id="uBufAfter" value="0" min="0" step="5"></div>
           </div>
         </div>
+        <!-- Quote project details (shown for quote_only bookings) -->
+        <div id="mQuoteProject" style="display:none;margin:0 0 12px;padding:12px 16px;border-radius:10px;border:1.5px solid var(--primary-border);background:var(--primary-bg)">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;font-size:.82rem;font-weight:700;color:var(--primary)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Projet client</div>
+          <div id="mQuoteDesc" style="font-size:.82rem;line-height:1.5;color:var(--text);white-space:pre-wrap;margin-bottom:6px"></div>
+          <div id="mQuoteZone" style="display:none;font-size:.78rem;color:var(--text-3);margin-bottom:6px"></div>
+          <div id="mQuoteImages" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+        </div>
         <!-- Note — accordion -->
         <div class="m-accordion" id="accNote">
           <div class="m-accordion-head" onclick="fcToggleAccordion('accNote')">
