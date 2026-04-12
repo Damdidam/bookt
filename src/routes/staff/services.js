@@ -65,7 +65,7 @@ router.post('/', requireOwner, async (req, res, next) => {
     if (!name || !duration_min) {
       return res.status(400).json({ error: 'name et duration_min requis' });
     }
-    if (quote_only && req.businessPlan === 'free') {
+    if (quote_only === true && req.businessPlan === 'free') {
       return res.status(403).json({ error: 'upgrade_required', message: 'Les prestations sur devis sont disponibles avec le plan Pro.' });
     }
 
