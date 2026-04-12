@@ -426,6 +426,8 @@ body.theme-dark .promo-card{background:var(--surface);border-color:var(--border)
 body.theme-dark .promo-card-icon{background:var(--surface-2)}
 body.theme-dark .promo-banner-slide{background:var(--surface);border-color:var(--border)}
 body.theme-dark .promo-banner-arrow{background:rgba(30,30,30,.9);border-color:var(--border);color:var(--text-3)}
+.sk-quote-btn{background:var(--primary-bg)!important;color:var(--primary)!important;border:1.5px solid var(--primary-border)!important}
+.sk-quote-btn:hover{background:var(--primary)!important;color:#fff!important}
 </style>
 </head>
 <body>
@@ -587,6 +589,31 @@ body.theme-dark .promo-banner-arrow{background:rgba(30,30,30,.9);border-color:va
 
     <button class="btn-next" id="btnStep4" aria-label="Confirmer le rendez-vous">Confirmer le rendez-vous →</button>
     <button class="btn-outline" id="backStep4" aria-label="Retour au choix du créneau">← Retour</button>
+  </div>
+
+  <!-- STEP: QUOTE REQUEST -->
+  <div class="step" data-step="quote" id="stepQuote" style="display:none">
+    <h2 class="step-title">Demande de devis</h2>
+    <p class="step-sub" id="quoteSub">Décrivez votre projet, nous vous recontacterons avec un devis.</p>
+    <div id="quoteServiceName" style="font-weight:700;font-size:1.05rem;margin-bottom:16px;color:var(--primary)"></div>
+    <div class="fg"><label class="fl">Nom *</label><input class="fi" id="qName" placeholder="Votre nom"></div>
+    <div class="fg"><label class="fl">Email *</label><input class="fi" id="qEmail" type="email" placeholder="votre@email.com"></div>
+    <div class="fg"><label class="fl">Téléphone</label><input class="fi" id="qPhone" type="tel" placeholder="+32..."></div>
+    <div class="fg"><label class="fl">Description du projet *</label><textarea class="fi ft" id="qDesc" maxlength="2000" rows="5" placeholder="Décrivez votre projet en détail..."></textarea></div>
+    <div id="quoteTattooFields" style="display:none">
+      <div class="fg"><label class="fl">Zone du corps</label>
+        <select class="fi" id="qBodyZone"><option value="">— Sélectionnez —</option><option>Bras</option><option>Avant-bras</option><option>Épaule</option><option>Dos</option><option>Torse</option><option>Jambe</option><option>Cheville</option><option>Poignet</option><option>Cou</option><option>Main</option><option>Autre</option></select>
+      </div>
+      <div class="fg"><label class="fl">Taille approximative</label>
+        <select class="fi" id="qApproxSize"><option value="">— Sélectionnez —</option><option>&lt; 5cm</option><option>5-10cm</option><option>10-20cm</option><option>20-30cm</option><option>30cm+</option><option>Manchette</option><option>Dos complet</option></select>
+      </div>
+    </div>
+    <div class="fg"><label class="fl">Images de référence <span style="font-weight:400;color:var(--text-4)">(max 3, 5 Mo chacune)</span></label>
+      <input type="file" id="qImages" accept="image/jpeg,image/png,image/webp" multiple style="font-size:.85rem">
+    </div>
+    <div id="quoteImgPreviews" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"></div>
+    <button class="btn-next" id="btnQuoteSubmit">Envoyer ma demande</button>
+    <button class="btn-outline" id="backQuote">← Retour</button>
   </div>
 
   <!-- STEP 5: CONFIRMATION -->
@@ -987,7 +1014,11 @@ function initPage(){
       const mnD=Math.min(...durs),mxD=Math.max(...durs);
       h+='<div class="sk-svc-dur">'+(mnD===mxD?mnD:mnD+'\u2013'+mxD)+' min</div>';
     }else{
-      h+='<div class="sk-svc-price">'+svcDisplayPrice(s)+'</div>';
+      if(s.quote_only && !s.price_cents){
+        h+='<div class="sk-svc-price" style="color:var(--primary);font-weight:600">Sur devis</div>';
+      }else{
+        h+='<div class="sk-svc-price">'+svcDisplayPrice(s)+'</div>';
+      }
       h+='<div class="sk-svc-dur">'+svcDurationLabel(s)+'</div>';
     }
     if(s.available_schedule&&s.available_schedule.type==='restricted'){
@@ -995,7 +1026,13 @@ function initPage(){
     }
     if(s.description)h+='<div class="sk-svc-desc">'+escH(s.description)+'</div>';
     h+='</div>';
-    if(!noBook) h+='<button class="sk-svc-btn" data-id="'+s.id+'">S\u00e9lectionner</button>';
+    if(!noBook){
+      if(s.quote_only){
+        h+='<button class="sk-svc-btn sk-quote-btn" data-id="'+s.id+'">Demander un devis</button>';
+      }else{
+        h+='<button class="sk-svc-btn" data-id="'+s.id+'">S\u00e9lectionner</button>';
+      }
+    }
     h+='</div>';
     if(noBook){
       const phone=siteData.business.phone||'';
@@ -1013,6 +1050,7 @@ function initPage(){
         e.stopPropagation();
         const svc=siteData.services.find(x=>x.id===btn.dataset.id);
         if(!svc)return;
+        if(svc.quote_only){openQuoteForm(svc);return;}
         if(svc.variants&&svc.variants.length>0){
           showVariantModal(svc,function(variant){
             const vi=svc.variants.findIndex(v=>v.id===variant.id);
@@ -1094,6 +1132,50 @@ function initPage(){
   document.getElementById('backStep4').addEventListener('click',()=>goPrev());
   document.getElementById('prevWeek').addEventListener('click',()=>shiftWeek(-1));
   document.getElementById('nextWeek').addEventListener('click',()=>shiftWeek(1));
+
+  document.getElementById('backQuote').addEventListener('click',function(){
+    document.getElementById('stepQuote').style.display='none';
+    document.querySelectorAll('.step[data-step="1"]').forEach(function(s){s.style.display='';});
+  });
+
+  document.getElementById('btnQuoteSubmit').addEventListener('click',async function(){
+    var name=document.getElementById('qName').value.trim();
+    var email=document.getElementById('qEmail').value.trim();
+    var desc=document.getElementById('qDesc').value.trim();
+    if(!name)return alert('Veuillez entrer votre nom');
+    if(!email||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return alert('Email invalide');
+    if(!desc)return alert('Veuillez décrire votre projet');
+    var btn=this;btn.disabled=true;btn.textContent='Envoi en cours...';
+    try{
+      var imgFiles=document.getElementById('qImages').files;
+      var images=[];
+      for(var i=0;i<imgFiles.length;i++){
+        var b64=await fileToBase64(imgFiles[i]);
+        images.push({data:b64,name:imgFiles[i].name});
+      }
+      var body={
+        service_id:_quoteServiceId,
+        client_name:name,client_email:email,
+        client_phone:document.getElementById('qPhone').value.trim()||null,
+        description:desc,
+        body_zone:document.getElementById('qBodyZone')?.value||null,
+        approx_size:document.getElementById('qApproxSize')?.value||null,
+        images:images
+      };
+      var r=await fetch('/api/public/'+siteData.business.slug+'/quote-request',{
+        method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)
+      });
+      if(!r.ok){var err=await r.json().catch(function(){return{};});throw new Error(err.error||'Erreur');}
+      document.getElementById('stepQuote').innerHTML='<div style="text-align:center;padding:40px 20px">'
+        +'<div style="font-size:2.5rem;margin-bottom:16px">\u2713</div>'
+        +'<h2 style="margin-bottom:8px">Demande envoy\u00e9e !</h2>'
+        +'<p style="color:var(--text-3)">'+escH(siteData.business.name)+' vous recontactera pour discuter de votre projet et vous proposer un devis.</p>'
+        +'</div>';
+    }catch(e){
+      alert('Erreur : '+e.message);
+      btn.disabled=false;btn.textContent='Envoyer ma demande';
+    }
+  });
 
   // Phone live formatting
   const phoneInput=document.getElementById('cPhone');
@@ -2962,6 +3044,45 @@ function downloadICS(){
 function showError(msg){const el=document.getElementById('errMsg');el.textContent=msg;el.classList.add('show');el.scrollIntoView({behavior:'smooth',block:'center'});}
 function hideError(){document.getElementById('errMsg').classList.remove('show');}
 function showWarning(msg){var el=document.getElementById('bkWarningToast');if(!el){el=document.createElement('div');el.id='bkWarningToast';el.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:10px 20px;background:#F59E0B;color:#fff;font-size:.82rem;font-weight:600;border-radius:8px;z-index:99999;box-shadow:0 4px 12px rgba(0,0,0,.2);transition:opacity .3s';document.body.appendChild(el);}el.textContent=msg;el.style.opacity='1';clearTimeout(el._timer);el._timer=setTimeout(function(){el.style.opacity='0';},3000);}
+
+// ──────── QUOTE REQUEST ────────
+var _quoteServiceId=null;
+
+function openQuoteForm(svc){
+  _quoteServiceId=svc.id;
+  document.querySelectorAll('.step').forEach(function(s){s.style.display='none';});
+  var qs=document.getElementById('stepQuote');
+  qs.style.display='';
+  document.getElementById('quoteServiceName').textContent=svc.name;
+  var sector=siteData.business.sector||'autre';
+  var ph={tatouage:'Décrivez votre projet : style souhaité, éléments, signification...',photographe:'Décrivez votre projet : type d\'événement, lieu, nombre de personnes...',esthetique:'Décrivez ce que vous recherchez : occasion, style souhaité...'};
+  document.getElementById('qDesc').placeholder=ph[sector]||'Décrivez votre projet en détail...';
+  document.getElementById('quoteTattooFields').style.display=sector==='tatouage'?'':'none';
+  var imgInput=document.getElementById('qImages');
+  imgInput.value='';
+  document.getElementById('quoteImgPreviews').innerHTML='';
+  imgInput.onchange=function(){
+    var previews=document.getElementById('quoteImgPreviews');
+    previews.innerHTML='';
+    if(this.files.length>3){alert('Maximum 3 images');this.value='';return;}
+    for(var i=0;i<this.files.length;i++){
+      if(this.files[i].size>5*1024*1024){alert('Image '+(i+1)+' trop lourde (max 5 Mo)');this.value='';previews.innerHTML='';return;}
+      var img=document.createElement('img');
+      img.src=URL.createObjectURL(this.files[i]);
+      img.style.cssText='width:70px;height:70px;object-fit:cover;border-radius:8px;border:1.5px solid var(--border)';
+      previews.appendChild(img);
+    }
+  };
+}
+
+function fileToBase64(file){
+  return new Promise(function(resolve,reject){
+    var reader=new FileReader();
+    reader.onload=function(){resolve(reader.result);};
+    reader.onerror=reject;
+    reader.readAsDataURL(file);
+  });
+}
 </script>
 </body>
 </html>
