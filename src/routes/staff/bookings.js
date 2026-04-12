@@ -163,6 +163,7 @@ router.get('/:id/detail', async (req, res, next) => {
 
     const booking = await queryWithRLS(bid,
       `SELECT b.*, s.name AS service_name, s.category AS service_category, s.duration_min, s.price_cents, s.color AS service_color,
+              s.quote_only AS service_quote_only,
               sv.name AS variant_name, sv.duration_min AS variant_duration_min, sv.price_cents AS variant_price_cents,
               p.display_name AS practitioner_name, p.color AS practitioner_color,
               c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email,

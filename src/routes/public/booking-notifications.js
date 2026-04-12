@@ -92,9 +92,11 @@ async function sendPostBookingComms({
     try {
       // Skip client confirmation email for quote_only services — the quote-request endpoint sends its own email
       // Pro notification is already queued via queueBookingNotifications (notification-processor handles it)
-      if (createdBooking.service_id) {
-        const _qoCheck = await query(`SELECT quote_only FROM services WHERE id = $1`, [createdBooking.service_id]);
-        if (_qoCheck.rows[0]?.quote_only) return;
+      // Check ALL services (multi-service: if ANY is quote_only, skip)
+      const _qoIds = groupServices ? groupServices.map(gs => gs.service_id || gs.id).filter(Boolean) : (createdBooking.service_id ? [createdBooking.service_id] : []);
+      if (_qoIds.length > 0) {
+        const _qoCheck = await query(`SELECT 1 FROM services WHERE id = ANY($1) AND quote_only = true LIMIT 1`, [_qoIds]);
+        if (_qoCheck.rows.length > 0) return;
       }
 
       const bizRow = await query(`SELECT name, email, phone, address, theme, settings, plan FROM businesses WHERE id = $1`, [businessId]);

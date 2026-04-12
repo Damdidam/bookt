@@ -851,6 +851,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           const _bkDisc = multiBookings[_i]?.discount_pct;
           const adjPrice = _bkDisc ? Math.round(rawPrice * (100 - _bkDisc) / 100) : rawPrice;
           return {
+            service_id: s.id,
             name: s._variant_name ? s.name + ' \u2014 ' + s._variant_name : s.name,
             duration_min: s.duration_min,
             price_cents: adjPrice,

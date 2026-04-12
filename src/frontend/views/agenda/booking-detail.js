@@ -424,8 +424,12 @@ async function fcOpenDetail(bookingId) {
       const effectivePrice = b.booked_price_cents ?? catalogPrice;
       const svcDisplayName = fmtSvcLabel(b.service_category, b.service_name, b.variant_name);
       let priceHtml = '';
-      const canEditPrice = !catalogPrice && !effectivePrice && !['cancelled', 'no_show', 'completed'].includes(b.status) && userRole !== 'practitioner';
-      if (catalogPrice || effectivePrice) {
+      const isQuoteOnly = !!b.service_quote_only;
+      const canEditPrice = (isQuoteOnly || (!catalogPrice && !effectivePrice)) && !['cancelled', 'no_show', 'completed'].includes(b.status) && userRole !== 'practitioner';
+      if (canEditPrice) {
+        const prefill = effectivePrice ? (effectivePrice / 100).toFixed(2) : '';
+        priceHtml = '<div class="m-svc-price" style="display:flex;align-items:center;gap:4px"><input type="number" id="mQuotePrice" min="0" step="0.01" placeholder="Prix" value="' + prefill + '" class="m-input" style="width:70px;padding:3px 6px;font-size:.78rem;text-align:right"><span style="font-size:.78rem;color:var(--text-3)">\u20ac</span><button onclick="fcSaveQuotePrice()" style="padding:2px 8px;font-size:.7rem;font-weight:600;background:var(--primary);color:#fff;border:none;border-radius:4px;cursor:pointer">OK</button></div>';
+      } else if (catalogPrice || effectivePrice) {
         // Use booked_price_cents as post-LM price; apply promo on top
         let finalPrice = effectivePrice;
         if (b.promotion_discount_cents > 0) finalPrice = finalPrice - b.promotion_discount_cents;
@@ -435,8 +439,6 @@ async function fcOpenDetail(bookingId) {
         } else {
           priceHtml = '<div class="m-svc-price">' + (finalPrice / 100).toFixed(2).replace(".",",") + ' \u20ac</div>';
         }
-      } else if (canEditPrice) {
-        priceHtml = '<div class="m-svc-price" style="display:flex;align-items:center;gap:4px"><input type="number" id="mQuotePrice" min="0" step="0.01" placeholder="Prix" class="m-input" style="width:70px;padding:3px 6px;font-size:.78rem;text-align:right"><span style="font-size:.78rem;color:var(--text-3)">\u20ac</span><button onclick="fcSaveQuotePrice()" style="padding:2px 8px;font-size:.7rem;font-weight:600;background:var(--primary);color:#fff;border:none;border-radius:4px;cursor:pointer">OK</button></div>';
       } else if (!catalogPrice && !effectivePrice) {
         priceHtml = '<div class="m-svc-price" style="font-size:.78rem;color:var(--primary);font-weight:600">Sur devis</div>';
       }
