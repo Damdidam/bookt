@@ -551,7 +551,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
               group_id, group_order, confirmation_expires_at, processing_time, processing_start, locked, discount_pct,
               promotion_id, promotion_label, promotion_discount_pct, promotion_discount_cents, booked_price_cents)
              VALUES ($1,$2,$3,$4,$5,'web',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
-             RETURNING id, public_token, start_at, end_at, status, group_id, group_order, discount_pct,
+             RETURNING id, public_token, start_at, end_at, status, service_id, group_id, group_order, discount_pct,
                        promotion_id, promotion_label, promotion_discount_pct, promotion_discount_cents`,
             [businessId, slotPracId, slot.service_id, slot.service_variant_id, clientId,
              appointment_mode||'cabinet', slot.start_at, slot.end_at, bookingStatus,
@@ -1161,7 +1161,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           processing_time, processing_start, locked, discount_pct,
           promotion_id, promotion_label, promotion_discount_pct, promotion_discount_cents, booked_price_cents)
          VALUES ($1,$2,$3,$4,$5,'web',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
-         RETURNING id, public_token, start_at, end_at, status, discount_pct,
+         RETURNING id, public_token, start_at, end_at, status, service_id, discount_pct,
                    promotion_id, promotion_label, promotion_discount_pct, promotion_discount_cents`,
         [businessId, practitioner_id, effectiveServiceId, resolvedVariantId, clientId,
          appointment_mode||'cabinet', startDate.toISOString(), endDate.toISOString(), bookingStatus, client_comment||null,
