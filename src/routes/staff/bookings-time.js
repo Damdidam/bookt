@@ -925,7 +925,7 @@ router.patch('/:id/edit', async (req, res, next) => {
     const { id } = req.params;
     // STS-V12-007: UUID validation
     if (!UUID_RE.test(id)) return res.status(400).json({ error: 'ID invalide' });
-    const { practitioner_id, comment, internal_note, custom_label, color, locked, service_id, service_variant_id } = req.body;
+    const { practitioner_id, comment, internal_note, custom_label, color, locked, service_id, service_variant_id, booked_price_cents } = req.body;
 
     // CRT-13: Validate comment/note length
     if (comment && comment.length > 5000) {
@@ -1098,6 +1098,7 @@ router.patch('/:id/edit', async (req, res, next) => {
     if (custom_label !== undefined) { sets.push(`custom_label = $${idx++}`); params.push(custom_label || null); }
     if (color !== undefined) { sets.push(`color = $${idx++}`); params.push(color || null); }
     if (locked !== undefined) { sets.push(`locked = $${idx++}`); params.push(!!locked); }
+    if (booked_price_cents !== undefined) { sets.push(`booked_price_cents = $${idx++}`); params.push(booked_price_cents === null ? null : parseInt(booked_price_cents)); }
 
     // Service conversion SET clauses
     if (serviceConversion) {

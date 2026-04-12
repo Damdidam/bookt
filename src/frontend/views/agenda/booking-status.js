@@ -199,7 +199,25 @@ async function openInvoiceForBooking(bookingId,clientId,groupId){
   mod.openInvoiceModal('invoice',{preselect_client_id:clientId,precheck_booking_id:bookingId,precheck_group_id:groupId});
 }
 
-// Expose to global scope for onclick handlers
-bridge({ fcSetStatus, fcPurgeBooking, fcWaiveDeposit, fcRefundDeposit, fcSendDepositRequest, fcRequireDeposit, openInvoiceForBooking });
+async function fcSaveQuotePrice() {
+  const input = document.getElementById('mQuotePrice');
+  if (!input) return;
+  const val = parseFloat(input.value);
+  if (isNaN(val) || val <= 0) { gToast('Montant invalide', 'error'); return; }
+  const cents = Math.round(val * 100);
+  try {
+    const r = await fetch(`/api/bookings/${calState.fcCurrentEventId}/edit`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+      body: JSON.stringify({ booked_price_cents: cents })
+    });
+    if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || 'Erreur'); }
+    gToast('Prix enregistré — vous pouvez maintenant exiger un acompte', 'success');
+    fcOpenDetail(calState.fcCurrentEventId);
+  } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
+}
 
-export { fcSetStatus, fcPurgeBooking, fcWaiveDeposit, fcRefundDeposit, fcSendDepositRequest, fcRequireDeposit };
+// Expose to global scope for onclick handlers
+bridge({ fcSetStatus, fcPurgeBooking, fcWaiveDeposit, fcRefundDeposit, fcSendDepositRequest, fcRequireDeposit, fcSaveQuotePrice, openInvoiceForBooking });
+
+export { fcSetStatus, fcPurgeBooking, fcWaiveDeposit, fcRefundDeposit, fcSendDepositRequest, fcRequireDeposit, fcSaveQuotePrice };

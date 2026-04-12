@@ -224,7 +224,7 @@ async function fcOpenDetail(bookingId) {
         borderCol = '#60A5FA'; bgCol = '#EFF6FF'; textCol = '#1D4ED8';
         statusText = 'Remboursé';
         if (isFuture && ['confirmed', 'pending', 'modified_pending'].includes(b.status) && userRole !== 'practitioner') {
-          const svcPrice = b.variant_price_cents ?? b.price_cents ?? 0;
+          const svcPrice = b.booked_price_cents ?? b.variant_price_cents ?? b.price_cents ?? 0;
           let defCents = bizSettings.deposit_type === 'fixed' ? (bizSettings.deposit_fixed_cents || 2500) : Math.round(svcPrice * (bizSettings.deposit_percent || 50) / 100);
           if (defCents <= 0) defCents = b.deposit_amount_cents || 2500;
           const defDlH = bizSettings.deposit_deadline_hours ?? 48;
@@ -317,7 +317,7 @@ async function fcOpenDetail(bookingId) {
       const rdvHoursLeft = (new Date(b.start_at).getTime() - Date.now()) / 3600000;
       // Only show "Exiger un acompte" if RDV is far enough away
       if (rdvHoursLeft >= rdvCancelDlH) {
-        const svcPrice = b.variant_price_cents ?? b.price_cents ?? 0;
+        const svcPrice = b.booked_price_cents ?? b.variant_price_cents ?? b.price_cents ?? 0;
         let defaultCents = s.deposit_type === 'fixed'
           ? (s.deposit_fixed_cents || 2500)
           : Math.round(svcPrice * (s.deposit_percent || 50) / 100);
@@ -424,6 +424,7 @@ async function fcOpenDetail(bookingId) {
       const effectivePrice = b.booked_price_cents ?? catalogPrice;
       const svcDisplayName = fmtSvcLabel(b.service_category, b.service_name, b.variant_name);
       let priceHtml = '';
+      const canEditPrice = !catalogPrice && !effectivePrice && !['cancelled', 'no_show', 'completed'].includes(b.status) && userRole !== 'practitioner';
       if (catalogPrice || effectivePrice) {
         // Use booked_price_cents as post-LM price; apply promo on top
         let finalPrice = effectivePrice;
@@ -434,6 +435,10 @@ async function fcOpenDetail(bookingId) {
         } else {
           priceHtml = '<div class="m-svc-price">' + (finalPrice / 100).toFixed(2).replace(".",",") + ' \u20ac</div>';
         }
+      } else if (canEditPrice) {
+        priceHtml = '<div class="m-svc-price" style="display:flex;align-items:center;gap:4px"><input type="number" id="mQuotePrice" min="0" step="0.01" placeholder="Prix" class="m-input" style="width:70px;padding:3px 6px;font-size:.78rem;text-align:right"><span style="font-size:.78rem;color:var(--text-3)">\u20ac</span><button onclick="fcSaveQuotePrice()" style="padding:2px 8px;font-size:.7rem;font-weight:600;background:var(--primary);color:#fff;border:none;border-radius:4px;cursor:pointer">OK</button></div>';
+      } else if (!catalogPrice && !effectivePrice) {
+        priceHtml = '<div class="m-svc-price" style="font-size:.78rem;color:var(--primary);font-weight:600">Sur devis</div>';
       }
       const canAddSvc = !['cancelled', 'no_show'].includes(b.status) && userRole !== 'practitioner' && b.service_id;
       const convertFreeBtn = canConvert ? '<button class="m-convert-free-btn" onclick="fcStartConvert(\'to-free\')" title="Convertir en RDV libre">&times;</button>' : '';
