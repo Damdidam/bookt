@@ -209,8 +209,12 @@ router.patch('/:id', requireOwner, async (req, res, next) => {
     const { id } = req.params;
     const fields = req.body;
 
+    // Block enabling quote_only on free plan (but allow saving an already-quote_only service)
     if (fields.quote_only === true && req.businessPlan === 'free') {
-      return res.status(403).json({ error: 'upgrade_required', message: 'Les prestations sur devis sont disponibles avec le plan Pro.' });
+      const _curSvc = await queryWithRLS(bid, `SELECT quote_only FROM services WHERE id = $1 AND business_id = $2`, [id, bid]);
+      if (!_curSvc.rows[0]?.quote_only) {
+        return res.status(403).json({ error: 'upgrade_required', message: 'Les prestations sur devis sont disponibles avec le plan Pro.' });
+      }
     }
 
     // Validate numeric fields
