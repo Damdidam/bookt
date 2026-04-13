@@ -435,7 +435,7 @@ router.delete('/:id', requireOwner, async (req, res, next) => {
       );
       if (svcLock.rows.length === 0) return { notFound: true };
 
-      // Only block on active bookings (pending, confirmed, modified_pending)
+      // Block on active bookings (pending, confirmed, modified_pending)
       const active = await txClient.query(
         `SELECT COUNT(*)::int AS cnt FROM bookings
          WHERE service_id = $1 AND business_id = $2
@@ -444,6 +444,16 @@ router.delete('/:id', requireOwner, async (req, res, next) => {
       );
       if (active.rows[0].cnt > 0) {
         return { conflict: true, count: active.rows[0].cnt };
+      }
+
+      // Block on active passes still tied to this service — deletion would orphan the pass holder
+      const linkedPasses = await txClient.query(
+        `SELECT COUNT(*)::int AS cnt FROM passes
+         WHERE service_id = $1 AND business_id = $2 AND status = 'active'`,
+        [id, bid]
+      );
+      if (linkedPasses.rows[0].cnt > 0) {
+        return { conflictPasses: true, count: linkedPasses.rows[0].cnt };
       }
 
       // Nullify service_id on terminal bookings to preserve history (service_id is nullable since v11)
@@ -466,6 +476,11 @@ router.delete('/:id', requireOwner, async (req, res, next) => {
     if (result.conflict) {
       return res.status(409).json({
         error: `Impossible de supprimer : ${result.count} réservation(s) active(s). Annulez-les d'abord ou désactivez la prestation.`
+      });
+    }
+    if (result.conflictPasses) {
+      return res.status(409).json({
+        error: `Impossible de supprimer : ${result.count} abonnement(s) actif(s) référencent cette prestation. Annulez-les d'abord ou désactivez la prestation.`
       });
     }
 

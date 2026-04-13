@@ -492,22 +492,39 @@ router.post('/:id/refund', async (req, res, next) => {
 });
 
 // ============================================================
-// DELETE /api/passes/:id — hard delete pass + transactions
+// DELETE /api/passes/:id — soft delete (status='cancelled') if used; hard if untouched.
+// Hard delete previously cascaded pass_transactions → broken audit trail on linked invoices.
 // ============================================================
 router.delete('/:id', async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
+    const force = req.query.force === '1';
 
     const result = await transactionWithRLS(bid, async (client) => {
-      // Delete transactions first (FK constraint)
+      // Lock the pass row + count any usage history
+      const pRes = await client.query(
+        `SELECT p.id, p.code, p.status,
+                (SELECT COUNT(*)::int FROM pass_transactions WHERE pass_id = p.id AND type IN ('debit', 'refund')) AS tx_count
+         FROM passes p WHERE p.id = $1 AND p.business_id = $2 FOR UPDATE`,
+        [id, bid]
+      );
+      if (pRes.rows.length === 0) throw Object.assign(new Error('Pass introuvable'), { status: 404 });
+      const p = pRes.rows[0];
+
+      if (p.tx_count > 0 && !force) {
+        // Soft delete — preserve audit trail, allow accounting reconciliation later
+        await client.query(`UPDATE passes SET status = 'cancelled', updated_at = NOW() WHERE id = $1`, [id]);
+        return { code: p.code, mode: 'soft', tx_count: p.tx_count };
+      }
+
+      // No history (or admin override with ?force=1) — safe to hard delete
       await client.query('DELETE FROM pass_transactions WHERE pass_id = $1 AND business_id = $2', [id, bid]);
-      const del = await client.query('DELETE FROM passes WHERE id = $1 AND business_id = $2 RETURNING id, code', [id, bid]);
-      if (del.rows.length === 0) throw Object.assign(new Error('Pass introuvable'), { status: 404 });
-      return del.rows[0];
+      await client.query('DELETE FROM passes WHERE id = $1 AND business_id = $2', [id, bid]);
+      return { code: p.code, mode: 'hard', tx_count: p.tx_count };
     });
 
-    res.json({ deleted: true, code: result.code });
+    res.json({ deleted: true, code: result.code, mode: result.mode });
   } catch (err) {
     if (err.status) return res.status(err.status).json({ error: err.message });
     next(err);

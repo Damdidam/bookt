@@ -3,6 +3,7 @@
  * Shared across: reminders, notifications
  */
 const { query } = require('./db');
+const { toGsm7 } = require('../utils/sms-encode');
 
 /**
  * Send an SMS via Twilio
@@ -15,7 +16,9 @@ const { query } = require('./db');
  * @returns {Promise<{success: boolean, sid?: string, error?: string, skipped?: boolean}>}
  */
 async function sendSMS(opts) {
-  const { to, body, businessId, from, consentSms, clientId } = opts;
+  const { to, businessId, from, consentSms, clientId } = opts;
+  // Strip non-GSM-7 chars (em-dash, accents, €, …) so Twilio bills 1 segment per 160 chars instead of 70 (UCS-2).
+  const body = toGsm7(opts.body);
 
   if (!to || !body) {
     return { success: false, error: 'Missing to or body' };

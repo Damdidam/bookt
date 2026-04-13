@@ -490,6 +490,22 @@ if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
   process.exit(1);
 }
 
+// Production hardening warnings — surface bad-config early instead of silently degrading.
+if (process.env.NODE_ENV === 'production') {
+  if (!process.env.APP_BASE_URL) {
+    console.warn('[CONFIG] APP_BASE_URL not set in production — CORS whitelist will only contain genda.be');
+  }
+  if (!process.env.CALENDAR_TOKEN_KEY) {
+    console.warn('[CONFIG] CALENDAR_TOKEN_KEY not set — OAuth refresh tokens will be stored in plaintext');
+  }
+  if (!process.env.STRIPE_WEBHOOK_SECRET) {
+    console.warn('[CONFIG] STRIPE_WEBHOOK_SECRET not set — Stripe webhooks will be rejected');
+  }
+  if (!process.env.TWILIO_AUTH_TOKEN) {
+    console.warn('[CONFIG] TWILIO_AUTH_TOKEN not set — Twilio webhooks will be rejected');
+  }
+}
+
 app.listen(PORT, async () => {
   console.log(`\n  Genda server running on port ${PORT}`);
 
