@@ -79,8 +79,14 @@ async function sendCancellationEmail({ booking, business, groupServices }) {
   const depAmtStr = hadDeposit ? ((booking.deposit_amount_cents || 0) / 100).toFixed(2).replace('.', ',') : '';
 
   const gcCancelCents = booking.gc_paid_cents || 0;
-  const stripeCancelCents = hadDeposit ? (booking.deposit_amount_cents || 0) - gcCancelCents : 0;
-  const isFullGcCancel = gcCancelCents > 0 && stripeCancelCents <= 0;
+  // B2 fix: use net_refund_cents (actual Stripe refund amount) instead of gross if the caller
+  // computed it (policy='net' deducts fees). Fallback to gross when not provided (policy='full').
+  const grossStripeCancelCents = hadDeposit ? Math.max((booking.deposit_amount_cents || 0) - gcCancelCents, 0) : 0;
+  const stripeCancelCents = (booking.net_refund_cents != null && !Number.isNaN(booking.net_refund_cents))
+    ? booking.net_refund_cents
+    : grossStripeCancelCents;
+  const stripeCancelFeesDeducted = Math.max(grossStripeCancelCents - stripeCancelCents, 0);
+  const isFullGcCancel = gcCancelCents > 0 && grossStripeCancelCents <= 0;
   const isMixCancel = gcCancelCents > 0 && stripeCancelCents > 0;
 
   let depositHTML = '';
@@ -94,6 +100,7 @@ async function sendCancellationEmail({ booking, business, groupServices }) {
     </div>
     <div style="background:#F0FDF4;border-radius:8px;padding:12px 16px;margin:4px 0 16px;border-left:3px solid #22C55E">
       <div style="font-size:14px;color:#15803D;font-weight:600">${_ic('check')} ${stripeStr}\u00a0\u20ac rembours\u00e9s par carte bancaire</div>
+      ${stripeCancelFeesDeducted > 0 ? `<div style="font-size:12px;color:#15803D;opacity:.85">Frais bancaires d\u00e9duits : ${(stripeCancelFeesDeducted / 100).toFixed(2).replace('.', ',')}\u00a0\u20ac</div>` : ''}
       <div style="font-size:13px;color:#15803D;margin-top:4px">Le remboursement appara\u00eetra sur votre relev\u00e9 sous quelques jours ouvrables.</div>
     </div>`;
     } else if (isFullGcCancel) {
@@ -102,9 +109,11 @@ async function sendCancellationEmail({ booking, business, groupServices }) {
       <div style="font-size:14px;color:#5D4037;font-weight:600">\u{1F381} Acompte de ${depAmtStr}\u00a0\u20ac recr\u00e9dit\u00e9 sur votre carte cadeau</div>
     </div>`;
     } else {
+      const stripeStrFull = (stripeCancelCents / 100).toFixed(2).replace('.', ',');
       depositHTML = `
     <div style="background:#F0FDF4;border-radius:8px;padding:12px 16px;margin:16px 0;border-left:3px solid #22C55E">
-      <div style="font-size:14px;color:#15803D;font-weight:600">${_ic('check')} Acompte de ${depAmtStr}\u00a0\u20ac rembours\u00e9</div>
+      <div style="font-size:14px;color:#15803D;font-weight:600">${_ic('check')} Acompte de ${stripeStrFull}\u00a0\u20ac rembours\u00e9</div>
+      ${stripeCancelFeesDeducted > 0 ? `<div style="font-size:12px;color:#15803D;opacity:.85">Frais bancaires d\u00e9duits : ${(stripeCancelFeesDeducted / 100).toFixed(2).replace('.', ',')}\u00a0\u20ac</div>` : ''}
       <div style="font-size:13px;color:#15803D;margin-top:4px">Votre acompte vous sera restitu\u00e9 sous quelques jours ouvrables.</div>
     </div>`;
     }

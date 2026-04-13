@@ -320,7 +320,7 @@ async function processExpiredPendingBookings() {
       try {
         const siblings = await query(
           `SELECT b.id, b.start_at, b.end_at, b.deposit_required, b.deposit_status, b.deposit_amount_cents, b.deposit_paid_at, b.deposit_payment_intent_id,
-                  b.booked_price_cents,
+                  b.booked_price_cents, b.custom_label,
                   b.promotion_label, b.promotion_discount_cents, b.promotion_discount_pct, b.discount_pct,
                   CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS service_name,
                   s.category AS service_category,
@@ -368,7 +368,8 @@ async function processExpiredPendingBookings() {
             const _adjSibPrice = sib.discount_pct ? Math.round((sib.service_price_cents || 0) * (100 - sib.discount_pct) / 100) : (sib.service_price_cents || 0);
             const { sendCancellationEmail } = require('./email');
             await sendCancellationEmail({
-              booking: { start_at: sib.start_at, end_at: sib.end_at, client_name: sib.client_name, client_email: sib.client_email, service_name: sib.service_name, service_category: sib.service_category, service_price_cents: _adjSibPrice, booked_price_cents: sib.booked_price_cents, discount_pct: sib.discount_pct, duration_min: sib.duration_min, promotion_label: sib.promotion_label, promotion_discount_cents: sib.promotion_discount_cents, promotion_discount_pct: sib.promotion_discount_pct, practitioner_name: sib.practitioner_name, deposit_required: sib.deposit_required, deposit_status: sib.deposit_status, deposit_amount_cents: sib.deposit_amount_cents, deposit_paid_at: sib.deposit_paid_at, deposit_payment_intent_id: sib.deposit_payment_intent_id, gc_paid_cents: gcPaidSibConf, gc_refunded_cents: _gcRef.rows[0]?.amt || 0, pass_refunded: _passRef.rows.length > 0, cancel_reason: 'Confirmation non reçue dans le délai imparti' },
+              // H7 fix: forward custom_label so sibling email shows personalised service label
+              booking: { start_at: sib.start_at, end_at: sib.end_at, client_name: sib.client_name, client_email: sib.client_email, service_name: sib.service_name, service_category: sib.service_category, custom_label: sib.custom_label, service_price_cents: _adjSibPrice, booked_price_cents: sib.booked_price_cents, discount_pct: sib.discount_pct, duration_min: sib.duration_min, promotion_label: sib.promotion_label, promotion_discount_cents: sib.promotion_discount_cents, promotion_discount_pct: sib.promotion_discount_pct, practitioner_name: sib.practitioner_name, deposit_required: sib.deposit_required, deposit_status: sib.deposit_status, deposit_amount_cents: sib.deposit_amount_cents, deposit_paid_at: sib.deposit_paid_at, deposit_payment_intent_id: sib.deposit_payment_intent_id, gc_paid_cents: gcPaidSibConf, gc_refunded_cents: _gcRef.rows[0]?.amt || 0, pass_refunded: _passRef.rows.length > 0, cancel_reason: 'Confirmation non reçue dans le délai imparti' },
               business: { name: sib.biz_name, slug: sib.biz_slug, email: sib.biz_email, phone: sib.biz_phone, address: sib.biz_address, theme: sib.biz_theme, settings: sib.biz_settings },
               groupServices: _sibGroupServices
             });

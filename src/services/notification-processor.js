@@ -515,8 +515,20 @@ async function sendModificationRejectedProEmail(bk, groupServices) {
  * Process queued pro notifications — called by cron in server.js
  * @returns {{ processed: number, sent: number, failed: number, errors: number }}
  */
-// H3: retry policy
-const TERMINAL_ERRORS = new Set(['booking_not_found', 'no_business_email', 'no_client_email', 'unknown_type']);
+// H3: retry policy — terminal errors never retry (data missing, permanent 4xx)
+// H10 fix: expand to cover Brevo / email-utils patterns that indicate permanent failure.
+const TERMINAL_ERRORS = new Set([
+  'booking_not_found', 'no_business_email', 'no_client_email', 'unknown_type',
+  'Invalid recipient email', 'invalid_recipient', 'invalid_email', 'blacklisted_recipient'
+]);
+// H10 fix: also match substring patterns (Brevo returns various 4xx messages with these keywords)
+const TERMINAL_SUBSTRINGS = ['invalid email', 'invalid recipient', 'blacklisted', 'not a valid email'];
+function isTerminalError(err) {
+  if (!err) return false;
+  const s = String(err).toLowerCase();
+  if (TERMINAL_ERRORS.has(String(err))) return true;
+  return TERMINAL_SUBSTRINGS.some(p => s.includes(p));
+}
 const MAX_ATTEMPTS = 5;
 // Exponential backoff: 2, 4, 8, 16, 32 minutes (capped at 60 min)
 function _backoffMinutes(attempt) { return Math.min(60, Math.pow(2, Math.max(1, attempt))); }
@@ -660,9 +672,10 @@ async function processNotifications() {
           stats.sent++;
         } else {
           // H3 fix: retry with exponential backoff unless terminal error or MAX_ATTEMPTS reached
+          // H10 fix: isTerminalError() catches Brevo patterns 'Invalid recipient email' etc.
           const errCode = (result.error || 'unknown_error').substring(0, 500);
           const nextAttempt = (notif.attempt_count || 0) + 1;
-          const isTerminal = TERMINAL_ERRORS.has(errCode);
+          const isTerminal = isTerminalError(errCode);
           if (isTerminal || nextAttempt >= MAX_ATTEMPTS) {
             await client.query(
               `UPDATE notifications SET status = 'failed', error = $2, sent_at = NOW(), attempt_count = $3, next_retry_at = NULL WHERE id = $1`,
@@ -682,14 +695,17 @@ async function processNotifications() {
         stats.errors++;
         console.error(`[NOTIF PROCESSOR] Error processing notification ${notif.id}:`, err.message);
         try {
-          // Same retry logic for thrown exceptions (treat as transient unless MAX_ATTEMPTS)
+          // H9 fix: apply same terminal-error logic to thrown exceptions, pas uniquement à result.success=false
           const errMsg = (err.message || 'exception').substring(0, 500);
           const nextAttempt = (notif.attempt_count || 0) + 1;
-          if (nextAttempt >= MAX_ATTEMPTS) {
+          const isTerminal = isTerminalError(errMsg);
+          if (isTerminal || nextAttempt >= MAX_ATTEMPTS) {
             await client.query(
               `UPDATE notifications SET status = 'failed', error = $2, sent_at = NOW(), attempt_count = $3, next_retry_at = NULL WHERE id = $1`,
               [notif.id, errMsg, nextAttempt]
             );
+            // REG2 fix: increment stats.failed whenever the row becomes 'failed' (terminal OR max attempts)
+            stats.failed++;
           } else {
             const backoffMin = _backoffMinutes(nextAttempt);
             await client.query(

@@ -63,6 +63,10 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
     let cancelResult;
     let gcRefundResult = { refunded: 0 };
     let passRefundResult = { refunded: 0 };
+    // B2 fix: capture actual Stripe refund amount + retention reason so the cancellation email
+    // shows what the client really received (not deposit_amount_cents brut).
+    let publicCancelNetRefundCents = null;
+    let publicCancelRetentionReason = null;
     try {
       await txClient.query('BEGIN');
       cancelResult = await txClient.query(
@@ -134,7 +138,19 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
         const _piRaw = postCancelBkFinal.deposit_payment_intent_id;
         if (_piRaw && (_piRaw.startsWith('pi_') || _piRaw.startsWith('cs_'))) {
           const _stripeKey = process.env.STRIPE_SECRET_KEY;
-          if (_stripeKey) {
+          if (!_stripeKey) {
+            // Batch 13 REG1 fix: no Stripe key → rollback deposit_status so email doesn't lie
+            console.warn('[PUBLIC CANCEL] STRIPE_SECRET_KEY missing — deposit retained');
+            publicCancelRetentionReason = 'no_stripe_key';
+            await txClient.query(`UPDATE bookings SET deposit_status = 'cancelled' WHERE id = $1`, [postCancelBkFinal.id]);
+            if (bk.group_id) {
+              await txClient.query(
+                `UPDATE bookings SET deposit_status = 'cancelled' WHERE group_id = $1 AND business_id = $2 AND deposit_status = 'refunded'`,
+                [bk.group_id, bk.business_id]
+              );
+            }
+            cancelResult = await txClient.query(`SELECT * FROM bookings WHERE id = $1`, [postCancelBkFinal.id]);
+          } else {
             try {
               const _stripe = require('stripe')(_stripeKey);
               let _piId = _piRaw;
@@ -154,7 +170,23 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
                   const _actualCharge = Math.max(postCancelBkFinal.deposit_amount_cents - _gcPaid, 0);
                   const _fees = _actualCharge > 0 ? Math.round(_actualCharge * 0.015) + 25 : 0;
                   const _netRefund = Math.max(_actualCharge - _fees, 0);
-                  if (_netRefund > 0) await _stripe.refunds.create({ payment_intent: _piId, amount: _netRefund });
+                  publicCancelNetRefundCents = _netRefund;
+                  if (_netRefund > 0) {
+                    await _stripe.refunds.create({ payment_intent: _piId, amount: _netRefund });
+                  } else {
+                    // H2 fix: fees >= charge — no Stripe refund possible. Rollback deposit_status to
+                    // 'cancelled' so the UPDATE CASE 'refunded' from L80 doesn't lie in the DB / emails.
+                    console.warn(`[PUBLIC CANCEL] netRefund=0 (fees ${_fees}c >= charge ${_actualCharge}c) — deposit retained for PI ${_piId}`);
+                    publicCancelRetentionReason = 'fees_exceed_charge';
+                    await txClient.query(`UPDATE bookings SET deposit_status = 'cancelled' WHERE id = $1`, [postCancelBkFinal.id]);
+                    if (bk.group_id) {
+                      await txClient.query(
+                        `UPDATE bookings SET deposit_status = 'cancelled' WHERE group_id = $1 AND business_id = $2 AND deposit_status = 'refunded'`,
+                        [bk.group_id, bk.business_id]
+                      );
+                    }
+                    cancelResult = await txClient.query(`SELECT * FROM bookings WHERE id = $1`, [postCancelBkFinal.id]);
+                  }
                 } else {
                   await _stripe.refunds.create({ payment_intent: _piId });
                 }
@@ -162,6 +194,7 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
             } catch (_stripeErr) {
               if (_stripeErr.code !== 'charge_already_refunded') {
                 console.error('[PUBLIC CANCEL] Stripe refund failed — deposit retained:', _stripeErr.message);
+                publicCancelRetentionReason = 'stripe_failure';
                 // Rollback deposit_status to 'cancelled' (retained) before commit
                 await txClient.query(
                   `UPDATE bookings SET deposit_status = 'cancelled' WHERE id = $1`,
@@ -289,7 +322,8 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
           const gcPaidCancel = await getGcPaidCents(bk.id);
           const { sendCancellationEmail } = require('../../services/email');
           await sendCancellationEmail({
-            booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, service_category: row.service_category, custom_label: row.custom_label, practitioner_name: row.practitioner_name, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_paid_at: row.deposit_paid_at, deposit_payment_intent_id: row.deposit_payment_intent_id, gc_paid_cents: gcPaidCancel, gc_refunded_cents: gcRefundResult.refunded || 0, pass_refunded: (passRefundResult.refunded || 0) !== 0, promotion_label: row.promotion_label, promotion_discount_cents: row.promotion_discount_cents, promotion_discount_pct: row.promotion_discount_pct, service_price_cents: row.service_price_cents, booked_price_cents: row.booked_price_cents, discount_pct: row.discount_pct, duration_min: row.duration_min, cancel_reason: row.cancel_reason },
+            // B2 fix: propagate net_refund_cents + retention_reason so email shows actual Stripe amount
+            booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, service_category: row.service_category, custom_label: row.custom_label, practitioner_name: row.practitioner_name, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_paid_at: row.deposit_paid_at, deposit_payment_intent_id: row.deposit_payment_intent_id, gc_paid_cents: gcPaidCancel, gc_refunded_cents: gcRefundResult.refunded || 0, pass_refunded: (passRefundResult.refunded || 0) !== 0, net_refund_cents: publicCancelNetRefundCents, deposit_retention_reason: publicCancelRetentionReason, promotion_label: row.promotion_label, promotion_discount_cents: row.promotion_discount_cents, promotion_discount_pct: row.promotion_discount_pct, service_price_cents: row.service_price_cents, booked_price_cents: row.booked_price_cents, discount_pct: row.discount_pct, duration_min: row.duration_min, cancel_reason: row.cancel_reason },
             business: { name: row.biz_name, email: row.biz_email, phone: row.biz_phone, address: row.biz_address, theme: row.biz_theme, slug: row.biz_slug, settings: bk.business_settings },
             groupServices
           });
@@ -503,6 +537,8 @@ router.post('/booking/:token/reject', async (req, res, next) => {
     let result;
     let gcRefundReject = { refunded: 0 };
     let passRefundReject = { refunded: 0 };
+    // Batch 13 REG1 fix: capture retention_reason for reject email (no_stripe_key / stripe_failure)
+    let rejectRetentionReason = null;
     try {
       await txClient.query('BEGIN');
       result = await txClient.query(
@@ -582,24 +618,33 @@ router.post('/booking/:token/reject', async (req, res, next) => {
         const _piRaw = rejBkFinal.deposit_payment_intent_id;
         if (_piRaw && (_piRaw.startsWith('pi_') || _piRaw.startsWith('cs_'))) {
           const _stripeKey = process.env.STRIPE_SECRET_KEY;
-          if (_stripeKey) {
+          if (!_stripeKey) {
+            // Batch 13 REG1 fix: no Stripe key → rollback deposit_status so email is accurate
+            console.warn('[REJECT] STRIPE_SECRET_KEY missing — deposit retained');
+            rejectRetentionReason = 'no_stripe_key';
+            await txClient.query(`UPDATE bookings SET deposit_status = 'cancelled' WHERE id = $1`, [rejBkFinal.id]);
+            if (rejBkFinal.group_id) {
+              await txClient.query(
+                `UPDATE bookings SET deposit_status = 'cancelled' WHERE group_id = $1 AND deposit_status = 'refunded'`,
+                [rejBkFinal.group_id]
+              );
+            }
+            result = await txClient.query(`SELECT * FROM bookings WHERE id = $1`, [rejBkFinal.id]);
+          } else {
             try {
               const _stripe = require('stripe')(_stripeKey);
               let _piId = _piRaw;
               if (_piId.startsWith('cs_')) { const _s = await _stripe.checkout.sessions.retrieve(_piId); _piId = _s.payment_intent; }
               if (_piId && _piId.startsWith('pi_')) {
-                const _rp = bkData.business_settings?.refund_policy || 'full';
-                if (_rp === 'net' && rejBkFinal.deposit_amount_cents) {
-                  const _gcR = await txClient.query(`SELECT COALESCE(SUM(amount_cents), 0) AS gc FROM gift_card_transactions WHERE booking_id = $1 AND type = 'debit'`, [rejBkFinal.id]);
-                  const _gc = parseInt(_gcR.rows[0]?.gc) || 0;
-                  const _ch = Math.max(rejBkFinal.deposit_amount_cents - _gc, 0);
-                  const _net = Math.max(_ch - (_ch > 0 ? Math.round(_ch * 0.015) + 25 : 0), 0);
-                  if (_net > 0) await _stripe.refunds.create({ payment_intent: _piId, amount: _net });
-                } else { await _stripe.refunds.create({ payment_intent: _piId }); }
+                // B1 fix: reject = staff-initiated modification refused by client. Per commit L498-501
+                // comment "must NOT apply here. Always refund a paid deposit on reject". refund_policy='net'
+                // is for CLIENT-initiated cancel near deadline, not applicable to rejections.
+                await _stripe.refunds.create({ payment_intent: _piId });
               }
             } catch (_e) {
               if (_e.code !== 'charge_already_refunded') {
                 console.error('[REJECT] Stripe refund failed — deposit retained:', _e.message);
+                rejectRetentionReason = 'stripe_failure';
                 await txClient.query(`UPDATE bookings SET deposit_status = 'cancelled' WHERE id = $1`, [rejBkFinal.id]);
                 if (rejBkFinal.group_id) await txClient.query(`UPDATE bookings SET deposit_status = 'cancelled' WHERE group_id = $1 AND deposit_status = 'refunded'`, [rejBkFinal.group_id]);
                 result = await txClient.query(`SELECT * FROM bookings WHERE id = $1`, [rejBkFinal.id]);
@@ -687,7 +732,9 @@ router.post('/booking/:token/reject', async (req, res, next) => {
           const { getGcPaidCents } = require('../../services/gift-card-refund');
           const gcPaidReject = await getGcPaidCents(rejBk.id);
           await sendCancellationEmail({
-            booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, service_category: row.service_category, custom_label: row.custom_label, practitioner_name: row.practitioner_name, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_paid_at: row.deposit_paid_at, deposit_payment_intent_id: row.deposit_payment_intent_id, gc_paid_cents: gcPaidReject, gc_refunded_cents: gcRefundReject.refunded || 0, pass_refunded: (passRefundReject.refunded || 0) !== 0, promotion_label: row.promotion_label, promotion_discount_cents: row.promotion_discount_cents, promotion_discount_pct: row.promotion_discount_pct, service_price_cents: row.service_price_cents, booked_price_cents: row.booked_price_cents, discount_pct: row.discount_pct, duration_min: row.duration_min },
+            // H11 fix: reject email must carry a cancel_reason (matches the other 5 callers).
+            // Batch 13 REG1 fix: forward deposit_retention_reason so email shows accurate status
+            booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, service_category: row.service_category, custom_label: row.custom_label, practitioner_name: row.practitioner_name, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_paid_at: row.deposit_paid_at, deposit_payment_intent_id: row.deposit_payment_intent_id, gc_paid_cents: gcPaidReject, gc_refunded_cents: gcRefundReject.refunded || 0, pass_refunded: (passRefundReject.refunded || 0) !== 0, deposit_retention_reason: rejectRetentionReason, promotion_label: row.promotion_label, promotion_discount_cents: row.promotion_discount_cents, promotion_discount_pct: row.promotion_discount_pct, service_price_cents: row.service_price_cents, booked_price_cents: row.booked_price_cents, discount_pct: row.discount_pct, duration_min: row.duration_min, cancel_reason: 'Nouveau créneau proposé refusé par le client' },
             business: { name: row.biz_name, email: row.biz_email, phone: row.biz_phone, address: row.biz_address, theme: row.biz_theme, slug: row.biz_slug, settings: row.biz_settings },
             groupServices
           });

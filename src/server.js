@@ -550,6 +550,9 @@ app.listen(PORT, async () => {
     // schema-v72 (BE legal compliance): credit notes link back to original invoice
     await pool.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS related_invoice_id UUID REFERENCES invoices(id)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_invoices_related ON invoices(related_invoice_id) WHERE related_invoice_id IS NOT NULL`);
+    // v72b fix: invoices.type was varchar(10) but 'credit_note' is 11 chars → INSERT would fail.
+    // Widen to 20 to match the CHECK constraint values.
+    await pool.query(`ALTER TABLE invoices ALTER COLUMN type TYPE VARCHAR(20)`);
     await pool.query(`ALTER TABLE notifications DROP CONSTRAINT IF EXISTS notifications_type_check`);
     await pool.query(`ALTER TABLE notifications ADD CONSTRAINT notifications_type_check CHECK (type IN (
       'email_confirmation','sms_confirmation',

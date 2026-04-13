@@ -500,16 +500,19 @@ router.post('/:id/refund-full', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
-    const { reason } = req.body;
+    // M3 fix (security): cap reason length
+    const rawReason = req.body?.reason;
+    const reason = (typeof rawReason === 'string' && rawReason.trim()) ? rawReason.trim().slice(0, 500) : null;
 
-    // Read business refund_policy outside the tx (settings rarely change, no need to lock)
-    const bizRes = await queryWithRLS(bid, `SELECT settings FROM businesses WHERE id = $1`, [bid]);
-    const refundPolicy = bizRes.rows[0]?.settings?.refund_policy || 'full';
+    // Read business settings outside the tx (refund_policy + name/theme/address for email)
+    const bizRes = await queryWithRLS(bid, `SELECT name, settings, theme, email, phone, address FROM businesses WHERE id = $1`, [bid]);
+    const bizRow = bizRes.rows[0] || {};
+    const refundPolicy = bizRow.settings?.refund_policy || 'full';
 
     const result = await transactionWithRLS(bid, async (client) => {
       const p = await client.query(
         `SELECT id, code, name, status, sessions_total, sessions_remaining, price_cents,
-                stripe_payment_intent_id, buyer_email, buyer_name
+                stripe_payment_intent_id, buyer_email, buyer_name, expires_at, service_id
            FROM passes WHERE id = $1 AND business_id = $2 FOR UPDATE`,
         [id, bid]
       );
@@ -549,8 +552,11 @@ router.post('/:id/refund-full', blockIfImpersonated, async (req, res, next) => {
 
           // Pro-rata refund: only refund the unused portion (avoid refunding sessions already used)
           const usedSessions = pass.sessions_total - pass.sessions_remaining;
-          const perSessionCents = Math.round(pass.price_cents / pass.sessions_total);
-          const unusedRefundCents = pass.sessions_remaining * perSessionCents;
+          // Batch 13 regression fix : si aucune séance utilisée → refund entier sans arrondi
+          // (évite le drift 1-cent dû à round(price/total) × total ≠ price).
+          const unusedRefundCents = (usedSessions === 0)
+            ? pass.price_cents
+            : pass.sessions_remaining * Math.round(pass.price_cents / pass.sessions_total);
 
           if (refundPolicy === 'net') {
             stripeFeesCents = unusedRefundCents > 0 ? Math.round(unusedRefundCents * 0.015) + 25 : 0;
@@ -591,15 +597,78 @@ router.post('/:id/refund-full', blockIfImpersonated, async (req, res, next) => {
         );
       }
 
+      // H5 fix: audit_logs entry pour compliance BE — trace qui a émis le refund (impersonation inclus)
+      await client.query(
+        `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
+         VALUES ($1, $2, 'pass', $3, 'pass_refund_full', $4, $5)`,
+        [bid, req.user.id, id,
+         JSON.stringify({ code: pass.code, status: pass.status, sessions_remaining: pass.sessions_remaining, sessions_total: pass.sessions_total, price_cents: pass.price_cents }),
+         JSON.stringify({ status: 'cancelled', sessions_refunded: pass.sessions_remaining, stripe_refund_cents: netRefundCents, stripe_fees_cents: stripeFeesCents, reason: reason || null, impersonated_by: req.user.impersonatedBy || null })]
+      );
+
       return {
         code: pass.code,
         name: pass.name,
         sessions_refunded: pass.sessions_remaining,
         stripe_refund_cents: netRefundCents,
         stripe_fees_cents: stripeFeesCents,
-        buyer_email: pass.buyer_email
+        buyer_email: pass.buyer_email,
+        buyer_name: pass.buyer_name,
+        expires_at: pass.expires_at
       };
     });
+
+    // H8 fix: send confirmation email to buyer AFTER commit (non-blocking)
+    // Client doit recevoir une trace écrite du refund, pas juste un virement Stripe "anonyme".
+    if (result.buyer_email) {
+      (async () => {
+        try {
+          const { sendEmail, buildEmailHTML, escHtml, safeColor } = require('../../services/email-utils');
+          const color = safeColor(bizRow.theme?.primary_color);
+          const safeBiz = escHtml(bizRow.name || 'Votre cabinet');
+          const safeBuyer = escHtml(result.buyer_name || '');
+          const safePassName = escHtml(result.name);
+          const netStr = (result.stripe_refund_cents != null && result.stripe_refund_cents > 0)
+            ? (result.stripe_refund_cents / 100).toFixed(2).replace('.', ',') + '\u00a0\u20ac'
+            : null;
+          const feesStr = (result.stripe_fees_cents > 0)
+            ? (result.stripe_fees_cents / 100).toFixed(2).replace('.', ',') + '\u00a0\u20ac'
+            : null;
+          const bodyHTML = `
+            <p>Bonjour${safeBuyer ? ' ' + safeBuyer : ''},</p>
+            <p>Votre pass <strong>${safePassName}</strong> a été annulé${netStr ? ' et remboursé' : ''}.</p>
+            ${netStr ? `
+            <div style="background:#F0FDF4;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #22C55E">
+              <div style="font-size:15px;font-weight:600;color:#15803D;margin-bottom:4px">Remboursement : ${netStr}</div>
+              ${feesStr ? `<div style="font-size:12px;color:#15803D;opacity:.85">Frais bancaires déduits : ${feesStr}</div>` : ''}
+              <div style="font-size:13px;color:#15803D;margin-top:4px">Le remboursement apparaîtra sur votre relevé sous 5 à 10 jours ouvrables. Les séances déjà utilisées ne sont pas remboursées.</div>
+            </div>` : `
+            <div style="background:#F5F4F1;border-radius:8px;padding:14px 16px;margin:16px 0">
+              <div style="font-size:14px;color:#3D3832">Pass annulé. ${result.sessions_refunded} séance(s) restituée(s).</div>
+            </div>`}
+            ${reason ? `<p style="font-size:13px;color:#6B6560">Motif : ${escHtml(reason)}</p>` : ''}
+            <p style="font-size:13px;color:#6B6560">Pour toute question, contactez-nous${bizRow.phone ? ' au ' + escHtml(bizRow.phone) : ''}${bizRow.email ? ' (' + escHtml(bizRow.email) + ')' : ''}.</p>`;
+          const html = buildEmailHTML({
+            title: 'Pass annulé',
+            preheader: netStr ? `Votre pass ${result.name} a été remboursé (${netStr})` : `Votre pass ${result.name} a été annulé`,
+            bodyHTML,
+            businessName: bizRow.name,
+            primaryColor: color,
+            footerText: `${bizRow.name || 'Genda'}${bizRow.address ? ' \u00b7 ' + bizRow.address : ''} \u00b7 Via Genda.be`
+          });
+          await sendEmail({
+            to: result.buyer_email,
+            toName: result.buyer_name || undefined,
+            subject: netStr ? `Pass remboursé \u2014 ${bizRow.name || 'Genda'}` : `Pass annulé \u2014 ${bizRow.name || 'Genda'}`,
+            html,
+            fromName: bizRow.name || 'Genda',
+            replyTo: bizRow.email || undefined
+          });
+        } catch (e) {
+          console.warn('[PASS REFUND-FULL] Email error:', e.message);
+        }
+      })();
+    }
 
     res.json({ ok: true, ...result });
   } catch (err) {

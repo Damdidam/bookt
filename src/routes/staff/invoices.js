@@ -139,8 +139,10 @@ router.get('/unbilled', async (req, res, next) => {
 
 // ============================================================
 // POST /api/invoices — create invoice (from booking or manual)
+// H3 fix: blockIfImpersonated — admin impersonated ne doit pas créer de factures fiscales
+// (numéros F-YYYY-XXXXXX immuables, compliance BE AR n°1 art.14)
 // ============================================================
-router.post('/', requireOwner, async (req, res, next) => {
+router.post('/', requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { booking_id, booking_ids, client_id, type, items, notes, vat_rate,
@@ -347,7 +349,10 @@ router.post('/', requireOwner, async (req, res, next) => {
 router.post('/:id/credit-note', requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
-    const { reason, mark_original_cancelled } = req.body;
+    // M3 fix (security): cap reason length to avoid storage bloat / PDF DoS (notes col = TEXT)
+    const rawReason = req.body?.reason;
+    const reason = (typeof rawReason === 'string' && rawReason.trim()) ? rawReason.trim().slice(0, 500) : null;
+    const mark_original_cancelled = req.body?.mark_original_cancelled === true;
 
     const result = await transactionWithRLS(bid, async (txClient) => {
       // Lock + load the original
@@ -381,13 +386,14 @@ router.post('/:id/credit-note', requireOwner, blockIfImpersonated, async (req, r
       const cnNumber = await getNextInvoiceNumber((sql, params) => txClient.query(sql, params), bid, 'credit_note');
 
       // Insert the credit note (totals negated)
+      // H6 fix: copy payment_method from original so CSV export (r.payment_method) n'affiche pas vide
       const cnRes = await txClient.query(
         `INSERT INTO invoices (business_id, booking_id, client_id, invoice_number, type, status,
           issue_date, due_date, client_name, client_email, client_phone, client_address, client_bce,
           business_name, business_address, business_bce, business_iban, business_bic,
           subtotal_cents, vat_amount_cents, total_cents, vat_rate,
-          structured_comm, notes, footer_text, language, related_invoice_id)
-         VALUES ($1,$2,$3,$4,'credit_note','draft',$5,NULL,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
+          structured_comm, notes, footer_text, language, related_invoice_id, payment_method)
+         VALUES ($1,$2,$3,$4,'credit_note','draft',$5,NULL,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)
          RETURNING *`,
         [bid, inv.booking_id, inv.client_id, cnNumber,
          new Date().toISOString().split('T')[0],
@@ -395,7 +401,7 @@ router.post('/:id/credit-note', requireOwner, blockIfImpersonated, async (req, r
          inv.business_name, inv.business_address, inv.business_bce, inv.business_iban, inv.business_bic,
          -inv.subtotal_cents, -inv.vat_amount_cents, -inv.total_cents, inv.vat_rate,
          null, reason ? `Note de crédit pour facture ${inv.invoice_number}\n\nMotif : ${reason}` : `Note de crédit pour facture ${inv.invoice_number}`,
-         inv.footer_text, inv.language, inv.id]
+         inv.footer_text, inv.language, inv.id, inv.payment_method]
       );
       const cnId = cnRes.rows[0].id;
 
@@ -421,6 +427,15 @@ router.post('/:id/credit-note', requireOwner, blockIfImpersonated, async (req, r
         );
       }
 
+      // H5 fix: audit_logs entry for compliance BE — trace qui a émis la NC (impersonation inclus)
+      await txClient.query(
+        `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
+         VALUES ($1, $2, 'invoice', $3, 'credit_note_issued', $4, $5)`,
+        [bid, req.user.id, inv.id,
+         JSON.stringify({ invoice_number: inv.invoice_number, status: inv.status, total_cents: inv.total_cents }),
+         JSON.stringify({ credit_note_number: cnNumber, credit_note_id: cnId, reason: reason || null, mark_original_cancelled, impersonated_by: req.user.impersonatedBy || null })]
+      );
+
       return cnRes.rows[0];
     });
 
@@ -433,8 +448,10 @@ router.post('/:id/credit-note', requireOwner, blockIfImpersonated, async (req, r
 
 // ============================================================
 // PATCH /api/invoices/:id/status — change status
+// H4 fix: blockIfImpersonated — transitions sent→paid, draft→cancelled sont auditables
+// et ne doivent pas être effectuées via impersonation.
 // ============================================================
-router.patch('/:id/status', requireOwner, async (req, res, next) => {
+router.patch('/:id/status', requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { status, paid_date } = req.body;
