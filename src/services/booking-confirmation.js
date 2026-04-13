@@ -372,6 +372,8 @@ async function processExpiredPendingBookings() {
               business: { name: sib.biz_name, slug: sib.biz_slug, email: sib.biz_email, phone: sib.biz_phone, address: sib.biz_address, theme: sib.biz_theme, settings: sib.biz_settings },
               groupServices: _sibGroupServices
             });
+            // Batch 12 regression fix: mark sibling flag so sweep won't duplicate next tick
+            await query(`UPDATE bookings SET cancellation_email_sent_at = NOW() WHERE id = $1`, [sib.id]).catch(() => {});
           } catch (e) { console.warn('[CONFIRM CRON] Sibling email error:', e.message); }
         }
       } catch (e) { console.warn('[CONFIRM CRON] Sibling query error:', e.message); }

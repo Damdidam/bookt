@@ -522,6 +522,10 @@ router.post('/:id/refund-full', blockIfImpersonated, async (req, res, next) => {
       if (pass.status === 'expired') {
         throw Object.assign(new Error('Pass expiré — remboursement non autorisé'), { status: 409 });
       }
+      // Batch 12 regression fix: guard against corrupted sessions_total=0 (division by zero downstream)
+      if (!pass.sessions_total || pass.sessions_total <= 0) {
+        throw Object.assign(new Error('Pass invalide : sessions_total manquant ou nul'), { status: 400 });
+      }
 
       // Stripe refund (only if there was a Stripe payment)
       let netRefundCents = null;

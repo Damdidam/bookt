@@ -70,26 +70,27 @@ async function processExpiredPasses() {
  * Bug B4 (memo H13) — prevents silent loss of remaining sessions.
  */
 async function processPassExpiryWarnings() {
+  // Batch 12 regression fix: same pattern as GC — flag posted AFTER successful send.
   const result = await pool.query(
-    `UPDATE passes
-        SET expiry_warning_sent_at = NOW()
-      WHERE id IN (
-        SELECT id FROM passes
-         WHERE status = 'active'
-           AND expires_at IS NOT NULL
-           AND expires_at > NOW()
-           AND expires_at < NOW() + INTERVAL '7 days'
-           AND expiry_warning_sent_at IS NULL
-           AND COALESCE(sessions_remaining, 0) > 0
-         FOR UPDATE SKIP LOCKED
-      )
-      RETURNING id, business_id, buyer_email, buyer_name, name, sessions_remaining, expires_at`
+    `SELECT id, business_id, buyer_email, buyer_name, name, sessions_remaining, expires_at
+       FROM passes
+      WHERE status = 'active'
+        AND expires_at IS NOT NULL
+        AND expires_at > NOW()
+        AND expires_at < NOW() + INTERVAL '7 days'
+        AND expiry_warning_sent_at IS NULL
+        AND COALESCE(sessions_remaining, 0) > 0
+      LIMIT 200`
   );
 
+  let sent = 0;
   for (const pass of result.rows) {
     try {
       const client_email = pass.buyer_email;
-      if (!client_email) continue;
+      if (!client_email) {
+        await pool.query(`UPDATE passes SET expiry_warning_sent_at = NOW() WHERE id = $1 AND expiry_warning_sent_at IS NULL`, [pass.id]);
+        continue;
+      }
       const { rows } = await pool.query(
         `SELECT biz.name AS biz_name, biz.theme, biz.email AS biz_email, biz.address AS biz_address, biz.phone AS biz_phone
          FROM businesses biz WHERE biz.id = $1`,
@@ -128,6 +129,10 @@ async function processPassExpiryWarnings() {
         replyTo: biz_email || undefined
       });
 
+      // Post flag AFTER successful send — retry on next tick if Brevo fails
+      await pool.query(`UPDATE passes SET expiry_warning_sent_at = NOW() WHERE id = $1 AND expiry_warning_sent_at IS NULL`, [pass.id]);
+      sent++;
+
       try {
         await pool.query(
           `INSERT INTO notifications (business_id, type, recipient_email, status, sent_at)
@@ -136,11 +141,11 @@ async function processPassExpiryWarnings() {
         );
       } catch (_) {}
     } catch (e) {
-      console.warn('[PASS EXPIRY WARN] Email error for pass', pass.id, ':', e.message);
+      console.warn('[PASS EXPIRY WARN] Email error for pass', pass.id, '— flag not posted, will retry:', e.message);
     }
   }
 
-  return { processed: result.rowCount };
+  return { processed: sent };
 }
 
 module.exports = { processExpiredPasses, processPassExpiryWarnings };

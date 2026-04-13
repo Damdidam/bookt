@@ -89,26 +89,32 @@ async function processExpiredGiftCards() {
  * Bug B4 (memo H13) — prevents silent loss of remaining balance.
  */
 async function processGiftCardExpiryWarnings() {
+  // Batch 12 regression fix: flag must be posted AFTER successful email, not before.
+  // Previously UPDATE was atomic with SELECT so a Brevo failure permanently lost the warning.
+  // Now: SELECT candidates, per-row send email + UPDATE flag in separate queries. On send
+  // failure the flag stays NULL → next cron tick retries. Rare duplicate risk (crash between
+  // email and UPDATE) accepted vs systemic silent loss.
   const result = await query(
-    `UPDATE gift_cards
-        SET expiry_warning_sent_at = NOW()
-      WHERE id IN (
-        SELECT id FROM gift_cards
-         WHERE status = 'active'
-           AND expires_at IS NOT NULL
-           AND expires_at > NOW()
-           AND expires_at < NOW() + INTERVAL '7 days'
-           AND expiry_warning_sent_at IS NULL
-           AND COALESCE(balance_cents, 0) > 0
-         FOR UPDATE SKIP LOCKED
-      )
-      RETURNING id, code, business_id, balance_cents, amount_cents, expires_at,
-                recipient_email, recipient_name, buyer_email, buyer_name`
+    `SELECT id, code, business_id, balance_cents, amount_cents, expires_at,
+            recipient_email, recipient_name, buyer_email, buyer_name
+       FROM gift_cards
+      WHERE status = 'active'
+        AND expires_at IS NOT NULL
+        AND expires_at > NOW()
+        AND expires_at < NOW() + INTERVAL '7 days'
+        AND expiry_warning_sent_at IS NULL
+        AND COALESCE(balance_cents, 0) > 0
+      LIMIT 200`
   );
 
+  let sent = 0;
   for (const gc of result.rows) {
     try {
-      if (!gc.recipient_email && !gc.buyer_email) continue;
+      if (!gc.recipient_email && !gc.buyer_email) {
+        // Mark flag anyway so we don't re-query this row forever
+        await query(`UPDATE gift_cards SET expiry_warning_sent_at = NOW() WHERE id = $1 AND expiry_warning_sent_at IS NULL`, [gc.id]);
+        continue;
+      }
       const primaryEmail = gc.recipient_email || gc.buyer_email;
       const primaryName = gc.recipient_name || gc.buyer_name || '';
       const bizResult = await query(
@@ -160,6 +166,10 @@ async function processGiftCardExpiryWarnings() {
         });
       }
 
+      // All sends succeeded (or no buyer-email branch skipped gracefully) → mark flag
+      await query(`UPDATE gift_cards SET expiry_warning_sent_at = NOW() WHERE id = $1 AND expiry_warning_sent_at IS NULL`, [gc.id]);
+      sent++;
+
       try {
         await query(
           `INSERT INTO notifications (business_id, type, recipient_email, status, sent_at)
@@ -168,11 +178,12 @@ async function processGiftCardExpiryWarnings() {
         );
       } catch (_) {}
     } catch (e) {
-      console.warn('[GC EXPIRY WARN] Email error for gift card', gc.id, ':', e.message);
+      // Flag stays NULL → next tick retries. Log for visibility.
+      console.warn('[GC EXPIRY WARN] Email error for gift card', gc.id, '— flag not posted, will retry:', e.message);
     }
   }
 
-  return { processed: result.rows.length };
+  return { processed: sent };
 }
 
 module.exports = { processExpiredGiftCards, processGiftCardExpiryWarnings };

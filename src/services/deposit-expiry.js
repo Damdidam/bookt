@@ -190,12 +190,13 @@ async function processExpiredDeposits() {
     // H4 fix: missed-email sweep — pick up cron-cancelled bookings (last 24h) whose email was
     // never sent (pod crashed between COMMIT and send). Idempotent via cancellation_email_sent_at.
     try {
+      // Regression fix (Batch 12): also match sibling '(groupe)' variant stored at L63
       const missed = await query(
         `SELECT id FROM bookings
           WHERE status = 'cancelled'
             AND cancellation_email_sent_at IS NULL
             AND updated_at > NOW() - INTERVAL '24 hours'
-            AND cancel_reason = 'Acompte non versé dans le délai imparti'
+            AND cancel_reason LIKE 'Acompte non versé dans le délai imparti%'
           LIMIT 50`
       );
       for (const m of missed.rows) {
@@ -322,6 +323,8 @@ async function processExpiredDeposits() {
               business: { name: sib.biz_name, slug: sib.biz_slug, email: sib.biz_email, phone: sib.biz_phone, address: sib.biz_address, theme: sib.biz_theme, settings: sib.biz_settings },
               groupServices: _sibGroupServicesExp
             });
+            // Batch 12 regression fix: mark sibling sent flag so sweep won't duplicate next tick
+            await query(`UPDATE bookings SET cancellation_email_sent_at = NOW() WHERE id = $1`, [sib.id]).catch(() => {});
           } catch (e) { console.warn('[DEPOSIT CRON] Sibling email error:', e.message); }
         }
       } catch (e) { console.warn('[DEPOSIT CRON] Sibling query error:', e.message); }
