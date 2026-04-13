@@ -515,8 +515,14 @@ async function sendModificationRejectedProEmail(bk, groupServices) {
  * Process queued pro notifications — called by cron in server.js
  * @returns {{ processed: number, sent: number, failed: number, errors: number }}
  */
+// H3: retry policy
+const TERMINAL_ERRORS = new Set(['booking_not_found', 'no_business_email', 'no_client_email', 'unknown_type']);
+const MAX_ATTEMPTS = 5;
+// Exponential backoff: 2, 4, 8, 16, 32 minutes (capped at 60 min)
+function _backoffMinutes(attempt) { return Math.min(60, Math.pow(2, Math.max(1, attempt))); }
+
 async function processNotifications() {
-  const stats = { processed: 0, sent: 0, failed: 0, errors: 0 };
+  const stats = { processed: 0, sent: 0, failed: 0, errors: 0, retried: 0 };
 
   const client = await pool.connect();
   try {
@@ -524,12 +530,14 @@ async function processNotifications() {
 
     // Fetch queued pro notifications (LIMIT 50 to avoid overload)
     // email_post_rdv uses metadata.delay_until for deferred sending
+    // H3 fix: include attempt_count + filter on next_retry_at for backoff retries
     const { rows: notifications } = await client.query(
-      `SELECT id, business_id, booking_id, type, metadata, created_at
+      `SELECT id, business_id, booking_id, type, metadata, created_at, COALESCE(attempt_count, 0) AS attempt_count
        FROM notifications
        WHERE status = 'queued'
          AND type IN ('email_new_booking_pro', 'email_cancellation_pro', 'email_reschedule_pro', 'email_modification_confirmed', 'email_modification_rejected', 'email_post_rdv', 'email_dispute_alert', 'email_deposit_orphan', 'email_waitlist_offer')
          AND (metadata->>'delay_until' IS NULL OR (metadata->>'delay_until')::timestamptz <= NOW())
+         AND (next_retry_at IS NULL OR next_retry_at <= NOW())
        ORDER BY created_at ASC
        LIMIT 50
        FOR UPDATE SKIP LOCKED`
@@ -646,25 +654,49 @@ async function processNotifications() {
 
         if (result.success) {
           await client.query(
-            `UPDATE notifications SET status = 'sent', sent_at = NOW(), error = NULL WHERE id = $1`,
+            `UPDATE notifications SET status = 'sent', sent_at = NOW(), error = NULL, attempt_count = COALESCE(attempt_count, 0) + 1, next_retry_at = NULL WHERE id = $1`,
             [notif.id]
           );
           stats.sent++;
         } else {
-          await client.query(
-            `UPDATE notifications SET status = 'failed', error = $2, sent_at = NOW() WHERE id = $1`,
-            [notif.id, (result.error || 'unknown_error').substring(0, 500)]
-          );
-          stats.failed++;
+          // H3 fix: retry with exponential backoff unless terminal error or MAX_ATTEMPTS reached
+          const errCode = (result.error || 'unknown_error').substring(0, 500);
+          const nextAttempt = (notif.attempt_count || 0) + 1;
+          const isTerminal = TERMINAL_ERRORS.has(errCode);
+          if (isTerminal || nextAttempt >= MAX_ATTEMPTS) {
+            await client.query(
+              `UPDATE notifications SET status = 'failed', error = $2, sent_at = NOW(), attempt_count = $3, next_retry_at = NULL WHERE id = $1`,
+              [notif.id, errCode, nextAttempt]
+            );
+            stats.failed++;
+          } else {
+            const backoffMin = _backoffMinutes(nextAttempt);
+            await client.query(
+              `UPDATE notifications SET status = 'queued', error = $2, attempt_count = $3, next_retry_at = NOW() + ($4 || ' minutes')::interval WHERE id = $1`,
+              [notif.id, errCode, nextAttempt, String(backoffMin)]
+            );
+            stats.retried++;
+          }
         }
       } catch (err) {
         stats.errors++;
         console.error(`[NOTIF PROCESSOR] Error processing notification ${notif.id}:`, err.message);
         try {
-          await client.query(
-            `UPDATE notifications SET status = 'failed', error = $2, sent_at = NOW() WHERE id = $1`,
-            [notif.id, (err.message || 'exception').substring(0, 500)]
-          );
+          // Same retry logic for thrown exceptions (treat as transient unless MAX_ATTEMPTS)
+          const errMsg = (err.message || 'exception').substring(0, 500);
+          const nextAttempt = (notif.attempt_count || 0) + 1;
+          if (nextAttempt >= MAX_ATTEMPTS) {
+            await client.query(
+              `UPDATE notifications SET status = 'failed', error = $2, sent_at = NOW(), attempt_count = $3, next_retry_at = NULL WHERE id = $1`,
+              [notif.id, errMsg, nextAttempt]
+            );
+          } else {
+            const backoffMin = _backoffMinutes(nextAttempt);
+            await client.query(
+              `UPDATE notifications SET status = 'queued', error = $2, attempt_count = $3, next_retry_at = NOW() + ($4 || ' minutes')::interval WHERE id = $1`,
+              [notif.id, errMsg, nextAttempt, String(backoffMin)]
+            );
+          }
         } catch (_) { /* best-effort status update */ }
       }
     }

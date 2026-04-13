@@ -544,6 +544,9 @@ app.listen(PORT, async () => {
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_bookings_cron_cancel_email
       ON bookings (status, cancellation_email_sent_at)
       WHERE status = 'cancelled' AND cancellation_email_sent_at IS NULL`);
+    // schema-v71 (H3): retry + backoff on notification queue
+    await pool.query(`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS attempt_count INT DEFAULT 0`);
+    await pool.query(`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS next_retry_at TIMESTAMPTZ`);
     await pool.query(`ALTER TABLE notifications DROP CONSTRAINT IF EXISTS notifications_type_check`);
     await pool.query(`ALTER TABLE notifications ADD CONSTRAINT notifications_type_check CHECK (type IN (
       'email_confirmation','sms_confirmation',

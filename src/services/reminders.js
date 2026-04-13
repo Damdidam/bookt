@@ -292,8 +292,11 @@ async function process24hReminders(stats) {
         }
       }
 
-      // Mark as sent only if at least one notification succeeded
-      if (anySent) {
+      // M4 fix: mark reminder_24h_sent_at AFTER ANY attempt (success OR failure).
+      // Trade-off: a transient failure (Brevo timeout) won't be retried — but a false-negative
+      // (Brevo sent the email but timed out before responding) won't trigger a duplicate either.
+      // Doubles are MORE annoying than rare missed reminders. Cron logs the failure for visibility.
+      if (reminderEmailEnabled || reminderSmsEnabled) {
         if (bk.group_id) {
           // Mark all siblings in the group as sent
           await query(
@@ -551,8 +554,9 @@ async function process2hReminders(stats) {
         }
       }
 
-      // Mark as sent — if group, mark all siblings
-      if (anySent) {
+      // M4 fix: mark reminder_2h_sent_at AFTER ANY attempt (even on Brevo/Twilio failure).
+      // Avoids duplicate reminders when provider returns success:false but actually delivered.
+      if (smsEnabled || emailEnabled) {
         if (bk.group_id) {
           await query(
             `UPDATE bookings SET reminder_2h_sent_at = NOW() WHERE group_id = $1 AND business_id = $2 AND status = 'confirmed'`,
