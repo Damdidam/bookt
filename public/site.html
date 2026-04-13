@@ -1709,11 +1709,14 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'&&document.ge
       logoEl.innerHTML = '<img src="' + safeUrl(b.logo_url) + '" alt="' + esc(b.name) + '">';
       logoEl.style.display = '';
     }
-    // Cover banner
+    // Cover banner — M5 fix: only set backgroundImage if safeUrl returns a valid URL (avoid "url()" empty CSS)
     if (b.cover_image_url) {
-      var coverEl = document.getElementById('heroCover');
-      coverEl.style.backgroundImage = 'url(' + safeUrl(b.cover_image_url) + ')';
-      coverEl.classList.add('active');
+      var _safeCoverUrl = safeUrl(b.cover_image_url);
+      if (_safeCoverUrl) {
+        var coverEl = document.getElementById('heroCover');
+        coverEl.style.backgroundImage = 'url(' + _safeCoverUrl + ')';
+        coverEl.classList.add('active');
+      }
     }
 
     // About
@@ -1722,10 +1725,13 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'&&document.ge
       document.getElementById('about').style.display = '';
       if (b.description) document.getElementById('aboutText').innerHTML = esc(b.description).replace(/\n/g, '<br>');
       if (aboutImg) {
-        var ai = document.getElementById('aboutImage');
-        ai.style.backgroundImage = 'url(' + safeUrl(aboutImg) + ')';
-        ai.style.backgroundSize = 'cover';
-        ai.style.backgroundPosition = 'center';
+        var _safeAboutUrl = safeUrl(aboutImg);
+        if (_safeAboutUrl) {
+          var ai = document.getElementById('aboutImage');
+          ai.style.backgroundImage = 'url(' + _safeAboutUrl + ')';
+          ai.style.backgroundSize = 'cover';
+          ai.style.backgroundPosition = 'center';
+        }
       }
     }
 

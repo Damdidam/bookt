@@ -116,7 +116,8 @@ async function sendReviewRequestEmail({ booking, business }) {
 
   const html = buildEmailHTML({
     title: 'Votre avis compte !',
-    preheader: `Comment s'est passé votre RDV chez ${safeBizName} ?`,
+    // M1 fix: preheader est re-escapé par buildEmailHTML — passer business.name brut (sinon double-escape)
+    preheader: `Comment s'est passé votre RDV chez ${business.name || 'nous'} ?`,
     bodyHTML,
     ctaText: 'Donner mon avis',
     ctaUrl: reviewUrl,
@@ -377,7 +378,8 @@ async function sendBookingLookupEmail({ email, bookings, business }) {
 
   const html = buildEmailHTML({
     title: 'Vos rendez-vous',
-    preheader: `Vous avez ${bookings.length} rendez-vous à venir chez ${safeBizName}`,
+    // M1 fix: preheader est re-escapé par buildEmailHTML — passer business.name brut
+    preheader: `Vous avez ${bookings.length} rendez-vous à venir chez ${business.name || 'nous'}`,
     bodyHTML: `
       <p>Voici vos rendez-vous à venir chez <strong>${safeBizName}</strong> :</p>
       ${bookingRows}

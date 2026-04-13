@@ -650,6 +650,8 @@ let oauthAuthenticated=false;
 
 
 function escH(s){return(s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
+// M9 fix: only allow http(s):// or /-relative URLs in href/src/url() — blocks javascript:/data:/vbscript:/file:
+function safeUrl(u){if(!u||typeof u!=='string')return '';var t=u.trim();if(/^https?:\/\//i.test(t)||t.charAt(0)==='/')return escH(t);return '';}
 
 function svcDisplayPrice(s){
   if(s.variants&&s.variants.length>0){
@@ -1615,7 +1617,7 @@ function buildPractitioners(){
 
   html+=displayPracs.map(p=>{
     const pi=p.display_name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
-    const av=p.photo_url?'<div class="prac-avatar" style="background:'+(p.color||'var(--primary)')+'"><img src="'+escH(p.photo_url)+'"></div>'
+    const av=p.photo_url?'<div class="prac-avatar" style="background:'+(p.color||'var(--primary)')+'"><img src="'+safeUrl(p.photo_url)+'"></div>'
       :'<div class="prac-avatar" style="background:'+(p.color||'var(--primary)')+'">'+escH(pi)+'</div>';
     return '<div class="prac-card" data-id="'+p.id+'">'+av+'<div class="prac-info"><h4>'+escH(p.display_name)+'</h4><p>'+escH(p.title||'')+(p.years_experience?' · '+p.years_experience+' ans':'')+'</p></div></div>';
   }).join('');

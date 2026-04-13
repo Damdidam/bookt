@@ -211,7 +211,7 @@ async function processExpiredDeposits() {
     for (const { id: bkId, _gcRefunded, _passRefunded } of cancelledBookingIds) {
       try {
         const fullBk = await query(
-          `SELECT b.*, CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+          `SELECT b.*, CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' — ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS service_name,
                   s.category AS service_category,
                   COALESCE(sv.price_cents, s.price_cents, 0) AS service_price_cents,
                   COALESCE(sv.duration_min, s.duration_min, 0) AS duration_min,

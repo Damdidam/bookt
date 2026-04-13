@@ -5,6 +5,7 @@ import { api, GendaUI } from '../state.js';
 import { bridge } from '../utils/window-bridge.js';
 import { guardModal, closeModal, showConfirmDialog } from '../utils/dirty-guard.js';
 import { isPro, showProGate } from '../utils/plan-gate.js';
+import { trapFocus, releaseFocus } from '../utils/focus-trap.js';
 
 let passFilter='all', passSearch='';
 let _lastPasses=[];
@@ -388,12 +389,15 @@ async function fullRefundPass(id){
   </div>`;
   document.body.appendChild(modal);
   guardModal(modal, { noBackdropClose: true });
+  // M6 fix: trap focus in modal + ESC to close for accessibility
+  trapFocus(modal, () => closeModal('passFullRefundModal'));
 }
 
 async function submitFullRefundPass(id){
   try{
     const reason=document.getElementById('fullRefundReason')?.value?.trim()||null;
     const r=await api.post(`/api/passes/${id}/refund-full`,{reason});
+    releaseFocus();
     closeModal('passFullRefundModal');
     if(r.stripe_refund_cents!=null){
       const amt=(r.stripe_refund_cents/100).toFixed(2).replace('.', ',')+' €';

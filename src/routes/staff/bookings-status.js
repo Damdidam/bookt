@@ -1351,19 +1351,30 @@ router.patch('/:id/deposit-refund', async (req, res, next) => {
         }
         const groupEndAt = groupServices ? groupServices[groupServices.length - 1].end_at : null;
         const gcPaidManual = await getGcPaidCents(id);
-        const { sendDepositRefundEmail, sendDepositRefundProEmail } = require('../../services/email');
-        // H1 fix: forward net_refund_cents + gc_refunded_cents + retention_reason so the email
-        // shows the actual amount Stripe returned (net of fees if policy='net').
-        const _manualRefBk = { start_at: d.start_at, end_at: groupEndAt || d.end_at, deposit_amount_cents: d.deposit_amount_cents, deposit_payment_intent_id: d.deposit_payment_intent_id, gc_paid_cents: gcPaidManual, net_refund_cents: txResult.netRefundCentsManual, gc_refunded_cents: txResult.gcPaidForRefundManual || 0, deposit_retention_reason: txResult.depRetentionReasonManual, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name, service_category: d.service_category, service_price_cents: d.service_price_cents, booked_price_cents: d.booked_price_cents, discount_pct: d.discount_pct, duration_min: d.duration_min, practitioner_name: d.practitioner_name, promotion_label: d.promotion_label, promotion_discount_cents: d.promotion_discount_cents, promotion_discount_pct: d.promotion_discount_pct };
-        sendDepositRefundEmail({
-          booking: _manualRefBk,
-          business: { name: d.biz_name, slug: d.slug, email: d.biz_email, phone: d.biz_phone, address: d.address, settings: d.settings, theme: d.theme },
-          groupServices
-        }).catch(e => console.warn('[EMAIL] Deposit refund email error:', e.message));
-        sendDepositRefundProEmail({
-          booking: _manualRefBk,
-          business: { name: d.biz_name, email: d.biz_email, theme: d.theme }
-        }).catch(e => console.warn('[EMAIL] Deposit refund pro email error:', e.message));
+        // M4 fix: if retention applies (fees>=charge / stripe fail / no key), send cancellation
+        // email (with retention banner expliquant pourquoi rien n'a été remboursé) AU LIEU du
+        // refund email qui afficherait "0€ remboursé" sans contexte.
+        const _manualRefBk = { start_at: d.start_at, end_at: groupEndAt || d.end_at, deposit_required: true, deposit_status: txResult.finalDepStatusManual, deposit_paid_at: new Date().toISOString(), deposit_amount_cents: d.deposit_amount_cents, deposit_payment_intent_id: d.deposit_payment_intent_id, gc_paid_cents: gcPaidManual, net_refund_cents: txResult.netRefundCentsManual, gc_refunded_cents: txResult.gcPaidForRefundManual || 0, deposit_retention_reason: txResult.depRetentionReasonManual, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name, service_category: d.service_category, service_price_cents: d.service_price_cents, booked_price_cents: d.booked_price_cents, discount_pct: d.discount_pct, duration_min: d.duration_min, practitioner_name: d.practitioner_name, promotion_label: d.promotion_label, promotion_discount_cents: d.promotion_discount_cents, promotion_discount_pct: d.promotion_discount_pct, cancel_reason: 'Acompte remboursé manuellement' };
+        if (txResult.finalDepStatusManual === 'cancelled' && txResult.depRetentionReasonManual) {
+          // Retention : pas d'argent remboursé — envoyer cancellation email avec banner explicatif
+          const { sendCancellationEmail } = require('../../services/email');
+          sendCancellationEmail({
+            booking: _manualRefBk,
+            business: { name: d.biz_name, slug: d.slug, email: d.biz_email, phone: d.biz_phone, address: d.address, settings: d.settings, theme: d.theme },
+            groupServices
+          }).catch(e => console.warn('[EMAIL] Manual retention cancel email error:', e.message));
+        } else {
+          const { sendDepositRefundEmail, sendDepositRefundProEmail } = require('../../services/email');
+          sendDepositRefundEmail({
+            booking: _manualRefBk,
+            business: { name: d.biz_name, slug: d.slug, email: d.biz_email, phone: d.biz_phone, address: d.address, settings: d.settings, theme: d.theme },
+            groupServices
+          }).catch(e => console.warn('[EMAIL] Deposit refund email error:', e.message));
+          sendDepositRefundProEmail({
+            booking: _manualRefBk,
+            business: { name: d.biz_name, email: d.biz_email, theme: d.theme }
+          }).catch(e => console.warn('[EMAIL] Deposit refund pro email error:', e.message));
+        }
       }
     } catch (e) { console.warn('[EMAIL] Deposit refund email fetch error:', e.message); }
 

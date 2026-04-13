@@ -330,7 +330,7 @@ function applyBusinessBranding() {
   var logoMark = document.getElementById('logoMark');
   var logoName = document.getElementById('logoName');
   if (config.logo_url) {
-    logoMark.innerHTML = '<img src="' + esc(config.logo_url) + '" alt="">';
+    logoMark.innerHTML = '<img src="' + safeUrl(config.logo_url) + '" alt="">';
   } else {
     var initials = (config.business_name||'G').split(' ').map(function(w){return w[0];}).filter(Boolean).join('').toUpperCase().slice(0,2);
     logoMark.textContent = initials;
@@ -579,6 +579,8 @@ function showError(msg) {
 }
 
 function esc(s) { if (!s) return ''; var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+// M9 fix: only allow http(s):// or /-relative URLs in href/src (blocks javascript:/data:/vbscript:/file:)
+function safeUrl(u){if(!u||typeof u!=='string')return '';var t=u.trim();if(/^https?:\/\//i.test(t)||t.charAt(0)==='/')return esc(t);return '';}
 </script>
 </body>
 </html>

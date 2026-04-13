@@ -3,8 +3,9 @@
  */
 import { api, GendaUI } from '../state.js';
 import { bridge } from '../utils/window-bridge.js';
-import { guardModal, showConfirmDialog } from '../utils/dirty-guard.js';
+import { guardModal, showConfirmDialog, closeModal } from '../utils/dirty-guard.js';
 import { isPro, showProGate } from '../utils/plan-gate.js';
+import { trapFocus, releaseFocus } from '../utils/focus-trap.js';
 
 let invoiceFilter='all',invoiceType='all';
 let _unbilledBookings=[];
@@ -325,6 +326,8 @@ async function issueCreditNote(id,invNumber){
   </div>`;
   document.body.appendChild(modal);
   guardModal(modal, { noBackdropClose: true });
+  // M6 fix: trap focus in modal + ESC to close (accessibilité cohérente avec team.js)
+  trapFocus(modal, () => closeModal('creditNoteModal'));
 }
 
 async function submitCreditNote(id){
@@ -332,6 +335,7 @@ async function submitCreditNote(id){
     const reason=document.getElementById('cnReason')?.value?.trim()||null;
     const mark_original_cancelled=document.getElementById('cnMarkCancelled')?.checked||false;
     const r=await api.post(`/api/invoices/${id}/credit-note`,{reason,mark_original_cancelled});
+    releaseFocus();
     closeModal('creditNoteModal');
     GendaUI.toast(`Note de crédit ${r.credit_note?.invoice_number||''} émise`,'success');
     loadInvoices();

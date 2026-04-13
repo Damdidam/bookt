@@ -1091,7 +1091,22 @@ async function closeInviteModal() {
   await closeModal('inviteModalOverlay');
 }
 
-function generateTempPwd() { const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'; const buf = new Uint8Array(10); (window.crypto || window.msCrypto).getRandomValues(buf); let pwd = ''; for (let i = 0; i < 10; i++) pwd += chars[buf[i] % chars.length]; return pwd; }
+function generateTempPwd() {
+  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  const cryptoObj = window.crypto || window.msCrypto;
+  let pwd = '';
+  if (cryptoObj && typeof cryptoObj.getRandomValues === 'function') {
+    const buf = new Uint8Array(10);
+    cryptoObj.getRandomValues(buf);
+    for (let i = 0; i < 10; i++) pwd += chars[buf[i] % chars.length];
+  } else {
+    // M7 fallback: navigateur sans crypto.getRandomValues (très rare, legacy)
+    // La staff peut toujours écraser la valeur manuellement dans le champ.
+    console.warn('[TEAM] window.crypto unavailable — falling back to Math.random for temp pwd');
+    for (let i = 0; i < 10; i++) pwd += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return pwd;
+}
 
 async function sendInvite(practId) {
   const email = document.getElementById('inv_email').value;
