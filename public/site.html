@@ -1388,6 +1388,15 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'&&document.ge
   function esc(s) {
     return s ? s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;') : '';
   }
+  // M6 fix: only allow http(s) absolute URLs or root-relative paths.
+  // Blocks javascript:/data:/vbscript:/file: schemes from owner-supplied URLs (XSS owner→visitor).
+  // For CSS url() context, also strips ); and " to harden against CSS injection.
+  function safeUrl(u) {
+    if (!u || typeof u !== 'string') return '';
+    var t = u.trim();
+    if (/^https?:\/\//i.test(t) || t.charAt(0) === '/') return esc(t);
+    return '';
+  }
 
   var DAYS_FR = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
 
@@ -1697,13 +1706,13 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'&&document.ge
     // Logo
     if (b.logo_url) {
       var logoEl = document.getElementById('heroLogo');
-      logoEl.innerHTML = '<img src="' + esc(b.logo_url) + '" alt="' + esc(b.name) + '">';
+      logoEl.innerHTML = '<img src="' + safeUrl(b.logo_url) + '" alt="' + esc(b.name) + '">';
       logoEl.style.display = '';
     }
     // Cover banner
     if (b.cover_image_url) {
       var coverEl = document.getElementById('heroCover');
-      coverEl.style.backgroundImage = 'url(' + esc(b.cover_image_url) + ')';
+      coverEl.style.backgroundImage = 'url(' + safeUrl(b.cover_image_url) + ')';
       coverEl.classList.add('active');
     }
 
@@ -1714,7 +1723,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'&&document.ge
       if (b.description) document.getElementById('aboutText').innerHTML = esc(b.description).replace(/\n/g, '<br>');
       if (aboutImg) {
         var ai = document.getElementById('aboutImage');
-        ai.style.backgroundImage = 'url(' + esc(aboutImg) + ')';
+        ai.style.backgroundImage = 'url(' + safeUrl(aboutImg) + ')';
         ai.style.backgroundSize = 'cover';
         ai.style.backgroundPosition = 'center';
       }
@@ -1876,7 +1885,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'&&document.ge
       d.practitioners.forEach(function(p) {
         tH += '<div class="team-card">';
         if (p.photo_url) {
-          tH += '<div class="team-photo"><img src="' + esc(p.photo_url) + '" alt="' + esc(p.display_name) + '" loading="lazy" style="width:100%;height:100%;object-fit:cover"></div>';
+          tH += '<div class="team-photo"><img src="' + safeUrl(p.photo_url) + '" alt="' + esc(p.display_name) + '" loading="lazy" style="width:100%;height:100%;object-fit:cover"></div>';
         } else {
           tH += '<div class="team-photo"></div>';
         }
@@ -1903,7 +1912,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'&&document.ge
       var gH = '';
       d.gallery.forEach(function(g, idx) {
         gH += '<div class="gallery-item" onclick="openLightbox(' + idx + ')">';
-        if (g.image_url) gH += '<img src="' + esc(g.image_url) + '" loading="lazy" style="width:100%;height:100%;object-fit:cover" alt="' + esc(g.title || '') + '">';
+        if (g.image_url) gH += '<img src="' + safeUrl(g.image_url) + '" loading="lazy" style="width:100%;height:100%;object-fit:cover" alt="' + esc(g.title || '') + '">';
         gH += '<div class="gallery-overlay"><svg class="gi" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg></div>';
         gH += '</div>';
       });
@@ -1912,7 +1921,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'&&document.ge
       // Instagram link
       if (b.social_links && b.social_links.instagram) {
         var igLink = document.getElementById('galleryIgLink');
-        igLink.innerHTML = '<a href="' + esc(b.social_links.instagram) + '" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:500;color:var(--accent)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/><circle cx="17.5" cy="6.5" r="1.5" fill="currentColor" stroke="none"/></svg> Suivez-nous sur Instagram \u2192</a>';
+        igLink.innerHTML = '<a href="' + safeUrl(b.social_links.instagram) + '" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:500;color:var(--accent)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/><circle cx="17.5" cy="6.5" r="1.5" fill="currentColor" stroke="none"/></svg> Suivez-nous sur Instagram \u2192</a>';
         igLink.style.display = '';
       }
     }
@@ -1932,14 +1941,14 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'&&document.ge
           var idxA = allReaImages.length;
           allReaImages.push({ image_url: r.after_url, title: (r.title || '') + ' (après)' });
           rH += '<div class="realisation-images">';
-          rH += '<img src="' + esc(r.before_url) + '" loading="lazy" alt="Avant" onclick="openReaLightbox(' + idxB + ')">';
-          rH += '<img src="' + esc(r.after_url) + '" loading="lazy" alt="Après" onclick="openReaLightbox(' + idxA + ')">';
+          rH += '<img src="' + safeUrl(r.before_url) + '" loading="lazy" alt="Avant" onclick="openReaLightbox(' + idxB + ')">';
+          rH += '<img src="' + safeUrl(r.after_url) + '" loading="lazy" alt="Après" onclick="openReaLightbox(' + idxA + ')">';
           rH += '<div class="realisation-divider"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>';
           rH += '</div>';
         } else if (r.image_url) {
           var idxS = allReaImages.length;
           allReaImages.push({ image_url: r.image_url, title: r.title || '' });
-          rH += '<div class="realisation-single"><img src="' + esc(r.image_url) + '" loading="lazy" alt="' + esc(r.title || '') + '" onclick="openReaLightbox(' + idxS + ')"></div>';
+          rH += '<div class="realisation-single"><img src="' + safeUrl(r.image_url) + '" loading="lazy" alt="' + esc(r.title || '') + '" onclick="openReaLightbox(' + idxS + ')"></div>';
         }
         rH += '<div class="realisation-body">';
         if (r.category) rH += '<span class="realisation-tag">' + esc(r.category) + '</span>';
@@ -1971,7 +1980,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'&&document.ge
                 '<span class="review-avg">' + avg.toFixed(1) + '</span>' +
                 '<span class="review-stars-display">' + sH + '</span>' +
                 '<span class="review-total">' + rd.stats.total + ' avis</span>' +
-                (b.google_reviews_url ? '<a href="' + esc(b.google_reviews_url) + '" target="_blank" rel="noopener" class="review-google-link">Voir sur Google \u2192</a>' : '') +
+                (b.google_reviews_url ? '<a href="' + safeUrl(b.google_reviews_url) + '" target="_blank" rel="noopener noreferrer" class="review-google-link">Voir sur Google \u2192</a>' : '') +
                 '</div>';
               el.style.display = '';
             }
@@ -2042,7 +2051,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'&&document.ge
       window._newsData = d.news;
       d.news.forEach(function(n, idx) {
         nH += '<div class="news-card" style="cursor:pointer" onclick="openNews(' + idx + ')">';
-        if (n.image_url) nH += '<img class="news-img" src="' + esc(n.image_url) + '" alt="' + esc(n.title) + '" loading="lazy">';
+        if (n.image_url) nH += '<img class="news-img" src="' + safeUrl(n.image_url) + '" alt="' + esc(n.title) + '" loading="lazy">';
         nH += '<div class="news-body">';
         if (n.tag) nH += '<span class="news-tag">' + esc(n.tag) + '</span>';
         nH += '<div class="news-title">' + esc(n.title) + '</div>';

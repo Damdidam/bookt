@@ -7,6 +7,7 @@ const { broadcast } = require('../../services/sse');
 const { calSyncPush, calSyncDelete, checkBookingConflicts, getMaxConcurrent } = require('./bookings-helpers');
 const { refundGiftCardForBooking, getGcPaidCents } = require('../../services/gift-card-refund');
 const { refundPassForBooking } = require('../../services/pass-refund');
+const { blockIfImpersonated } = require('../../middleware/auth');
 
 // ===== STATE MACHINE: valid transitions (module-level for reuse) =====
 const TRANSITIONS = {
@@ -1921,7 +1922,7 @@ router.post('/:id/require-deposit', async (req, res, next) => {
 // DELETE /api/bookings/:id — Permanently delete a cancelled/no-show booking
 // UI: Calendar → event detail → "Supprimer définitivement" (only for cancelled/no_show)
 // ============================================================
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;

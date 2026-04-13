@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const crypto = require('crypto');
 const { queryWithRLS, transactionWithRLS } = require('../../services/db');
-const { requireAuth, requireOwner, requirePro } = require('../../middleware/auth');
+const { requireAuth, requireOwner, requirePro, blockIfImpersonated } = require('../../middleware/auth');
 
 router.use(requireAuth);
 router.use(requireOwner);
@@ -214,7 +214,7 @@ router.post('/:id/debit', async (req, res, next) => {
 // ============================================================
 // POST /api/gift-cards/:id/refund — credit back
 // ============================================================
-router.post('/:id/refund', async (req, res, next) => {
+router.post('/:id/refund', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;

@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const crypto = require('crypto');
 const { queryWithRLS, transactionWithRLS } = require('../../services/db');
-const { requireAuth, requireOwner, requirePro } = require('../../middleware/auth');
+const { requireAuth, requireOwner, requirePro, blockIfImpersonated } = require('../../middleware/auth');
 
 router.use(requireAuth);
 router.use(requireOwner);
@@ -448,7 +448,7 @@ router.post('/:id/debit', async (req, res, next) => {
 // ============================================================
 // POST /api/passes/:id/refund — refund 1 session
 // ============================================================
-router.post('/:id/refund', async (req, res, next) => {
+router.post('/:id/refund', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
@@ -495,7 +495,7 @@ router.post('/:id/refund', async (req, res, next) => {
 // DELETE /api/passes/:id — soft delete (status='cancelled') if used; hard if untouched.
 // Hard delete previously cascaded pass_transactions → broken audit trail on linked invoices.
 // ============================================================
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;

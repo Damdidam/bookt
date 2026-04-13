@@ -3,7 +3,7 @@ const bcrypt = require('bcryptjs');
 const fs = require('fs');
 const path = require('path');
 const { queryWithRLS, query, transactionWithRLS } = require('../../services/db');
-const { requireAuth, requireOwner } = require('../../middleware/auth');
+const { requireAuth, requireOwner, blockIfImpersonated } = require('../../middleware/auth');
 
 router.use(requireAuth);
 
@@ -700,7 +700,7 @@ router.patch('/:id', requireOwner, async (req, res, next) => {
 // Checks for future bookings; returns 409 if found (unless
 // ?cancel_bookings=true or ?keep_bookings=true is passed).
 // ============================================================
-router.delete('/:id', requireOwner, async (req, res, next) => {
+router.delete('/:id', requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const pracId = req.params.id;

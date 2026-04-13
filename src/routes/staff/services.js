@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const { queryWithRLS, transactionWithRLS } = require('../../services/db');
-const { requireAuth, requireOwner } = require('../../middleware/auth');
+const { requireAuth, requireOwner, blockIfImpersonated } = require('../../middleware/auth');
 const { invalidateMinisiteCache } = require('../public/helpers');
 
 router.use(requireAuth);
@@ -422,7 +422,7 @@ router.patch('/:id/deactivate', requireOwner, async (req, res, next) => {
 
 // DELETE /api/services/:id — permanent delete (blocked only if active bookings exist)
 // M7: Wrapped in transaction to prevent TOCTOU race (booking created between check & delete)
-router.delete('/:id', requireOwner, async (req, res, next) => {
+router.delete('/:id', requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;

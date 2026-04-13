@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const { query, queryWithRLS } = require('../../services/db');
-const { requireAuth, requireOwner } = require('../../middleware/auth');
+const { requireAuth, requireOwner, blockIfImpersonated } = require('../../middleware/auth');
 const { sanitizeRichText } = require('../../services/email-utils');
 
 // V11-025: Strip HTML tags from text fields to prevent injection
@@ -509,7 +509,7 @@ router.delete('/delete-image/:type', requireOwner, async (req, res, next) => {
 // ============================================================
 // PATCH /api/business/dev/plan — DEV ONLY: change plan for testing
 // ============================================================
-router.patch('/dev/plan', requireOwner, async (req, res, next) => {
+router.patch('/dev/plan', requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     if (process.env.NODE_ENV === 'production') return res.status(403).json({ error: 'Non disponible en production' });
     const { plan } = req.body;

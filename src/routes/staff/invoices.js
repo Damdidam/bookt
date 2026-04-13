@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const { queryWithRLS, query, transactionWithRLS } = require('../../services/db');
-const { requireAuth, requireOwner, requirePro } = require('../../middleware/auth');
+const { requireAuth, requireOwner, requirePro, blockIfImpersonated } = require('../../middleware/auth');
 const { generateInvoicePDF, generateStructuredComm, getNextInvoiceNumber } = require('../../services/invoice-pdf');
 
 router.use(requireAuth);
@@ -405,7 +405,7 @@ router.get('/:id/pdf', async (req, res, next) => {
 // ============================================================
 // DELETE /api/invoices/:id — delete draft invoice
 // ============================================================
-router.delete('/:id', requireOwner, async (req, res, next) => {
+router.delete('/:id', requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
 
