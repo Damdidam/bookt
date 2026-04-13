@@ -363,7 +363,9 @@ async function sendBookingLookupEmail({ email, bookings, business }) {
     const svcLabel = escHtml(bk.service_category ? bk.service_category + ' — ' + (bk.service_name || 'RDV') : (bk.service_name || 'Rendez-vous'));
     const pracLabel = bk.practitioner_name ? ' · ' + escHtml(bk.practitioner_name) : '';
     const endTimeStr = bk.end_at ? new Date(bk.end_at).toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' }) : null;
-    const priceStr = bk.price_cents ? (bk.price_cents / 100).toFixed(2).replace('.', ',') + ' €' : '';
+    // M7 fix: subtract promo so client sees what they actually pay (not the pre-promo total)
+    const finalCents = Math.max((bk.price_cents || 0) - (bk.promo_discount_cents || 0), 0);
+    const priceStr = finalCents ? (finalCents / 100).toFixed(2).replace('.', ',') + ' €' : '';
     const manageUrl = `${baseUrl}/booking/${bk.public_token}`;
     return `
       <div style="background:#FAFAF9;border:1px solid #E8E4DF;border-radius:8px;padding:14px 16px;margin-bottom:10px">

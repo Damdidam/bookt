@@ -387,7 +387,21 @@ router.post('/:slug/lookup-my-bookings', lookupLimiter, async (req, res, next) =
     const bkRes = await query(
       `SELECT b.id, b.public_token, b.start_at, b.end_at,
               s.category AS service_category,
-              COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents, 0) AS price_cents,
+              -- M7 fix: SUM across group siblings for multi-service totals (not just primary's price)
+              COALESCE(
+                (SELECT SUM(COALESCE(b2.booked_price_cents, sv2.price_cents, s2.price_cents, 0))
+                 FROM bookings b2
+                 LEFT JOIN services s2 ON s2.id = b2.service_id
+                 LEFT JOIN service_variants sv2 ON sv2.id = b2.service_variant_id
+                 WHERE b2.group_id = b.group_id AND b.group_id IS NOT NULL),
+                COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents, 0)
+              )::int AS price_cents,
+              -- M7 fix: include promo discount so email shows what client actually pays
+              COALESCE(
+                (SELECT SUM(COALESCE(b2.promotion_discount_cents, 0))
+                 FROM bookings b2 WHERE b2.group_id = b.group_id AND b.group_id IS NOT NULL),
+                COALESCE(b.promotion_discount_cents, 0)
+              )::int AS promo_discount_cents,
               COALESCE(
                 (SELECT string_agg(
                    CASE WHEN sv2.name IS NOT NULL THEN s2.name || ' — ' || sv2.name ELSE s2.name END,
