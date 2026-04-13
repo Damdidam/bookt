@@ -73,7 +73,7 @@ app.use(helmet({
       frameSrc: ["https://js.stripe.com", "https://maps.google.com", "https://www.google.com"],
       objectSrc: ["'none'"],
       baseUri: ["'self'"],
-      frameAncestors: ["'self'", "https:", "http:"]
+      frameAncestors: ["'self'"]
     }
   },
   crossOriginEmbedderPolicy: false

@@ -191,7 +191,7 @@ router.patch('/category-toggle', requireOwner, async (req, res, next) => {
       const upcoming = await queryWithRLS(req.businessId,
         `SELECT COUNT(*)::int AS cnt FROM bookings
          WHERE service_id = ANY($1) AND business_id = $2
-           AND start_at > NOW() AND status IN ('pending','confirmed','pending_deposit')`,
+           AND start_at > NOW() AND status IN ('pending','confirmed','modified_pending','pending_deposit')`,
         [ids, req.businessId]
       );
       active_bookings = upcoming.rows[0].cnt;
@@ -402,7 +402,7 @@ router.patch('/:id/deactivate', requireOwner, async (req, res, next) => {
     const upcoming = await queryWithRLS(req.businessId,
       `SELECT COUNT(*)::int AS cnt FROM bookings
        WHERE service_id = $1 AND business_id = $2
-         AND start_at > NOW() AND status IN ('pending','confirmed','pending_deposit')`,
+         AND start_at > NOW() AND status IN ('pending','confirmed','modified_pending','pending_deposit')`,
       [req.params.id, req.businessId]
     );
     res.json({ deactivated: true, active_bookings: upcoming.rows[0].cnt });

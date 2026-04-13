@@ -7,6 +7,7 @@ const { broadcast } = require('../../services/sse');
 const { checkPracAvailability, checkBookingConflicts } = require('../staff/bookings-helpers');
 const { UUID_RE, escHtml, stripeRefundDeposit, shouldRequireDeposit, computeDepositDeadline, isWithinLastMinuteWindow, BASE_URL, validateAndCalcPromo, normalizeEmail, isDisposableEmail } = require('./helpers');
 const { findOrCreateClient } = require('./booking-client-match');
+const { normalizeE164 } = require('../../utils/phone');
 const { queueBookingNotifications, sendPostBookingComms } = require('./booking-notifications');
 
 // Mount OAuth sub-router for client booking authentication
@@ -31,7 +32,7 @@ router.use('/', require('./quote-request'));
 router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
   try {
     const { slug } = req.params;
-    const {
+    let {
       service_id, service_ids, practitioner_id, practitioners: splitPractitioners,
       start_at, end_at, appointment_mode,
       variant_id, variant_ids,
@@ -118,6 +119,12 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
     if (!emailRegex.test(client_email)) return res.status(400).json({ error: 'Format email invalide' });
     if (isDisposableEmail(client_email)) return res.status(400).json({ error: 'Les adresses email temporaires ne sont pas acceptées. Veuillez utiliser votre email personnel.' });
     if (client_phone && !/^\+?[\d\s\-().]{6,}$/.test(client_phone)) return res.status(400).json({ error: 'Format téléphone invalide' });
+    // Normalize to E.164 (BE default — minisite supports BE/FR/LU via prefix selector).
+    if (client_phone) {
+      const _normalized = normalizeE164(client_phone, 'BE');
+      if (!_normalized) return res.status(400).json({ error: 'Numéro de téléphone non reconnu (formats acceptés : +32, +33, +352)' });
+      client_phone = _normalized;
+    }
 
     const VALID_MODES = ['cabinet', 'visio', 'phone', 'domicile'];
     if (appointment_mode && !VALID_MODES.includes(appointment_mode)) {

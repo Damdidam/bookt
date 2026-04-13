@@ -575,7 +575,7 @@ router.patch('/:id/move', async (req, res, next) => {
                 const smsBody = timeMoved
                   ? `${bk.business_name}: Votre RDV "${_svcLabel}" a été modifié — ${newDateStr} à ${newTimeStr}. Détails : ${manageLink}`
                   : `${bk.business_name}: Rappel, RDV "${_svcLabel}" le ${newDateStr} à ${newTimeStr}. Détails : ${manageLink}`;
-                const smsResult = await sendSMS({ to: bk.client_phone, body: smsBody, businessId: bid });
+                const smsResult = await sendSMS({ to: bk.client_phone, body: smsBody, businessId: bid, clientId: bk.client_id });
                 groupNotifResult.sms = smsResult.success ? 'sent' : 'error';
               } catch (e) { console.warn('[MOVE] Group SMS error:', e.message); groupNotifResult.sms = 'error'; }
             }
@@ -899,7 +899,7 @@ router.patch('/:id/move', async (req, res, next) => {
               const smsBody = timeMoved
                 ? `${bk.business_name}: Votre RDV "${_svcLabel}" a été modifié — ${newDateStr} à ${newTimeStr}. Détails : ${manageLink}`
                 : `${bk.business_name}: Rappel, RDV "${_svcLabel}" le ${newDateStr} à ${newTimeStr}. Détails : ${manageLink}`;
-              const smsResult = await sendSMS({ to: bk.client_phone, body: smsBody, businessId: bid });
+              const smsResult = await sendSMS({ to: bk.client_phone, body: smsBody, businessId: bid, clientId: bk.client_id });
               notificationResult.sms = smsResult.success ? 'sent' : 'error';
             } catch (e) { console.warn('[MOVE] SMS error:', e.message); notificationResult.sms = 'error'; }
           }
@@ -1577,7 +1577,7 @@ router.patch('/:id/modify', async (req, res, next) => {
         const smsBody = timeMoved
           ? `${oldBooking.business_name}: Votre RDV "${_svcLabel}" a été modifié — ${newDateStr} à ${newTimeStr}. Détails : ${manageLink}`
           : `${oldBooking.business_name}: Rappel, RDV "${_svcLabel}" le ${newDateStr} à ${newTimeStr}. Détails : ${manageLink}`;
-        const smsResult = await sendSMS({ to: oldBooking.client_phone, body: smsBody, businessId: bid });
+        const smsResult = await sendSMS({ to: oldBooking.client_phone, body: smsBody, businessId: bid, clientId: oldBooking.client_id });
         notificationResult = { ...notificationResult, sms: smsResult.success ? 'sent' : 'error' };
       } catch (e) {
         console.warn('[MODIFY] SMS error:', e.message);
@@ -1752,7 +1752,7 @@ router.post('/:id/send-reminder', async (req, res, next) => {
 
     if ((channel === 'sms' || channel === 'both') && b.client_phone) {
       const smsBody = `Rappel ${b.business_name}: RDV "${b.service_name}" le ${dateStr} à ${timeStr} avec ${b.practitioner_name}. Détails : ${manageUrl}`;
-      const smsRes = await sendSMS({ to: b.client_phone, body: smsBody, businessId: bid });
+      const smsRes = await sendSMS({ to: b.client_phone, body: smsBody, businessId: bid, clientId: b.client_id });
       result.sms = smsRes.success ? 'sent' : 'error';
       if (smsRes.error) result.sms_error = smsRes.error;
     }

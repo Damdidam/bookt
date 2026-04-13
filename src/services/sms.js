@@ -11,13 +11,26 @@ const { query } = require('./db');
  * @param {string} opts.body - message text
  * @param {string} opts.businessId - business UUID (to find Twilio number)
  * @param {string} [opts.from] - override sender number
- * @returns {Promise<{success: boolean, sid?: string, error?: string}>}
+ * @param {boolean} [opts.consentSms] - if explicitly false, skip the send (RGPD opt-out)
+ * @returns {Promise<{success: boolean, sid?: string, error?: string, skipped?: boolean}>}
  */
 async function sendSMS(opts) {
-  const { to, body, businessId, from } = opts;
+  const { to, body, businessId, from, consentSms, clientId } = opts;
 
   if (!to || !body) {
     return { success: false, error: 'Missing to or body' };
+  }
+  // RGPD: skip if caller knows client opted out, or if a clientId is provided and DB says false.
+  if (consentSms === false) {
+    return { success: false, skipped: true, error: 'consent_sms=false' };
+  }
+  if (clientId && consentSms === undefined) {
+    try {
+      const r = await query(`SELECT consent_sms FROM clients WHERE id = $1`, [clientId]);
+      if (r.rows[0]?.consent_sms === false) {
+        return { success: false, skipped: true, error: 'consent_sms=false (auto-check)' };
+      }
+    } catch (e) { console.warn('[SMS] consent auto-check failed:', e.message); }
   }
 
   const sid = process.env.TWILIO_ACCOUNT_SID;

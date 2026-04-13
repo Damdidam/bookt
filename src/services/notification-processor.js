@@ -177,7 +177,8 @@ async function sendNewBookingProEmail(bk, groupServices) {
   const dateStr = fmtDate(bk.start_at);
   const timeStr = fmtTime(bk.start_at);
   const endTimeStr = fmtTime(bk.end_at);
-  const clientName = escHtml(bk.client_name || 'Client');
+  const clientNameRaw = bk.client_name || 'Client';
+  const clientName = escHtml(clientNameRaw);
   const clientEmail = escHtml(bk.client_email || '');
   const clientPhone = escHtml(bk.client_phone || '');
 
@@ -215,7 +216,7 @@ async function sendNewBookingProEmail(bk, groupServices) {
   const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
   const html = buildEmailHTML({
     title: 'Nouveau rendez-vous',
-    preheader: `${clientName} \u2014 ${dateStr} \u00e0 ${timeStr}`,
+    preheader: `${clientNameRaw} \u2014 ${dateStr} \u00e0 ${timeStr}`,
     bodyHTML,
     ctaText: 'Voir dans le dashboard',
     ctaUrl: `${baseUrl}/dashboard`,
@@ -227,7 +228,7 @@ async function sendNewBookingProEmail(bk, groupServices) {
   return sendEmail({
     to: bk.biz_email,
     toName: bk.biz_name,
-    subject: `Nouveau RDV \u2014 ${clientName} \u2014 ${fmtDate(bk.start_at)}`,
+    subject: `Nouveau RDV \u2014 ${clientNameRaw} \u2014 ${fmtDate(bk.start_at)}`,
     html,
     fromName: 'Genda',
     replyTo: bk.client_email || undefined
@@ -242,7 +243,8 @@ async function sendCancellationProEmail(bk, groupServices) {
   const dateStr = fmtDate(bk.start_at);
   const timeStr = fmtTime(bk.start_at);
   const endTimeStr = fmtTime(bk.end_at);
-  const clientName = escHtml(bk.client_name || 'Client');
+  const clientNameRaw = bk.client_name || 'Client';
+  const clientName = escHtml(clientNameRaw);
 
   const serviceHTML = buildServiceDetailHTML(bk, groupServices);
 
@@ -278,7 +280,7 @@ async function sendCancellationProEmail(bk, groupServices) {
   const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
   const html = buildEmailHTML({
     title: 'Rendez-vous annul\u00e9',
-    preheader: `Annulation : ${clientName} \u2014 ${dateStr} \u00e0 ${timeStr}`,
+    preheader: `Annulation : ${clientNameRaw} \u2014 ${dateStr} \u00e0 ${timeStr}`,
     bodyHTML,
     ctaText: 'Voir dans le dashboard',
     ctaUrl: `${baseUrl}/dashboard`,
@@ -290,7 +292,7 @@ async function sendCancellationProEmail(bk, groupServices) {
   return sendEmail({
     to: bk.biz_email,
     toName: bk.biz_name,
-    subject: `Annulation \u2014 ${clientName} \u2014 ${fmtDate(bk.start_at)}`,
+    subject: `Annulation \u2014 ${clientNameRaw} \u2014 ${fmtDate(bk.start_at)}`,
     html,
     fromName: 'Genda'
   });
@@ -304,7 +306,8 @@ async function sendRescheduleProEmail(bk, groupServices, metadata) {
   const dateStr = fmtDate(bk.start_at);
   const timeStr = fmtTime(bk.start_at);
   const endTimeStr = fmtTime(bk.end_at);
-  const clientName = escHtml(bk.client_name || 'Client');
+  const clientNameRaw = bk.client_name || 'Client';
+  const clientName = escHtml(clientNameRaw);
 
   const serviceHTML = buildServiceDetailHTML(bk, groupServices);
 
@@ -353,7 +356,7 @@ async function sendRescheduleProEmail(bk, groupServices, metadata) {
   const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
   const html = buildEmailHTML({
     title: 'Rendez-vous d\u00e9plac\u00e9',
-    preheader: `${clientName} a d\u00e9plac\u00e9 son RDV au ${dateStr} \u00e0 ${timeStr}`,
+    preheader: `${clientNameRaw} a d\u00e9plac\u00e9 son RDV au ${dateStr} \u00e0 ${timeStr}`,
     bodyHTML,
     ctaText: 'Voir dans le dashboard',
     ctaUrl: `${baseUrl}/dashboard`,
@@ -365,7 +368,7 @@ async function sendRescheduleProEmail(bk, groupServices, metadata) {
   return sendEmail({
     to: bk.biz_email,
     toName: bk.biz_name,
-    subject: `RDV d\u00e9plac\u00e9 \u2014 ${clientName} \u2014 ${dateStr}`,
+    subject: `RDV d\u00e9plac\u00e9 \u2014 ${clientNameRaw} \u2014 ${dateStr}`,
     html,
     fromName: 'Genda'
   });
@@ -379,7 +382,8 @@ async function sendModificationConfirmedProEmail(bk, groupServices) {
   const dateStr = fmtDate(bk.start_at);
   const timeStr = fmtTime(bk.start_at);
   const endTimeStr = fmtTime(bk.end_at);
-  const clientName = escHtml(bk.client_name || 'Client');
+  const clientNameRaw = bk.client_name || 'Client';
+  const clientName = escHtml(clientNameRaw);
 
   const serviceHTML = buildServiceDetailHTML(bk, groupServices);
 
@@ -412,7 +416,7 @@ async function sendModificationConfirmedProEmail(bk, groupServices) {
   const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
   const html = buildEmailHTML({
     title: 'Modification confirm\u00e9e',
-    preheader: `${clientName} a confirm\u00e9 le RDV du ${dateStr}`,
+    preheader: `${clientNameRaw} a confirm\u00e9 le RDV du ${dateStr}`,
     bodyHTML,
     ctaText: 'Voir dans le dashboard',
     ctaUrl: `${baseUrl}/dashboard`,
@@ -424,7 +428,7 @@ async function sendModificationConfirmedProEmail(bk, groupServices) {
   return sendEmail({
     to: bk.biz_email,
     toName: bk.biz_name,
-    subject: `Modification confirm\u00e9e \u2014 ${clientName} \u2014 ${dateStr}`,
+    subject: `Modification confirm\u00e9e \u2014 ${clientNameRaw} \u2014 ${dateStr}`,
     html,
     fromName: 'Genda'
   });
@@ -438,7 +442,8 @@ async function sendModificationRejectedProEmail(bk, groupServices) {
   const dateStr = fmtDate(bk.start_at);
   const timeStr = fmtTime(bk.start_at);
   const endTimeStr = fmtTime(bk.end_at);
-  const clientName = escHtml(bk.client_name || 'Client');
+  const clientNameRaw = bk.client_name || 'Client';
+  const clientName = escHtml(clientNameRaw);
 
   const serviceHTML = buildServiceDetailHTML(bk, groupServices);
 
@@ -484,7 +489,7 @@ async function sendModificationRejectedProEmail(bk, groupServices) {
   const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
   const html = buildEmailHTML({
     title: 'Modification refus\u00e9e',
-    preheader: `${clientName} a refus\u00e9 la modification`,
+    preheader: `${clientNameRaw} a refus\u00e9 la modification`,
     bodyHTML,
     ctaText: 'Voir dans le dashboard',
     ctaUrl: `${baseUrl}/dashboard`,
@@ -496,7 +501,7 @@ async function sendModificationRejectedProEmail(bk, groupServices) {
   return sendEmail({
     to: bk.biz_email,
     toName: bk.biz_name,
-    subject: `Modification refus\u00e9e \u2014 ${clientName}`,
+    subject: `Modification refus\u00e9e \u2014 ${clientNameRaw}`,
     html,
     fromName: 'Genda'
   });

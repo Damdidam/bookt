@@ -847,22 +847,23 @@ async function handleStripeWebhook(req, res) {
         const charge = event.data.object;
         const pi = charge.payment_intent;
         if (pi) {
-          // Find booking via Stripe checkout session linked to this payment intent
+          // After checkout.session.completed, deposit_payment_intent_id is updated to the pi_*.
+          // Legacy bookings may still hold cs_*, so match both.
           try {
             const sessions = await stripe.checkout.sessions.list({ payment_intent: pi, limit: 1 });
-            if (sessions.data.length > 0) {
-              const sessionId = sessions.data[0].id;
-              const bookings = await query(
-                `SELECT id, business_id FROM bookings WHERE deposit_payment_intent_id = $1 AND deposit_status = 'paid'`,
-                [sessionId]
+            const sessionId = sessions.data[0]?.id || null;
+            const bookings = await query(
+              `SELECT id, business_id FROM bookings
+               WHERE deposit_payment_intent_id IN ($1, $2)
+                 AND deposit_status = 'paid'`,
+              [pi, sessionId]
+            );
+            for (const bk of bookings.rows) {
+              await query(
+                `UPDATE bookings SET deposit_status = 'refunded', updated_at = NOW() WHERE id = $1`,
+                [bk.id]
               );
-              for (const bk of bookings.rows) {
-                await query(
-                  `UPDATE bookings SET deposit_status = 'refunded', updated_at = NOW() WHERE id = $1`,
-                  [bk.id]
-                );
-                console.log(`[STRIPE WH] External refund detected for booking ${bk.id} (PI: ${pi})`);
-              }
+              console.log(`[STRIPE WH] External refund detected for booking ${bk.id} (PI: ${pi})`);
             }
           } catch (refErr) {
             console.warn('[STRIPE WH] charge.refunded processing error:', refErr.message);
@@ -881,23 +882,21 @@ async function handleStripeWebhook(req, res) {
           const pi = ch.payment_intent;
           if (pi) {
             const sessions = await stripe.checkout.sessions.list({ payment_intent: pi, limit: 1 });
-            if (sessions.data.length > 0) {
-              const sessionId = sessions.data[0].id;
-              const bookings = await query(
-                `SELECT b.id, b.business_id, biz.email AS biz_email, biz.name AS biz_name
-                 FROM bookings b JOIN businesses biz ON biz.id = b.business_id
-                 WHERE b.deposit_payment_intent_id = $1`, [sessionId]
-              );
-              if (bookings.rows.length > 0) {
-                const bk = bookings.rows[0];
-                // Queue notification for business owner
-                await query(
-                  `INSERT INTO notifications (business_id, booking_id, type, status, metadata)
-                   VALUES ($1, $2, 'email_dispute_alert', 'queued', $3)`,
-                  [bk.business_id, bk.id, JSON.stringify({ dispute_id: dispute.id, amount: dispute.amount, reason: dispute.reason })]
-                ).catch(e => console.warn('[STRIPE WH] Dispute notification queue error:', e.message));
-                console.log(`[STRIPE WH] Dispute created for booking ${bk.id}, amount: ${dispute.amount}, reason: ${dispute.reason}`);
-              }
+            const sessionId = sessions.data[0]?.id || null;
+            const bookings = await query(
+              `SELECT b.id, b.business_id, biz.email AS biz_email, biz.name AS biz_name
+               FROM bookings b JOIN businesses biz ON biz.id = b.business_id
+               WHERE b.deposit_payment_intent_id IN ($1, $2)`, [pi, sessionId]
+            );
+            if (bookings.rows.length > 0) {
+              const bk = bookings.rows[0];
+              // Queue notification for business owner
+              await query(
+                `INSERT INTO notifications (business_id, booking_id, type, status, metadata)
+                 VALUES ($1, $2, 'email_dispute_alert', 'queued', $3)`,
+                [bk.business_id, bk.id, JSON.stringify({ dispute_id: dispute.id, amount: dispute.amount, reason: dispute.reason })]
+              ).catch(e => console.warn('[STRIPE WH] Dispute notification queue error:', e.message));
+              console.log(`[STRIPE WH] Dispute created for booking ${bk.id}, amount: ${dispute.amount}, reason: ${dispute.reason}`);
             }
           }
         } catch (dispErr) {

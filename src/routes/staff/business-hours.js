@@ -119,7 +119,7 @@ router.post('/closures', async (req, res, next) => {
     // Count impacted bookings in the closure period (warn the merchant)
     const impacted = await queryWithRLS(bid,
       `SELECT COUNT(*) AS cnt FROM bookings
-       WHERE business_id = $1 AND status IN ('confirmed', 'pending', 'pending_deposit')
+       WHERE business_id = $1 AND status IN ('confirmed', 'pending', 'modified_pending', 'pending_deposit')
          AND start_at::date >= $2::date AND start_at::date <= $3::date`,
       [bid, date_from, date_to]
     );

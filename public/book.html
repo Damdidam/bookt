@@ -2171,8 +2171,8 @@ function goToStep(n){
         picker.onchange=function(){
           if(!this.files||!this.files.length)return;
           for(var i=0;i<this.files.length;i++){
-            if(window._quoteImages.length>=3){alert('Maximum 3 images');break;}
-            if(this.files[i].size>5*1024*1024){alert('Image trop lourde (max 5 Mo)');continue;}
+            if(window._quoteImages.length>=3){window.GendaUI?.toast?.('Maximum 3 images','warning');break;}
+            if(this.files[i].size>5*1024*1024){window.GendaUI?.toast?.('Image trop lourde (max 5 Mo)','warning');continue;}
             window._quoteImages.push(this.files[i]);
           }
           this.value='';

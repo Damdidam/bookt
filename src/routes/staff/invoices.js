@@ -260,17 +260,19 @@ router.post('/', requireOwner, async (req, res, next) => {
       return res.status(400).json({ error: 'Client requis' });
     }
 
-    // Calculate totals (before transaction — pure computation)
-    // Prices from services are TTC (VAT included). Extract VAT from TTC.
+    // Calculate totals (before transaction — pure computation).
+    // Prices are TTC (VAT included). Extract VAT per LINE using each item.vat_rate
+    // so multi-rate invoices (e.g. 6% service + 21% product) compute correctly.
     const parsedVat = parseFloat(vat_rate);
     const vatR = isNaN(parsedVat) ? 21 : parsedVat;
     let subtotal = 0;
+    let vatAmount = 0;
     invoiceItems.forEach(item => {
       item.total_cents = Math.round((item.quantity || 1) * (item.unit_price_cents || 0));
       subtotal += item.total_cents;
+      const lineRate = (item.vat_rate !== undefined && item.vat_rate !== null) ? parseFloat(item.vat_rate) : vatR;
+      vatAmount += Math.round(item.total_cents * lineRate / (100 + lineRate));
     });
-    // TVA extraite du TTC : TVA = TTC * taux / (100 + taux)
-    const vatAmount = Math.round(subtotal * vatR / (100 + vatR));
     const total = subtotal;
 
     // Due date
@@ -346,13 +348,15 @@ router.patch('/:id/status', requireOwner, async (req, res, next) => {
     const valid = ['draft', 'sent', 'paid', 'overdue', 'cancelled'];
     if (!valid.includes(status)) return res.status(400).json({ error: 'Statut invalide' });
 
-    // S3-18: Validate status transitions
+    // S3-18: Validate status transitions.
+    // BE law (AR n°1 art. 14): a paid invoice cannot be silently cancelled — must emit a credit note.
+    // A cancelled invoice cannot be reopened (immutability).
     const TRANSITIONS = {
       draft: ['sent', 'paid', 'cancelled'],
       sent: ['paid', 'overdue', 'cancelled'],
       overdue: ['paid', 'cancelled'],
-      paid: ['cancelled'],
-      cancelled: ['draft']
+      paid: [],        // cannot cancel a paid invoice — issue a credit note (type='credit_note') instead
+      cancelled: []    // immutable once cancelled
     };
     const current = await queryWithRLS(bid,
       `SELECT status FROM invoices WHERE id = $1 AND business_id = $2`, [req.params.id, bid]

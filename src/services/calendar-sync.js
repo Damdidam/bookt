@@ -5,6 +5,7 @@
  */
 
 const { pool } = require('./db');
+const { encryptToken, decryptToken } = require('../utils/crypto');
 
 // ============================================================
 // GOOGLE CALENDAR
@@ -181,11 +182,12 @@ async function getValidToken(connection, queryFn) {
 
   // Token still valid (with 5 min buffer)
   if (expiresAt > new Date(now.getTime() + 5 * 60000)) {
-    return connection.access_token;
+    return decryptToken(connection.access_token);
   }
 
-  // Refresh token
-  if (!connection.refresh_token) {
+  // Refresh token (decrypt before sending to provider)
+  const refreshTokenPlain = decryptToken(connection.refresh_token);
+  if (!refreshTokenPlain) {
     throw new Error('No refresh token available — reconnection required');
   }
 
@@ -210,12 +212,12 @@ async function getValidToken(connection, queryFn) {
         if (freshExpiry > new Date(Date.now() + 5 * 60000)) {
           // Token was already refreshed by another process
           await client.query('COMMIT');
-          return freshConn.rows[0].access_token;
+          return decryptToken(freshConn.rows[0].access_token);
         }
       }
 
-      // Use the freshest refresh_token from DB (may have been rotated by another process)
-      const freshRefreshToken = freshConn.rows[0]?.refresh_token || connection.refresh_token;
+      // Use the freshest refresh_token from DB (may have been rotated by another process), decrypted
+      const freshRefreshToken = decryptToken(freshConn.rows[0]?.refresh_token) || refreshTokenPlain;
       let tokenData;
       if (connection.provider === 'google') {
         tokenData = await refreshGoogleToken(freshRefreshToken);
@@ -223,7 +225,7 @@ async function getValidToken(connection, queryFn) {
         tokenData = await refreshOutlookToken(freshRefreshToken);
       }
 
-      // Update stored tokens
+      // Update stored tokens (encrypted at rest)
       await client.query(
         `UPDATE calendar_connections SET
           access_token = $1,
@@ -234,9 +236,9 @@ async function getValidToken(connection, queryFn) {
           updated_at = NOW()
          WHERE id = $4`,
         [
-          tokenData.access_token,
+          encryptToken(tokenData.access_token),
           new Date(Date.now() + (tokenData.expires_in || 3600) * 1000).toISOString(),
-          tokenData.refresh_token || null,
+          tokenData.refresh_token ? encryptToken(tokenData.refresh_token) : null,
           connection.id
         ]
       );

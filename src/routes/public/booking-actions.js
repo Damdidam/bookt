@@ -1401,7 +1401,7 @@ router.post('/booking/:token/confirm-booking', async (req, res, next) => {
                 : row.service_name || 'RDV';
               let smsBody = `${row.biz_name} : RDV "${_svcLabel2}" confirmé le ${_sDate2} à ${_sTime2}${row.practitioner_name ? ' avec ' + row.practitioner_name : ''}. Gérer : ${manageUrl}`;
               if (smsBody.length > 160) smsBody = `RDV "${_svcLabel2}" confirmé le ${_sDate2} à ${_sTime2}. Gérer : ${manageUrl}`;
-              await sendSMS({ to: row.client_phone, body: smsBody, businessId: row.business_id });
+              await sendSMS({ to: row.client_phone, body: smsBody, businessId: row.business_id, clientId: row.client_id });
             } catch (smsErr) { console.warn('[SMS] Post-confirm SMS error:', smsErr.message); }
           }
         }

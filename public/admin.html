@@ -507,7 +507,7 @@ async function togglePlan(businessId, name, newPlan) {
 function impersonate(businessId) {
   apiFetch('/impersonate/' + businessId, { method: 'POST' })
     .then(data => {
-      window.open('/dashboard.html?admin_token=' + encodeURIComponent(data.token), '_blank', 'noopener');
+      window.open('/dashboard.html?admin_token=' + encodeURIComponent(data.token), '_blank', 'noopener,noreferrer');
       toast('Dashboard ouvert pour ' + data.business.name, 'success');
     })
     .catch(err => toast(err.message));

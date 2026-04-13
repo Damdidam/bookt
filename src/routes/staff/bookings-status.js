@@ -504,6 +504,10 @@ router.patch('/:id/status', async (req, res, next) => {
                     if (netRefund > 0) {
                       await stripe.refunds.create({ payment_intent: piId, amount: netRefund });
                       console.log(`[DEPOSIT REFUND] Net refund: ${netRefund}c (fees: ${stripeFees}c, gc: ${gcPaidCents}c) for PI ${piId}`);
+                    } else {
+                      // Fees >= charge — nothing to refund. Mark as retained, not refunded.
+                      console.warn(`[DEPOSIT REFUND] netRefund=0 (fees ${stripeFees}c >= charge ${actualStripeCharge}c) — deposit retained for PI ${piId}`);
+                      newDepStatus = 'cancelled';
                     }
                   } else {
                     await stripe.refunds.create({ payment_intent: piId });
@@ -752,7 +756,7 @@ router.patch('/:id/status', async (req, res, next) => {
         const emailData = await queryWithRLS(bid,
           `SELECT b.start_at, b.end_at, b.client_id, b.group_id, b.public_token, b.custom_label,
                   b.deposit_required, b.deposit_status, b.deposit_amount_cents, b.deposit_paid_at, b.deposit_payment_intent_id,
-                  b.booked_price_cents,
+                  b.booked_price_cents, b.cancel_reason,
                   b.promotion_label, b.promotion_discount_cents, b.promotion_discount_pct, b.discount_pct,
                   c.full_name AS client_name, c.email AS client_email, c.phone AS client_phone,
                   CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS service_name,
@@ -791,7 +795,7 @@ router.patch('/:id/status', async (req, res, next) => {
           const gcPaidForEmail = await getGcPaidCents(id);
           const { sendCancellationEmail } = require('../../services/email');
           sendCancellationEmail({
-            booking: { start_at: d.start_at, end_at: groupEndAt || d.end_at, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name, service_category: d.service_category, custom_label: d.custom_label, practitioner_name: d.practitioner_name, deposit_required: d.deposit_required, deposit_status: d.deposit_status, deposit_amount_cents: d.deposit_amount_cents, deposit_paid_at: d.deposit_paid_at, deposit_payment_intent_id: d.deposit_payment_intent_id, gc_paid_cents: gcPaidForEmail, gc_refunded_cents: txResult.gcRefundForEmail?.refunded || 0, pass_refunded: !!(txResult.passRefundForEmail?.refunded), promotion_label: d.promotion_label, promotion_discount_cents: d.promotion_discount_cents, promotion_discount_pct: d.promotion_discount_pct, service_price_cents: d.service_price_cents, booked_price_cents: d.booked_price_cents, discount_pct: d.discount_pct, duration_min: d.duration_min },
+            booking: { start_at: d.start_at, end_at: groupEndAt || d.end_at, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name, service_category: d.service_category, custom_label: d.custom_label, practitioner_name: d.practitioner_name, deposit_required: d.deposit_required, deposit_status: d.deposit_status, deposit_amount_cents: d.deposit_amount_cents, deposit_paid_at: d.deposit_paid_at, deposit_payment_intent_id: d.deposit_payment_intent_id, gc_paid_cents: gcPaidForEmail, gc_refunded_cents: txResult.gcRefundForEmail?.refunded || 0, pass_refunded: !!(txResult.passRefundForEmail?.refunded), promotion_label: d.promotion_label, promotion_discount_cents: d.promotion_discount_cents, promotion_discount_pct: d.promotion_discount_pct, service_price_cents: d.service_price_cents, booked_price_cents: d.booked_price_cents, discount_pct: d.discount_pct, duration_min: d.duration_min, cancel_reason: d.cancel_reason },
             business: { name: d.biz_name, slug: d.slug, email: d.biz_email, phone: d.biz_phone, address: d.address, theme: d.theme, settings: d.biz_settings },
             groupServices
           }).catch(e => console.warn('[EMAIL] Cancellation email error:', e.message));
@@ -1659,7 +1663,7 @@ router.post('/:id/send-deposit-request', async (req, res, next) => {
             timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit'
           });
           const body = `${bk.business_name} — Acompte ${amtStr}€ pour "${bk.service_name}" le ${dateStr} à ${_timeStr}. Payez : ${depositUrl}`;
-          const r = await sendSMS({ to: bk.client_phone, body, businessId: bid });
+          const r = await sendSMS({ to: bk.client_phone, body, businessId: bid, clientId: bk.client_id });
           results[ch] = r;
         }
       } catch (e) {

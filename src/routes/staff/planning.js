@@ -308,7 +308,7 @@ async function computeAlternatives(bid, absentPracId, dateFrom, dateTo, bookings
       `SELECT practitioner_id, start_at, end_at FROM bookings
        WHERE business_id = $1 AND practitioner_id = ANY($2::uuid[])
        AND start_at::date >= $3::date AND start_at::date <= $4::date
-       AND status IN ('confirmed', 'pending')`,
+       AND status IN ('confirmed', 'pending', 'modified_pending', 'pending_deposit')`,
       [bid, allCandIds, dateFrom, dateTo])
   ]);
 
@@ -512,7 +512,7 @@ router.post('/absences', requireOwner, async (req, res, next) => {
       `SELECT COUNT(*) AS cnt FROM bookings
        WHERE business_id = $1 AND practitioner_id = $2
          AND start_at::date >= $3::date AND start_at::date <= $4::date
-         AND status IN ('confirmed', 'pending')`,
+         AND status IN ('confirmed', 'pending', 'modified_pending', 'pending_deposit')`,
       [bid, practitioner_id, date_from, date_to]
     );
 
@@ -824,7 +824,7 @@ router.get('/impact', async (req, res, next) => {
        LEFT JOIN services s ON s.id = b.service_id
        WHERE b.business_id = $1 AND b.practitioner_id = $2
          AND b.start_at::date >= $3::date AND b.start_at::date <= $4::date
-         AND b.status IN ('confirmed', 'pending')
+         AND b.status IN ('confirmed', 'pending', 'modified_pending', 'pending_deposit')
        ORDER BY b.start_at`,
       [bid, practitioner_id, date_from, date_to]
     );
@@ -864,7 +864,7 @@ router.get('/impact', async (req, res, next) => {
          LEFT JOIN clients c ON c.id = b.client_id
          LEFT JOIN services s ON s.id = b.service_id
          WHERE b.group_id = $1 AND b.business_id = $2
-           AND b.status IN ('confirmed', 'pending')
+           AND b.status IN ('confirmed', 'pending', 'modified_pending', 'pending_deposit')
          ORDER BY b.start_at`,
         [gid, bid]
       );
@@ -946,7 +946,7 @@ router.post('/notify-impacted', requireOwner, async (req, res, next) => {
        LEFT JOIN practitioners p ON p.id = b.practitioner_id
        WHERE b.business_id = $1 AND b.practitioner_id = $2
          AND b.start_at::date >= $3::date AND b.start_at::date <= $4::date
-         AND b.status IN ('confirmed', 'pending')
+         AND b.status IN ('confirmed', 'pending', 'modified_pending', 'pending_deposit')
        ORDER BY b.start_at`,
       [bid, practitioner_id, date_from, date_to]
     );
@@ -1293,7 +1293,7 @@ router.post('/reassign', requireOwner, async (req, res, next) => {
     const overlapCheck = await queryWithRLS(bid,
       `SELECT id FROM bookings
        WHERE business_id = $1 AND practitioner_id = $2
-         AND status IN ('confirmed','pending')
+         AND status IN ('confirmed','pending','modified_pending','pending_deposit')
          AND start_at < $4::timestamptz AND end_at > $3::timestamptz
          AND id != $5`,
       [bid, new_practitioner_id, bk.start_at, bk.end_at, booking_id]

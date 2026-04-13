@@ -62,18 +62,28 @@ router.get('/summary', async (req, res, next) => {
     );
 
     // Stats: bookings this month
+    // Revenue = booking value MINUS amounts already paid via pass/GC (those were counted at purchase time, not at booking time).
     const monthStats = await queryWithRLS(bid,
       `SELECT
         COUNT(*) FILTER (WHERE status IN ('confirmed', 'completed')) AS total_bookings,
         COUNT(*) FILTER (WHERE status = 'no_show') AS no_shows,
         COUNT(*) FILTER (WHERE status = 'cancelled') AS cancellations,
         COALESCE(SUM(
-          COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents, 0)
-          - CASE WHEN b.group_order = 0 OR b.group_order IS NULL THEN COALESCE(b.promotion_discount_cents, 0) ELSE 0 END
+          GREATEST(
+            COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents, 0)
+            - CASE WHEN b.group_order = 0 OR b.group_order IS NULL THEN COALESCE(b.promotion_discount_cents, 0) ELSE 0 END
+            - COALESCE(alt.gc_paid_cents, 0)
+            - CASE WHEN alt.pass_used THEN COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents, 0) ELSE 0 END
+          , 0)
         ) FILTER (WHERE b.status IN ('confirmed', 'completed')), 0) AS revenue_cents
        FROM bookings b
        LEFT JOIN services s ON s.id = b.service_id
        LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+       LEFT JOIN LATERAL (
+         SELECT
+           COALESCE((SELECT SUM(amount_cents) FROM gift_card_transactions WHERE booking_id = b.id AND type = 'debit'), 0) AS gc_paid_cents,
+           EXISTS(SELECT 1 FROM pass_transactions WHERE booking_id = b.id AND type = 'debit' AND sessions > 0) AS pass_used
+       ) alt ON true
        WHERE b.business_id = $1
        AND b.start_at >= $2
        ${pracFilter ? 'AND b.practitioner_id = $3' : ''}`,
@@ -274,12 +284,21 @@ router.get('/analytics', async (req, res, next) => {
         COUNT(*) FILTER (WHERE b.status = 'no_show') AS no_shows,
         COUNT(*) FILTER (WHERE b.status = 'cancelled') AS cancellations,
         COALESCE(SUM(
-          COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents, 0)
-          - CASE WHEN b.group_order = 0 OR b.group_order IS NULL THEN COALESCE(b.promotion_discount_cents, 0) ELSE 0 END
+          GREATEST(
+            COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents, 0)
+            - CASE WHEN b.group_order = 0 OR b.group_order IS NULL THEN COALESCE(b.promotion_discount_cents, 0) ELSE 0 END
+            - COALESCE(alt.gc_paid_cents, 0)
+            - CASE WHEN alt.pass_used THEN COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents, 0) ELSE 0 END
+          , 0)
         ) FILTER (WHERE b.status IN ('confirmed', 'completed')), 0) AS revenue
        FROM bookings b
        LEFT JOIN services s ON s.id = b.service_id
        LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+       LEFT JOIN LATERAL (
+         SELECT
+           COALESCE((SELECT SUM(amount_cents) FROM gift_card_transactions WHERE booking_id = b.id AND type = 'debit'), 0) AS gc_paid_cents,
+           EXISTS(SELECT 1 FROM pass_transactions WHERE booking_id = b.id AND type = 'debit' AND sessions > 0) AS pass_used
+       ) alt ON true
        WHERE b.business_id = $1 AND b.start_at >= $2
        ${pracFilter ? 'AND b.practitioner_id = $3' : ''}
        GROUP BY day ORDER BY day`,
@@ -305,12 +324,21 @@ router.get('/analytics', async (req, res, next) => {
     const topServices = await queryWithRLS(bid,
       `SELECT s.name, s.color, COUNT(b.id) AS count,
         COALESCE(SUM(
-          COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents, 0)
-          - CASE WHEN b.group_order = 0 OR b.group_order IS NULL THEN COALESCE(b.promotion_discount_cents, 0) ELSE 0 END
+          GREATEST(
+            COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents, 0)
+            - CASE WHEN b.group_order = 0 OR b.group_order IS NULL THEN COALESCE(b.promotion_discount_cents, 0) ELSE 0 END
+            - COALESCE(alt.gc_paid_cents, 0)
+            - CASE WHEN alt.pass_used THEN COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents, 0) ELSE 0 END
+          , 0)
         ), 0) AS revenue
        FROM bookings b
        JOIN services s ON s.id = b.service_id
        LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+       LEFT JOIN LATERAL (
+         SELECT
+           COALESCE((SELECT SUM(amount_cents) FROM gift_card_transactions WHERE booking_id = b.id AND type = 'debit'), 0) AS gc_paid_cents,
+           EXISTS(SELECT 1 FROM pass_transactions WHERE booking_id = b.id AND type = 'debit' AND sessions > 0) AS pass_used
+       ) alt ON true
        WHERE b.business_id = $1
        AND b.status IN ('confirmed', 'completed')
        AND b.start_at >= $2
@@ -338,12 +366,21 @@ router.get('/analytics', async (req, res, next) => {
         TO_CHAR(b.start_at AT TIME ZONE 'Europe/Brussels', 'YYYY-MM') AS month,
         COUNT(*) FILTER (WHERE b.status IN ('confirmed', 'completed')) AS bookings,
         COALESCE(SUM(
-          COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents, 0)
-          - CASE WHEN b.group_order = 0 OR b.group_order IS NULL THEN COALESCE(b.promotion_discount_cents, 0) ELSE 0 END
+          GREATEST(
+            COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents, 0)
+            - CASE WHEN b.group_order = 0 OR b.group_order IS NULL THEN COALESCE(b.promotion_discount_cents, 0) ELSE 0 END
+            - COALESCE(alt.gc_paid_cents, 0)
+            - CASE WHEN alt.pass_used THEN COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents, 0) ELSE 0 END
+          , 0)
         ) FILTER (WHERE b.status IN ('confirmed', 'completed')), 0) AS revenue
        FROM bookings b
        LEFT JOIN services s ON s.id = b.service_id
        LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+       LEFT JOIN LATERAL (
+         SELECT
+           COALESCE((SELECT SUM(amount_cents) FROM gift_card_transactions WHERE booking_id = b.id AND type = 'debit'), 0) AS gc_paid_cents,
+           EXISTS(SELECT 1 FROM pass_transactions WHERE booking_id = b.id AND type = 'debit' AND sessions > 0) AS pass_used
+       ) alt ON true
        WHERE b.business_id = $1 AND b.start_at >= $2
        ${pracFilter ? 'AND b.practitioner_id = $3' : ''}
        GROUP BY month ORDER BY month`,

@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const { query, queryWithRLS, transactionWithRLS } = require('../../services/db');
 const { requireAuth, requireOwner, requirePro } = require('../../middleware/auth');
 const cal = require('../../services/calendar-sync');
+const { encryptToken } = require('../../utils/crypto');
 
 // Store OAuth state tokens in DB (survives restarts, multi-instance safe)
 const oauthStates = {
@@ -94,7 +95,7 @@ router.get('/google/callback', async (req, res) => {
             token_expires_at = $3, scope = $4, email = $5, user_id = $6,
             status = 'active', error_message = NULL, updated_at = NOW()
            WHERE id = $7`,
-          [tokens.access_token, tokens.refresh_token || null,
+          [encryptToken(tokens.access_token), tokens.refresh_token ? encryptToken(tokens.refresh_token) : null,
            new Date(Date.now() + (tokens.expires_in || 3600) * 1000).toISOString(),
            tokens.scope || '', userInfo.email || '', session.userId,
            existing.rows[0].id]
@@ -123,8 +124,8 @@ router.get('/google/callback', async (req, res) => {
         session.businessId,
         session.userId,
         session.practitionerId,
-        tokens.access_token,
-        tokens.refresh_token || null,
+        encryptToken(tokens.access_token),
+        tokens.refresh_token ? encryptToken(tokens.refresh_token) : null,
         new Date(Date.now() + (tokens.expires_in || 3600) * 1000).toISOString(),
         tokens.scope || '',
         userInfo.email || ''
@@ -207,7 +208,7 @@ router.get('/outlook/callback', async (req, res) => {
             token_expires_at = $3, scope = $4, email = $5, user_id = $6,
             status = 'active', error_message = NULL, updated_at = NOW()
            WHERE id = $7`,
-          [tokens.access_token, tokens.refresh_token || null,
+          [encryptToken(tokens.access_token), tokens.refresh_token ? encryptToken(tokens.refresh_token) : null,
            new Date(Date.now() + (tokens.expires_in || 3600) * 1000).toISOString(),
            tokens.scope || '', userInfo.mail || userInfo.userPrincipalName || '',
            session.userId, existing.rows[0].id]
@@ -234,8 +235,8 @@ router.get('/outlook/callback', async (req, res) => {
         session.businessId,
         session.userId,
         session.practitionerId,
-        tokens.access_token,
-        tokens.refresh_token || null,
+        encryptToken(tokens.access_token),
+        tokens.refresh_token ? encryptToken(tokens.refresh_token) : null,
         new Date(Date.now() + (tokens.expires_in || 3600) * 1000).toISOString(),
         tokens.scope || '',
         userInfo.mail || userInfo.userPrincipalName || ''

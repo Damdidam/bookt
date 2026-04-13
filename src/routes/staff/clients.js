@@ -169,23 +169,29 @@ router.post('/import', async (req, res, next) => {
       return res.status(400).json({ error: 'Maximum 500 clients par import' });
     }
 
-    // Get existing phones and emails for duplicate detection
+    const { normalizeE164 } = require('../../utils/phone');
+    // Get existing phones and emails for duplicate detection.
+    // Phones are normalized to E.164 to avoid format-only false negatives.
     const existing = await queryWithRLS(bid,
-      `SELECT LOWER(TRIM(phone)) AS phone, LOWER(TRIM(email)) AS email FROM clients WHERE business_id = $1`,
+      `SELECT phone, LOWER(TRIM(email)) AS email FROM clients WHERE business_id = $1`,
       [bid]
     );
-    const existingPhones = new Set(existing.rows.map(r => r.phone).filter(Boolean));
+    const existingPhones = new Set(
+      existing.rows.map(r => normalizeE164(r.phone, 'BE')).filter(Boolean)
+    );
     const existingEmails = new Set(existing.rows.map(r => r.email).filter(Boolean));
 
     let imported = 0, skipped = 0;
     for (const c of clients) {
       const name = (c.full_name || '').trim();
       if (!name) { skipped++; continue; }
-      const phone = (c.phone || '').trim() || null;
+      const rawPhone = (c.phone || '').trim();
+      // Normalize to E.164 (BE default — supports BE/FR/LU). Returns null on invalid.
+      const phone = rawPhone ? normalizeE164(rawPhone, 'BE') : null;
       const email = (c.email || '').trim() || null;
 
-      // Skip duplicates by phone or email
-      if (phone && existingPhones.has(phone.toLowerCase())) { skipped++; continue; }
+      // Skip duplicates by E.164 phone or email
+      if (phone && existingPhones.has(phone)) { skipped++; continue; }
       if (email && existingEmails.has(email.toLowerCase())) { skipped++; continue; }
 
       try {
@@ -193,7 +199,7 @@ router.post('/import', async (req, res, next) => {
           `INSERT INTO clients (business_id, full_name, phone, email) VALUES ($1, $2, $3, $4)`,
           [bid, name, phone, email]
         );
-        if (phone) existingPhones.add(phone.toLowerCase());
+        if (phone) existingPhones.add(phone);
         if (email) existingEmails.add(email.toLowerCase());
         imported++;
       } catch (e) {

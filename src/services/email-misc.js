@@ -295,11 +295,12 @@ async function sendGiftCardPurchaseProEmail({ giftCard, business }) {
   const amtStr = ((giftCard.amount_cents || 0) / 100).toFixed(2).replace('.', ',');
   const color = safeColor(business.theme?.primary_color);
   const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
-  const buyerName = escHtml(giftCard.buyer_name || 'Client');
+  const buyerNameRaw = giftCard.buyer_name || 'Client';
+  const buyerName = escHtml(buyerNameRaw);
   const recipientName = giftCard.recipient_name ? escHtml(giftCard.recipient_name) : null;
   const html = buildEmailHTML({
     title: 'Carte cadeau achetée',
-    preheader: `${buyerName} a acheté une carte cadeau de ${amtStr} €`,
+    preheader: `${buyerNameRaw} a acheté une carte cadeau de ${amtStr} €`,
     bodyHTML: `
       <p>Une carte cadeau a été achetée sur votre page.</p>
       <div style="background:#F0FDF4;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #22C55E">
@@ -314,7 +315,7 @@ async function sendGiftCardPurchaseProEmail({ giftCard, business }) {
     primaryColor: color,
     footerText: `${business.name} · Via Genda.be`
   });
-  return sendEmail({ to: business.email, toName: business.name, subject: `Carte cadeau achetée — ${amtStr} € — ${buyerName}`, html, fromName: 'Genda' });
+  return sendEmail({ to: business.email, toName: business.name, subject: `Carte cadeau achetée — ${amtStr} € — ${buyerNameRaw}`, html, fromName: 'Genda' });
 }
 
 // ── Merchant notification: Pass purchased ──
@@ -323,10 +324,12 @@ async function sendPassPurchaseProEmail({ pass, business }) {
   const amtStr = ((pass.price_cents || 0) / 100).toFixed(2).replace('.', ',');
   const color = safeColor(business.theme?.primary_color);
   const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
-  const buyerName = escHtml(pass.buyer_name || 'Client');
+  const buyerNameRaw = pass.buyer_name || 'Client';
+  const buyerName = escHtml(buyerNameRaw);
+  const passNameRaw = pass.name || '';
   const html = buildEmailHTML({
     title: 'Pass acheté',
-    preheader: `${buyerName} a acheté un pass ${escHtml(pass.name)}`,
+    preheader: `${buyerNameRaw} a acheté un pass ${passNameRaw}`,
     bodyHTML: `
       <p>Un pass a été acheté sur votre page.</p>
       <div style="background:#F0FDF4;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #22C55E">
@@ -340,7 +343,7 @@ async function sendPassPurchaseProEmail({ pass, business }) {
     primaryColor: color,
     footerText: `${business.name} · Via Genda.be`
   });
-  return sendEmail({ to: business.email, toName: business.name, subject: `Pass acheté — ${escHtml(pass.name)} — ${buyerName}`, html, fromName: 'Genda' });
+  return sendEmail({ to: business.email, toName: business.name, subject: `Pass acheté — ${passNameRaw} — ${buyerNameRaw}`, html, fromName: 'Genda' });
 }
 
 // ── "Retrouver mon RDV" — send list of upcoming bookings to client ──

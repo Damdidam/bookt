@@ -1237,7 +1237,7 @@ async function exportData(type) {
   GendaUI.toast(`Export ${label} en cours…`, 'info');
   try {
     const url = type === 'clients' ? '/api/clients/export' : '/api/invoices/export';
-    window.open(`${url}?token=${api.getToken()}`, '_blank', 'noopener');
+    window.open(`${url}?token=${api.getToken()}`, '_blank', 'noopener,noreferrer');
   } catch (e) { GendaUI.toast('Erreur: ' + e.message, 'error'); }
 }
 window.exportData = exportData;
