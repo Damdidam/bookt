@@ -547,6 +547,9 @@ app.listen(PORT, async () => {
     // schema-v71 (H3): retry + backoff on notification queue
     await pool.query(`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS attempt_count INT DEFAULT 0`);
     await pool.query(`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS next_retry_at TIMESTAMPTZ`);
+    // schema-v72 (BE legal compliance): credit notes link back to original invoice
+    await pool.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS related_invoice_id UUID REFERENCES invoices(id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_invoices_related ON invoices(related_invoice_id) WHERE related_invoice_id IS NOT NULL`);
     await pool.query(`ALTER TABLE notifications DROP CONSTRAINT IF EXISTS notifications_type_check`);
     await pool.query(`ALTER TABLE notifications ADD CONSTRAINT notifications_type_check CHECK (type IN (
       'email_confirmation','sms_confirmation',

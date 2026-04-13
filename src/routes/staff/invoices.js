@@ -339,6 +339,99 @@ router.post('/', requireOwner, async (req, res, next) => {
 });
 
 // ============================================================
+// POST /api/invoices/:id/credit-note — issue a credit note for a paid/sent invoice
+// BE legal compliance (AR n°1 art.14): a paid invoice can only be cancelled via a credit note,
+// which is a separate document with its own number (NC-YYYY-XXXXXX), referencing the original.
+// Items copied with NEGATIVE amounts (subtotal/vat/total all negated). VAT rates preserved per line.
+// ============================================================
+router.post('/:id/credit-note', requireOwner, blockIfImpersonated, async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const { reason, mark_original_cancelled } = req.body;
+
+    const result = await transactionWithRLS(bid, async (txClient) => {
+      // Lock + load the original
+      const orig = await txClient.query(
+        `SELECT * FROM invoices WHERE id = $1 AND business_id = $2 FOR UPDATE`,
+        [req.params.id, bid]
+      );
+      if (orig.rows.length === 0) throw Object.assign(new Error('Facture introuvable'), { status: 404 });
+      const inv = orig.rows[0];
+
+      if (inv.type === 'credit_note') {
+        throw Object.assign(new Error('Impossible d\'émettre une note de crédit sur une note de crédit'), { status: 400 });
+      }
+      if (inv.type === 'quote') {
+        throw Object.assign(new Error('Impossible d\'émettre une note de crédit sur un devis'), { status: 400 });
+      }
+      if (!['sent', 'paid', 'overdue'].includes(inv.status)) {
+        throw Object.assign(new Error(`Note de crédit autorisée uniquement pour facture sent/paid/overdue (actuel : ${inv.status})`), { status: 400 });
+      }
+
+      // Block double credit notes for the same invoice
+      const existing = await txClient.query(
+        `SELECT id, invoice_number FROM invoices WHERE related_invoice_id = $1 AND business_id = $2 AND type = 'credit_note' LIMIT 1`,
+        [inv.id, bid]
+      );
+      if (existing.rows.length > 0) {
+        throw Object.assign(new Error(`Une note de crédit existe déjà : ${existing.rows[0].invoice_number}`), { status: 409 });
+      }
+
+      // Generate NC-YYYY-XXXXXX (advisory lock inside getNextInvoiceNumber)
+      const cnNumber = await getNextInvoiceNumber((sql, params) => txClient.query(sql, params), bid, 'credit_note');
+
+      // Insert the credit note (totals negated)
+      const cnRes = await txClient.query(
+        `INSERT INTO invoices (business_id, booking_id, client_id, invoice_number, type, status,
+          issue_date, due_date, client_name, client_email, client_phone, client_address, client_bce,
+          business_name, business_address, business_bce, business_iban, business_bic,
+          subtotal_cents, vat_amount_cents, total_cents, vat_rate,
+          structured_comm, notes, footer_text, language, related_invoice_id)
+         VALUES ($1,$2,$3,$4,'credit_note','draft',$5,NULL,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
+         RETURNING *`,
+        [bid, inv.booking_id, inv.client_id, cnNumber,
+         new Date().toISOString().split('T')[0],
+         inv.client_name, inv.client_email, inv.client_phone, inv.client_address, inv.client_bce,
+         inv.business_name, inv.business_address, inv.business_bce, inv.business_iban, inv.business_bic,
+         -inv.subtotal_cents, -inv.vat_amount_cents, -inv.total_cents, inv.vat_rate,
+         null, reason ? `Note de crédit pour facture ${inv.invoice_number}\n\nMotif : ${reason}` : `Note de crédit pour facture ${inv.invoice_number}`,
+         inv.footer_text, inv.language, inv.id]
+      );
+      const cnId = cnRes.rows[0].id;
+
+      // Copy items with negated amounts (preserve booking_id link + per-line vat_rate)
+      const items = await txClient.query(
+        `SELECT booking_id, description, quantity, unit_price_cents, vat_rate, total_cents, sort_order
+           FROM invoice_items WHERE invoice_id = $1 ORDER BY sort_order`,
+        [inv.id]
+      );
+      for (const it of items.rows) {
+        await txClient.query(
+          `INSERT INTO invoice_items (invoice_id, booking_id, description, quantity, unit_price_cents, vat_rate, total_cents, sort_order)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [cnId, it.booking_id, it.description, it.quantity, -it.unit_price_cents, it.vat_rate, -it.total_cents, it.sort_order]
+        );
+      }
+
+      // Optional: mark the original 'cancelled' AFTER credit note exists (now legally permitted)
+      if (mark_original_cancelled === true) {
+        await txClient.query(
+          `UPDATE invoices SET status = 'cancelled', updated_at = NOW() WHERE id = $1`,
+          [inv.id]
+        );
+      }
+
+      return cnRes.rows[0];
+    });
+
+    res.status(201).json({ ok: true, credit_note: result });
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
+});
+
+// ============================================================
 // PATCH /api/invoices/:id/status — change status
 // ============================================================
 router.patch('/:id/status', requireOwner, async (req, res, next) => {
