@@ -455,6 +455,9 @@ router.patch('/:id/status', async (req, res, next) => {
       let depRetentionReason = null; // 'stripe_failure' | 'no_stripe_key' | 'fees_exceed_charge'
       let gcRefundForEmail = { refunded: 0 };
       let passRefundForEmail = { refunded: 0 };
+      // M2: capture actual amounts so the refund email shows real net (not deposit_amount_cents)
+      let netRefundCentsForEmail = null; // null = full deposit (refund_policy='full' or no fees deducted)
+      let gcPaidForRefundEmail = 0;       // GC portion that goes back to the GC balance
       if (status === 'cancelled') {
         const depInfo = await client.query(
           `SELECT b.deposit_required, b.deposit_status, b.deposit_amount_cents, b.deposit_payment_intent_id, b.start_at, b.created_at, biz.settings
@@ -503,10 +506,12 @@ router.patch('/:id/status', async (req, res, next) => {
                       [id]
                     );
                     const gcPaidCents = parseInt(gcPaidRes.rows[0]?.gc_paid_cents) || 0;
+                    gcPaidForRefundEmail = gcPaidCents;
                     const actualStripeCharge = Math.max(dep.deposit_amount_cents - gcPaidCents, 0);
                     // Partial refund: deduct Stripe fees (~1.5% + 25c) on actual Stripe charge
                     const stripeFees = actualStripeCharge > 0 ? Math.round(actualStripeCharge * 0.015) + 25 : 0;
                     const netRefund = Math.max(actualStripeCharge - stripeFees, 0);
+                    netRefundCentsForEmail = netRefund;
                     if (netRefund > 0) {
                       await stripe.refunds.create({ payment_intent: piId, amount: netRefund });
                       console.log(`[DEPOSIT REFUND] Net refund: ${netRefund}c (fees: ${stripeFees}c, gc: ${gcPaidCents}c) for PI ${piId}`);
@@ -699,7 +704,7 @@ router.patch('/:id/status', async (req, res, next) => {
          JSON.stringify(newAudit)]
       );
 
-      return { oldStatus: old.rows[0].status, affectedSiblingIds, depositRefunded, depRetentionReason, depositRestore, booking: old.rows[0], gcRefundForEmail, passRefundForEmail };
+      return { oldStatus: old.rows[0].status, affectedSiblingIds, depositRefunded, depRetentionReason, depositRestore, booking: old.rows[0], gcRefundForEmail, passRefundForEmail, netRefundCentsForEmail, gcPaidForRefundEmail };
     });
 
     // Handle early returns from transaction
@@ -854,7 +859,9 @@ router.patch('/:id/status', async (req, res, next) => {
           const groupEndAt = groupServices ? groupServices[groupServices.length - 1].end_at : null;
           const gcPaidRefund = await getGcPaidCents(id);
           const { sendDepositRefundEmail, sendDepositRefundProEmail } = require('../../services/email');
-          const _refundBooking = { start_at: d.start_at, end_at: groupEndAt || d.end_at, deposit_amount_cents: d.deposit_amount_cents, deposit_payment_intent_id: d.deposit_payment_intent_id, gc_paid_cents: gcPaidRefund, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name, service_category: d.service_category, practitioner_name: d.practitioner_name, promotion_label: d.promotion_label, promotion_discount_cents: d.promotion_discount_cents, promotion_discount_pct: d.promotion_discount_pct, service_price_cents: d.service_price_cents, booked_price_cents: d.booked_price_cents, discount_pct: d.discount_pct, duration_min: d.duration_min };
+          // M2: net_refund_cents = what client actually receives back to bank (policy='net' deducts Stripe fees)
+          // Falls back to deposit_amount_cents when policy='full' or no Stripe component (txResult.netRefundCentsForEmail null)
+          const _refundBooking = { start_at: d.start_at, end_at: groupEndAt || d.end_at, deposit_amount_cents: d.deposit_amount_cents, deposit_payment_intent_id: d.deposit_payment_intent_id, gc_paid_cents: gcPaidRefund, net_refund_cents: txResult.netRefundCentsForEmail, gc_refunded_cents: txResult.gcPaidForRefundEmail || 0, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name, service_category: d.service_category, practitioner_name: d.practitioner_name, promotion_label: d.promotion_label, promotion_discount_cents: d.promotion_discount_cents, promotion_discount_pct: d.promotion_discount_pct, service_price_cents: d.service_price_cents, booked_price_cents: d.booked_price_cents, discount_pct: d.discount_pct, duration_min: d.duration_min };
           sendDepositRefundEmail({
             booking: _refundBooking,
             business: { name: d.biz_name, slug: d.slug, email: d.biz_email, phone: d.biz_phone, address: d.address, settings: d.settings, theme: d.theme },

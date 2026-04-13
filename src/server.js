@@ -536,9 +536,14 @@ app.listen(PORT, async () => {
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS booked_price_cents INTEGER`);
   } catch (e) {}
   // schema-v69: J-7 expiry warning columns + notification types
+  // schema-v70 (H4): cancellation_email_sent_at flag on bookings — idempotence post-commit emails
   try {
     await pool.query(`ALTER TABLE gift_cards ADD COLUMN IF NOT EXISTS expiry_warning_sent_at TIMESTAMPTZ`);
     await pool.query(`ALTER TABLE passes      ADD COLUMN IF NOT EXISTS expiry_warning_sent_at TIMESTAMPTZ`);
+    await pool.query(`ALTER TABLE bookings    ADD COLUMN IF NOT EXISTS cancellation_email_sent_at TIMESTAMPTZ`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_bookings_cron_cancel_email
+      ON bookings (status, cancellation_email_sent_at)
+      WHERE status = 'cancelled' AND cancellation_email_sent_at IS NULL`);
     await pool.query(`ALTER TABLE notifications DROP CONSTRAINT IF EXISTS notifications_type_check`);
     await pool.query(`ALTER TABLE notifications ADD CONSTRAINT notifications_type_check CHECK (type IN (
       'email_confirmation','sms_confirmation',

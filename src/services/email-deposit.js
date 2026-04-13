@@ -468,6 +468,11 @@ async function sendDepositRefundEmail({ booking, business, groupServices }) {
   const realEnd = getRealEndAt(booking, groupServices);
   const endTimeStr = realEnd ? fmtTimeBrussels(realEnd) : null;
   const amtStr = ((booking.deposit_amount_cents || 0) / 100).toFixed(2).replace('.', ',');
+  // M2 fix: actual amount Stripe sent back (net of fees in policy='net'), falls back to deposit_amount when not provided
+  const stripeNetCents = booking.net_refund_cents != null
+    ? booking.net_refund_cents
+    : Math.max((booking.deposit_amount_cents || 0) - (booking.gc_paid_cents || 0), 0);
+  const stripeNetStr = (stripeNetCents / 100).toFixed(2).replace('.', ',');
 
   const color = safeColor(business.theme?.primary_color);
   const safeClientName = escHtml(booking.client_name);
@@ -528,9 +533,12 @@ async function sendDepositRefundEmail({ booking, business, groupServices }) {
   const hasSplitPracRF = isMulti && groupServices.some(s => s.practitioner_name);
 
   // Determine refund method: gift card, stripe, or mixed
+  // M2 fix: stripeRefundCents = actual amount sent back via Stripe (net of fees in policy='net').
   const gcRefundCents = booking.gc_paid_cents || 0;
-  const stripeRefundCents = (booking.deposit_amount_cents || 0) - gcRefundCents;
-  const isFullGc = gcRefundCents > 0 && stripeRefundCents <= 0;
+  const stripeRefundCents = stripeNetCents;
+  const grossStripePortion = Math.max((booking.deposit_amount_cents || 0) - gcRefundCents, 0);
+  const feesDeducted = grossStripePortion - stripeRefundCents;
+  const isFullGc = gcRefundCents > 0 && grossStripePortion <= 0;
   const isMix = gcRefundCents > 0 && stripeRefundCents > 0;
 
   let refundBanner = '';
@@ -543,22 +551,23 @@ async function sendDepositRefundEmail({ booking, business, groupServices }) {
       <div style="font-size:14px;color:#8D6E63">Le solde a \u00e9t\u00e9 recr\u00e9dit\u00e9 sur votre carte ${gcCode}.</div>
     </div>`;
   } else if (isMix) {
-    // Mix GC + Stripe
+    // Mix GC + Stripe — show real Stripe amount (net of fees if applicable)
     const gcStr = (gcRefundCents / 100).toFixed(2).replace('.', ',');
-    const stripeStr = (stripeRefundCents / 100).toFixed(2).replace('.', ',');
     refundBanner = `
     <div style="background:#FFF8E1;border-radius:8px;padding:12px 16px;margin:16px 0;border-left:3px solid #F9A825">
       <div style="font-size:14px;color:#5D4037;font-weight:600">\u{1F381} ${gcStr}\u00a0\u20ac recr\u00e9dit\u00e9s sur votre carte cadeau</div>
     </div>
     <div style="background:#EFF6FF;border-radius:8px;padding:12px 16px;margin:4px 0 16px;border-left:3px solid #60A5FA">
-      <div style="font-size:14px;color:#1D4ED8;font-weight:600">${_ic('refund')} ${stripeStr}\u00a0\u20ac rembours\u00e9s par carte bancaire</div>
+      <div style="font-size:14px;color:#1D4ED8;font-weight:600">${_ic('refund')} ${stripeNetStr}\u00a0\u20ac rembours\u00e9s par carte bancaire</div>
+      ${feesDeducted > 0 ? `<div style="font-size:12px;color:#1D4ED8;opacity:.85">Frais bancaires d\u00e9duits : ${(feesDeducted / 100).toFixed(2).replace('.', ',')}\u00a0\u20ac</div>` : ''}
       <div style="font-size:13px;color:#1D4ED8">Le remboursement appara\u00eetra sur votre relev\u00e9 sous 5 \u00e0 10 jours ouvrables.</div>
     </div>`;
   } else {
-    // 100% Stripe — bank refund delay
+    // 100% Stripe — bank refund delay (show net amount actually sent back)
     refundBanner = `
     <div style="background:#EFF6FF;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #60A5FA">
-      <div style="font-size:15px;font-weight:600;color:#1D4ED8;margin-bottom:4px">${_ic('refund')} Acompte de ${amtStr}\u00a0\u20ac rembours\u00e9</div>
+      <div style="font-size:15px;font-weight:600;color:#1D4ED8;margin-bottom:4px">${_ic('refund')} Acompte de ${stripeNetStr}\u00a0\u20ac rembours\u00e9</div>
+      ${feesDeducted > 0 ? `<div style="font-size:12px;color:#1D4ED8;opacity:.85">Frais bancaires d\u00e9duits : ${(feesDeducted / 100).toFixed(2).replace('.', ',')}\u00a0\u20ac</div>` : ''}
       <div style="font-size:14px;color:#1D4ED8">Le remboursement appara\u00eetra sur votre relev\u00e9 sous 5 \u00e0 10 jours ouvrables.</div>
     </div>`;
   }

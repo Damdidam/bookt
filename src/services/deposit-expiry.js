@@ -187,6 +187,25 @@ async function processExpiredDeposits() {
         .catch(e => console.warn('[DEPOSIT CRON] Pro notification queue error:', e.message))
     ));
 
+    // H4 fix: missed-email sweep — pick up cron-cancelled bookings (last 24h) whose email was
+    // never sent (pod crashed between COMMIT and send). Idempotent via cancellation_email_sent_at.
+    try {
+      const missed = await query(
+        `SELECT id FROM bookings
+          WHERE status = 'cancelled'
+            AND cancellation_email_sent_at IS NULL
+            AND updated_at > NOW() - INTERVAL '24 hours'
+            AND cancel_reason = 'Acompte non versé dans le délai imparti'
+          LIMIT 50`
+      );
+      for (const m of missed.rows) {
+        if (!cancelledBookingIds.find(c => c.id === m.id)) {
+          cancelledBookingIds.push({ id: m.id, business_id: null, group_id: null, client_id: null, _gcRefunded: 0, _passRefunded: false, _stripeSessionId: null, _missed: true });
+        }
+      }
+      if (missed.rows.length > 0) console.log(`[DEPOSIT CRON] Picked up ${missed.rows.length} missed email(s) from previous tick`);
+    } catch (e) { console.warn('[DEPOSIT CRON] missed-email sweep error:', e.message); }
+
     // Send cancellation emails AFTER commit (non-blocking)
     for (const { id: bkId, _gcRefunded, _passRefunded } of cancelledBookingIds) {
       try {
@@ -238,6 +257,8 @@ async function processExpiredDeposits() {
           business: { name: row.biz_name, slug: row.biz_slug, email: row.biz_email, phone: row.biz_phone, address: row.biz_address, theme: row.biz_theme, settings: row.biz_settings },
           groupServices
         });
+        // H4 fix: mark email sent so a crash here doesn't trigger a duplicate next tick.
+        await query(`UPDATE bookings SET cancellation_email_sent_at = NOW() WHERE id = $1`, [bkId]).catch(() => {});
       } catch (emailErr) {
         console.warn('[DEPOSIT CRON] Cancellation email error for booking', bkId, ':', emailErr.message);
       }

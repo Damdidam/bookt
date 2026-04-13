@@ -71,7 +71,7 @@ router.get('/summary', async (req, res, next) => {
         COALESCE(SUM(
           GREATEST(
             COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents, 0)
-            - CASE WHEN b.group_order = 0 OR b.group_order IS NULL THEN COALESCE(b.promotion_discount_cents, 0) ELSE 0 END
+            - COALESCE(b.promotion_discount_cents, 0)
             - COALESCE(alt.gc_paid_cents, 0)
             - CASE WHEN alt.pass_used THEN COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents, 0) ELSE 0 END
           , 0)
@@ -289,7 +289,7 @@ router.get('/analytics', async (req, res, next) => {
         COALESCE(SUM(
           GREATEST(
             COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents, 0)
-            - CASE WHEN b.group_order = 0 OR b.group_order IS NULL THEN COALESCE(b.promotion_discount_cents, 0) ELSE 0 END
+            - COALESCE(b.promotion_discount_cents, 0)
             - COALESCE(alt.gc_paid_cents, 0)
             - CASE WHEN alt.pass_used THEN COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents, 0) ELSE 0 END
           , 0)
@@ -329,7 +329,7 @@ router.get('/analytics', async (req, res, next) => {
         COALESCE(SUM(
           GREATEST(
             COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents, 0)
-            - CASE WHEN b.group_order = 0 OR b.group_order IS NULL THEN COALESCE(b.promotion_discount_cents, 0) ELSE 0 END
+            - COALESCE(b.promotion_discount_cents, 0)
             - COALESCE(alt.gc_paid_cents, 0)
             - CASE WHEN alt.pass_used THEN COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents, 0) ELSE 0 END
           , 0)
@@ -371,7 +371,7 @@ router.get('/analytics', async (req, res, next) => {
         COALESCE(SUM(
           GREATEST(
             COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents, 0)
-            - CASE WHEN b.group_order = 0 OR b.group_order IS NULL THEN COALESCE(b.promotion_discount_cents, 0) ELSE 0 END
+            - COALESCE(b.promotion_discount_cents, 0)
             - COALESCE(alt.gc_paid_cents, 0)
             - CASE WHEN alt.pass_used THEN COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents, 0) ELSE 0 END
           , 0)

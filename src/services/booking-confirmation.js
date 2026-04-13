@@ -34,6 +34,7 @@ async function processExpiredPendingBookings() {
        LEFT JOIN services s ON s.id = b.service_id
        JOIN businesses biz ON biz.id = b.business_id
        WHERE b.status = 'pending'
+         AND (b.deposit_status IS NULL OR b.deposit_status != 'paid')  -- M3: race vs Stripe webhook (paid deposit = webhook will confirm shortly)
          AND (
            (b.confirmation_expires_at IS NOT NULL AND b.confirmation_expires_at < NOW())
            OR b.start_at <= NOW()
@@ -232,6 +233,28 @@ async function processExpiredPendingBookings() {
         .catch(e => console.warn('[CONFIRM CRON] Pro notification queue error:', e.message))
     ));
 
+    // H4 fix: missed-email sweep — pick up cron-cancelled bookings (last 24h) whose email was
+    // never sent (pod crashed between COMMIT and send). Idempotent via cancellation_email_sent_at.
+    try {
+      const missed = await query(
+        `SELECT id FROM bookings
+          WHERE status = 'cancelled'
+            AND cancellation_email_sent_at IS NULL
+            AND updated_at > NOW() - INTERVAL '24 hours'
+            AND cancel_reason IN (
+              'Confirmation non reçue dans le délai imparti',
+              'Devis non traité avant la date du rendez-vous'
+            )
+          LIMIT 50`
+      );
+      for (const m of missed.rows) {
+        if (!cancelledBookingIds.find(c => c.id === m.id)) {
+          cancelledBookingIds.push({ id: m.id, business_id: null, group_id: null, client_id: null, _gcRefunded: 0, _passRefunded: false, _missed: true });
+        }
+      }
+      if (missed.rows.length > 0) console.log(`[CONFIRM CRON] Picked up ${missed.rows.length} missed email(s) from previous tick`);
+    } catch (e) { console.warn('[CONFIRM CRON] missed-email sweep error:', e.message); }
+
     // Send cancellation emails AFTER commit (non-blocking)
     for (const { id: bkId, _gcRefunded, _passRefunded } of cancelledBookingIds) {
       try {
@@ -284,6 +307,8 @@ async function processExpiredPendingBookings() {
           business: { name: row.biz_name, slug: row.biz_slug, email: row.biz_email, phone: row.biz_phone, address: row.biz_address, theme: row.biz_theme, settings: row.biz_settings },
           groupServices
         });
+        // H4 fix: mark email sent so a crash here doesn't trigger a duplicate next tick.
+        await query(`UPDATE bookings SET cancellation_email_sent_at = NOW() WHERE id = $1`, [bkId]).catch(() => {});
       } catch (emailErr) {
         console.warn('[CONFIRM CRON] Cancellation email error for booking', bkId, ':', emailErr.message);
       }
