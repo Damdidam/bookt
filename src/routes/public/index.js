@@ -47,6 +47,8 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
 
     // Split mode: practitioners[] array provided instead of practitioner_id
     let isSplitMode = Array.isArray(splitPractitioners) && splitPractitioners.length > 0;
+    // True only if the backend silently re-assigned services to a different practitioner — exposed to the client in the response.
+    let autoSplitTriggered = false;
 
     if (!isSplitMode && !practitioner_id) {
       return res.status(400).json({ error: 'practitioner_id ou practitioners[] requis' });
@@ -304,6 +306,8 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         );
         if (!psMultiCheck.rows[0] || psMultiCheck.rows[0].cnt !== uniqueServiceIds.length) {
           // Auto-split: practitioner doesn't cover all services, assign each service to a valid practitioner
+          // Flag exposed in response so the frontend can warn the client (their chosen practitioner was changed)
+          autoSplitTriggered = true;
           console.log('[BOOKING] Auto-split: practitioner', practitioner_id, 'does not cover all services, falling back to split mode');
           const autoSplitResult = await query(
             `SELECT DISTINCT ON (ps.service_id) ps.service_id, ps.practitioner_id
@@ -931,6 +935,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       const totalAfterAllDiscounts = Math.max(0, totalAfterLmCents - promoDiscCents);
 
       return res.status(201).json({
+        auto_split_assigned: autoSplitTriggered,
         booking: {
           id: multiBookings[0].id, token: multiBookings[0].public_token,
           start_at: multiBookings[0].start_at, end_at: multiBookings[0].end_at, status: multiBookings[0].status,

@@ -451,6 +451,7 @@ router.patch('/:id/status', async (req, res, next) => {
 
       // ===== DEPOSIT: refund logic on cancellation =====
       let depositRefunded = false;
+      let depRetentionReason = null; // 'stripe_failure' | 'no_stripe_key' | 'fees_exceed_charge'
       let gcRefundForEmail = { refunded: 0 };
       let passRefundForEmail = { refunded: 0 };
       if (status === 'cancelled') {
@@ -508,6 +509,7 @@ router.patch('/:id/status', async (req, res, next) => {
                       // Fees >= charge — nothing to refund. Mark as retained, not refunded.
                       console.warn(`[DEPOSIT REFUND] netRefund=0 (fees ${stripeFees}c >= charge ${actualStripeCharge}c) — deposit retained for PI ${piId}`);
                       newDepStatus = 'cancelled';
+                      depRetentionReason = 'fees_exceed_charge';
                     }
                   } else {
                     await stripe.refunds.create({ payment_intent: piId });
@@ -518,12 +520,14 @@ router.patch('/:id/status', async (req, res, next) => {
                   console.error('[DEPOSIT CANCEL REFUND] Stripe refund failed:', stripeErr.message);
                   // Stripe refund failed — keep deposit as 'cancelled' (retained), not 'refunded'
                   newDepStatus = 'cancelled';
+                  depRetentionReason = 'stripe_failure';
                 }
               }
             } else {
               // No Stripe key — can't refund, mark as retained
               console.warn('[DEPOSIT CANCEL REFUND] STRIPE_SECRET_KEY not set — deposit retained');
               newDepStatus = 'cancelled';
+              depRetentionReason = 'no_stripe_key';
             }
           }
           if (newDepStatus) {
@@ -690,7 +694,7 @@ router.patch('/:id/status', async (req, res, next) => {
          JSON.stringify(newAudit)]
       );
 
-      return { oldStatus: old.rows[0].status, affectedSiblingIds, depositRefunded, depositRestore, booking: old.rows[0], gcRefundForEmail, passRefundForEmail };
+      return { oldStatus: old.rows[0].status, affectedSiblingIds, depositRefunded, depRetentionReason, depositRestore, booking: old.rows[0], gcRefundForEmail, passRefundForEmail };
     });
 
     // Handle early returns from transaction
@@ -795,7 +799,7 @@ router.patch('/:id/status', async (req, res, next) => {
           const gcPaidForEmail = await getGcPaidCents(id);
           const { sendCancellationEmail } = require('../../services/email');
           sendCancellationEmail({
-            booking: { start_at: d.start_at, end_at: groupEndAt || d.end_at, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name, service_category: d.service_category, custom_label: d.custom_label, practitioner_name: d.practitioner_name, deposit_required: d.deposit_required, deposit_status: d.deposit_status, deposit_amount_cents: d.deposit_amount_cents, deposit_paid_at: d.deposit_paid_at, deposit_payment_intent_id: d.deposit_payment_intent_id, gc_paid_cents: gcPaidForEmail, gc_refunded_cents: txResult.gcRefundForEmail?.refunded || 0, pass_refunded: !!(txResult.passRefundForEmail?.refunded), promotion_label: d.promotion_label, promotion_discount_cents: d.promotion_discount_cents, promotion_discount_pct: d.promotion_discount_pct, service_price_cents: d.service_price_cents, booked_price_cents: d.booked_price_cents, discount_pct: d.discount_pct, duration_min: d.duration_min, cancel_reason: d.cancel_reason },
+            booking: { start_at: d.start_at, end_at: groupEndAt || d.end_at, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name, service_category: d.service_category, custom_label: d.custom_label, practitioner_name: d.practitioner_name, deposit_required: d.deposit_required, deposit_status: d.deposit_status, deposit_amount_cents: d.deposit_amount_cents, deposit_paid_at: d.deposit_paid_at, deposit_payment_intent_id: d.deposit_payment_intent_id, gc_paid_cents: gcPaidForEmail, gc_refunded_cents: txResult.gcRefundForEmail?.refunded || 0, pass_refunded: !!(txResult.passRefundForEmail?.refunded), promotion_label: d.promotion_label, promotion_discount_cents: d.promotion_discount_cents, promotion_discount_pct: d.promotion_discount_pct, service_price_cents: d.service_price_cents, booked_price_cents: d.booked_price_cents, discount_pct: d.discount_pct, duration_min: d.duration_min, cancel_reason: d.cancel_reason, deposit_retention_reason: txResult.depRetentionReason },
             business: { name: d.biz_name, slug: d.slug, email: d.biz_email, phone: d.biz_phone, address: d.address, theme: d.theme, settings: d.biz_settings },
             groupServices
           }).catch(e => console.warn('[EMAIL] Cancellation email error:', e.message));

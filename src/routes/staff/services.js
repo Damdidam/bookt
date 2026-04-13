@@ -1,8 +1,16 @@
 const router = require('express').Router();
 const { queryWithRLS, transactionWithRLS } = require('../../services/db');
 const { requireAuth, requireOwner } = require('../../middleware/auth');
+const { invalidateMinisiteCache } = require('../public/helpers');
 
 router.use(requireAuth);
+// Drop the public minisite cache after every successful mutation on services.
+router.use((req, res, next) => {
+  if (['POST', 'PATCH', 'PUT', 'DELETE'].includes(req.method)) {
+    res.on('finish', () => { if (res.statusCode < 400 && req.businessId) invalidateMinisiteCache(req.businessId); });
+  }
+  next();
+});
 
 // GET /api/services — list all services
 router.get('/', async (req, res, next) => {

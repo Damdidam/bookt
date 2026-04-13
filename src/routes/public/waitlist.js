@@ -500,7 +500,7 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
 });
 
 // POST /api/public/waitlist/:token/decline — decline the offer
-router.post('/waitlist/:token/decline', async (req, res, next) => {
+router.post('/waitlist/:token/decline', bookingLimiter, async (req, res, next) => {
   try {
     const result = await query(
       `UPDATE waitlist_entries SET status = 'declined', updated_at = NOW()

@@ -53,12 +53,30 @@ router.post('/:slug/gift-card/checkout', depositLimiter, async (req, res, next) 
     if (!amount_cents || !Number.isInteger(amount_cents) || amount_cents < (s.giftcard_min_amount_cents || 1000)) return res.status(400).json({ error: 'Montant trop faible' });
     if (amount_cents > (s.giftcard_max_amount_cents || 50000)) return res.status(400).json({ error: 'Montant trop élevé' });
     if (!buyer_email) return res.status(400).json({ error: 'Email acheteur requis' });
+    // Strict format + length validation (Stripe metadata cap = 500 chars/value; bad emails make GC undeliverable)
+    const _emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (typeof buyer_email !== 'string' || buyer_email.length > 320 || !_emailRe.test(buyer_email)) {
+      return res.status(400).json({ error: 'Email acheteur invalide' });
+    }
+    const { isDisposableEmail } = require('./helpers');
+    if (isDisposableEmail(buyer_email)) {
+      return res.status(400).json({ error: 'Les adresses email temporaires ne sont pas acceptées' });
+    }
+    if (recipient_email && (typeof recipient_email !== 'string' || recipient_email.length > 320 || !_emailRe.test(recipient_email))) {
+      return res.status(400).json({ error: 'Email destinataire invalide' });
+    }
+    if (buyer_name && (typeof buyer_name !== 'string' || buyer_name.length > 200)) {
+      return res.status(400).json({ error: 'Nom acheteur trop long (max 200)' });
+    }
+    if (recipient_name && (typeof recipient_name !== 'string' || recipient_name.length > 200)) {
+      return res.status(400).json({ error: 'Nom destinataire trop long (max 200)' });
+    }
     const baseUrl = BASE_URL;
     const sessionOpts = {
       mode: 'payment', payment_method_types: ['card', 'bancontact'],
       line_items: [{ price_data: { currency: 'eur', unit_amount: amount_cents, product_data: { name: `Carte cadeau — ${biz.name}`, description: `Valeur : ${(amount_cents / 100).toFixed(2)}€` } }, quantity: 1 }],
       customer_email: buyer_email,
-      metadata: { type: 'gift_card', business_id: biz.id, amount_cents: String(amount_cents), buyer_name: buyer_name || '', buyer_email, recipient_name: recipient_name || '', recipient_email: recipient_email || '', message: (message || '').substring(0, 500) },
+      metadata: { type: 'gift_card', business_id: biz.id, amount_cents: String(amount_cents), buyer_name: (buyer_name || '').substring(0, 200), buyer_email, recipient_name: (recipient_name || '').substring(0, 200), recipient_email: recipient_email || '', message: (message || '').substring(0, 500) },
       success_url: `${baseUrl}/${biz.slug}/gift-card?success=1`,
       cancel_url: `${baseUrl}/${biz.slug}/gift-card`,
       locale: 'fr', expires_at: Math.floor(Date.now() / 1000) + 1800
@@ -270,6 +288,20 @@ router.post('/:slug/pass/checkout', depositLimiter, async (req, res, next) => {
     const { pass_template_id, buyer_name, buyer_email, buyer_phone, oauth_provider, oauth_provider_id } = req.body;
     if (!pass_template_id) return res.status(400).json({ error: 'Template requis' });
     if (!buyer_email) return res.status(400).json({ error: 'Email requis' });
+    const _emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (typeof buyer_email !== 'string' || buyer_email.length > 320 || !_emailRe.test(buyer_email)) {
+      return res.status(400).json({ error: 'Email invalide' });
+    }
+    const { isDisposableEmail } = require('./helpers');
+    if (isDisposableEmail(buyer_email)) {
+      return res.status(400).json({ error: 'Les adresses email temporaires ne sont pas acceptées' });
+    }
+    if (buyer_name && (typeof buyer_name !== 'string' || buyer_name.length > 200)) {
+      return res.status(400).json({ error: 'Nom trop long (max 200)' });
+    }
+    if (buyer_phone && (typeof buyer_phone !== 'string' || buyer_phone.length > 30)) {
+      return res.status(400).json({ error: 'Téléphone trop long (max 30)' });
+    }
     const tplRes = await query(
       `SELECT pt.*, s.name AS service_name FROM pass_templates pt JOIN services s ON s.id = pt.service_id AND s.is_active = true WHERE pt.id = $1 AND pt.business_id = $2 AND pt.is_active = true`,
       [pass_template_id, biz.id]
@@ -280,7 +312,7 @@ router.post('/:slug/pass/checkout', depositLimiter, async (req, res, next) => {
     const passSessionOpts = {
       mode: 'payment', payment_method_types: ['card', 'bancontact'],
       line_items: [{ price_data: { currency: 'eur', unit_amount: tpl.price_cents, product_data: { name: `Pass ${tpl.name}`, description: `${tpl.sessions_count} séances — ${tpl.service_name}` } }, quantity: 1 }],
-      metadata: { type: 'pass', business_id: biz.id, pass_template_id: tpl.id, buyer_name: buyer_name || '', buyer_email, buyer_phone: buyer_phone || '', oauth_provider: oauth_provider || '', oauth_provider_id: oauth_provider_id || '' },
+      metadata: { type: 'pass', business_id: biz.id, pass_template_id: tpl.id, buyer_name: (buyer_name || '').substring(0, 200), buyer_email, buyer_phone: buyer_phone || '', oauth_provider: oauth_provider || '', oauth_provider_id: oauth_provider_id || '' },
       customer_email: buyer_email,
       success_url: `${baseUrl}/${biz.slug}/pass?success=1`,
       cancel_url: `${baseUrl}/${biz.slug}/pass`,

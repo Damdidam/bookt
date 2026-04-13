@@ -159,27 +159,30 @@ router.get('/summary', async (req, res, next) => {
       pracFilter ? [bid, pracFilter] : [bid]
     );
 
-    // ── Alerts ──
+    // ── Alerts ── (RBAC: practitioner sees only their own — pracFilter applied to bookings; absences scoped to their row)
+    const _pf = pracFilter ? 'AND practitioner_id = $2' : '';
+    const _pfArgs = pracFilter ? [bid, pracFilter] : [bid];
     const [pendingConf, unpaidDep, recentNoShows, upcomingAbsences] = await Promise.all([
       queryWithRLS(bid,
         `SELECT COUNT(*) AS count FROM bookings
          WHERE business_id = $1 AND status = 'pending'
-         AND start_at > NOW() AND start_at < NOW() + INTERVAL '7 days'`, [bid]),
+         AND start_at > NOW() AND start_at < NOW() + INTERVAL '7 days' ${_pf}`, _pfArgs),
       queryWithRLS(bid,
         `SELECT COUNT(*) AS count FROM bookings
          WHERE business_id = $1 AND deposit_required = true
-         AND deposit_status = 'pending' AND status NOT IN ('cancelled', 'no_show')`, [bid]),
+         AND deposit_status = 'pending' AND status NOT IN ('cancelled', 'no_show') ${_pf}`, _pfArgs),
       queryWithRLS(bid,
         `SELECT COUNT(*) AS count FROM bookings
          WHERE business_id = $1 AND status = 'no_show'
-         AND start_at >= NOW() - INTERVAL '7 days'`, [bid]),
+         AND start_at >= NOW() - INTERVAL '7 days' ${_pf}`, _pfArgs),
       queryWithRLS(bid,
         `SELECT a.date_from, a.date_to, a.type, p.display_name AS practitioner_name
          FROM staff_absences a
          JOIN practitioners p ON p.id = a.practitioner_id
          WHERE a.business_id = $1 AND a.date_to >= CURRENT_DATE
          AND a.date_from <= CURRENT_DATE + 7
-         ORDER BY a.date_from LIMIT 5`, [bid])
+         ${pracFilter ? 'AND a.practitioner_id = $2' : ''}
+         ORDER BY a.date_from LIMIT 5`, _pfArgs)
     ]);
 
     // Weekly booking count for free tier bandeau

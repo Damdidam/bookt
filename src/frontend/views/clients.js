@@ -410,6 +410,27 @@ function csvHandleFile(file){
   reader.readAsText(file,'UTF-8');
 }
 
+// CSV line parser respecting quoted fields ("Martin, Jr","+32...","jr@x.be")
+function _parseCsvLine(line, sep){
+  const out=[];
+  let cur='', inQ=false;
+  for(let i=0;i<line.length;i++){
+    const c=line[i];
+    if(inQ){
+      if(c==='"'){
+        if(line[i+1]==='"'){ cur+='"'; i++; }    // escaped quote
+        else inQ=false;
+      } else cur+=c;
+    } else {
+      if(c==='"'){ inQ=true; }
+      else if(c===sep){ out.push(cur); cur=''; }
+      else cur+=c;
+    }
+  }
+  out.push(cur);
+  return out.map(s=>s.trim());
+}
+
 function csvParseAndPreview(text){
   const lines=text.split(/\r?\n/).filter(l=>l.trim());
   if(lines.length===0){GendaUI.toast('Fichier vide','error');return;}
@@ -417,9 +438,9 @@ function csvParseAndPreview(text){
   // Detect separator
   const sep=lines[0].includes(';')?';':',';
 
-  // Parse rows
+  // Parse rows (RFC 4180 quoted-field aware)
   const rows=lines.map(l=>{
-    const parts=l.split(sep).map(s=>s.trim().replace(/^["']|["']$/g,''));
+    const parts=_parseCsvLine(l, sep);
     return {full_name:parts[0]||'',phone:parts[1]||'',email:parts[2]||''};
   });
 

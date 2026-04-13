@@ -27,6 +27,7 @@ async function processExpiredPendingBookings() {
     const expired = await client.query(
       `SELECT b.id, b.business_id, b.service_id, b.practitioner_id, b.start_at, b.end_at, b.group_id, b.client_id,
               b.confirmation_expires_at,
+              b.deposit_status, b.deposit_payment_intent_id, b.deposit_amount_cents,
               COALESCE(s.quote_only, false) AS service_quote_only
        FROM bookings b
        LEFT JOIN services s ON s.id = b.service_id
@@ -63,6 +64,39 @@ async function processExpiredPendingBookings() {
            WHERE group_id = $1 AND id != $2 AND status = 'pending'`,
           [bk.group_id, bk.id]
         );
+      }
+
+      // Stripe refund: if a deposit was paid on this pending booking, refund it (parity with deposit-expiry/staff cancel).
+      if (bk.deposit_status === 'paid' && bk.deposit_payment_intent_id) {
+        const _stripeKey = process.env.STRIPE_SECRET_KEY;
+        if (_stripeKey) {
+          try {
+            const stripe = require('stripe')(_stripeKey);
+            let _piId = bk.deposit_payment_intent_id;
+            if (_piId.startsWith('cs_')) {
+              const _sess = await stripe.checkout.sessions.retrieve(_piId);
+              _piId = _sess.payment_intent;
+            }
+            if (_piId && _piId.startsWith('pi_')) {
+              await stripe.refunds.create({ payment_intent: _piId });
+              await client.query(`UPDATE bookings SET deposit_status = 'refunded' WHERE id = $1`, [bk.id]);
+              if (bk.group_id) {
+                await client.query(
+                  `UPDATE bookings SET deposit_status = 'refunded' WHERE group_id = $1 AND deposit_payment_intent_id = $2 AND id != $3`,
+                  [bk.group_id, bk.deposit_payment_intent_id, bk.id]
+                );
+              }
+            }
+          } catch (stripeErr) {
+            if (stripeErr.code !== 'charge_already_refunded') {
+              console.error('[CONFIRM CRON] Stripe refund failed for', bk.id, ':', stripeErr.message);
+              await client.query(`UPDATE bookings SET deposit_status = 'cancelled' WHERE id = $1`, [bk.id]);
+            }
+          }
+        } else {
+          console.warn('[CONFIRM CRON] Stripe key missing — paid deposit on', bk.id, 'cannot be refunded');
+          await client.query(`UPDATE bookings SET deposit_status = 'cancelled' WHERE id = $1`, [bk.id]);
+        }
       }
 
       // Refund pass sessions
@@ -260,10 +294,13 @@ async function processExpiredPendingBookings() {
         for (const sib of siblings.rows) {
           try {
             const gcPaidSibConf = await getGcPaidCents(sib.id);
+            // Look up actual refund amounts for this sibling so the email banner shows what was really refunded.
+            const _gcRef = await query(`SELECT COALESCE(SUM(amount_cents), 0)::int AS amt FROM gift_card_transactions WHERE booking_id = $1 AND type = 'refund'`, [sib.id]);
+            const _passRef = await query(`SELECT 1 FROM pass_transactions WHERE booking_id = $1 AND type = 'refund' LIMIT 1`, [sib.id]);
             const _adjSibPrice = sib.discount_pct ? Math.round((sib.service_price_cents || 0) * (100 - sib.discount_pct) / 100) : (sib.service_price_cents || 0);
             const { sendCancellationEmail } = require('./email');
             await sendCancellationEmail({
-              booking: { start_at: sib.start_at, end_at: sib.end_at, client_name: sib.client_name, client_email: sib.client_email, service_name: sib.service_name, service_category: sib.service_category, service_price_cents: _adjSibPrice, booked_price_cents: sib.booked_price_cents, discount_pct: sib.discount_pct, duration_min: sib.duration_min, promotion_label: sib.promotion_label, promotion_discount_cents: sib.promotion_discount_cents, promotion_discount_pct: sib.promotion_discount_pct, practitioner_name: sib.practitioner_name, deposit_required: sib.deposit_required, deposit_status: sib.deposit_status, deposit_amount_cents: sib.deposit_amount_cents, deposit_paid_at: sib.deposit_paid_at, deposit_payment_intent_id: sib.deposit_payment_intent_id, gc_paid_cents: gcPaidSibConf },
+              booking: { start_at: sib.start_at, end_at: sib.end_at, client_name: sib.client_name, client_email: sib.client_email, service_name: sib.service_name, service_category: sib.service_category, service_price_cents: _adjSibPrice, booked_price_cents: sib.booked_price_cents, discount_pct: sib.discount_pct, duration_min: sib.duration_min, promotion_label: sib.promotion_label, promotion_discount_cents: sib.promotion_discount_cents, promotion_discount_pct: sib.promotion_discount_pct, practitioner_name: sib.practitioner_name, deposit_required: sib.deposit_required, deposit_status: sib.deposit_status, deposit_amount_cents: sib.deposit_amount_cents, deposit_paid_at: sib.deposit_paid_at, deposit_payment_intent_id: sib.deposit_payment_intent_id, gc_paid_cents: gcPaidSibConf, gc_refunded_cents: _gcRef.rows[0]?.amt || 0, pass_refunded: _passRef.rows.length > 0, cancel_reason: 'Confirmation non reçue dans le délai imparti' },
               business: { name: sib.biz_name, slug: sib.biz_slug, email: sib.biz_email, phone: sib.biz_phone, address: sib.biz_address, theme: sib.biz_theme, settings: sib.biz_settings }
             });
           } catch (e) { console.warn('[CONFIRM CRON] Sibling email error:', e.message); }

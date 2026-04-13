@@ -110,10 +110,20 @@ async function sendCancellationEmail({ booking, business, groupServices }) {
     }
   } else if (depositRetained) {
     const cancelDeadlineH = business.settings?.cancel_deadline_hours ?? 24;
+    // Deposit retention can have several causes — show the right one so we don't lie to the client.
+    const _retReason = booking.deposit_retention_reason; // 'stripe_failure' | 'no_stripe_key' | 'fees_exceed_charge' | undefined
+    let _retText;
+    if (_retReason === 'stripe_failure' || _retReason === 'no_stripe_key') {
+      _retText = `Le remboursement automatique a \u00e9chou\u00e9 pour une raison technique. Contactez le commerce pour la suite.`;
+    } else if (_retReason === 'fees_exceed_charge') {
+      _retText = `Les frais bancaires d\u00e9passent le montant de l'acompte, le remboursement n'est pas possible.`;
+    } else {
+      _retText = `L'annulation a \u00e9t\u00e9 effectu\u00e9e moins de ${cancelDeadlineH}h avant le rendez-vous. Conform\u00e9ment \u00e0 la politique d'annulation, l'acompte n'est pas restituable.`;
+    }
     depositHTML = `
     <div style="background:#FEF3E2;border-radius:8px;padding:12px 16px;margin:16px 0;border-left:3px solid #F59E0B">
       <div style="font-size:14px;color:#92700C;font-weight:600">\u26a0\ufe0f Acompte de ${depAmtStr} \u20ac non rembours\u00e9</div>
-      <div style="font-size:13px;color:#92700C;margin-top:4px">L'annulation a \u00e9t\u00e9 effectu\u00e9e moins de ${cancelDeadlineH}h avant le rendez-vous. Conform\u00e9ment \u00e0 la politique d'annulation, l'acompte n'est pas restituable.</div>
+      <div style="font-size:13px;color:#92700C;margin-top:4px">${_retText}</div>
     </div>`;
   }
 

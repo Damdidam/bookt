@@ -172,6 +172,12 @@ const SECTOR_PRACTITIONER = {
 const _nextSlotCache = {};
 const _minisiteCache = {};
 
+/** Drop the minisite cache entry for a business — call after services/promotions/site mutations. */
+function invalidateMinisiteCache(businessId) {
+  if (!businessId) return;
+  delete _minisiteCache[`minisite_${businessId}`];
+}
+
 // Periodic cache cleanup every 5 min — delete entries older than their TTL
 setInterval(() => {
   const now = Date.now();
@@ -407,6 +413,6 @@ function isDisposableEmail(email) {
 module.exports = {
   UUID_RE, escHtml, stripeRefundDeposit, shouldRequireDeposit,
   computeDepositDeadline, isWithinLastMinuteWindow, SECTOR_PRACTITIONER,
-  _nextSlotCache, _minisiteCache, BASE_URL, validateAndCalcPromo, decrementPromoUsage,
+  _nextSlotCache, _minisiteCache, invalidateMinisiteCache, BASE_URL, validateAndCalcPromo, decrementPromoUsage,
   normalizeEmail, isDisposableEmail
 };

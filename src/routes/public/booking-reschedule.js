@@ -514,6 +514,43 @@ router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) 
       }
     }
 
+    // Sync DRAFT invoices that reference these bookings (sent/paid invoices are immutable — credit note required).
+    {
+      const allIds = (bk.group_id && groupMembers.length > 0) ? groupMembers.map(m => m.id) : [bk.id];
+      const invIdsRes = await client.query(
+        `SELECT DISTINCT i.id
+         FROM invoices i JOIN invoice_items it ON it.invoice_id = i.id
+         WHERE it.booking_id = ANY($1::uuid[]) AND i.status = 'draft'`,
+        [allIds]
+      );
+      for (const iv of invIdsRes.rows) {
+        // Update line totals from current booked_price_cents
+        await client.query(
+          `UPDATE invoice_items it
+           SET unit_price_cents = b.booked_price_cents,
+               total_cents = COALESCE(it.quantity, 1) * b.booked_price_cents
+           FROM bookings b
+           WHERE it.invoice_id = $1 AND it.booking_id = b.id`,
+          [iv.id]
+        );
+        // Recalc subtotal + per-line VAT
+        const itRes = await client.query(
+          `SELECT total_cents, vat_rate FROM invoice_items WHERE invoice_id = $1`, [iv.id]
+        );
+        let _sub = 0, _vat = 0;
+        for (const _it of itRes.rows) {
+          const _t = parseInt(_it.total_cents) || 0;
+          const _r = parseFloat(_it.vat_rate) || 21;
+          _sub += _t;
+          _vat += Math.round(_t * _r / (100 + _r));
+        }
+        await client.query(
+          `UPDATE invoices SET subtotal_cents = $1, vat_amount_cents = $2, total_cents = $1, updated_at = NOW() WHERE id = $3`,
+          [_sub, _vat, iv.id]
+        );
+      }
+    }
+
     // Audit log
     await client.query(
       `INSERT INTO audit_logs (business_id, entity_type, entity_id, action, actor_user_id, old_data, new_data)

@@ -5,6 +5,15 @@
 const router = require('express').Router();
 const { queryWithRLS } = require('../../services/db');
 const { requireAuth, requireOwner, requirePro } = require('../../middleware/auth');
+const { invalidateMinisiteCache } = require('../public/helpers');
+
+// Drop the public minisite cache after every successful mutation on promotions.
+router.use((req, res, next) => {
+  if (['POST', 'PATCH', 'PUT', 'DELETE'].includes(req.method)) {
+    res.on('finish', () => { if (res.statusCode < 400 && req.businessId) invalidateMinisiteCache(req.businessId); });
+  }
+  next();
+});
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

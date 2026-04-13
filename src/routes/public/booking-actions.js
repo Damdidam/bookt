@@ -1387,21 +1387,29 @@ router.post('/booking/:token/confirm-booking', async (req, res, next) => {
             groupServices
           });
 
-          // SMS confirmation (pro plan)
+          // SMS confirmation (pro plan) — skip if already sent (e.g. confirm channel='both' SMS sent at booking time)
           if (row.client_phone && row.biz_plan !== 'free') {
             try {
-              const { sendSMS } = require('../../services/sms');
-              const { BASE_URL } = require('./helpers');
-              const manageUrl = `${BASE_URL}/booking/${row.public_token}`;
-              const _sd2 = new Date(row.start_at);
-              const _sDate2 = _sd2.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
-              const _sTime2 = _sd2.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
-              const _svcLabel2 = groupServices && groupServices.length > 1
-                ? `${groupServices[0].name} +${groupServices.length - 1}`
-                : row.service_name || 'RDV';
-              let smsBody = `${row.biz_name} : RDV "${_svcLabel2}" confirmé le ${_sDate2} à ${_sTime2}${row.practitioner_name ? ' avec ' + row.practitioner_name : ''}. Gérer : ${manageUrl}`;
-              if (smsBody.length > 160) smsBody = `RDV "${_svcLabel2}" confirmé le ${_sDate2} à ${_sTime2}. Gérer : ${manageUrl}`;
-              await sendSMS({ to: row.client_phone, body: smsBody, businessId: row.business_id, clientId: row.client_id });
+              const _alreadySent = await query(
+                `SELECT 1 FROM notifications WHERE booking_id = $1 AND type = 'sms_confirmation' AND status = 'sent' LIMIT 1`,
+                [row.id]
+              );
+              if (_alreadySent.rows.length === 0) {
+                const { sendSMS } = require('../../services/sms');
+                const { BASE_URL } = require('./helpers');
+                const manageUrl = `${BASE_URL}/booking/${row.public_token}`;
+                const _sd2 = new Date(row.start_at);
+                const _sDate2 = _sd2.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
+                const _sTime2 = _sd2.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
+                const _svcLabel2 = groupServices && groupServices.length > 1
+                  ? `${groupServices[0].name} +${groupServices.length - 1}`
+                  : row.service_name || 'RDV';
+                let smsBody = `${row.biz_name} : RDV "${_svcLabel2}" confirmé le ${_sDate2} à ${_sTime2}${row.practitioner_name ? ' avec ' + row.practitioner_name : ''}. Gérer : ${manageUrl}`;
+                if (smsBody.length > 160) smsBody = `RDV "${_svcLabel2}" confirmé le ${_sDate2} à ${_sTime2}. Gérer : ${manageUrl}`;
+                const _smsRes = await sendSMS({ to: row.client_phone, body: smsBody, businessId: row.business_id, clientId: row.client_id });
+                try { await query(`INSERT INTO notifications (business_id, booking_id, type, recipient_phone, status, sent_at, error) VALUES ($1,$2,'sms_confirmation',$3,$4,NOW(),$5)`,
+                  [row.business_id, row.id, row.client_phone, _smsRes.success ? 'sent' : (_smsRes.skipped ? 'skipped' : 'failed'), _smsRes.error || null]); } catch (_) {}
+              }
             } catch (smsErr) { console.warn('[SMS] Post-confirm SMS error:', smsErr.message); }
           }
         }
