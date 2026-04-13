@@ -2773,6 +2773,12 @@ async function submitBooking(){
     const data=await res.json();
     if(!res.ok)throw new Error(data.error||'Erreur lors de la réservation');
 
+    // R1 fix: backend assigns split practitioners silently for multi-service bookings
+    // when no single practitioner is available — alert the client so they're not surprised.
+    if(data.auto_split_assigned){
+      try{window.GendaUI?.toast?.('Vos prestations ont été réparties entre plusieurs praticiens disponibles.','info',6000);}catch(_){}
+    }
+
     // Send quote request if any service is quote_only
     var _anyQuote=multiServiceMode?selectedServices.some(function(s){return s.quote_only;}):selectedService&&selectedService.quote_only;
     if(_anyQuote){
