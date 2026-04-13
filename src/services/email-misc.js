@@ -108,7 +108,7 @@ async function sendReviewRequestEmail({ booking, business }) {
 
   const bodyHTML = `
     <p>Bonjour ${firstName},</p>
-    <p>Merci d'avoir choisi <strong>${safeBizName}</strong> pour ${serviceName}${rdvDateStr}${practitioner}${booking.service_price_cents ? ' (' + (booking.service_price_cents / 100).toFixed(2).replace('.', ',') + '\u00a0\u20ac)' : ''}. Nous espérons que vous avez pass\u00e9 un agr\u00e9able moment !</p>
+    <p>Merci d'avoir choisi <strong>${safeBizName}</strong> pour ${serviceName}${rdvDateStr}${practitioner}${(booking.booked_price_cents ?? booking.service_price_cents) ? ' (' + ((booking.booked_price_cents ?? booking.service_price_cents) / 100).toFixed(2).replace('.', ',') + '\u00a0\u20ac)' : ''}. Nous espérons que vous avez pass\u00e9 un agr\u00e9able moment !</p>
     <p style="margin:20px 0 8px;font-weight:600">Comment évalueriez-vous votre expérience ?</p>
     <div style="text-align:center;margin:16px 0">${starsHTML}</div>
     <p style="color:#9C958E;font-size:13px;text-align:center">Cliquez sur les étoiles ou sur le bouton ci-dessous pour donner votre avis.</p>

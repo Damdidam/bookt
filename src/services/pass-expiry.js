@@ -41,7 +41,8 @@ async function processExpiredPasses() {
 
       const html = buildEmailHTML({
         title: 'Pass expir\u00e9',
-        preheader: `Votre pass "${escHtml(pass.name || 'Pass')}" a expir\u00e9`,
+        // H7 fix: preheader escaped inside buildEmailHTML — pass raw
+        preheader: `Votre pass "${pass.name || 'Pass'}" a expir\u00e9`,
         bodyHTML,
         businessName: biz_name,
         primaryColor: color,

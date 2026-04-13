@@ -631,6 +631,8 @@ router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) 
                 const adjP = g.discount_pct && g.price_cents ? Math.round(g.price_cents * (100 - g.discount_pct) / 100) : (g.price_cents || 0);
                 return {
                   name: g.name, duration_min: g.duration_min, price_cents: adjP,
+                  // H5 fix: forward original price so multi-service LM appears as crossed-out in email
+                  original_price_cents: g.price_cents || 0,
                   practitioner_name: hasSplitPrac ? g.practitioner_name : null,
                   start_at: g.start_at, end_at: g.end_at
                 };

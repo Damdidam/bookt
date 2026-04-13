@@ -269,14 +269,37 @@ async function processExpiredDeposits() {
              AND c.email IS NOT NULL`,
           [cancelled.group_id, cancelled.business_id, cancelled.id, cancelled.client_id]
         );
+        // H6/H8 parity fix: compute groupServices once per cancelled.group_id so siblings see the full combo
+        let _sibGroupServicesExp = null;
+        const _sibGrpExp = await query(
+          `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' \u2014 ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
+                  COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                  COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at,
+                  b.practitioner_id, p.display_name AS practitioner_name, b.discount_pct
+           FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+           LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+           LEFT JOIN practitioners p ON p.id = b.practitioner_id
+           WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
+          [cancelled.group_id, cancelled.business_id]
+        );
+        if (_sibGrpExp.rows.length > 1) {
+          const _sibPIdsExp = new Set(_sibGrpExp.rows.map(r => r.practitioner_id));
+          if (_sibPIdsExp.size <= 1) _sibGrpExp.rows.forEach(r => { r.practitioner_name = null; });
+          _sibGrpExp.rows.forEach(r => { if (r.discount_pct && r.price_cents) { r.original_price_cents = r.price_cents; r.price_cents = Math.round(r.price_cents * (100 - r.discount_pct) / 100); } });
+          _sibGroupServicesExp = _sibGrpExp.rows;
+        }
         for (const sib of siblings.rows) {
           try {
             const gcPaidSib = await getGcPaidCents(sib.id);
+            // H8 fix: lookup actual refunds + cancel_reason so sibling email matches primary cron
+            const _gcRefSibExp = await query(`SELECT COALESCE(SUM(amount_cents), 0)::int AS amt FROM gift_card_transactions WHERE booking_id = $1 AND type = 'refund'`, [sib.id]);
+            const _passRefSibExp = await query(`SELECT 1 FROM pass_transactions WHERE booking_id = $1 AND type = 'refund' LIMIT 1`, [sib.id]);
             const _adjSibPriceExp = sib.discount_pct ? Math.round((sib.service_price_cents || 0) * (100 - sib.discount_pct) / 100) : (sib.service_price_cents || 0);
             const { sendCancellationEmail } = require('./email');
             await sendCancellationEmail({
-              booking: { start_at: sib.start_at, end_at: sib.end_at, client_name: sib.client_name, client_email: sib.client_email, service_name: sib.service_name, service_category: sib.service_category, service_price_cents: _adjSibPriceExp, booked_price_cents: sib.booked_price_cents, discount_pct: sib.discount_pct, duration_min: sib.duration_min, practitioner_name: sib.practitioner_name, deposit_required: sib.deposit_required, deposit_status: sib.deposit_status, deposit_amount_cents: sib.deposit_amount_cents, deposit_paid_at: sib.deposit_paid_at, deposit_payment_intent_id: sib.deposit_payment_intent_id, gc_paid_cents: gcPaidSib, promotion_label: sib.promotion_label, promotion_discount_cents: sib.promotion_discount_cents, promotion_discount_pct: sib.promotion_discount_pct },
-              business: { name: sib.biz_name, slug: sib.biz_slug, email: sib.biz_email, phone: sib.biz_phone, address: sib.biz_address, theme: sib.biz_theme, settings: sib.biz_settings }
+              booking: { start_at: sib.start_at, end_at: sib.end_at, client_name: sib.client_name, client_email: sib.client_email, service_name: sib.service_name, service_category: sib.service_category, service_price_cents: _adjSibPriceExp, booked_price_cents: sib.booked_price_cents, discount_pct: sib.discount_pct, duration_min: sib.duration_min, practitioner_name: sib.practitioner_name, deposit_required: sib.deposit_required, deposit_status: sib.deposit_status, deposit_amount_cents: sib.deposit_amount_cents, deposit_paid_at: sib.deposit_paid_at, deposit_payment_intent_id: sib.deposit_payment_intent_id, gc_paid_cents: gcPaidSib, gc_refunded_cents: _gcRefSibExp.rows[0]?.amt || 0, pass_refunded: _passRefSibExp.rows.length > 0, promotion_label: sib.promotion_label, promotion_discount_cents: sib.promotion_discount_cents, promotion_discount_pct: sib.promotion_discount_pct, cancel_reason: 'Acompte non payé dans le délai imparti' },
+              business: { name: sib.biz_name, slug: sib.biz_slug, email: sib.biz_email, phone: sib.biz_phone, address: sib.biz_address, theme: sib.biz_theme, settings: sib.biz_settings },
+              groupServices: _sibGroupServicesExp
             });
           } catch (e) { console.warn('[DEPOSIT CRON] Sibling email error:', e.message); }
         }

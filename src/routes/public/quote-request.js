@@ -162,7 +162,8 @@ router.post('/:slug/quote-request', bookingLimiter, async (req, res, next) => {
 
       const ownerHtml = buildEmailHTML({
         title: 'Nouvelle demande de devis',
-        preheader: `${escHtml(client_name)} — ${escHtml(svc.name)}`,
+        // H7 fix: preheader escaped inside buildEmailHTML — pass raw
+        preheader: `${client_name} — ${svc.name}`,
         bodyHTML,
         ctaText: 'Répondre au client',
         ctaUrl: `mailto:${client_email}?subject=${encodeURIComponent('Votre demande de devis — ' + svc.name)}`,

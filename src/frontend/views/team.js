@@ -1091,7 +1091,7 @@ async function closeInviteModal() {
   await closeModal('inviteModalOverlay');
 }
 
-function generateTempPwd() { const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'; let pwd = ''; for (let i = 0; i < 10; i++) pwd += chars[Math.floor(Math.random() * chars.length)]; return pwd; }
+function generateTempPwd() { const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'; const buf = new Uint8Array(10); (window.crypto || window.msCrypto).getRandomValues(buf); let pwd = ''; for (let i = 0; i < 10; i++) pwd += chars[buf[i] % chars.length]; return pwd; }
 
 async function sendInvite(practId) {
   const email = document.getElementById('inv_email').value;

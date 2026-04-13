@@ -472,6 +472,10 @@ router.patch('/:id/status', async (req, res, next) => {
           } else if (dep.deposit_status === 'waived') {
             // C1 fix: waived deposit — no Stripe refund needed, but pass/GC must still be refunded
             newDepStatus = 'cancelled';
+          } else if (dep.deposit_status === 'refunded' || dep.deposit_status === 'cancelled') {
+            // H2 fix: terminal state already — keep status, but still trigger downstream GC/pass refund
+            // (covers restore-then-re-cancel where deposit was already settled in a prior cycle).
+            newDepStatus = dep.deposit_status;
           }
           // ===== Stripe refund: inside TX intentionally =====
           // H6 note: Keeping Stripe call inside the transaction is safer than post-commit.

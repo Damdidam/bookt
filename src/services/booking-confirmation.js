@@ -315,6 +315,25 @@ async function processExpiredPendingBookings() {
              AND c.email IS NOT NULL`,
           [cancelled.group_id, cancelled.business_id, cancelled.id, cancelled.client_id]
         );
+        // H6 fix: compute groupServices once per cancelled.group_id so siblings see the full combo too
+        let _sibGroupServices = null;
+        const _sibGrp = await query(
+          `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' \u2014 ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
+                  COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                  COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at,
+                  b.practitioner_id, p.display_name AS practitioner_name, b.discount_pct
+           FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+           LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+           LEFT JOIN practitioners p ON p.id = b.practitioner_id
+           WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
+          [cancelled.group_id, cancelled.business_id]
+        );
+        if (_sibGrp.rows.length > 1) {
+          const _sibPIds = new Set(_sibGrp.rows.map(r => r.practitioner_id));
+          if (_sibPIds.size <= 1) _sibGrp.rows.forEach(r => { r.practitioner_name = null; });
+          _sibGrp.rows.forEach(r => { if (r.discount_pct && r.price_cents) { r.original_price_cents = r.price_cents; r.price_cents = Math.round(r.price_cents * (100 - r.discount_pct) / 100); } });
+          _sibGroupServices = _sibGrp.rows;
+        }
         for (const sib of siblings.rows) {
           try {
             const gcPaidSibConf = await getGcPaidCents(sib.id);
@@ -325,7 +344,8 @@ async function processExpiredPendingBookings() {
             const { sendCancellationEmail } = require('./email');
             await sendCancellationEmail({
               booking: { start_at: sib.start_at, end_at: sib.end_at, client_name: sib.client_name, client_email: sib.client_email, service_name: sib.service_name, service_category: sib.service_category, service_price_cents: _adjSibPrice, booked_price_cents: sib.booked_price_cents, discount_pct: sib.discount_pct, duration_min: sib.duration_min, promotion_label: sib.promotion_label, promotion_discount_cents: sib.promotion_discount_cents, promotion_discount_pct: sib.promotion_discount_pct, practitioner_name: sib.practitioner_name, deposit_required: sib.deposit_required, deposit_status: sib.deposit_status, deposit_amount_cents: sib.deposit_amount_cents, deposit_paid_at: sib.deposit_paid_at, deposit_payment_intent_id: sib.deposit_payment_intent_id, gc_paid_cents: gcPaidSibConf, gc_refunded_cents: _gcRef.rows[0]?.amt || 0, pass_refunded: _passRef.rows.length > 0, cancel_reason: 'Confirmation non reçue dans le délai imparti' },
-              business: { name: sib.biz_name, slug: sib.biz_slug, email: sib.biz_email, phone: sib.biz_phone, address: sib.biz_address, theme: sib.biz_theme, settings: sib.biz_settings }
+              business: { name: sib.biz_name, slug: sib.biz_slug, email: sib.biz_email, phone: sib.biz_phone, address: sib.biz_address, theme: sib.biz_theme, settings: sib.biz_settings },
+              groupServices: _sibGroupServices
             });
           } catch (e) { console.warn('[CONFIRM CRON] Sibling email error:', e.message); }
         }

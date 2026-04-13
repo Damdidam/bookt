@@ -47,7 +47,8 @@ async function processExpiredGiftCards() {
 
       const html = buildEmailHTML({
         title: 'Carte cadeau expir\u00e9e',
-        preheader: `Votre carte cadeau ${escHtml(gc.code || '')} a expir\u00e9`,
+        // H7 fix: preheader is escaped inside buildEmailHTML — passing pre-escaped text would double-escape
+        preheader: `Votre carte cadeau ${gc.code || ''} a expir\u00e9`,
         bodyHTML,
         businessName: biz_name,
         primaryColor: color,
@@ -131,6 +132,7 @@ async function processGiftCardExpiryWarnings() {
 
       const html = buildEmailHTML({
         title: 'Carte cadeau bient\u00f4t expir\u00e9e',
+        // H7 fix: passed raw — buildEmailHTML escapes
         preheader: `Votre carte cadeau expire le ${expDate} \u2014 solde ${balanceStr}`,
         bodyHTML,
         businessName: biz_name,
