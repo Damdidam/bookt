@@ -225,7 +225,8 @@ async function getNextInvoiceNumber(queryFn, businessId, type) {
     seq = parseInt(parts[parts.length - 1]) + 1;
   }
 
-  return `${prefix}-${year}-${String(seq).padStart(4, '0')}`;
+  // Pad to 6 digits — supports up to 999 999 invoices/year without lex-sort drift on MAX(invoice_number)
+  return `${prefix}-${year}-${String(seq).padStart(6, '0')}`;
 }
 
 function formatMoney(cents) {

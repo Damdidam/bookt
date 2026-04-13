@@ -218,7 +218,7 @@ router.post('/:id/refund', async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
-    const { amount_cents, note } = req.body;
+    const { amount_cents, note, booking_id } = req.body;
 
     if (!amount_cents || amount_cents <= 0) {
       return res.status(400).json({ error: 'Montant invalide' });
@@ -241,10 +241,11 @@ router.post('/:id/refund', async (req, res, next) => {
         [newBalance, id]
       );
 
+      // Link transaction to a booking if the staff specified one — improves audit trail.
       await client.query(
-        `INSERT INTO gift_card_transactions (gift_card_id, business_id, amount_cents, type, note, created_by)
-         VALUES ($1, $2, $3, 'refund', $4, $5)`,
-        [id, bid, amount_cents, note || 'Remboursement', req.user.id]
+        `INSERT INTO gift_card_transactions (gift_card_id, business_id, booking_id, amount_cents, type, note, created_by)
+         VALUES ($1, $2, $3, $4, 'refund', $5, $6)`,
+        [id, bid, booking_id || null, amount_cents, note || 'Remboursement', req.user.id]
       );
 
       return { ...card, balance_cents: newBalance, status: 'active' };

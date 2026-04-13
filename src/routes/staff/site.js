@@ -149,13 +149,11 @@ router.post('/specializations', async (req, res, next) => {
         [practitioner_ids, req.businessId]
       );
       const validIds = validPracs.rows.map(r => r.id);
-      for (const pid of validIds) {
-        await queryWithRLS(req.businessId,
+      await Promise.all(validIds.map(pid => queryWithRLS(req.businessId,
           `INSERT INTO practitioner_specializations (practitioner_id, specialization_id)
            VALUES ($1, $2) ON CONFLICT DO NOTHING`,
           [pid, result.rows[0].id]
-        );
-      }
+        )));
     }
 
     res.status(201).json({ specialization: result.rows[0] });
@@ -194,13 +192,11 @@ router.patch('/specializations/:id', async (req, res, next) => {
           [pidsToLink, req.businessId]
         );
         const validIds = validPracs.rows.map(r => r.id);
-        for (const pid of validIds) {
-          await queryWithRLS(req.businessId,
+        await Promise.all(validIds.map(pid => queryWithRLS(req.businessId,
             `INSERT INTO practitioner_specializations (practitioner_id, specialization_id)
              VALUES ($1, $2)`,
             [pid, req.params.id]
-          );
-        }
+          )));
       }
     }
 

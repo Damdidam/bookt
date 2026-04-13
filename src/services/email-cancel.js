@@ -108,6 +108,13 @@ async function sendCancellationEmail({ booking, business, groupServices }) {
       <div style="font-size:13px;color:#15803D;margin-top:4px">Votre acompte vous sera restitu\u00e9 sous quelques jours ouvrables.</div>
     </div>`;
     }
+  } else if (hadDeposit && !wasPaid) {
+    // Expiration / cancel before deposit payment — show explicit banner so client knows it wasn't an oversight.
+    depositHTML = `
+    <div style="background:#FEF3E2;border-radius:8px;padding:12px 16px;margin:16px 0;border-left:3px solid #F59E0B">
+      <div style="font-size:14px;color:#92700C;font-weight:600">\u26a0\ufe0f Acompte de ${depAmtStr}\u00a0\u20ac non r\u00e9gl\u00e9 dans le d\u00e9lai imparti</div>
+      <div style="font-size:13px;color:#92700C;margin-top:4px">Aucun pr\u00e9l\u00e8vement n'a \u00e9t\u00e9 effectu\u00e9 sur votre carte. Vous pouvez reprendre rendez-vous quand vous le souhaitez.</div>
+    </div>`;
   } else if (depositRetained) {
     const cancelDeadlineH = business.settings?.cancel_deadline_hours ?? 24;
     // Deposit retention can have several causes — show the right one so we don't lie to the client.

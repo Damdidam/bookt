@@ -517,7 +517,12 @@ async function cancelBooking() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ reason })
     });
-    if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
+    if (!res.ok) {
+      const d = await res.json();
+      // Idempotency: 409 = already cancelled. Reload to reflect the actual state instead of showing an error.
+      if (res.status === 409) { loadBooking(); return; }
+      throw new Error(d.error);
+    }
     loadBooking();
   } catch (err) {
     btn.disabled = false; btn.textContent = 'Annuler mon rendez-vous';

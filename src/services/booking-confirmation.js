@@ -197,16 +197,14 @@ async function processExpiredPendingBookings() {
     }
 
     // H3 fix: Delete external calendar events for cancelled bookings
-    for (const cancelled of cancelledBookingIds) {
-      try { await calSyncDelete(cancelled.business_id, cancelled.id); } catch (_) {}
-    }
-
-    // M3 fix: Queue pro notification for auto-expired bookings
-    for (const cancelled of cancelledBookingIds) {
-      try {
-        await query(`INSERT INTO notifications (business_id, booking_id, type, status) VALUES ($1, $2, 'email_cancellation_pro', 'queued')`, [cancelled.business_id, cancelled.id]);
-      } catch (e) { console.warn('[CONFIRM CRON] Pro notification queue error:', e.message); }
-    }
+    // calSyncDelete + pro notif queueing in parallel — independent rows
+    await Promise.all(cancelledBookingIds.map(cancelled =>
+      calSyncDelete(cancelled.business_id, cancelled.id).catch(() => {})
+    ));
+    await Promise.all(cancelledBookingIds.map(cancelled =>
+      query(`INSERT INTO notifications (business_id, booking_id, type, status) VALUES ($1, $2, 'email_cancellation_pro', 'queued')`, [cancelled.business_id, cancelled.id])
+        .catch(e => console.warn('[CONFIRM CRON] Pro notification queue error:', e.message))
+    ));
 
     // Send cancellation emails AFTER commit (non-blocking)
     for (const { id: bkId, _gcRefunded, _passRefunded } of cancelledBookingIds) {

@@ -230,8 +230,8 @@ router.patch('/businesses/:id', async (req, res, next) => {
     );
 
     if (result.rows.length === 0) return res.status(404).json({ error: 'Business not found' });
-    // ST-12: Audit trail for admin actions
-    console.log(`[ADMIN AUDIT] User ${req.user.id} updated business ${req.params.id}: ${JSON.stringify(req.body)}`);
+    // ST-12: Audit trail — log only the field names, not values, to avoid leaking secrets/PII into logs.
+    console.log(`[ADMIN AUDIT] User ${req.user.id} updated business ${req.params.id}: fields=${Object.keys(req.body || {}).join(',')}`);
     res.json(result.rows[0]);
   } catch (err) { next(err); }
 });
