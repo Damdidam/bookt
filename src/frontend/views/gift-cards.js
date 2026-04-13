@@ -339,12 +339,14 @@ async function refundGiftCard(id){
 
   const modal=document.createElement('div');
   modal.className='m-overlay open';modal.id='gcRefundModal';
+  const _isUsed = gc.status === 'used';
   modal.innerHTML=`<div class="m-dialog m-sm">
     <div class="m-header-simple">
       <h3>Rembourser — ${esc(gc.code)}</h3>
       <button class="m-close" onclick="closeModal('gcRefundModal')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="m-body">
+      ${_isUsed ? `<div style="background:#FEF3E2;border-left:3px solid #F59E0B;padding:10px 12px;margin-bottom:12px;border-radius:6px;font-size:.82rem;color:#92700C"><strong>Attention :</strong> cette carte a été entièrement utilisée. Vérifiez que le remboursement est légitime avant de continuer.</div>` : ''}
       <div style="margin-bottom:14px;padding:12px;background:var(--surface);border-radius:var(--radius-xs)">
         <div style="display:flex;justify-content:space-between;font-size:.82rem">
           <span style="color:var(--text-3)">Montant initial</span><span style="font-weight:600">${fmtEur(gc.amount_cents)}</span>

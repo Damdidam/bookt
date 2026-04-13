@@ -535,31 +535,31 @@ body.theme-dark .promo-banner-arrow{background:rgba(30,30,30,.9);border-color:va
     <!-- Form fields (hidden in soft-mandatory mode until manual click or OAuth done) -->
     <div id="clientFormFields" style="display:none">
     <div class="fg">
-      <label class="fl">Prénom et nom *</label>
-      <input class="fi" id="cName" placeholder="Marie Dupont" autocomplete="name" inputmode="text">
-      <div class="field-err" id="errName"></div>
+      <label class="fl" for="cName">Prénom et nom *</label>
+      <input class="fi" type="text" id="cName" placeholder="Marie Dupont" autocomplete="name" inputmode="text">
+      <div class="field-err" id="errName" role="alert" aria-live="polite"></div>
     </div>
     <div class="fg">
-      <label class="fl">Téléphone mobile *</label>
+      <label class="fl" for="cPhone">Téléphone mobile *</label>
       <div class="phone-wrap">
-        <select id="cPhonePrefix" class="phone-prefix" onchange="onPhonePrefixChange()">
+        <select id="cPhonePrefix" class="phone-prefix" aria-label="Indicatif pays" onchange="onPhonePrefixChange()">
           <option value="+32" selected>🇧🇪 +32</option>
           <option value="+33">🇫🇷 +33</option>
           <option value="+352">🇱🇺 +352</option>
         </select>
-        <input class="fi" id="cPhone" placeholder="4XX XX XX XX" autocomplete="tel" inputmode="tel" maxlength="15">
+        <input class="fi" type="tel" id="cPhone" placeholder="4XX XX XX XX" autocomplete="tel" inputmode="tel" maxlength="15">
       </div>
       <div class="field-hint">Format mobile selon le pays sélectionné</div>
-      <div class="field-err" id="errPhone"></div>
+      <div class="field-err" id="errPhone" role="alert" aria-live="polite"></div>
     </div>
     <div class="fg">
-      <label class="fl">Email *</label>
-      <input class="fi" id="cEmail" placeholder="marie@example.com" autocomplete="email" inputmode="email">
-      <div class="field-err" id="errEmail"></div>
+      <label class="fl" for="cEmail">Email *</label>
+      <input class="fi" type="email" id="cEmail" placeholder="marie@example.com" autocomplete="email" inputmode="email">
+      <div class="field-err" id="errEmail" role="alert" aria-live="polite"></div>
     </div>
 
     <div class="fg">
-      <label class="fl">Remarque <span class="opt">(optionnel)</span></label>
+      <label class="fl" for="cComment">Remarque <span class="opt">(optionnel)</span></label>
       <textarea class="fi ft" id="cComment" maxlength="500" placeholder="Informations utiles pour le praticien..."></textarea>
       <div id="cCommentCount" style="text-align:right;font-size:.7rem;color:#9CA3AF;margin-top:2px"></div>
     </div>

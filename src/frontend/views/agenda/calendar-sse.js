@@ -6,12 +6,24 @@ import { gToast } from '../../utils/dom.js';
 import { fcRefresh } from './calendar-init.js';
 import { IC } from '../../utils/icons.js';
 
+// Debounce fcRefresh so a burst of booking_update events triggers one refetch
+let _fcRefreshTimer = null;
+function _fcRefreshDebounced() {
+  if (_fcRefreshTimer) clearTimeout(_fcRefreshTimer);
+  _fcRefreshTimer = setTimeout(() => { _fcRefreshTimer = null; fcRefresh(); }, 250);
+}
+
 function setupSSE() {
   if (window.fcEventSource) { try { window.fcEventSource.close(); } catch (e) { /* ignore */ } }
   try {
     window.fcEventSource = new EventSource('/api/events/stream?token=' + encodeURIComponent(api.getToken()));
+    let _hadError = false;
+    window.fcEventSource.addEventListener('open', function () {
+      // After a reconnect, replay any events we may have missed by forcing a full refresh
+      if (_hadError) { _hadError = false; _fcRefreshDebounced(); }
+    });
     window.fcEventSource.addEventListener('booking_update', function () {
-      fcRefresh();
+      _fcRefreshDebounced();
     });
     window.fcEventSource.addEventListener('waitlist_match', function (ev) {
       try {
@@ -31,12 +43,13 @@ function setupSSE() {
       } catch (e) { /* ignore parse errors */ }
     });
     window.fcEventSource.onerror = function () {
+      _hadError = true;
       // If token is expired, stop SSE reconnection loop and redirect to login
       if (!api.isLoggedIn()) {
         window.fcEventSource.close();
         window.location.href = '/login.html?expired=1';
       }
-      // Otherwise browser auto-reconnects
+      // Otherwise browser auto-reconnects, and 'open' handler triggers a refresh to catch missed events
     };
   } catch (e) { /* ignore SSE setup errors */ }
 }

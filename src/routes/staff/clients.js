@@ -181,34 +181,48 @@ router.post('/import', async (req, res, next) => {
     );
     const existingEmails = new Set(existing.rows.map(r => r.email).filter(Boolean));
 
+    const _emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     let imported = 0, skipped = 0;
-    for (const c of clients) {
-      const name = (c.full_name || '').trim();
-      if (!name) { skipped++; continue; }
-      const rawPhone = (c.phone || '').trim();
-      // Normalize to E.164 (BE default — supports BE/FR/LU). Returns null on invalid.
-      const phone = rawPhone ? normalizeE164(rawPhone, 'BE') : null;
-      const email = (c.email || '').trim() || null;
+    const errors = []; // { line, reason } for the frontend preview
+    // Wrap the entire batch in a single transaction so a fatal error rolls back partial inserts.
+    await transactionWithRLS(bid, async (txClient) => {
+      for (let i = 0; i < clients.length; i++) {
+        const c = clients[i];
+        const line = i + 1; // 1-indexed for user display
+        const name = (c.full_name || '').trim();
+        if (!name) { skipped++; errors.push({ line, reason: 'nom manquant' }); continue; }
+        const rawPhone = (c.phone || '').trim();
+        if (rawPhone && !normalizeE164(rawPhone, 'BE')) {
+          skipped++; errors.push({ line, reason: 'téléphone invalide (formats BE/FR/LU)' }); continue;
+        }
+        const phone = rawPhone ? normalizeE164(rawPhone, 'BE') : null;
+        const email = (c.email || '').trim() || null;
+        if (email && !_emailRe.test(email)) {
+          skipped++; errors.push({ line, reason: 'email invalide' }); continue;
+        }
 
-      // Skip duplicates by E.164 phone or email
-      if (phone && existingPhones.has(phone)) { skipped++; continue; }
-      if (email && existingEmails.has(email.toLowerCase())) { skipped++; continue; }
+        // Dedup
+        if (phone && existingPhones.has(phone)) { skipped++; errors.push({ line, reason: 'doublon (téléphone)' }); continue; }
+        if (email && existingEmails.has(email.toLowerCase())) { skipped++; errors.push({ line, reason: 'doublon (email)' }); continue; }
 
-      try {
-        await queryWithRLS(bid,
-          `INSERT INTO clients (business_id, full_name, phone, email) VALUES ($1, $2, $3, $4)`,
-          [bid, name, phone, email]
-        );
-        if (phone) existingPhones.add(phone);
-        if (email) existingEmails.add(email.toLowerCase());
-        imported++;
-      } catch (e) {
-        if (e.code === '23505') { skipped++; continue; } // unique constraint = skip
-        throw e;
+        try {
+          await txClient.query(
+            `INSERT INTO clients (business_id, full_name, phone, email) VALUES ($1, $2, $3, $4)`,
+            [bid, name, phone, email]
+          );
+          if (phone) existingPhones.add(phone);
+          if (email) existingEmails.add(email.toLowerCase());
+          imported++;
+        } catch (e) {
+          if (e.code === '23505') {
+            skipped++; errors.push({ line, reason: 'doublon DB' }); continue;
+          }
+          throw e; // bubble up — transaction rollbacks
+        }
       }
-    }
+    });
 
-    res.json({ imported, skipped, total: clients.length });
+    res.json({ imported, skipped, total: clients.length, errors: errors.slice(0, 50) });
   } catch (err) {
     next(err);
   }

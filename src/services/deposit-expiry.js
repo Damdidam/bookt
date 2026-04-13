@@ -181,12 +181,11 @@ async function processExpiredDeposits() {
       try { await calSyncDelete(cancelled.business_id, cancelled.id); } catch (_) {}
     }
 
-    // M3 fix: Queue pro notification for auto-expired bookings
-    for (const cancelled of cancelledBookingIds) {
-      try {
-        await query(`INSERT INTO notifications (business_id, booking_id, type, status) VALUES ($1, $2, 'email_cancellation_pro', 'queued')`, [cancelled.business_id, cancelled.id]);
-      } catch (e) { console.warn('[DEPOSIT CRON] Pro notification queue error:', e.message); }
-    }
+    // M3 fix: Queue pro notifications in parallel — each row independent
+    await Promise.all(cancelledBookingIds.map(cancelled =>
+      query(`INSERT INTO notifications (business_id, booking_id, type, status) VALUES ($1, $2, 'email_cancellation_pro', 'queued')`, [cancelled.business_id, cancelled.id])
+        .catch(e => console.warn('[DEPOSIT CRON] Pro notification queue error:', e.message))
+    ));
 
     // Send cancellation emails AFTER commit (non-blocking)
     for (const { id: bkId, _gcRefunded, _passRefunded } of cancelledBookingIds) {

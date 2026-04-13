@@ -51,7 +51,7 @@ router.post('/login', authLimiter, async (req, res, next) => {
       const token = jwt.sign(
         { userId: user.id, businessId: user.business_id },
         process.env.JWT_SECRET,
-        { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
+        { expiresIn: process.env.JWT_EXPIRES_IN || '8h' }
       );
 
       await query('UPDATE users SET last_login_at = NOW() WHERE id = $1', [user.id]);
@@ -169,7 +169,7 @@ router.post('/verify', authLimiter, async (req, res, next) => {
     const jwtToken = jwt.sign(
       { userId: user_id, businessId: ml.business_id },
       process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
+      { expiresIn: process.env.JWT_EXPIRES_IN || '8h' }
     );
 
     // Fetch practitioner link + sector + category

@@ -475,17 +475,15 @@ async function pullBusyTimes(connection, startDate, endDate, queryFn) {
     });
   }
 
-  // Upsert events
-  for (const ev of events) {
-    await queryFn(
+  // Upsert events in parallel — independent rows
+  await Promise.all(events.map(ev => queryFn(
       `INSERT INTO calendar_events (connection_id, external_event_id, title, start_at, end_at, is_busy, direction)
        VALUES ($1, $2, $3, $4, $5, $6, 'pull')
        ON CONFLICT (connection_id, external_event_id) DO UPDATE SET
          title = EXCLUDED.title, start_at = EXCLUDED.start_at, end_at = EXCLUDED.end_at,
          is_busy = EXCLUDED.is_busy, synced_at = NOW()`,
       [connection.id, ev.external_event_id, ev.title, ev.start_at, ev.end_at, ev.is_busy]
-    );
-  }
+    )));
 
   // Clean up stale events: delete pulled calendar_events for this connection
   // that are within the pulled date range but no longer appear in the external calendar

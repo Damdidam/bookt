@@ -297,17 +297,15 @@ router.post('/holidays/prefill', requireOwner, async (req, res, next) => {
     const year = parseInt(req.body.year) || new Date().getFullYear();
     const holidays = getBelgianHolidays(year);
 
-    let inserted = 0;
-    for (const h of holidays) {
-      const result = await queryWithRLS(bid,
+    // Insert in parallel — each row independent
+    const _results = await Promise.all(holidays.map(h => queryWithRLS(bid,
         `INSERT INTO business_holidays (business_id, date, name)
          VALUES ($1, $2, $3)
          ON CONFLICT (business_id, date) DO NOTHING
          RETURNING id`,
         [bid, h.date, h.name]
-      );
-      if (result.rows.length > 0) inserted++;
-    }
+      )));
+    const inserted = _results.reduce((acc, r) => acc + (r.rows.length > 0 ? 1 : 0), 0);
 
     res.json({ inserted, total: holidays.length, year });
   } catch (err) { next(err); }

@@ -1751,10 +1751,18 @@ router.post('/:id/send-reminder', async (req, res, next) => {
     const result = {};
 
     if ((channel === 'sms' || channel === 'both') && b.client_phone) {
-      const smsBody = `Rappel ${b.business_name}: RDV "${b.service_name}" le ${dateStr} à ${timeStr} avec ${b.practitioner_name}. Détails : ${manageUrl}`;
-      const smsRes = await sendSMS({ to: b.client_phone, body: smsBody, businessId: bid, clientId: b.client_id });
-      result.sms = smsRes.success ? 'sent' : 'error';
-      if (smsRes.error) result.sms_error = smsRes.error;
+      // Plan gate — SMS reserved to pro plan, parity with reminders.js cron
+      const _planRow = await queryWithRLS(bid, `SELECT plan FROM businesses WHERE id = $1`, [bid]);
+      const _bizPlan = _planRow.rows[0]?.plan || 'free';
+      if (_bizPlan === 'free') {
+        result.sms = 'skipped';
+        result.sms_error = 'plan_free_no_sms';
+      } else {
+        const smsBody = `Rappel ${b.business_name}: RDV "${b.service_name}" le ${dateStr} à ${timeStr} avec ${b.practitioner_name}. Détails : ${manageUrl}`;
+        const smsRes = await sendSMS({ to: b.client_phone, body: smsBody, businessId: bid, clientId: b.client_id });
+        result.sms = smsRes.success ? 'sent' : 'error';
+        if (smsRes.error) result.sms_error = smsRes.error;
+      }
     }
 
     if ((channel === 'email' || channel === 'both') && b.client_email) {

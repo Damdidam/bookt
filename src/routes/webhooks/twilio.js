@@ -63,6 +63,9 @@ setInterval(() => {
 
 const CONFIRM_RE = /^(oui|yes|ok|confirm|confirmer|ja|1)$/i;
 const CANCEL_RE = /^(non|no|annuler|cancel|nee|0)$/i;
+// Carrier-level STOP keywords (Twilio also handles these via Advanced Opt-Out, but we mirror locally so consent_sms reflects reality)
+const STOP_RE = /^(stop|stopall|unsubscribe|cancel sub|end|quit|arret|arr[êe]t)$/i;
+const START_RE = /^(start|unstop|yes|reabonner)$/i;
 
 function twiml(c) { return `<?xml version="1.0" encoding="UTF-8"?><Response>${c}</Response>`; }
 
@@ -80,6 +83,22 @@ router.post('/sms/inbound', async (req, res) => {
   }
 
   try {
+    // STOP / START — RGPD opt-out tracked locally so future sendSMS auto-skips via consent_sms.
+    if (STOP_RE.test(normalized)) {
+      try {
+        await query(`UPDATE clients SET consent_sms = false, updated_at = NOW() WHERE phone = $1`, [from]);
+        console.log(`[SMS INBOUND] STOP from ***${from.slice(-4)} — consent_sms set to false`);
+      } catch (e) { console.warn('[SMS INBOUND] STOP update error:', e.message); }
+      return res.type('text/xml').send('<Response/>'); // Twilio answers with its own opt-out confirmation
+    }
+    if (START_RE.test(normalized)) {
+      try {
+        await query(`UPDATE clients SET consent_sms = true, updated_at = NOW() WHERE phone = $1`, [from]);
+        console.log(`[SMS INBOUND] START from ***${from.slice(-4)} — consent_sms set to true`);
+      } catch (e) { console.warn('[SMS INBOUND] START update error:', e.message); }
+      // Don't fall through to CONFIRM_RE — START intent is opt-in, not booking confirm
+      return res.type('text/xml').send('<Response/>');
+    }
     if (CONFIRM_RE.test(normalized)) {
       // Find most recent pending booking for this phone
       const pending = await query(

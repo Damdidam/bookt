@@ -50,7 +50,9 @@ async function requireAuth(req, res, next) {
       email: user.email,
       role: user.role,
       practitionerId: user.practitioner_id || null,
-      is_superadmin: user.is_superadmin || false
+      is_superadmin: user.is_superadmin || false,
+      impersonated: !!decoded.impersonated,
+      impersonatedBy: decoded.impersonatedBy || null
     };
     req.businessId = user.business_id;
     req.businessSlug = user.slug;
@@ -129,4 +131,16 @@ function requirePro(req, res, next) {
   next();
 }
 
-module.exports = { requireAuth, requireOwner, requireRole, resolvePractitionerScope, requireSuperadmin, requirePro };
+/**
+ * Block destructive operations during admin impersonation.
+ * Apply on DELETE/refund/plan-change endpoints to keep impersonation read-mostly.
+ */
+function blockIfImpersonated(req, res, next) {
+  if (req.user?.impersonated) {
+    console.warn(`[ADMIN IMPERSONATION] Blocked destructive ${req.method} ${req.originalUrl} by admin ${req.user.impersonatedBy} on business ${req.businessId}`);
+    return res.status(403).json({ error: 'Action interdite pendant l\u2019impersonation administrateur' });
+  }
+  next();
+}
+
+module.exports = { requireAuth, requireOwner, requireRole, resolvePractitionerScope, requireSuperadmin, requirePro, blockIfImpersonated };
