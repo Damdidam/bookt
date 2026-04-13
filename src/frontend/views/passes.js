@@ -106,6 +106,10 @@ function renderPasses(c,passes,st){
       if(isActive){
         actions+=`<button onclick="openDebitPass('${p.id}')" title="Débiter 1 séance" style="background:none;border:none;cursor:pointer;color:var(--primary);font-size:.78rem;padding:4px 6px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>`;
         actions+=`<button onclick="refundPass('${p.id}')" title="Rembourser 1 séance" style="background:none;border:none;cursor:pointer;color:var(--blue);font-size:.78rem;padding:4px 6px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>`;
+        // B2 fix: remboursement TOTAL (refund Stripe pro-rata + pass cancelled)
+        if(p.stripe_payment_intent_id){
+          actions+=`<button onclick="fullRefundPass('${p.id}')" title="Remboursement total (Stripe + annulation)" style="background:none;border:none;cursor:pointer;color:var(--red);font-size:.78rem;padding:4px 6px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg></button>`;
+        }
         actions+=`<button onclick="cancelPass('${p.id}')" title="Annuler" style="background:none;border:none;cursor:pointer;color:var(--gold);font-size:.78rem;padding:4px 6px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></button>`;
       }else if(p.status==='used'){
         actions+=`<button onclick="refundPass('${p.id}')" title="Rembourser 1 séance" style="background:none;border:none;cursor:pointer;color:var(--blue);font-size:.78rem;padding:4px 6px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>`;
@@ -339,6 +343,68 @@ async function submitRefundPass(id){
   }catch(e){GendaUI.toast(e.message||'Erreur lors du remboursement','error');}
 }
 
+// ── Full refund (Stripe pro-rata + pass cancelled) ──
+// B2 fix : calls POST /api/passes/:id/refund-full which refunds unused sessions
+// to the buyer's card (minus fees if policy='net') and marks pass cancelled.
+async function fullRefundPass(id){
+  const p=_lastPasses.find(x=>x.id===id);
+  if(!p){GendaUI.toast('Pass introuvable','error');return;}
+
+  const sessionsRemaining=parseInt(p.sessions_remaining||0);
+  const sessionsTotal=parseInt(p.sessions_total||0);
+  const pricePerSessionC=sessionsTotal>0?Math.round((p.price_cents||0)/sessionsTotal):0;
+  const estimatedRefundC=sessionsRemaining*pricePerSessionC;
+  const estimatedStr=(estimatedRefundC/100).toFixed(2).replace('.', ',')+' €';
+
+  const modal=document.createElement('div');
+  modal.className='m-overlay open';modal.id='passFullRefundModal';
+  modal.innerHTML=`<div class="m-dialog m-sm">
+    <div class="m-header-simple">
+      <h3>Remboursement total — ${esc(p.code)}</h3>
+      <button class="m-close" onclick="closeModal('passFullRefundModal')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="m-body">
+      <div style="margin-bottom:14px;padding:12px;background:var(--red-bg,#FEF2F2);border-left:3px solid var(--red);border-radius:var(--radius-xs)">
+        <div style="font-size:.85rem;color:var(--text-2);font-weight:600;margin-bottom:4px">Action irréversible</div>
+        <div style="font-size:.8rem;color:var(--text-3)">Le pass sera annulé et le client sera remboursé via Stripe. Les séances déjà utilisées (${sessionsTotal-sessionsRemaining}) ne sont pas remboursées.</div>
+      </div>
+      <div style="padding:12px;background:var(--surface);border-radius:var(--radius-xs)">
+        <div style="display:flex;justify-content:space-between;font-size:.82rem">
+          <span style="color:var(--text-3)">Séances restantes</span><span style="font-weight:600;color:var(--green)">${sessionsRemaining}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:.82rem;margin-top:4px">
+          <span style="color:var(--text-3)">Remboursement estimé (brut)</span><span style="font-weight:600">${estimatedStr}</span>
+        </div>
+        <div style="font-size:.72rem;color:var(--text-4);margin-top:6px">Si votre politique est "net", les frais Stripe (~1.5% + 25c) seront déduits. Le montant réel apparaît dans les logs après traitement.</div>
+      </div>
+      <label style="display:block;margin-top:12px;font-size:.8rem;color:var(--text-3)">Raison (optionnel)</label>
+      <input id="fullRefundReason" class="m-input" type="text" maxlength="200" placeholder="Ex: Client insatisfait" style="margin-top:4px">
+    </div>
+    <div class="m-bottom">
+      <div style="flex:1"></div>
+      <button class="m-btn m-btn-ghost" onclick="closeModal('passFullRefundModal')">Annuler</button>
+      <button class="m-btn m-btn-danger" onclick="submitFullRefundPass('${p.id}')">Rembourser et annuler</button>
+    </div>
+  </div>`;
+  document.body.appendChild(modal);
+  guardModal(modal, { noBackdropClose: true });
+}
+
+async function submitFullRefundPass(id){
+  try{
+    const reason=document.getElementById('fullRefundReason')?.value?.trim()||null;
+    const r=await api.post(`/api/passes/${id}/refund-full`,{reason});
+    closeModal('passFullRefundModal');
+    if(r.stripe_refund_cents!=null){
+      const amt=(r.stripe_refund_cents/100).toFixed(2).replace('.', ',')+' €';
+      GendaUI.toast(`Pass remboursé (${amt} Stripe${r.stripe_fees_cents>0?' — frais '+(r.stripe_fees_cents/100).toFixed(2).replace('.', ',')+' €':''})`,'success');
+    }else{
+      GendaUI.toast('Pass annulé (pas de paiement Stripe à rembourser)','success');
+    }
+    loadPasses();
+  }catch(e){GendaUI.toast(e.message||'Erreur lors du remboursement total','error');}
+}
+
 // ── Cancel ──
 async function cancelPass(id){
   const p=_lastPasses.find(x=>x.id===id);
@@ -371,6 +437,6 @@ function passSearchInput(v){passSearch=v;}
 Object.defineProperty(window,'passFilter',{get(){return passFilter;},set(v){passFilter=v;},configurable:true});
 Object.defineProperty(window,'passSearch',{get(){return passSearch;},set(v){passSearch=v;},configurable:true});
 
-bridge({loadPasses,openCreatePass,submitCreatePass,passServiceChanged,openDebitPass,debitPass,refundPass,submitRefundPass,cancelPass,deletePass,setPassFilter,passSearchInput});
+bridge({loadPasses,openCreatePass,submitCreatePass,passServiceChanged,openDebitPass,debitPass,refundPass,submitRefundPass,fullRefundPass,submitFullRefundPass,cancelPass,deletePass,setPassFilter,passSearchInput});
 
 export {renderPasses};

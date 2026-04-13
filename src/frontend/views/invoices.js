@@ -86,6 +86,7 @@ async function loadInvoices(){
             <button onclick="downloadInvoicePDF('${f.id}')" title="Télécharger PDF" style="background:none;border:none;cursor:pointer;font-size:1rem"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></button>
             ${f.status==='draft'?`<button onclick="changeInvoiceStatus('${f.id}','sent')" title="Marquer envoyée" style="background:none;border:none;cursor:pointer;font-size:1rem"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>`:''}
             ${f.status==='sent'||f.status==='overdue'?`<button onclick="changeInvoiceStatus('${f.id}','paid')" title="Marquer payée" style="background:none;border:none;cursor:pointer;font-size:1rem"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></button>`:''}
+            ${(f.type==='invoice'&&['sent','paid','overdue'].includes(f.status))?`<button onclick="issueCreditNote('${f.id}','${esc(f.invoice_number||'')}')" title="Émettre une note de crédit (conformité BE)" style="background:none;border:none;cursor:pointer;font-size:1rem;color:var(--gold)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/></svg></button>`:''}
             ${f.status==='draft'?`<button onclick="deleteInvoice('${f.id}')" title="Supprimer" style="background:none;border:none;cursor:pointer;font-size:1rem"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></button>`:''}
           </td>
         </tr>`;
@@ -292,6 +293,51 @@ function downloadInvoicePDF(id){
   window.open(`/api/invoices/${id}/pdf?token=${token}`,'_blank','noopener,noreferrer');
 }
 
+// ── Credit note (BE legal compliance AR n°1 art.14) ──
+// POST /api/invoices/:id/credit-note creates a new invoice (type='credit_note') with
+// NC-YYYY-XXXXXX number, referencing the original via related_invoice_id, items negated.
+async function issueCreditNote(id,invNumber){
+  const modal=document.createElement('div');
+  modal.className='m-overlay open';modal.id='creditNoteModal';
+  modal.innerHTML=`<div class="m-dialog m-sm">
+    <div class="m-header-simple">
+      <h3>Note de crédit — ${esc(invNumber)}</h3>
+      <button class="m-close" onclick="closeModal('creditNoteModal')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="m-body">
+      <div style="margin-bottom:14px;padding:12px;background:var(--gold-bg,#FEF9C3);border-left:3px solid var(--gold);border-radius:var(--radius-xs)">
+        <div style="font-size:.85rem;color:var(--text-2);font-weight:600;margin-bottom:4px">Conformité légale BE (AR n°1 art.14)</div>
+        <div style="font-size:.8rem;color:var(--text-3)">Une note de crédit sera émise (numérotation NC-${new Date().getFullYear()}-XXXXXX) avec tous les montants négatifs. Elle référencera la facture ${esc(invNumber)}.</div>
+      </div>
+      <label style="display:block;font-size:.8rem;color:var(--text-3);margin-bottom:4px">Motif (inclus dans la note)</label>
+      <textarea id="cnReason" class="m-input" rows="3" maxlength="500" placeholder="Ex: Erreur de facturation, retour produit, geste commercial..." style="resize:vertical"></textarea>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:.85rem;color:var(--text-2);cursor:pointer">
+        <input type="checkbox" id="cnMarkCancelled">
+        Marquer la facture originale comme annulée
+      </label>
+      <div style="font-size:.72rem;color:var(--text-4);margin-top:4px;padding-left:22px">Recommandé si la facture a été payée par erreur et que vous remboursez le client.</div>
+    </div>
+    <div class="m-bottom">
+      <div style="flex:1"></div>
+      <button class="m-btn m-btn-ghost" onclick="closeModal('creditNoteModal')">Annuler</button>
+      <button class="m-btn m-btn-primary" onclick="submitCreditNote('${id}')">Émettre la note de crédit</button>
+    </div>
+  </div>`;
+  document.body.appendChild(modal);
+  guardModal(modal, { noBackdropClose: true });
+}
+
+async function submitCreditNote(id){
+  try{
+    const reason=document.getElementById('cnReason')?.value?.trim()||null;
+    const mark_original_cancelled=document.getElementById('cnMarkCancelled')?.checked||false;
+    const r=await api.post(`/api/invoices/${id}/credit-note`,{reason,mark_original_cancelled});
+    closeModal('creditNoteModal');
+    GendaUI.toast(`Note de crédit ${r.credit_note?.invoice_number||''} émise`,'success');
+    loadInvoices();
+  }catch(e){GendaUI.toast(e.message||'Erreur lors de l\'émission','error');}
+}
+
 async function createInvoiceFromBooking(bookingId){
   if(!(await showConfirmDialog('Créer une facture pour ce rendez-vous ?')))return;
   try{
@@ -421,6 +467,6 @@ function _addInvoiceLineFromBooking(bookingId,desc,qty,priceEur){
 Object.defineProperty(window, 'invoiceFilter', { get(){return invoiceFilter;}, set(v){invoiceFilter=v;} });
 Object.defineProperty(window, 'invoiceType', { get(){return invoiceType;}, set(v){invoiceType=v;} });
 
-bridge({ loadInvoices, openInvoiceModal, addInvoiceLine, updateInvTotals, saveInvoice, changeInvoiceStatus, deleteInvoice, downloadInvoicePDF, createInvoiceFromBooking, invClientChanged, invToggleUnbilled });
+bridge({ loadInvoices, openInvoiceModal, addInvoiceLine, updateInvTotals, saveInvoice, changeInvoiceStatus, deleteInvoice, downloadInvoicePDF, createInvoiceFromBooking, invClientChanged, invToggleUnbilled, issueCreditNote, submitCreditNote });
 
 export { loadInvoices, openInvoiceModal, addInvoiceLine, updateInvTotals, saveInvoice, changeInvoiceStatus, deleteInvoice, downloadInvoicePDF, createInvoiceFromBooking };
