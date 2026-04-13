@@ -64,4 +64,82 @@ async function processExpiredPasses() {
   return { processed: result.rowCount };
 }
 
-module.exports = { processExpiredPasses };
+/**
+ * J-7 expiry warning for passes. Idempotent via expiry_warning_sent_at.
+ * Bug B4 (memo H13) — prevents silent loss of remaining sessions.
+ */
+async function processPassExpiryWarnings() {
+  const result = await pool.query(
+    `UPDATE passes
+        SET expiry_warning_sent_at = NOW()
+      WHERE id IN (
+        SELECT id FROM passes
+         WHERE status = 'active'
+           AND expires_at IS NOT NULL
+           AND expires_at > NOW()
+           AND expires_at < NOW() + INTERVAL '7 days'
+           AND expiry_warning_sent_at IS NULL
+           AND COALESCE(sessions_remaining, 0) > 0
+         FOR UPDATE SKIP LOCKED
+      )
+      RETURNING id, business_id, buyer_email, buyer_name, name, sessions_remaining, expires_at`
+  );
+
+  for (const pass of result.rows) {
+    try {
+      const client_email = pass.buyer_email;
+      if (!client_email) continue;
+      const { rows } = await pool.query(
+        `SELECT biz.name AS biz_name, biz.theme, biz.email AS biz_email, biz.address AS biz_address, biz.phone AS biz_phone
+         FROM businesses biz WHERE biz.id = $1`,
+        [pass.business_id]
+      );
+      if (!rows[0]) continue;
+      const { biz_name, theme, biz_email, biz_address, biz_phone } = rows[0];
+      const color = safeColor(theme?.primary_color);
+      const remaining = pass.sessions_remaining || 0;
+      const expDate = new Date(pass.expires_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Brussels' });
+
+      const bodyHTML = `
+        <p>Bonjour${pass.buyer_name ? ' ' + escHtml(pass.buyer_name) : ''},</p>
+        <p>Votre pass <strong>${escHtml(pass.name || 'Pass')}</strong> arrive bient\u00f4t \u00e0 expiration.</p>
+        <div style="background:#FEF3C7;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #F59E0B">
+          <div style="font-size:14px;color:#92400E;font-weight:600;margin-bottom:4px">Expiration le ${expDate}</div>
+          <div style="font-size:13px;color:#3D3832"><strong>${remaining}</strong> s\u00e9ance(s) restante(s) non utilis\u00e9e(s).</div>
+        </div>
+        <p style="font-size:14px;color:#3D3832">N'h\u00e9sitez pas \u00e0 r\u00e9server avant cette date pour profiter de votre pass${biz_phone ? ' (' + escHtml(biz_phone) + ')' : ''}${biz_email ? ' \u2014 ' + escHtml(biz_email) : ''}.</p>`;
+
+      const html = buildEmailHTML({
+        title: 'Pass bient\u00f4t expir\u00e9',
+        preheader: `Votre pass expire le ${expDate} \u2014 ${remaining} s\u00e9ance(s)`,
+        bodyHTML,
+        businessName: biz_name,
+        primaryColor: color,
+        footerText: `${biz_name}${biz_address ? ' \u00b7 ' + biz_address : ''} \u00b7 Via Genda.be`
+      });
+
+      await sendEmail({
+        to: client_email,
+        toName: pass.buyer_name || undefined,
+        subject: `Votre pass expire le ${expDate} \u2014 ${biz_name}`,
+        html,
+        fromName: biz_name,
+        replyTo: biz_email || undefined
+      });
+
+      try {
+        await pool.query(
+          `INSERT INTO notifications (business_id, type, recipient_email, status, sent_at)
+           VALUES ($1,'email_pass_expiry_warning',$2,'sent',NOW())`,
+          [pass.business_id, client_email]
+        );
+      } catch (_) {}
+    } catch (e) {
+      console.warn('[PASS EXPIRY WARN] Email error for pass', pass.id, ':', e.message);
+    }
+  }
+
+  return { processed: result.rowCount };
+}
+
+module.exports = { processExpiredPasses, processPassExpiryWarnings };

@@ -535,6 +535,11 @@ app.listen(PORT, async () => {
   try {
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS booked_price_cents INTEGER`);
   } catch (e) {}
+  // schema-v69: J-7 expiry warning columns + notification types
+  try {
+    await pool.query(`ALTER TABLE gift_cards ADD COLUMN IF NOT EXISTS expiry_warning_sent_at TIMESTAMPTZ`);
+    await pool.query(`ALTER TABLE passes      ADD COLUMN IF NOT EXISTS expiry_warning_sent_at TIMESTAMPTZ`);
+  } catch (e) {}
   console.log(`  <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg> Dashboard: http://localhost:${PORT}`);
   console.log(`  Public booking: http://localhost:${PORT}/api/public/:slug\n`);
 
@@ -623,10 +628,14 @@ app.listen(PORT, async () => {
     if (gcRunning) return;
     gcRunning = true;
     try {
-      const { processExpiredGiftCards } = require('./services/giftcard-expiry');
+      const { processExpiredGiftCards, processGiftCardExpiryWarnings } = require('./services/giftcard-expiry');
       const result = await processExpiredGiftCards();
       if (result.processed > 0) {
         console.log(`[GC CRON] ${result.processed} gift card(s) expired`);
+      }
+      const warnResult = await processGiftCardExpiryWarnings();
+      if (warnResult.processed > 0) {
+        console.log(`[GC CRON] ${warnResult.processed} J-7 expiry warning(s) sent`);
       }
     } catch (e) {
       console.error('[GC CRON] Error:', e.message); Sentry.captureException(e);
@@ -641,9 +650,11 @@ app.listen(PORT, async () => {
     if (passExpiryRunning) return;
     passExpiryRunning = true;
     try {
-      const { processExpiredPasses } = require('./services/pass-expiry');
+      const { processExpiredPasses, processPassExpiryWarnings } = require('./services/pass-expiry');
       const result = await processExpiredPasses();
       if (result.processed > 0) console.log(`[PASS CRON] ${result.processed} pass(es) expired`);
+      const warnResult = await processPassExpiryWarnings();
+      if (warnResult.processed > 0) console.log(`[PASS CRON] ${warnResult.processed} J-7 expiry warning(s) sent`);
     } catch (e) { console.error('[PASS CRON] Error:', e.message); Sentry.captureException(e); }
     finally { passExpiryRunning = false; }
   }, 60 * 60 * 1000);

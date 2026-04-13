@@ -562,8 +562,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
               group_id, group_order, confirmation_expires_at, processing_time, processing_start, locked, discount_pct,
               promotion_id, promotion_label, promotion_discount_pct, promotion_discount_cents, booked_price_cents)
              VALUES ($1,$2,$3,$4,$5,'web',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
-             RETURNING id, public_token, start_at, end_at, status, service_id, group_id, group_order, discount_pct,
-                       promotion_id, promotion_label, promotion_discount_pct, promotion_discount_cents`,
+             RETURNING *`,
             [businessId, slotPracId, slot.service_id, slot.service_variant_id, clientId,
              appointment_mode||'cabinet', slot.start_at, slot.end_at, bookingStatus,
              client_comment||null, groupId, slot.group_order,
@@ -586,14 +585,14 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
 
         // Deposit check (multi-service) — triggers: price/duration thresholds OR no-show recidivist
         let gcPartialCents = 0;
-        let bizSettings = {};
+        let depBizSettings = {};
         if (bookings.length > 0 && businessPlan !== 'free') {
           try {
             await client.query('SAVEPOINT deposit_sp');
 
-            // Get business settings
+            // Get business settings (re-fetched in-tx for consistent view)
             const bizSettingsRow = await client.query(`SELECT settings FROM businesses WHERE id = $1`, [businessId]);
-            bizSettings = bizSettingsRow.rows[0]?.settings || {};
+            depBizSettings = bizSettingsRow.rows[0]?.settings || {};
 
             // Get total price from DB (accurate, includes variants)
             const svcPriceResult = await client.query(
@@ -617,7 +616,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
               clientIsVip = !!nsRow.rows[0]?.is_vip;
             }
 
-            const depResult = shouldRequireDeposit(bizSettings, totalPrice, totalDuration, noShowCount, clientIsVip, stripeConnectStatus);
+            const depResult = shouldRequireDeposit(depBizSettings, totalPrice, totalDuration, noShowCount, clientIsVip, stripeConnectStatus);
 
             // Recalculate deposit amount on reduced price (LM + promo + pass)
             const promoDiscountCents = promoResult.valid ? promoResult.discount_cents : 0;
@@ -628,11 +627,11 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
             }
             if (depResult.required && (totalPriceAfterLm < totalPrice || promoDiscountCents > 0 || passServicePrice > 0)) {
               const reducedPrice = Math.max(0, totalPriceAfterLm - promoDiscountCents - passServicePrice);
-              if (bizSettings.deposit_type === 'fixed') {
+              if (depBizSettings.deposit_type === 'fixed') {
                 // Cap fixed deposit at reduced price
                 if (depResult.depCents > reducedPrice) depResult.depCents = reducedPrice;
               } else {
-                depResult.depCents = Math.round(reducedPrice * (bizSettings.deposit_percent || 50) / 100);
+                depResult.depCents = Math.round(reducedPrice * (depBizSettings.deposit_percent || 50) / 100);
               }
               if (depResult.depCents <= 0) depResult.required = false;
             }
@@ -788,7 +787,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                 }
 
                 if (!gcAutoPaid && unpaidBookings.length > 0) {
-                  const deadline = computeDepositDeadline(startDate, bizSettings);
+                  const deadline = computeDepositDeadline(startDate, depBizSettings);
                   // Set pending_deposit on unpaid bookings only
                   await client.query(
                     `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
@@ -825,7 +824,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
             await client.query('ROLLBACK TO SAVEPOINT deposit_sp');
             console.error('Deposit check failed:', depErr.message);
             // If deposit is enabled, abort the booking — don't let it slip through without deposit
-            if (bizSettings.deposit_enabled) {
+            if (depBizSettings.deposit_enabled) {
               throw new Error('Impossible de vérifier l\'acompte. Veuillez réessayer.');
             }
           }
@@ -1173,8 +1172,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           processing_time, processing_start, locked, discount_pct,
           promotion_id, promotion_label, promotion_discount_pct, promotion_discount_cents, booked_price_cents)
          VALUES ($1,$2,$3,$4,$5,'web',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
-         RETURNING id, public_token, start_at, end_at, status, service_id, discount_pct,
-                   promotion_id, promotion_label, promotion_discount_pct, promotion_discount_cents`,
+         RETURNING *`,
         [businessId, practitioner_id, effectiveServiceId, resolvedVariantId, clientId,
          appointment_mode||'cabinet', startDate.toISOString(), endDate.toISOString(), bookingStatus, client_comment||null,
          needsConfirmation ? new Date(Date.now() + confirmTimeoutMin * 60000).toISOString() : null,
@@ -1193,15 +1191,15 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
 
       // ── Deposit check (single-service) — triggers: price/duration thresholds OR no-show recidivist ──
       let gcPartialCents = 0;
-      let bizSettings = {};
+      let depBizSettings = {};
       let svcPrice = 0, svcDuration = 0;
       if (booking.rows[0] && businessPlan !== 'free') {
         try {
           await client.query('SAVEPOINT deposit_single_sp');
 
-          // Get business settings
+          // Get business settings (re-fetched in-tx for consistent view)
           const bizSettingsRow = await client.query(`SELECT settings FROM businesses WHERE id = $1`, [businessId]);
-          bizSettings = bizSettingsRow.rows[0]?.settings || {};
+          depBizSettings = bizSettingsRow.rows[0]?.settings || {};
 
           // Get service price + duration (use variant if applicable)
           const svcInfoResult = await client.query(
@@ -1227,18 +1225,18 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
             clientIsVip = !!nsRow.rows[0]?.is_vip;
           }
 
-          const depResult = shouldRequireDeposit(bizSettings, svcPrice, svcDuration, noShowCount, clientIsVip, stripeConnectStatus);
+          const depResult = shouldRequireDeposit(depBizSettings, svcPrice, svcDuration, noShowCount, clientIsVip, stripeConnectStatus);
 
           // Recalculate deposit amount on reduced price (LM + promo + pass)
           const promoDiscountCents = promoResult.valid ? promoResult.discount_cents : 0;
           const singlePassServicePrice = singlePassPreMatch ? singlePriceAfterLm : 0;
           if (depResult.required && (singlePriceAfterLm < svcPrice || promoDiscountCents > 0 || singlePassServicePrice > 0)) {
             const reducedSvcPrice = Math.max(0, singlePriceAfterLm - promoDiscountCents - singlePassServicePrice);
-            if (bizSettings.deposit_type === 'fixed') {
+            if (depBizSettings.deposit_type === 'fixed') {
               // Cap fixed deposit at reduced price
               if (depResult.depCents > reducedSvcPrice) depResult.depCents = reducedSvcPrice;
             } else {
-              depResult.depCents = Math.round(reducedSvcPrice * (bizSettings.deposit_percent || 50) / 100);
+              depResult.depCents = Math.round(reducedSvcPrice * (depBizSettings.deposit_percent || 50) / 100);
             }
             if (depResult.depCents <= 0) depResult.required = false;
           }
@@ -1378,7 +1376,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
               }
 
               if (!gcAutoPaid) {
-                const deadline = computeDepositDeadline(startDate, bizSettings);
+                const deadline = computeDepositDeadline(startDate, depBizSettings);
                 await client.query(
                   `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
                     deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2,
@@ -1399,7 +1397,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           await client.query('ROLLBACK TO SAVEPOINT deposit_single_sp');
           console.error('Single-service deposit check failed:', depErr.message);
           // If deposit is enabled, abort the booking — don't let it slip through without deposit
-          if (bizSettings.deposit_enabled) {
+          if (depBizSettings.deposit_enabled) {
             throw new Error('Impossible de vérifier l\'acompte. Veuillez réessayer.');
           }
         }

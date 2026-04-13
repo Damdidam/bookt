@@ -28,9 +28,11 @@ async function processExpiredPendingBookings() {
       `SELECT b.id, b.business_id, b.service_id, b.practitioner_id, b.start_at, b.end_at, b.group_id, b.client_id,
               b.confirmation_expires_at,
               b.deposit_status, b.deposit_payment_intent_id, b.deposit_amount_cents,
-              COALESCE(s.quote_only, false) AS service_quote_only
+              COALESCE(s.quote_only, false) AS service_quote_only,
+              biz.settings AS biz_settings
        FROM bookings b
        LEFT JOIN services s ON s.id = b.service_id
+       JOIN businesses biz ON biz.id = b.business_id
        WHERE b.status = 'pending'
          AND (
            (b.confirmation_expires_at IS NOT NULL AND b.confirmation_expires_at < NOW())
@@ -67,6 +69,7 @@ async function processExpiredPendingBookings() {
       }
 
       // Stripe refund: if a deposit was paid on this pending booking, refund it (parity with deposit-expiry/staff cancel).
+      // Applies refund_policy from business settings — 'net' deducts Stripe fees (~1.5% + 25c), 'full' refunds everything.
       if (bk.deposit_status === 'paid' && bk.deposit_payment_intent_id) {
         const _stripeKey = process.env.STRIPE_SECRET_KEY;
         if (_stripeKey) {
@@ -78,12 +81,35 @@ async function processExpiredPendingBookings() {
               _piId = _sess.payment_intent;
             }
             if (_piId && _piId.startsWith('pi_')) {
-              await stripe.refunds.create({ payment_intent: _piId });
-              await client.query(`UPDATE bookings SET deposit_status = 'refunded' WHERE id = $1`, [bk.id]);
+              const _refundPolicy = bk.biz_settings?.refund_policy || 'full';
+              let _finalDepStatus = 'refunded';
+              if (_refundPolicy === 'net' && bk.deposit_amount_cents) {
+                // Deduct gift card portion (Stripe only charged the remainder)
+                const _gcPaidRes = await client.query(
+                  `SELECT COALESCE(SUM(amount_cents), 0) AS gc_paid_cents
+                   FROM gift_card_transactions WHERE booking_id = $1 AND type = 'debit'`,
+                  [bk.id]
+                );
+                const _gcPaidCents = parseInt(_gcPaidRes.rows[0]?.gc_paid_cents) || 0;
+                const _actualStripeCharge = Math.max(bk.deposit_amount_cents - _gcPaidCents, 0);
+                const _stripeFees = _actualStripeCharge > 0 ? Math.round(_actualStripeCharge * 0.015) + 25 : 0;
+                const _netRefund = Math.max(_actualStripeCharge - _stripeFees, 0);
+                if (_netRefund > 0) {
+                  await stripe.refunds.create({ payment_intent: _piId, amount: _netRefund });
+                  console.log(`[CONFIRM CRON] Net refund: ${_netRefund}c (fees ${_stripeFees}c, gc ${_gcPaidCents}c) for PI ${_piId}`);
+                } else {
+                  // Fees exceed charge — nothing to refund. Mark as retained.
+                  console.warn(`[CONFIRM CRON] netRefund=0 (fees ${_stripeFees}c >= charge ${_actualStripeCharge}c) — deposit retained for PI ${_piId}`);
+                  _finalDepStatus = 'cancelled';
+                }
+              } else {
+                await stripe.refunds.create({ payment_intent: _piId });
+              }
+              await client.query(`UPDATE bookings SET deposit_status = $2 WHERE id = $1`, [bk.id, _finalDepStatus]);
               if (bk.group_id) {
                 await client.query(
-                  `UPDATE bookings SET deposit_status = 'refunded' WHERE group_id = $1 AND deposit_payment_intent_id = $2 AND id != $3`,
-                  [bk.group_id, bk.deposit_payment_intent_id, bk.id]
+                  `UPDATE bookings SET deposit_status = $2 WHERE group_id = $1 AND deposit_payment_intent_id = $3 AND id != $4`,
+                  [bk.group_id, _finalDepStatus, bk.deposit_payment_intent_id, bk.id]
                 );
               }
             }
