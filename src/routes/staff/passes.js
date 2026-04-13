@@ -492,6 +492,119 @@ router.post('/:id/refund', blockIfImpersonated, async (req, res, next) => {
 });
 
 // ============================================================
+// POST /api/passes/:id/refund-full — full pass refund (cancel + Stripe money-back)
+// B2 fix : flow complet pour rembourser un pass entier (vs /refund qui crédite 1 session).
+// Marque le pass cancelled, sessions_remaining=0, refund Stripe selon refund_policy.
+// ============================================================
+router.post('/:id/refund-full', blockIfImpersonated, async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const { id } = req.params;
+    const { reason } = req.body;
+
+    // Read business refund_policy outside the tx (settings rarely change, no need to lock)
+    const bizRes = await queryWithRLS(bid, `SELECT settings FROM businesses WHERE id = $1`, [bid]);
+    const refundPolicy = bizRes.rows[0]?.settings?.refund_policy || 'full';
+
+    const result = await transactionWithRLS(bid, async (client) => {
+      const p = await client.query(
+        `SELECT id, code, name, status, sessions_total, sessions_remaining, price_cents,
+                stripe_payment_intent_id, buyer_email, buyer_name
+           FROM passes WHERE id = $1 AND business_id = $2 FOR UPDATE`,
+        [id, bid]
+      );
+      if (p.rows.length === 0) throw Object.assign(new Error('Pass introuvable'), { status: 404 });
+      const pass = p.rows[0];
+
+      if (pass.status === 'cancelled' || pass.status === 'refunded') {
+        throw Object.assign(new Error('Pass déjà annulé ou remboursé'), { status: 409 });
+      }
+      if (pass.status === 'expired') {
+        throw Object.assign(new Error('Pass expiré — remboursement non autorisé'), { status: 409 });
+      }
+
+      // Stripe refund (only if there was a Stripe payment)
+      let netRefundCents = null;
+      let stripeFeesCents = 0;
+      let refundError = null;
+      if (pass.stripe_payment_intent_id && pass.price_cents > 0) {
+        const stripeKey = process.env.STRIPE_SECRET_KEY;
+        if (!stripeKey) {
+          throw Object.assign(new Error('STRIPE_SECRET_KEY manquant — remboursement impossible'), { status: 500 });
+        }
+        const stripe = require('stripe')(stripeKey);
+        try {
+          let piId = pass.stripe_payment_intent_id;
+          if (piId.startsWith('cs_')) {
+            const sess = await stripe.checkout.sessions.retrieve(piId);
+            piId = sess.payment_intent;
+          }
+          if (!piId || !piId.startsWith('pi_')) {
+            throw new Error('Identifiant Stripe invalide');
+          }
+
+          // Pro-rata refund: only refund the unused portion (avoid refunding sessions already used)
+          const usedSessions = pass.sessions_total - pass.sessions_remaining;
+          const perSessionCents = Math.round(pass.price_cents / pass.sessions_total);
+          const unusedRefundCents = pass.sessions_remaining * perSessionCents;
+
+          if (refundPolicy === 'net') {
+            stripeFeesCents = unusedRefundCents > 0 ? Math.round(unusedRefundCents * 0.015) + 25 : 0;
+            netRefundCents = Math.max(unusedRefundCents - stripeFeesCents, 0);
+          } else {
+            netRefundCents = unusedRefundCents;
+          }
+
+          if (netRefundCents > 0) {
+            await stripe.refunds.create({ payment_intent: piId, amount: netRefundCents });
+            console.log(`[PASS REFUND-FULL] Stripe refund ${netRefundCents}c (gross ${unusedRefundCents}c, fees ${stripeFeesCents}c, used ${usedSessions}/${pass.sessions_total}) for PI ${piId}`);
+          } else {
+            console.warn(`[PASS REFUND-FULL] netRefund=0 (fees ${stripeFeesCents}c >= refundable ${unusedRefundCents}c) — pass cancelled, no Stripe refund`);
+          }
+        } catch (stripeErr) {
+          if (stripeErr.code === 'charge_already_refunded') {
+            console.warn(`[PASS REFUND-FULL] Stripe says already refunded for pass ${id} — proceeding with status update`);
+          } else {
+            // RULE #4: Stripe must succeed before we mark the pass refunded — keep status, return error
+            console.error('[PASS REFUND-FULL] Stripe refund failed:', stripeErr.message);
+            throw Object.assign(new Error(`Remboursement Stripe échoué : ${stripeErr.message}`), { status: 502 });
+          }
+        }
+      }
+
+      // Mark cancelled + zero sessions
+      await client.query(
+        `UPDATE passes SET status = 'cancelled', sessions_remaining = 0, updated_at = NOW() WHERE id = $1`,
+        [id]
+      );
+
+      // Audit trail: log a refund transaction for the remaining sessions (if any)
+      if (pass.sessions_remaining > 0) {
+        await client.query(
+          `INSERT INTO pass_transactions (pass_id, business_id, sessions, type, note, created_by)
+           VALUES ($1, $2, $3, 'refund', $4, $5)`,
+          [id, bid, pass.sessions_remaining, reason || `Remboursement complet du pass${netRefundCents != null ? ' (' + (netRefundCents/100).toFixed(2).replace('.',',') + ' € net Stripe)' : ''}`, req.user.id]
+        );
+      }
+
+      return {
+        code: pass.code,
+        name: pass.name,
+        sessions_refunded: pass.sessions_remaining,
+        stripe_refund_cents: netRefundCents,
+        stripe_fees_cents: stripeFeesCents,
+        buyer_email: pass.buyer_email
+      };
+    });
+
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
+});
+
+// ============================================================
 // DELETE /api/passes/:id — soft delete (status='cancelled') if used; hard if untouched.
 // Hard delete previously cascaded pass_transactions → broken audit trail on linked invoices.
 // ============================================================
