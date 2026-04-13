@@ -539,7 +539,25 @@ app.listen(PORT, async () => {
   try {
     await pool.query(`ALTER TABLE gift_cards ADD COLUMN IF NOT EXISTS expiry_warning_sent_at TIMESTAMPTZ`);
     await pool.query(`ALTER TABLE passes      ADD COLUMN IF NOT EXISTS expiry_warning_sent_at TIMESTAMPTZ`);
-  } catch (e) {}
+    await pool.query(`ALTER TABLE notifications DROP CONSTRAINT IF EXISTS notifications_type_check`);
+    await pool.query(`ALTER TABLE notifications ADD CONSTRAINT notifications_type_check CHECK (type IN (
+      'email_confirmation','sms_confirmation',
+      'email_reminder_24h','sms_reminder_24h',
+      'email_reminder_2h','sms_reminder_2h',
+      'email_cancellation','sms_cancellation',
+      'email_cancellation_pro',
+      'email_reschedule_pro',
+      'email_modification_confirmed','email_modification_rejected',
+      'call_filter_sms','email_post_rdv','email_new_booking_pro',
+      'email_deposit_request','sms_deposit_request',
+      'email_deposit_confirmed','email_deposit_cancelled',
+      'deposit_paid_webhook',
+      'email_waitlist_offer','waitlist_match',
+      'email_confirmation_request','sms_confirmation_reply',
+      'email_deposit_orphan','email_dispute_alert','manual_reminder',
+      'email_giftcard_expiry_warning','email_pass_expiry_warning'
+    ))`);
+  } catch (e) { console.warn('  ⚠ schema-v69 auto-migrate:', e.message); }
   console.log(`  <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg> Dashboard: http://localhost:${PORT}`);
   console.log(`  Public booking: http://localhost:${PORT}/api/public/:slug\n`);
 
