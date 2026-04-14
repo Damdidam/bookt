@@ -662,7 +662,12 @@ function renderServiceModal(svc,sectorCats,prefill,existingPromo){
   // ── SECTION 3: Planification ──
   m+=sec('Planification');
   m+=`<div class="svc-form-row" id="svc_buffers_row" style="margin-bottom:14px"><div class="field"><label>Buffer avant (min)</label><input type="number" id="svc_bbefore" value="${svc?.buffer_before_min||0}" min="0"></div><div class="field"><label>Buffer après (min)</label><input type="number" id="svc_bafter" value="${svc?.buffer_after_min||0}" min="0"></div></div>`;
-  m+=`<div class="svc-form-row" style="margin-bottom:14px"><div class="field"><label>Préavis minimum (heures)</label><input type="number" id="svc_min_notice" value="${svc?.min_booking_notice_hours||0}" min="0" placeholder="0"><small style="color:var(--text-secondary);font-size:11px">Délai minimum avant qu'un client puisse réserver en ligne</small></div></div>`;
+  const _isQuote = !!svc?.quote_only;
+  const _minNoticeLabel = _isQuote ? 'Délai minimum pour étudier la demande (heures)' : 'Préavis minimum (heures)';
+  const _minNoticeHint = _isQuote
+    ? 'Temps minimum entre la demande du client et le RDV, pour examiner le projet et fixer un prix. Ex. 48h, 72h, 168h.'
+    : 'Délai minimum avant qu\'un client puisse réserver en ligne';
+  m+=`<div class="svc-form-row" style="margin-bottom:14px"><div class="field"><label id="svc_min_notice_label">${_minNoticeLabel}</label><input type="number" id="svc_min_notice" value="${svc?.min_booking_notice_hours||0}" min="0" placeholder="0"><small id="svc_min_notice_hint" style="color:var(--text-secondary);font-size:11px">${_minNoticeHint}</small></div></div>`;
   const sched=svc?.available_schedule||null;
   const isRestricted=sched?.type==='restricted';
   m+=`<div class="field"><label class="svc-switch"><input type="checkbox" id="svc_sched_toggle" ${isRestricted?'checked':''} onchange="svcToggleSched()"><span class="svc-switch-track"></span> Restreindre les horaires</label>`;
