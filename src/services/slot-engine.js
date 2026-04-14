@@ -902,11 +902,6 @@ async function getAvailableSlotsMultiPractitioner({ businessId, serviceIds, date
     const missing = uniqueServiceIds.filter(id => !foundIds.has(id));
     throw Object.assign(new Error(`Prestation(s) introuvable(s): ${missing.join(', ')}`), { type: 'not_found' });
   }
-  // Quote-only services: enforce minimum 72h notice
-  for (const svc of svcResult.rows) {
-    if (svc.quote_only && (svc.min_booking_notice_hours || 0) < 72) svc.min_booking_notice_hours = 72;
-  }
-
   // Build a lookup and expand to match serviceIds order (duplicates get independent copies)
   const svcLookup = Object.fromEntries(svcResult.rows.map(r => [r.id, r]));
   const services = serviceIds.map(id => ({ ...svcLookup[id] }));
