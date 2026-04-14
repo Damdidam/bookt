@@ -64,8 +64,6 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
   if (svcResult.rows.length === 0) throw Object.assign(new Error('Prestation introuvable'), { type: 'not_found' });
 
   const service = svcResult.rows[0];
-  // Quote-only services need minimum 72h notice for the merchant to review and set a price
-  if (service.quote_only && (service.min_booking_notice_hours || 0) < 72) service.min_booking_notice_hours = 72;
 
   // Override duration from variant if provided
   if (variantId) {
