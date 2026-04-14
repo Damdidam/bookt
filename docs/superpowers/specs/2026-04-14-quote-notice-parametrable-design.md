@@ -50,11 +50,11 @@ Aucun changement. Le champ `min_booking_notice_hours` est déjà accepté en `PO
 
 ### Migration SQL one-shot
 
-Nouveau fichier : `schema-vXX-quote-notice-migration.sql` (numéro de version à choisir selon la convention courante du projet — dernier constaté : `schema-v35-quote-requests.sql`, donc **v36**).
+Nouveau fichier : `schema-v70-quote-notice-migration.sql` (dernier schéma tracké en git : `schema-v69-expiry-warning.sql`).
 
 ```sql
 -- ============================================================
--- GENDA v36 — Quote notice parametrable
+-- GENDA v70 — Quote notice parametrable
 -- Preserve existing 72h behavior for quote services
 -- ============================================================
 UPDATE services
@@ -103,7 +103,7 @@ Le champ garde `min="0"`. Pas de plancher 72h, pas de warning. Le commerçant es
 |---|---|---|
 | `src/services/slot-engine.js` | Backend | Supprimer 3 blocs de 2 lignes (lignes 68, 464, 914). |
 | `src/frontend/views/services.js` | Frontend | Modifier ligne 665 (label/hint adaptatifs) + ajouter handler `svcUpdateNoticeLabel()` + brancher sur `onchange` de `#svc_quote_only`. |
-| `schema-v36-quote-notice-migration.sql` | Migration SQL | Nouveau fichier one-shot. |
+| `schema-v70-quote-notice-migration.sql` | Migration SQL | Nouveau fichier one-shot. |
 
 Aucun changement : `routes/staff/services.js`, `routes/public/quote-request.js`, `routes/public/index.js`, `minisite.js`, schéma DB.
 
