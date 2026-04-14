@@ -643,7 +643,7 @@ function renderServiceModal(svc,sectorCats,prefill,existingPromo){
   const durVal=svc?.duration_min||pf.duration_min||30;
   const priceVal=svc?.price_cents?(svc.price_cents/100):(pf.price_cents?(pf.price_cents/100):'');
   const _qoPro=window._businessPlan&&window._businessPlan!=='free';
-  m+=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:10px 14px;background:var(--surface);border-radius:var(--radius-xs);${_qoPro?'':'opacity:.5;pointer-events:none'}"><label class="svc-toggle"><input type="checkbox" id="svc_quote_only" ${svc?.quote_only?'checked':''} ${_qoPro?'':'disabled'}><span class="svc-toggle-slider"></span></label><div><div style="font-size:.85rem;font-weight:600">Sur devis${_qoPro?'':' <span style="font-size:.72rem;color:var(--primary);font-weight:500">Plan Pro requis</span>'}</div><div style="font-size:.72rem;color:var(--text-4)">Le client envoie une demande au lieu de réserver directement</div></div></div>`;
+  m+=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:10px 14px;background:var(--surface);border-radius:var(--radius-xs);${_qoPro?'':'opacity:.5;pointer-events:none'}"><label class="svc-toggle"><input type="checkbox" id="svc_quote_only" ${svc?.quote_only?'checked':''} ${_qoPro?'':'disabled'} onchange="svcUpdateNoticeLabel()"><span class="svc-toggle-slider"></span></label><div><div style="font-size:.85rem;font-weight:600">Sur devis${_qoPro?'':' <span style="font-size:.72rem;color:var(--primary);font-weight:500">Plan Pro requis</span>'}</div><div style="font-size:.72rem;color:var(--text-4)">Le client envoie une demande au lieu de réserver directement</div></div></div>`;
   m+=`<div id="svc_pricing_main"${hasVars?' style="display:none"':''}>`;
   m+=`<div class="svc-form-row" style="margin-bottom:12px"><div class="field"><label>Durée (min) *</label><input type="number" id="svc_dur" value="${durVal}" min="5" step="5" oninput="svcPoseSync()"></div><div class="field"><label>Prix (€)</label><input type="number" id="svc_price" value="${priceVal}" step="0.01" placeholder="Laisser vide si sur devis"></div><div class="field"><label>Label prix</label><input id="svc_plabel" value="${esc(svc?.price_label||'')}" placeholder="Sur devis..."></div></div>`;
   m+=`</div>`;
@@ -853,6 +853,15 @@ function svcToggleSched(){
   const ed=document.getElementById('svc_sched_editor');
   const cb=document.getElementById('svc_sched_toggle');
   if(ed)ed.style.display=cb?.checked?'block':'none';
+}
+function svcUpdateNoticeLabel(){
+  const isQuote=!!document.getElementById('svc_quote_only')?.checked;
+  const lbl=document.getElementById('svc_min_notice_label');
+  const hint=document.getElementById('svc_min_notice_hint');
+  if(lbl)lbl.textContent=isQuote?'Délai minimum pour étudier la demande (heures)':'Préavis minimum (heures)';
+  if(hint)hint.textContent=isQuote
+    ?'Temps minimum entre la demande du client et le RDV, pour examiner le projet et fixer un prix. Ex. 48h, 72h, 168h.'
+    :'Délai minimum avant qu\'un client puisse réserver en ligne';
 }
 function svcToggleFlexibility(){
   const f=document.getElementById('svc_flexibility_fields');
