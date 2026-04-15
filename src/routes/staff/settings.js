@@ -90,8 +90,6 @@ router.patch('/', requireOwner, async (req, res, next) => {
       settings_default_calendar_view,
       // Payment methods accepted on-site
       settings_payment_methods,
-      // Move restriction settings
-      settings_move_restriction_enabled, settings_move_deadline_hours, settings_move_grace_hours,
       // Reviews settings
       settings_reviews_enabled, settings_review_delay_hours, settings_review_auto_publish,
       // Minisite template
@@ -224,10 +222,6 @@ router.patch('/', requireOwner, async (req, res, next) => {
         const allowed = ['day', 'week', 'month'];
         if (allowed.includes(settings_default_calendar_view)) cur.default_calendar_view = settings_default_calendar_view;
       }
-      // Move restriction settings
-      if (settings_move_restriction_enabled !== undefined) cur.move_restriction_enabled = !!settings_move_restriction_enabled;
-      if (settings_move_deadline_hours !== undefined) { const _v = parseInt(settings_move_deadline_hours); cur.move_deadline_hours = (_v >= 1 && _v <= 720) ? _v : 48; }
-      if (settings_move_grace_hours !== undefined) { const _v = parseInt(settings_move_grace_hours); cur.move_grace_hours = (_v >= 0 && _v <= 168) ? _v : 0; }
       // Payment methods accepted on-site
       if (settings_payment_methods !== undefined) {
         const validMethods = ['cash', 'card', 'bancontact', 'apple_pay', 'google_pay', 'payconiq', 'instant_transfer', 'bank_transfer'];
