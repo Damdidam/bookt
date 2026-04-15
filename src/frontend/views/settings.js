@@ -209,6 +209,37 @@ async function loadSettings(){
     // Load connect status after render
     setTimeout(()=>loadConnectStatus(),100);
 
+    // 3a-ter. Annulation & remboursement (standalone, applies to all deposit refunds — auto or manual)
+    const canDl=b.settings?.cancel_deadline_hours||24;
+    const canGrace=b.settings?.cancel_grace_minutes||240;
+    const canPolicy=b.settings?.cancel_policy_text||'';
+    const refundPolicy=b.settings?.refund_policy||'full';
+    const _crPro=plan!=='free';
+    h+=`<div class="settings-card"${_crPro?'':' style="opacity:.6"'}><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg> Annulation & remboursement${_crPro?'':' <span style="font-size:.72rem;color:var(--primary);font-weight:500;margin-left:8px">Plan Pro requis</span>'}</h3></div><div class="sc-body"${_crPro?'':' style="pointer-events:none"'}>`;
+    h+=`<p style="font-size:.82rem;color:var(--text-3);margin-bottom:16px">Règles d'annulation et politique de remboursement. S'appliquent à toute annulation d'un acompte (demande automatique ou manuelle).</p>`;
+    // Cancellation policy
+    h+=`<div style="font-size:.78rem;font-weight:700;color:var(--text-3);text-transform:uppercase;margin-bottom:10px">Politique d'annulation</div>`;
+    h+=`<p style="font-size:.78rem;color:var(--text-4);margin-bottom:12px">Définissez les conditions de remboursement de l'acompte en cas d'annulation.</p>`;
+    h+=`<div class="field"><label>Délai d'annulation gratuite</label><div style="display:flex;align-items:center;gap:8px"><span style="font-size:.82rem;color:var(--text-3)">Remboursé si annulé plus de</span><input type="number" id="s_cancel_deadline" value="${canDl}" min="1" max="168" style="width:60px;text-align:center;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem"><span style="font-size:.82rem;color:var(--text-3)">heures avant le RDV</span></div><div class="hint">En-dessous de ce délai, l'acompte est conservé</div></div>`;
+    h+=`<div class="field"><label>Période de grâce post-réservation</label><div style="display:flex;align-items:center;gap:8px"><span style="font-size:.82rem;color:var(--text-3)">Annulation gratuite dans les</span><input type="number" id="s_cancel_grace" value="${Math.round(canGrace/60)}" min="0" max="48" style="width:60px;text-align:center;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem"><span style="font-size:.82rem;color:var(--text-3)">heures après la réservation</span></div><div class="hint">Le client peut annuler sans frais juste après avoir réservé, même si le RDV est proche</div></div>`;
+    h+=`<div class="field"><label>Texte de politique d'annulation (optionnel)</label><textarea id="s_cancel_policy" placeholder="Ex: Toute annulation moins de 48h avant le RDV entraîne la perte de l'acompte..." style="width:100%;padding:10px 13px;border:1.5px solid var(--border);border-radius:8px;font-family:var(--sans);font-size:.82rem;resize:vertical;min-height:50px">${esc(canPolicy)}</textarea><div class="hint">Affiché dans les emails et sur la page de réservation</div></div>`;
+    // Separator
+    h+=`<div style="height:1px;background:var(--border);margin:18px 0 14px"></div>`;
+    // Refund policy
+    h+=`<div style="font-size:.78rem;font-weight:700;color:var(--text-3);text-transform:uppercase;margin-bottom:10px">Politique de remboursement Stripe</div>`;
+    h+=`<p style="font-size:.78rem;color:var(--text-4);margin-bottom:12px">Choisissez comment les acomptes sont remboursés en cas d'annulation dans le délai autorisé.</p>`;
+    h+=`<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">`;
+    h+=`<label style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-radius:10px;border:1.5px solid ${refundPolicy==='full'?'var(--primary)':'var(--border)'};background:${refundPolicy==='full'?'var(--primary-light)':'var(--surface)'};cursor:pointer;transition:all .15s" onclick="document.getElementById('s_refund_full').checked=true;document.querySelectorAll('.refund-opt').forEach(e=>e.style.borderColor='var(--border)');this.style.borderColor='var(--primary)';this.style.background='var(--primary-light)';document.querySelectorAll('.refund-opt').forEach(e=>{if(e!==this){e.style.background='var(--surface)'}});" class="refund-opt">
+      <input type="radio" name="refund_policy" id="s_refund_full" value="full" ${refundPolicy==='full'?'checked':''} style="accent-color:var(--primary)">
+      <div><div style="font-size:.85rem;font-weight:600;color:var(--text)">Remboursement int\u00e9gral</div><div style="font-size:.75rem;color:var(--text-4)">Le client est rembours\u00e9 \u00e0 100%. Les frais Stripe (~1,5% + 0,25\u20ac) sont \u00e0 votre charge.</div></div>
+    </label>`;
+    h+=`<label style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-radius:10px;border:1.5px solid ${refundPolicy==='net'?'var(--primary)':'var(--border)'};background:${refundPolicy==='net'?'var(--primary-light)':'var(--surface)'};cursor:pointer;transition:all .15s" onclick="document.getElementById('s_refund_net').checked=true;document.querySelectorAll('.refund-opt').forEach(e=>e.style.borderColor='var(--border)');this.style.borderColor='var(--primary)';this.style.background='var(--primary-light)';document.querySelectorAll('.refund-opt').forEach(e=>{if(e!==this){e.style.background='var(--surface)'}});" class="refund-opt">
+      <input type="radio" name="refund_policy" id="s_refund_net" value="net" ${refundPolicy==='net'?'checked':''} style="accent-color:var(--primary)">
+      <div><div style="font-size:.85rem;font-weight:600;color:var(--text)">Remboursement partiel (frais Stripe d\u00e9duits)</div><div style="font-size:.75rem;color:var(--text-4)">Le client est rembours\u00e9 moins les frais Stripe. Vous ne perdez rien sur les annulations.</div></div>
+    </label>`;
+    h+=`</div>`;
+    h+=`</div></div>`;
+
     // 3b. Rappels clients
     const re24=b.settings?.reminder_email_24h!==false;
     const rs24=b.settings?.reminder_sms_24h===true;
@@ -330,36 +361,6 @@ async function loadSettings(){
 
     // Custom message
     h+=`<div class="field"><label>Message personnalisé (optionnel)</label><textarea id="s_dep_message" placeholder="Ex: Un acompte est demandé suite à des absences répétées..." style="width:100%;padding:10px 13px;border:1.5px solid var(--border);border-radius:8px;font-family:var(--sans);font-size:.82rem;resize:vertical;min-height:60px">${esc(depMsg)}</textarea><div class="hint">Inclus dans l'email de demande d'acompte envoyé au client</div></div>`;
-
-    // ── Cancellation policy sub-section ──
-    const canDl=b.settings?.cancel_deadline_hours||24;
-    const canGrace=b.settings?.cancel_grace_minutes||240;
-    const canPolicy=b.settings?.cancel_policy_text||'';
-    h+=`<div style="height:1px;background:var(--border);margin:18px 0 14px"></div>`;
-    h+=`<div style="font-size:.78rem;font-weight:700;color:var(--text-3);text-transform:uppercase;margin-bottom:10px">Politique d'annulation</div>`;
-    h+=`<p style="font-size:.78rem;color:var(--text-4);margin-bottom:12px">Définissez les conditions de remboursement de l'acompte en cas d'annulation.</p>`;
-
-    h+=`<div class="field"><label>Délai d'annulation gratuite</label><div style="display:flex;align-items:center;gap:8px"><span style="font-size:.82rem;color:var(--text-3)">Remboursé si annulé plus de</span><input type="number" id="s_cancel_deadline" value="${canDl}" min="1" max="168" style="width:60px;text-align:center;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem"><span style="font-size:.82rem;color:var(--text-3)">heures avant le RDV</span></div><div class="hint">En-dessous de ce délai, l'acompte est conservé</div></div>`;
-
-    h+=`<div class="field"><label>Période de grâce post-réservation</label><div style="display:flex;align-items:center;gap:8px"><span style="font-size:.82rem;color:var(--text-3)">Annulation gratuite dans les</span><input type="number" id="s_cancel_grace" value="${Math.round(canGrace/60)}" min="0" max="48" style="width:60px;text-align:center;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem"><span style="font-size:.82rem;color:var(--text-3)">heures après la réservation</span></div><div class="hint">Le client peut annuler sans frais juste après avoir réservé, même si le RDV est proche</div></div>`;
-
-    h+=`<div class="field"><label>Texte de politique d'annulation (optionnel)</label><textarea id="s_cancel_policy" placeholder="Ex: Toute annulation moins de 48h avant le RDV entraîne la perte de l'acompte..." style="width:100%;padding:10px 13px;border:1.5px solid var(--border);border-radius:8px;font-family:var(--sans);font-size:.82rem;resize:vertical;min-height:50px">${esc(canPolicy)}</textarea><div class="hint">Affiché dans les emails et sur la page de réservation</div></div>`;
-
-    // ── Refund policy sub-section ──
-    const refundPolicy=b.settings?.refund_policy||'full';
-    h+=`<div style="height:1px;background:var(--border);margin:18px 0 14px"></div>`;
-    h+=`<div style="font-size:.78rem;font-weight:700;color:var(--text-3);text-transform:uppercase;margin-bottom:10px">Politique de remboursement Stripe</div>`;
-    h+=`<p style="font-size:.78rem;color:var(--text-4);margin-bottom:12px">Choisissez comment les acomptes sont remboursés en cas d'annulation dans le délai autorisé.</p>`;
-    h+=`<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">`;
-    h+=`<label style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-radius:10px;border:1.5px solid ${refundPolicy==='full'?'var(--primary)':'var(--border)'};background:${refundPolicy==='full'?'var(--primary-light)':'var(--surface)'};cursor:pointer;transition:all .15s" onclick="document.getElementById('s_refund_full').checked=true;document.querySelectorAll('.refund-opt').forEach(e=>e.style.borderColor='var(--border)');this.style.borderColor='var(--primary)';this.style.background='var(--primary-light)';document.querySelectorAll('.refund-opt').forEach(e=>{if(e!==this){e.style.background='var(--surface)'}});" class="refund-opt">
-      <input type="radio" name="refund_policy" id="s_refund_full" value="full" ${refundPolicy==='full'?'checked':''} style="accent-color:var(--primary)">
-      <div><div style="font-size:.85rem;font-weight:600;color:var(--text)">Remboursement int\u00e9gral</div><div style="font-size:.75rem;color:var(--text-4)">Le client est rembours\u00e9 \u00e0 100%. Les frais Stripe (~1,5% + 0,25\u20ac) sont \u00e0 votre charge.</div></div>
-    </label>`;
-    h+=`<label style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-radius:10px;border:1.5px solid ${refundPolicy==='net'?'var(--primary)':'var(--border)'};background:${refundPolicy==='net'?'var(--primary-light)':'var(--surface)'};cursor:pointer;transition:all .15s" onclick="document.getElementById('s_refund_net').checked=true;document.querySelectorAll('.refund-opt').forEach(e=>e.style.borderColor='var(--border)');this.style.borderColor='var(--primary)';this.style.background='var(--primary-light)';document.querySelectorAll('.refund-opt').forEach(e=>{if(e!==this){e.style.background='var(--surface)'}});" class="refund-opt">
-      <input type="radio" name="refund_policy" id="s_refund_net" value="net" ${refundPolicy==='net'?'checked':''} style="accent-color:var(--primary)">
-      <div><div style="font-size:.85rem;font-weight:600;color:var(--text)">Remboursement partiel (frais Stripe d\u00e9duits)</div><div style="font-size:.75rem;color:var(--text-4)">Le client est rembours\u00e9 moins les frais Stripe. Vous ne perdez rien sur les annulations.</div></div>
-    </label>`;
-    h+=`</div>`;
 
     // ── Cancellation abuse limit ──
     const cancelLimitOn=!!(b.settings?.cancel_abuse_enabled);
