@@ -69,19 +69,21 @@ router.post('/deposit/:token/checkout', depositLimiter, async (req, res, next) =
     const amountCents = (bk.deposit_amount_cents || 0) - gcPaid;
     // S3-8: If remaining amount after GC is below Stripe minimum (50c), treat as fully covered
     if (amountCents > 0 && amountCents < 50) {
-      // Auto-confirm: the tiny remaining amount is absorbed — mark deposit as paid
+      // Auto-confirm: the tiny remaining amount is absorbed — mark deposit paid AND confirm booking
       await query(
-        `UPDATE bookings SET deposit_status = 'paid', deposit_paid_at = NOW(),
-         deposit_payment_intent_id = COALESCE(deposit_payment_intent_id, 'gc_absorbed')
-         WHERE id = $1 AND deposit_status = 'pending'`,
+        `UPDATE bookings SET status = 'confirmed', locked = true,
+          deposit_status = 'paid', deposit_paid_at = NOW(), deposit_deadline = NULL,
+          deposit_payment_intent_id = COALESCE(deposit_payment_intent_id, 'gc_absorbed')
+         WHERE id = $1 AND status = 'pending_deposit' AND deposit_status = 'pending'`,
         [bk.id]
       );
       // Also confirm group siblings
       if (bk.group_id) {
         await query(
-          `UPDATE bookings SET deposit_status = 'paid', deposit_paid_at = NOW(),
-           deposit_payment_intent_id = COALESCE(deposit_payment_intent_id, 'gc_absorbed')
-           WHERE group_id = $1 AND business_id = $2 AND deposit_status = 'pending'`,
+          `UPDATE bookings SET status = 'confirmed', locked = true,
+            deposit_status = 'paid', deposit_paid_at = NOW(), deposit_deadline = NULL,
+            deposit_payment_intent_id = COALESCE(deposit_payment_intent_id, 'gc_absorbed')
+           WHERE group_id = $1 AND business_id = $2 AND status = 'pending_deposit' AND deposit_status = 'pending'`,
           [bk.group_id, bk.business_id]
         );
       }
@@ -220,15 +222,17 @@ router.get('/deposit/:token/pay', depositLimiter, async (req, res, next) => {
     // S3-8: Auto-confirm if remaining is below Stripe minimum (same logic as POST /checkout)
     if (amountCents > 0 && amountCents < 50) {
       await query(
-        `UPDATE bookings SET deposit_status = 'paid', deposit_paid_at = NOW(),
-         deposit_payment_intent_id = COALESCE(deposit_payment_intent_id, 'gc_absorbed')
-         WHERE id = $1 AND deposit_status = 'pending'`, [bk.id]
+        `UPDATE bookings SET status = 'confirmed', locked = true,
+          deposit_status = 'paid', deposit_paid_at = NOW(), deposit_deadline = NULL,
+          deposit_payment_intent_id = COALESCE(deposit_payment_intent_id, 'gc_absorbed')
+         WHERE id = $1 AND status = 'pending_deposit' AND deposit_status = 'pending'`, [bk.id]
       );
       if (bk.group_id) {
         await query(
-          `UPDATE bookings SET deposit_status = 'paid', deposit_paid_at = NOW(),
-           deposit_payment_intent_id = COALESCE(deposit_payment_intent_id, 'gc_absorbed')
-           WHERE group_id = $1 AND business_id = $2 AND deposit_status = 'pending'`,
+          `UPDATE bookings SET status = 'confirmed', locked = true,
+            deposit_status = 'paid', deposit_paid_at = NOW(), deposit_deadline = NULL,
+            deposit_payment_intent_id = COALESCE(deposit_payment_intent_id, 'gc_absorbed')
+           WHERE group_id = $1 AND business_id = $2 AND status = 'pending_deposit' AND deposit_status = 'pending'`,
           [bk.group_id, bk.business_id]
         );
       }
