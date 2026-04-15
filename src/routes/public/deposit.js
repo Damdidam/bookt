@@ -358,6 +358,7 @@ router.post('/deposit/:token/verify', depositLimiter, async (req, res, next) => 
       const upd = await txClient.query(
         `UPDATE bookings SET
           status = 'confirmed',
+          locked = true,
           deposit_status = 'paid',
           deposit_paid_at = NOW(),
           deposit_payment_intent_id = COALESCE($1, deposit_payment_intent_id),
@@ -371,7 +372,7 @@ router.post('/deposit/:token/verify', depositLimiter, async (req, res, next) => 
         // 1. Group siblings
         if (bk.group_id) {
           const sibResult = await txClient.query(
-            `UPDATE bookings SET status = 'confirmed',
+            `UPDATE bookings SET status = 'confirmed', locked = true,
               deposit_status = 'paid', deposit_paid_at = NOW(), deposit_deadline = NULL
              WHERE group_id = $1 AND business_id = $2 AND id != $3 AND status = 'pending_deposit'
              RETURNING id`,
@@ -382,7 +383,7 @@ router.post('/deposit/:token/verify', depositLimiter, async (req, res, next) => 
         // 2. Detached bookings sharing same deposit_payment_intent_id
         if (piId) {
           const detached = await txClient.query(
-            `UPDATE bookings SET status = 'confirmed',
+            `UPDATE bookings SET status = 'confirmed', locked = true,
               deposit_status = 'paid', deposit_paid_at = NOW(), deposit_deadline = NULL
              WHERE deposit_payment_intent_id = $1 AND business_id = $2 AND id != $3
                AND status = 'pending_deposit' AND group_id IS DISTINCT FROM $4

@@ -257,6 +257,7 @@ async function handleStripeWebhook(req, res) {
             upd = await txClient.query(
               `UPDATE bookings SET
                 status = 'confirmed',
+                locked = true,
                 deposit_status = 'paid',
                 deposit_paid_at = NOW(),
                 deposit_payment_intent_id = COALESCE($1, deposit_payment_intent_id),
@@ -275,7 +276,7 @@ async function handleStripeWebhook(req, res) {
               // 1. Group siblings (still in same group)
               if (bk.group_id) {
                 const grpUpd = await txClient.query(
-                  `UPDATE bookings SET status = 'confirmed', deposit_status = 'paid',
+                  `UPDATE bookings SET status = 'confirmed', locked = true, deposit_status = 'paid',
                     deposit_paid_at = NOW(), deposit_deadline = NULL
                    WHERE group_id = $1 AND business_id = $2 AND id != $3 AND status = 'pending_deposit'
                    RETURNING id`,
@@ -287,7 +288,7 @@ async function handleStripeWebhook(req, res) {
               // 2. Ungrouped bookings sharing same deposit_payment_intent_id (detached after deposit request)
               if (piId) {
                 const detachedUpd = await txClient.query(
-                  `UPDATE bookings SET status = 'confirmed', deposit_status = 'paid',
+                  `UPDATE bookings SET status = 'confirmed', locked = true, deposit_status = 'paid',
                     deposit_paid_at = NOW(), deposit_deadline = NULL
                    WHERE deposit_payment_intent_id = $1 AND business_id = $2 AND id != $3
                      AND status = 'pending_deposit' AND group_id IS DISTINCT FROM $4
