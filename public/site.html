@@ -1398,6 +1398,36 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'&&document.ge
     return '';
   }
 
+  // Sanitize owner-supplied rich text (description). Whitelist mirrors dashboard _cleanDescHtml.
+  // Keeps inline formatting (b/i/u/lists/links) but strips all attributes except href on <a>,
+  // and href is filtered via safeUrl to block javascript:/data: schemes.
+  function sanitizeDescHtml(html) {
+    if (!html) return '';
+    var tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    var allowed = { P:1, BR:1, B:1, STRONG:1, I:1, EM:1, U:1, UL:1, OL:1, LI:1, A:1, SPAN:1 };
+    function walk(node) {
+      var out = '';
+      for (var i = 0; i < node.childNodes.length; i++) {
+        var ch = node.childNodes[i];
+        if (ch.nodeType === 3) { out += esc(ch.textContent); continue; }
+        if (ch.nodeType !== 1) continue;
+        if (!allowed[ch.tagName]) { out += walk(ch); continue; }
+        var tag = ch.tagName.toLowerCase();
+        if (tag === 'br') { out += '<br>'; continue; }
+        var attrs = '';
+        if (tag === 'a' && ch.getAttribute('href')) {
+          var safe = safeUrl(ch.getAttribute('href'));
+          if (safe) attrs = ' href="' + safe + '" target="_blank" rel="noopener noreferrer"';
+        }
+        var inner = walk(ch);
+        if (inner.trim() || tag === 'br') out += '<' + tag + attrs + '>' + inner + '</' + tag + '>';
+      }
+      return out;
+    }
+    return walk(tmp);
+  }
+
   var DAYS_FR = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
 
   function fmtNext(iso) {
@@ -1723,7 +1753,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'&&document.ge
     var aboutImg = b.about_image_url || b.cover_image_url;
     if (sec.about !== false && (b.description || aboutImg)) {
       document.getElementById('about').style.display = '';
-      if (b.description) document.getElementById('aboutText').innerHTML = esc(b.description).replace(/\n/g, '<br>');
+      if (b.description) document.getElementById('aboutText').innerHTML = sanitizeDescHtml(b.description);
       if (aboutImg) {
         var _safeAboutUrl = safeUrl(aboutImg);
         if (_safeAboutUrl) {
