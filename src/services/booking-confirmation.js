@@ -39,7 +39,7 @@ async function processExpiredPendingBookings() {
            (b.confirmation_expires_at IS NOT NULL AND b.confirmation_expires_at < NOW())
            OR b.start_at <= NOW()
          )
-       FOR UPDATE SKIP LOCKED`
+       FOR UPDATE OF b SKIP LOCKED`
     );
 
     let processed = 0;
