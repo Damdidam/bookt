@@ -1687,7 +1687,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'&&document.ge
     if (b.address) ld.address = { '@type': 'PostalAddress', streetAddress: b.address };
     if (b.phone) ld.telephone = b.phone;
     if (b.cover_image_url) ld.image = b.cover_image_url;
-    if (b.description) ld.description = b.description;
+    if (b.description) ld.description = b.description.replace(/<[^>]*>/g,'');
     var ldScript = document.createElement('script');
     ldScript.type = 'application/ld+json';
     ldScript.textContent = JSON.stringify(ld);

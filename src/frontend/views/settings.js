@@ -362,12 +362,15 @@ async function loadSettings(){
     // Custom message
     h+=`<div class="field"><label>Message personnalisé (optionnel)</label><textarea id="s_dep_message" placeholder="Ex: Un acompte est demandé suite à des absences répétées..." style="width:100%;padding:10px 13px;border:1.5px solid var(--border);border-radius:8px;font-family:var(--sans);font-size:.82rem;resize:vertical;min-height:60px">${esc(depMsg)}</textarea><div class="hint">Inclus dans l'email de demande d'acompte envoyé au client</div></div>`;
 
-    // ── Cancellation abuse limit ──
+    h+=`</div>`; // close depositOptions
+
+    h+=`</div></div>`;
+
+    // ── Cancellation abuse limit (H14 fix: indépendant des acomptes — carte propre) ──
     const cancelLimitOn=!!(b.settings?.cancel_abuse_enabled);
     const cancelLimitMax=b.settings?.cancel_abuse_max||5;
-    h+=`<div style="height:1px;background:var(--border);margin:18px 0 14px"></div>`;
-    h+=`<div style="font-size:.78rem;font-weight:700;color:var(--text-3);text-transform:uppercase;margin-bottom:10px">Protection anti-abus</div>`;
-    h+=`<p style="font-size:.78rem;color:var(--text-4);margin-bottom:12px">Bloquez automatiquement les clients qui annulent de mani\u00e8re r\u00e9p\u00e9titive.</p>`;
+    h+=`<div class="settings-card"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Protection anti-abus</h3></div><div class="sc-body">`;
+    h+=`<p style="font-size:.82rem;color:var(--text-3);margin-bottom:16px">Bloquez automatiquement les clients qui annulent de mani\u00e8re r\u00e9p\u00e9titive.</p>`;
     h+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--surface);border-radius:10px;margin-bottom:12px">
       <div><div style="font-size:.85rem;font-weight:600;color:var(--text)">Limiter les annulations r\u00e9p\u00e9t\u00e9es</div><div style="font-size:.75rem;color:var(--text-4)">Bloque le client apr\u00e8s trop d'annulations cons\u00e9cutives</div></div>
       <label style="position:relative;width:44px;height:24px;cursor:pointer">
@@ -379,9 +382,6 @@ async function loadSettings(){
     h+=`<div id="cancelAbuseOpts" style="display:${cancelLimitOn?'block':'none'}">`;
     h+=`<div class="field"><label>Seuil d'annulations</label><div style="display:flex;align-items:center;gap:8px"><span style="font-size:.82rem;color:var(--text-3)">Bloquer apr\u00e8s</span><input type="number" id="s_cancel_abuse_max" value="${cancelLimitMax}" min="2" max="20" style="width:60px;text-align:center;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem"><span style="font-size:.82rem;color:var(--text-3)">annulations cons\u00e9cutives</span></div><div class="hint">Le client sera bloqu\u00e9 et ne pourra plus r\u00e9server en ligne. D\u00e9blocage manuel depuis la fiche client.</div></div>`;
     h+=`</div>`;
-
-    h+=`</div>`; // close depositOptions
-
     h+=`</div></div>`;
 
     // 3c-ter. Modification par le client (reschedule)
@@ -674,8 +674,12 @@ async function saveAllSettings(){
       settings_cancel_deadline_hours:parseInt(el('s_cancel_deadline')?.value)||24,
       settings_cancel_grace_minutes:(Number.isFinite(parseInt(el('s_cancel_grace')?.value))?parseInt(el('s_cancel_grace')?.value):4)*60,
       settings_cancel_policy_text:el('s_cancel_policy')?.value||'',
-      settings_refund_policy:document.querySelector('input[name="refund_policy"]:checked')?.value||'full',
-      settings_cancel_abuse_enabled:el('s_cancel_abuse_on')?.checked||false,
+      settings_refund_policy:document.querySelector('input[name="refund_policy"]:checked')?.value||'full'
+    });
+
+    // H14 fix: cancel_abuse est une carte indépendante — save gardé séparé
+    if(el('s_cancel_abuse_on'))Object.assign(body,{
+      settings_cancel_abuse_enabled:el('s_cancel_abuse_on').checked,
       settings_cancel_abuse_max:parseInt(el('s_cancel_abuse_max')?.value)||5
     });
 

@@ -1195,6 +1195,6 @@ async function qsSubmitAll(){
 
 // ===== BRIDGE =====
 
-bridge({ loadServices, openServiceModal, saveService, deactivateService, reactivateService, deleteService, toggleService, toggleCategory, openQuickStart, qsToggleCat, qsGoStep2, qsBack, qsDur, qsToggleTpl, qsAddCustomRow, qsSubmitAll, qsUpdateCount, svcAddVariant, svcRemoveVariant, svcVarRowHTML, svcUpdatePricingVis, svcToggleSection, svcDeleteCategory, svcAddFromTemplate, svcPickTemplate, svcToggleSched, svcTogglePose, svcPoseSync, svcSchedDayToggle, svcSchedAddWin, svcDayPillClick, openCategoryModal, saveCategory, svcDragStart, svcDragOver, svcDragLeave, svcDrop, svcTogglePrac, svcToggleFlexibility, svcAddPassTemplate, svcTogglePassSection });
+bridge({ loadServices, openServiceModal, saveService, deactivateService, reactivateService, deleteService, toggleService, toggleCategory, openQuickStart, qsToggleCat, qsGoStep2, qsBack, qsDur, qsToggleTpl, qsAddCustomRow, qsSubmitAll, qsUpdateCount, svcAddVariant, svcRemoveVariant, svcVarRowHTML, svcUpdatePricingVis, svcToggleSection, svcDeleteCategory, svcAddFromTemplate, svcPickTemplate, svcToggleSched, svcTogglePose, svcPoseSync, svcSchedDayToggle, svcSchedAddWin, svcDayPillClick, openCategoryModal, saveCategory, svcDragStart, svcDragOver, svcDragLeave, svcDrop, svcTogglePrac, svcToggleFlexibility, svcAddPassTemplate, svcTogglePassSection, svcUpdateNoticeLabel });
 
 export { loadServices, openServiceModal, saveService, deactivateService, reactivateService, deleteService, toggleService, toggleCategory, openQuickStart };
