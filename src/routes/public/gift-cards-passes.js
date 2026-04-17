@@ -139,9 +139,23 @@ router.post('/deposit/:token/gift-card', depositLimiter, async (req, res, next) 
     await client.query(`INSERT INTO gift_card_transactions (id, gift_card_id, business_id, booking_id, amount_cents, type, note) VALUES (gen_random_uuid(), $1, $2, $3, $4, 'debit', $5)`, [gc.id, bk.business_id, bk.id, gcDebit, `Acompte RDV — carte ${gc.code}`]);
 
     if (remaining <= 0) {
-      await client.query(`UPDATE bookings SET status = 'confirmed', deposit_status = 'paid', deposit_paid_at = NOW(), deposit_payment_intent_id = $1 WHERE id = $2`, [`gc_${gc.code}`, bk.id]);
+      // B2 fix: align with deposit.js:74-89 post-127628b — GC-full path must set locked=true, deposit_deadline=NULL,
+      // and propagate deposit_payment_intent_id to siblings so downstream crons match the same PI.
+      await client.query(
+        `UPDATE bookings SET status = 'confirmed', locked = true, deposit_status = 'paid',
+          deposit_paid_at = NOW(), deposit_deadline = NULL, deposit_payment_intent_id = $1
+         WHERE id = $2 AND status = 'pending_deposit' AND deposit_status = 'pending'`,
+        [`gc_${gc.code}`, bk.id]
+      );
       if (bk.group_id) {
-        await client.query(`UPDATE bookings SET status = 'confirmed', deposit_status = 'paid', deposit_paid_at = NOW() WHERE group_id = $1 AND id != $2 AND status = 'pending_deposit'`, [bk.group_id, bk.id]);
+        await client.query(
+          `UPDATE bookings SET status = 'confirmed', locked = true, deposit_status = 'paid',
+            deposit_paid_at = NOW(), deposit_deadline = NULL,
+            deposit_payment_intent_id = COALESCE(deposit_payment_intent_id, $3)
+           WHERE group_id = $1 AND business_id = $4 AND id != $2
+             AND status = 'pending_deposit' AND deposit_status = 'pending'`,
+          [bk.group_id, bk.id, `gc_${gc.code}`, bk.business_id]
+        );
       }
       await client.query('COMMIT');
       // Send deposit-paid confirmation email
