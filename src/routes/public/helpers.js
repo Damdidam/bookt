@@ -176,6 +176,10 @@ const _minisiteCache = {};
 function invalidateMinisiteCache(businessId) {
   if (!businessId) return;
   delete _minisiteCache[`minisite_${businessId}`];
+  // M-02 fix: le "prochain créneau dispo" affiché sur le minisite devient obsolète dès qu'un booking
+  // est créé/annulé/déplacé. Purger en même temps que la cache minisite évite d'afficher un créneau
+  // déjà pris pendant jusqu'à 5 min.
+  delete _nextSlotCache[`nextSlot_${businessId}`];
 }
 
 // Periodic cache cleanup every 5 min — delete entries older than their TTL

@@ -247,8 +247,10 @@ async function processExpiredPendingBookings() {
     // H4 fix: missed-email sweep — pick up cron-cancelled bookings (last 24h) whose email was
     // never sent (pod crashed between COMMIT and send). Idempotent via cancellation_email_sent_at.
     try {
+      // Q9 fix: fetch business_id + group_id + client_id pour éviter les "Invalid business ID" en aval
+      // (processWaitlistForCancellation, calSyncDelete, etc. appellent queryWithRLS qui throw sur null).
       const missed = await query(
-        `SELECT id FROM bookings
+        `SELECT id, business_id, group_id, client_id FROM bookings
           WHERE status = 'cancelled'
             AND cancellation_email_sent_at IS NULL
             AND updated_at > NOW() - INTERVAL '24 hours'
@@ -260,7 +262,7 @@ async function processExpiredPendingBookings() {
       );
       for (const m of missed.rows) {
         if (!cancelledBookingIds.find(c => c.id === m.id)) {
-          cancelledBookingIds.push({ id: m.id, business_id: null, group_id: null, client_id: null, _gcRefunded: 0, _passRefunded: false, _netRefund: null, _retentionReason: null, _missed: true });
+          cancelledBookingIds.push({ id: m.id, business_id: m.business_id, group_id: m.group_id, client_id: m.client_id, _gcRefunded: 0, _passRefunded: false, _netRefund: null, _retentionReason: null, _missed: true });
         }
       }
       if (missed.rows.length > 0) console.log(`[CONFIRM CRON] Picked up ${missed.rows.length} missed email(s) from previous tick`);

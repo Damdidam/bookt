@@ -260,7 +260,7 @@ router.post('/signup', authLimiter, async (req, res, next) => {
 
       // Notify superadmin(s) — non-blocking
       query(`SELECT email FROM users WHERE is_superadmin = true`).then(r => {
-        const baseUrl = process.env.BOOKING_BASE_URL || 'https://genda.be';
+        const baseUrl = process.env.APP_BASE_URL || process.env.BOOKING_BASE_URL || 'https://genda.be';
         for (const sa of r.rows) {
           sendEmail({
             to: sa.email,
@@ -296,7 +296,7 @@ router.post('/signup', authLimiter, async (req, res, next) => {
           sector: sector || 'autre',
           category: finalCategory,
           plan: 'free',
-          booking_url: `${process.env.BOOKING_BASE_URL || 'https://genda.be'}/${slug}`
+          booking_url: `${process.env.APP_BASE_URL || process.env.BOOKING_BASE_URL || 'https://genda.be'}/${slug}`
         },
         onboarding_url: '/dashboard?onboarding=true'
       });

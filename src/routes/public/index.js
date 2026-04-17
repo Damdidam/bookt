@@ -5,7 +5,7 @@ const { bookingLimiter, slotsLimiter, depositLimiter } = require('../../middlewa
 const { processWaitlistForCancellation } = require('../../services/waitlist');
 const { broadcast } = require('../../services/sse');
 const { checkPracAvailability, checkBookingConflicts } = require('../staff/bookings-helpers');
-const { UUID_RE, escHtml, stripeRefundDeposit, shouldRequireDeposit, computeDepositDeadline, isWithinLastMinuteWindow, BASE_URL, validateAndCalcPromo, normalizeEmail, isDisposableEmail } = require('./helpers');
+const { UUID_RE, escHtml, stripeRefundDeposit, shouldRequireDeposit, computeDepositDeadline, isWithinLastMinuteWindow, BASE_URL, validateAndCalcPromo, normalizeEmail, isDisposableEmail, invalidateMinisiteCache } = require('./helpers');
 const { findOrCreateClient } = require('./booking-client-match');
 const { normalizeE164 } = require('../../utils/phone');
 const { queueBookingNotifications, sendPostBookingComms } = require('./booking-notifications');
@@ -868,6 +868,8 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       const { bookings: multiBookings, needsConfirmation: multiNeedsConfirm, confirmTimeoutMin: multiConfTimeout, confirmChannel: multiConfChannel, gcPartialCents: multiGcPartial } = multiResult;
 
       broadcast(businessId, 'booking_update', { action: 'created', source: 'public' });
+      // M-02 fix: invalidate next-slot cache (slot pris → "prochain dispo" obsolète)
+      try { invalidateMinisiteCache(businessId); } catch (_) {}
       // H1: calSyncPush for each created booking
       for (const mb of multiBookings) {
         try { const { calSyncPush } = require('../staff/bookings-helpers'); calSyncPush(businessId, mb.id); } catch (_) {}
@@ -1441,6 +1443,8 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
     const { booking: createdBooking, needsConfirmation: singleNeedsConfirm, confirmTimeoutMin: singleConfTimeout, confirmChannel: singleConfChannel, gcPartialCents: resultGcPartial, svcPrice: resultSvcPrice, svcDuration: resultSvcDuration } = result;
 
     broadcast(businessId, 'booking_update', { action: 'created', source: 'public' });
+    // M-02 fix: invalidate next-slot cache (slot pris → "prochain dispo" obsolète)
+    try { invalidateMinisiteCache(businessId); } catch (_) {}
     // H1: calSyncPush for created booking
     try { const { calSyncPush } = require('../staff/bookings-helpers'); calSyncPush(businessId, createdBooking.id); } catch (_) {}
 
