@@ -99,13 +99,16 @@ async function processExpiredPendingBookings() {
                 const _actualStripeCharge = Math.max(bk.deposit_amount_cents - _gcPaidCents, 0);
                 const _stripeFees = _actualStripeCharge > 0 ? Math.round(_actualStripeCharge * 0.015) + 25 : 0;
                 const _netRefund = Math.max(_actualStripeCharge - _stripeFees, 0);
-                if (_netRefund > 0) {
+                // D-12 fix: Stripe refund minimum = 50c. Si netRefund < 50, refund impossible → même
+                // cause UX que fees>=charge (non-remboursable techniquement). Classifier pareil pour
+                // afficher message correct dans email (pas "raison technique" stripe_failure).
+                if (_netRefund >= 50) {
                   await stripe.refunds.create({ payment_intent: _piId, amount: _netRefund });
                   console.log(`[CONFIRM CRON] Net refund: ${_netRefund}c (fees ${_stripeFees}c, gc ${_gcPaidCents}c) for PI ${_piId}`);
                   _netRefundForEmail = _netRefund;
                 } else {
-                  // Fees exceed charge — nothing to refund. Mark as retained.
-                  console.warn(`[CONFIRM CRON] netRefund=0 (fees ${_stripeFees}c >= charge ${_actualStripeCharge}c) — deposit retained for PI ${_piId}`);
+                  // Fees ≥ charge OU net trop petit pour refund Stripe — deposit retenu.
+                  console.warn(`[CONFIRM CRON] netRefund=${_netRefund}c <50c Stripe min (fees ${_stripeFees}c, charge ${_actualStripeCharge}c) — deposit retained for PI ${_piId}`);
                   _finalDepStatus = 'cancelled';
                   _netRefundForEmail = 0;
                   _retentionReason = 'fees_exceed_charge';

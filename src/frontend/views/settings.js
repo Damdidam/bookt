@@ -740,7 +740,7 @@ async function saveAllSettings(){
       calState.fcColorMode=body.settings_calendar_color_mode;
       if(window.fcRefresh)window.fcRefresh();
     }
-if(body.settings_giftcard_enabled!==undefined){
+    if(body.settings_giftcard_enabled!==undefined){
       freshBiz.settings.giftcard_enabled=body.settings_giftcard_enabled;
       freshBiz.settings.giftcard_amounts=body.settings_giftcard_amounts;
       freshBiz.settings.giftcard_custom_amount=body.settings_giftcard_custom_amount;
@@ -1024,30 +1024,6 @@ async function saveReminderSettings(){
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 
-async function saveDepositSettings(){
-  try{
-    const data={
-      settings_deposit_enabled:document.getElementById('s_dep_enabled').checked,
-      settings_deposit_noshow_threshold:document.getElementById('s_dep_threshold')?.value||2,
-      settings_deposit_type:document.getElementById('s_dep_type')?.value||'percent',
-      settings_deposit_percent:parseInt(document.getElementById('s_dep_percent')?.value)||50,
-      settings_deposit_fixed_cents:Math.round((parseFloat(document.getElementById('s_dep_fixed')?.value)||25)*100),
-      settings_deposit_deadline_hours:parseInt(document.getElementById('s_dep_deadline')?.value)||48,
-      settings_deposit_message:document.getElementById('s_dep_message')?.value||'',
-      settings_deposit_deduct:document.getElementById('s_dep_deduct')?.checked??true,
-      settings_deposit_price_threshold_cents:Math.round((parseFloat(document.getElementById('s_dep_price_thresh')?.value)||0)*100),
-      settings_deposit_duration_threshold_min:parseInt(document.getElementById('s_dep_dur_thresh')?.value)||0,
-      settings_deposit_threshold_mode:document.getElementById('s_dep_thresh_mode')?.value||'any',
-      settings_cancel_deadline_hours:parseInt(document.getElementById('s_cancel_deadline')?.value)||24,
-      settings_cancel_grace_minutes:(parseInt(document.getElementById('s_cancel_grace')?.value)||4)*60,
-      settings_cancel_policy_text:document.getElementById('s_cancel_policy')?.value||''
-    };
-    const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(data)});
-    if(!r.ok)throw new Error((await r.json()).error);
-    GendaUI.toast('Politique d\'acompte enregistrée','success');window._settingsGuard?.markClean();
-  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
-}
-
 async function saveGiftCardSettings(){
   try{
     const amountsStr=document.getElementById('s_gc_amounts')?.value||'';
@@ -1235,6 +1211,6 @@ function downloadQR(){
 
 function doLogout(){api.logout();}
 
-bridge({ loadSettings, loadConnectStatus, connectStripe, openStripeDashboard, disconnectStripe, saveAllSettings, saveCalendarSettings, savePractitionerChoiceSetting, saveMultiServicePolicy, saveDefaultView, saveOverlapPolicy, saveReminderSettings, saveDepositSettings, saveRescheduleSettings, saveGiftCardSettings, saveBookingConfirmSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout, savePaymentMethods });
+bridge({ loadSettings, loadConnectStatus, connectStripe, openStripeDashboard, disconnectStripe, saveAllSettings, saveCalendarSettings, savePractitionerChoiceSetting, saveMultiServicePolicy, saveDefaultView, saveOverlapPolicy, saveReminderSettings, saveRescheduleSettings, saveGiftCardSettings, saveBookingConfirmSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout, savePaymentMethods });
 
 export { loadSettings, loadConnectStatus, connectStripe, openStripeDashboard, disconnectStripe, saveAllSettings, saveCalendarSettings, savePractitionerChoiceSetting, saveMultiServicePolicy, saveDefaultView, saveOverlapPolicy, saveReminderSettings, saveRescheduleSettings, saveGiftCardSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout, savePaymentMethods };

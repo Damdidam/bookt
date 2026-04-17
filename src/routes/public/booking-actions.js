@@ -171,12 +171,13 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
                   const _fees = _actualCharge > 0 ? Math.round(_actualCharge * 0.015) + 25 : 0;
                   const _netRefund = Math.max(_actualCharge - _fees, 0);
                   publicCancelNetRefundCents = _netRefund;
-                  if (_netRefund > 0) {
+                  // D-12 fix: Stripe min 50c — traiter net<50 comme fees_exceed_charge
+                  if (_netRefund >= 50) {
                     await _stripe.refunds.create({ payment_intent: _piId, amount: _netRefund });
                   } else {
-                    // H2 fix: fees >= charge — no Stripe refund possible. Rollback deposit_status to
-                    // 'cancelled' so the UPDATE CASE 'refunded' from L80 doesn't lie in the DB / emails.
-                    console.warn(`[PUBLIC CANCEL] netRefund=0 (fees ${_fees}c >= charge ${_actualCharge}c) — deposit retained for PI ${_piId}`);
+                    // Fees ≥ charge OU net trop petit pour Stripe — deposit retenu (même UX).
+                    console.warn(`[PUBLIC CANCEL] netRefund=${_netRefund}c <50c (fees ${_fees}c, charge ${_actualCharge}c) — deposit retained for PI ${_piId}`);
+                    publicCancelNetRefundCents = 0;
                     publicCancelRetentionReason = 'fees_exceed_charge';
                     await txClient.query(`UPDATE bookings SET deposit_status = 'cancelled' WHERE id = $1`, [postCancelBkFinal.id]);
                     if (bk.group_id) {
@@ -1153,10 +1154,12 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
                   const _ch = Math.max(cancelBkFinal.deposit_amount_cents - _gc, 0);
                   const _net = Math.max(_ch - (_ch > 0 ? Math.round(_ch * 0.015) + 25 : 0), 0);
                   cancelBookingNetRefundCents = _net;
-                  if (_net > 0) {
+                  // D-12 fix: Stripe min 50c — traiter net<50 comme fees_exceed_charge
+                  if (_net >= 50) {
                     await _stripe.refunds.create({ payment_intent: _piId, amount: _net });
                   } else {
-                    // Fees exceed charge — nothing to refund. Banner shows real cause.
+                    // Fees ≥ charge OU net trop petit pour Stripe — deposit retenu.
+                    cancelBookingNetRefundCents = 0;
                     cancelBookingRetentionReason = 'fees_exceed_charge';
                   }
                 } else { await _stripe.refunds.create({ payment_intent: _piId }); }

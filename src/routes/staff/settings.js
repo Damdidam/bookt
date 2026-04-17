@@ -913,7 +913,8 @@ router.post('/close', requireOwner, blockIfImpersonated, async (req, res, next) 
           footerText: 'Genda.be — Export de données'
         });
 
-        // Send with Brevo attachments
+        // Send with Brevo attachments — timeout 15s pour éviter de bloquer le POST /close
+        // si Brevo est lent/indisponible (UX: "Fermeture en cours" bloqué jusqu'à timeout HTTP).
         const BREVO_API = 'https://api.brevo.com/v3/smtp/email';
         await fetch(BREVO_API, {
           method: 'POST',
@@ -927,7 +928,8 @@ router.post('/close', requireOwner, blockIfImpersonated, async (req, res, next) 
               { name: 'clients.csv', content: Buffer.from(clientsCsv).toString('base64') },
               { name: 'factures.csv', content: Buffer.from(invoicesCsv).toString('base64') }
             ]
-          })
+          }),
+          signal: AbortSignal.timeout(15000)
         });
         console.log(`[CLOSE] Data export sent to ${ownerEmail}`);
       }

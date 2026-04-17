@@ -512,12 +512,14 @@ router.patch('/:id/status', blockIfImpersonated, async (req, res, next) => {
                     const stripeFees = actualStripeCharge > 0 ? Math.round(actualStripeCharge * 0.015) + 25 : 0;
                     const netRefund = Math.max(actualStripeCharge - stripeFees, 0);
                     netRefundCentsForEmail = netRefund;
-                    if (netRefund > 0) {
+                    // D-12 fix: Stripe min 50c — traiter net<50 comme fees_exceed_charge
+                    if (netRefund >= 50) {
                       await stripe.refunds.create({ payment_intent: piId, amount: netRefund });
                       console.log(`[DEPOSIT REFUND] Net refund: ${netRefund}c (fees: ${stripeFees}c, gc: ${gcPaidCents}c) for PI ${piId}`);
                     } else {
-                      // Fees >= charge — nothing to refund. Mark as retained, not refunded.
-                      console.warn(`[DEPOSIT REFUND] netRefund=0 (fees ${stripeFees}c >= charge ${actualStripeCharge}c) — deposit retained for PI ${piId}`);
+                      // Fees ≥ charge OU net trop petit pour Stripe — deposit retenu.
+                      console.warn(`[DEPOSIT REFUND] netRefund=${netRefund}c <50c (fees ${stripeFees}c, charge ${actualStripeCharge}c) — deposit retained for PI ${piId}`);
+                      netRefundCentsForEmail = 0;
                       newDepStatus = 'cancelled';
                       depRetentionReason = 'fees_exceed_charge';
                     }

@@ -3,7 +3,7 @@
  * Extracted from index.js (Phase 4c refactoring).
  */
 const router = require('express').Router();
-const { query } = require('../../services/db');
+const { query, pool } = require('../../services/db');
 const { depositLimiter } = require('../../middleware/rate-limiter');
 const { BASE_URL } = require('./helpers');
 
@@ -69,24 +69,35 @@ router.post('/deposit/:token/checkout', depositLimiter, async (req, res, next) =
     const amountCents = (bk.deposit_amount_cents || 0) - gcPaid;
     // S3-8: If remaining amount after GC is below Stripe minimum (50c), treat as fully covered
     if (amountCents > 0 && amountCents < 50) {
-      // Auto-confirm: the tiny remaining amount is absorbed — mark deposit paid AND confirm booking
-      await query(
-        `UPDATE bookings SET status = 'confirmed', locked = true,
-          deposit_status = 'paid', deposit_paid_at = NOW(), deposit_deadline = NULL,
-          deposit_payment_intent_id = COALESCE(deposit_payment_intent_id, 'gc_absorbed')
-         WHERE id = $1 AND status = 'pending_deposit' AND deposit_status = 'pending'`,
-        [bk.id]
-      );
-      // Also confirm group siblings
-      if (bk.group_id) {
-        await query(
+      // Auto-confirm: the tiny remaining amount is absorbed — mark deposit paid AND confirm booking.
+      // Q14 fix: wrap primary + siblings updates in a single transaction (atomicité — un crash entre
+      // les 2 queries laissait le groupe partiellement confirmé).
+      const _gcAbsClient = await pool.connect();
+      try {
+        await _gcAbsClient.query('BEGIN');
+        await _gcAbsClient.query(
           `UPDATE bookings SET status = 'confirmed', locked = true,
             deposit_status = 'paid', deposit_paid_at = NOW(), deposit_deadline = NULL,
             deposit_payment_intent_id = COALESCE(deposit_payment_intent_id, 'gc_absorbed')
-           WHERE group_id = $1 AND business_id = $2 AND status = 'pending_deposit' AND deposit_status = 'pending'`,
-          [bk.group_id, bk.business_id]
+           WHERE id = $1 AND status = 'pending_deposit' AND deposit_status = 'pending'`,
+          [bk.id]
         );
+        if (bk.group_id) {
+          await _gcAbsClient.query(
+            `UPDATE bookings SET status = 'confirmed', locked = true,
+              deposit_status = 'paid', deposit_paid_at = NOW(), deposit_deadline = NULL,
+              deposit_payment_intent_id = COALESCE(deposit_payment_intent_id, 'gc_absorbed')
+             WHERE group_id = $1 AND business_id = $2 AND status = 'pending_deposit' AND deposit_status = 'pending'`,
+            [bk.group_id, bk.business_id]
+          );
+        }
+        await _gcAbsClient.query('COMMIT');
+      } catch (_txErr) {
+        await _gcAbsClient.query('ROLLBACK').catch(() => {});
+        _gcAbsClient.release();
+        throw _txErr;
       }
+      _gcAbsClient.release();
       // H13 fix: trigger side-effects (email client/pro, SSE, cal sync) — non-blocking
       try {
         const { sendDepositConfirmationSideEffects } = require('../../services/deposit-confirmation-side-effects');
@@ -225,22 +236,33 @@ router.get('/deposit/:token/pay', depositLimiter, async (req, res, next) => {
     const gcPaid2 = parseInt(gcTxRes2.rows[0].gc_paid) || 0;
     const amountCents = (bk.deposit_amount_cents || 0) - gcPaid2;
     // S3-8: Auto-confirm if remaining is below Stripe minimum (same logic as POST /checkout)
+    // Q14 fix: même pattern transactionnel qu'au POST /checkout
     if (amountCents > 0 && amountCents < 50) {
-      await query(
-        `UPDATE bookings SET status = 'confirmed', locked = true,
-          deposit_status = 'paid', deposit_paid_at = NOW(), deposit_deadline = NULL,
-          deposit_payment_intent_id = COALESCE(deposit_payment_intent_id, 'gc_absorbed')
-         WHERE id = $1 AND status = 'pending_deposit' AND deposit_status = 'pending'`, [bk.id]
-      );
-      if (bk.group_id) {
-        await query(
+      const _gcAbsPayClient = await pool.connect();
+      try {
+        await _gcAbsPayClient.query('BEGIN');
+        await _gcAbsPayClient.query(
           `UPDATE bookings SET status = 'confirmed', locked = true,
             deposit_status = 'paid', deposit_paid_at = NOW(), deposit_deadline = NULL,
             deposit_payment_intent_id = COALESCE(deposit_payment_intent_id, 'gc_absorbed')
-           WHERE group_id = $1 AND business_id = $2 AND status = 'pending_deposit' AND deposit_status = 'pending'`,
-          [bk.group_id, bk.business_id]
+           WHERE id = $1 AND status = 'pending_deposit' AND deposit_status = 'pending'`, [bk.id]
         );
+        if (bk.group_id) {
+          await _gcAbsPayClient.query(
+            `UPDATE bookings SET status = 'confirmed', locked = true,
+              deposit_status = 'paid', deposit_paid_at = NOW(), deposit_deadline = NULL,
+              deposit_payment_intent_id = COALESCE(deposit_payment_intent_id, 'gc_absorbed')
+             WHERE group_id = $1 AND business_id = $2 AND status = 'pending_deposit' AND deposit_status = 'pending'`,
+            [bk.group_id, bk.business_id]
+          );
+        }
+        await _gcAbsPayClient.query('COMMIT');
+      } catch (_txErr) {
+        await _gcAbsPayClient.query('ROLLBACK').catch(() => {});
+        _gcAbsPayClient.release();
+        throw _txErr;
       }
+      _gcAbsPayClient.release();
       // H13 fix: trigger side-effects (email client/pro, SSE, cal sync) — non-blocking
       try {
         const { sendDepositConfirmationSideEffects } = require('../../services/deposit-confirmation-side-effects');
