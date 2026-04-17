@@ -87,6 +87,11 @@ router.post('/deposit/:token/checkout', depositLimiter, async (req, res, next) =
           [bk.group_id, bk.business_id]
         );
       }
+      // H13 fix: trigger side-effects (email client/pro, SSE, cal sync) — non-blocking
+      try {
+        const { sendDepositConfirmationSideEffects } = require('../../services/deposit-confirmation-side-effects');
+        sendDepositConfirmationSideEffects(bk.id).catch(e => console.warn('[GC ABSORBED checkout] side-effects:', e.message));
+      } catch (_) {}
       return res.json({ status: 'already_paid', message: 'Acompte couvert par votre carte cadeau' });
     }
     if (amountCents <= 0) return res.json({ status: 'already_paid', message: 'Acompte déjà couvert' });
@@ -236,6 +241,11 @@ router.get('/deposit/:token/pay', depositLimiter, async (req, res, next) => {
           [bk.group_id, bk.business_id]
         );
       }
+      // H13 fix: trigger side-effects (email client/pro, SSE, cal sync) — non-blocking
+      try {
+        const { sendDepositConfirmationSideEffects } = require('../../services/deposit-confirmation-side-effects');
+        sendDepositConfirmationSideEffects(bk.id).catch(e => console.warn('[GC ABSORBED pay] side-effects:', e.message));
+      } catch (_) {}
       return res.redirect(depositPageUrl + '?paid=1');
     }
     if (amountCents <= 0) return res.redirect(depositPageUrl + '?paid=1');
