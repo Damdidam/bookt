@@ -37,7 +37,7 @@ function getPriceToPlan() {
 // POST /api/stripe/checkout — Create Stripe Checkout Session
 // Body: { plan: 'pro' }
 // ============================================================
-router.post('/checkout', requireAuth, requireOwner, async (req, res, next) => {
+router.post('/checkout', requireAuth, requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     const stripe = getStripe();
     if (!stripe) return res.status(503).json({ error: 'Stripe non configuré. Contactez le support.' });
@@ -134,7 +134,7 @@ router.post('/checkout', requireAuth, requireOwner, async (req, res, next) => {
 // ============================================================
 // POST /api/stripe/portal — Customer Portal (manage billing)
 // ============================================================
-router.post('/portal', requireAuth, requireOwner, async (req, res, next) => {
+router.post('/portal', requireAuth, requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     const stripe = getStripe();
     if (!stripe) return res.status(503).json({ error: 'Stripe non configuré.' });
@@ -1108,7 +1108,7 @@ async function syncSubscription(sub, businessId) {
 // ============================================================
 
 // POST /api/stripe/connect/onboard — Start or resume Connect onboarding
-router.post('/connect/onboard', requireAuth, requireOwner, async (req, res, next) => {
+router.post('/connect/onboard', requireAuth, requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     const stripe = getStripe();
     if (!stripe) return res.status(503).json({ error: 'Stripe non configur\u00e9.' });
@@ -1216,7 +1216,7 @@ router.get('/connect/status', requireAuth, async (req, res, next) => {
 });
 
 // POST /api/stripe/connect/dashboard — Login link to Express dashboard
-router.post('/connect/dashboard', requireAuth, requireOwner, async (req, res, next) => {
+router.post('/connect/dashboard', requireAuth, requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     const stripe = getStripe();
     if (!stripe) return res.status(503).json({ error: 'Stripe non configur\u00e9.' });

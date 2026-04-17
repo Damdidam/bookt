@@ -19,7 +19,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // Optionally reassign practitioner and/or replace service.
 // UI: Calendar → detail modal → Group section → ✂️ button
 // ============================================================
-router.patch('/:id/ungroup', async (req, res, next) => {
+router.patch('/:id/ungroup', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;

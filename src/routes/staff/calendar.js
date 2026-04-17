@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const crypto = require('crypto');
 const { query, queryWithRLS, transactionWithRLS } = require('../../services/db');
-const { requireAuth, requireOwner, requirePro } = require('../../middleware/auth');
+const { requireAuth, requireOwner, requirePro, blockIfImpersonated } = require('../../middleware/auth');
 const cal = require('../../services/calendar-sync');
 const { encryptToken } = require('../../utils/crypto');
 
@@ -279,7 +279,7 @@ router.get('/connections', requireAuth, requirePro, async (req, res, next) => {
 /**
  * PATCH /api/calendar/connections/:id — update sync settings
  */
-router.patch('/connections/:id', requireAuth, requirePro, async (req, res, next) => {
+router.patch('/connections/:id', requireAuth, requirePro, blockIfImpersonated, async (req, res, next) => {
   try {
     const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     const { sync_direction, sync_enabled } = req.body;
@@ -307,7 +307,7 @@ router.patch('/connections/:id', requireAuth, requirePro, async (req, res, next)
 /**
  * DELETE /api/calendar/connections/:id — disconnect calendar
  */
-router.delete('/connections/:id', requireAuth, requirePro, async (req, res, next) => {
+router.delete('/connections/:id', requireAuth, requirePro, blockIfImpersonated, async (req, res, next) => {
   try {
     // V13-003: Wrap in transaction, delete events first (FK order), then connection
     await transactionWithRLS(req.businessId, async (client) => {
@@ -333,7 +333,7 @@ router.delete('/connections/:id', requireAuth, requirePro, async (req, res, next
 /**
  * POST /api/calendar/connections/:id/sync — trigger manual sync
  */
-router.post('/connections/:id/sync', requireAuth, requirePro, async (req, res, next) => {
+router.post('/connections/:id/sync', requireAuth, requirePro, blockIfImpersonated, async (req, res, next) => {
   try {
     const connResult = await queryWithRLS(req.businessId,
       `SELECT * FROM calendar_connections WHERE id = $1 AND business_id = $2 AND user_id = $3`,

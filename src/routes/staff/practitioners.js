@@ -413,7 +413,7 @@ router.get('/:id/tasks', async (req, res, next) => {
 // PUT /api/practitioners/:id/skills — replace all skills
 // Body: { skills: [{ skill_name, level, sort_order }] }
 // ============================================================
-router.put('/:id/skills', requireOwner, async (req, res, next) => {
+router.put('/:id/skills', requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
@@ -466,7 +466,7 @@ router.put('/:id/skills', requireOwner, async (req, res, next) => {
 // PUT /api/practitioners/:id/services — replace all service assignments
 // Body: { service_ids: [uuid, ...] }
 // ============================================================
-router.put('/:id/services', requireOwner, async (req, res, next) => {
+router.put('/:id/services', requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
@@ -569,7 +569,7 @@ router.get('/:id/leave-balance', async (req, res, next) => {
 // PUT /api/practitioners/:id/leave-balance — set/update quotas
 // Body: { year, balances: { conge: 20, formation: 5, recuperation: 3 } }
 // ============================================================
-router.put('/:id/leave-balance', requireOwner, async (req, res, next) => {
+router.put('/:id/leave-balance', requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
@@ -608,7 +608,7 @@ router.put('/:id/leave-balance', requireOwner, async (req, res, next) => {
 // ============================================================
 // POST /api/practitioners — create new practitioner
 // ============================================================
-router.post('/', requireOwner, async (req, res, next) => {
+router.post('/', requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { display_name, title, bio, color, email, phone,
@@ -649,7 +649,7 @@ router.post('/', requireOwner, async (req, res, next) => {
 // ============================================================
 // PATCH /api/practitioners/:id — update practitioner
 // ============================================================
-router.patch('/:id', requireOwner, async (req, res, next) => {
+router.patch('/:id', requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
@@ -803,7 +803,7 @@ router.delete('/:id', requireOwner, blockIfImpersonated, async (req, res, next) 
 // ============================================================
 // POST /api/practitioners/:id/invite — create login for practitioner
 // ============================================================
-router.post('/:id/invite', requireOwner, async (req, res, next) => {
+router.post('/:id/invite', requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
@@ -855,7 +855,7 @@ router.post('/:id/invite', requireOwner, async (req, res, next) => {
 // ============================================================
 // PATCH /api/practitioners/:id/role — change linked user's role
 // ============================================================
-router.patch('/:id/role', requireOwner, async (req, res, next) => {
+router.patch('/:id/role', requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;

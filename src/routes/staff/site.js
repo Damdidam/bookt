@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const { queryWithRLS, query } = require('../../services/db');
-const { requireAuth, requireOwner } = require('../../middleware/auth');
+const { requireAuth, requireOwner, blockIfImpersonated } = require('../../middleware/auth');
 const { invalidateMinisiteCache } = require('../public/helpers');
 
 router.use(requireAuth);
@@ -331,7 +331,7 @@ router.get('/domain', async (req, res, next) => {
 });
 
 // POST /api/site/domain
-router.post('/domain', requireOwner, async (req, res, next) => {
+router.post('/domain', requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     const { domain } = req.body;
     if (req.businessPlan === 'free' && domain) {
@@ -385,7 +385,7 @@ router.post('/domain', requireOwner, async (req, res, next) => {
 });
 
 // POST /api/site/domain/verify — check DNS records
-router.post('/domain/verify', requireOwner, async (req, res, next) => {
+router.post('/domain/verify', requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     const domainResult = await queryWithRLS(req.businessId,
       `SELECT * FROM custom_domains WHERE business_id = $1`, [req.businessId]
@@ -430,7 +430,7 @@ router.post('/domain/verify', requireOwner, async (req, res, next) => {
 });
 
 // DELETE /api/site/domain
-router.delete('/domain', requireOwner, async (req, res, next) => {
+router.delete('/domain', requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     await queryWithRLS(req.businessId,
       `DELETE FROM custom_domains WHERE business_id = $1`, [req.businessId]
