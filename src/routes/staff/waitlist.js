@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const { queryWithRLS } = require('../../services/db');
-const { requireAuth, resolvePractitionerScope, requirePro } = require('../../middleware/auth');
+const { requireAuth, resolvePractitionerScope, requirePro, blockIfImpersonated } = require('../../middleware/auth');
 const { sendEmail, buildEmailHTML, escHtml } = require('../../services/email');
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -210,7 +210,7 @@ router.patch('/:id', async (req, res, next) => {
 // ============================================================
 // DELETE /api/waitlist/:id — remove entry
 // ============================================================
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', blockIfImpersonated, async (req, res, next) => {
   try {
     if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'ID invalide' });
     // V13-008: Add practitioner scope check

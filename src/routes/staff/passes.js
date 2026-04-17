@@ -55,7 +55,7 @@ router.get('/templates', async (req, res, next) => {
 // ============================================================
 // POST /api/passes/templates — create a pass template
 // ============================================================
-router.post('/templates', async (req, res, next) => {
+router.post('/templates', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     if (!(await isPassesFeatureEnabled(bid))) {
@@ -86,7 +86,7 @@ router.post('/templates', async (req, res, next) => {
 // ============================================================
 // PATCH /api/passes/templates/:id — update a pass template
 // ============================================================
-router.patch('/templates/:id', async (req, res, next) => {
+router.patch('/templates/:id', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
@@ -123,7 +123,7 @@ router.patch('/templates/:id', async (req, res, next) => {
 // ============================================================
 // DELETE /api/passes/templates/:id — soft delete (is_active = false)
 // ============================================================
-router.delete('/templates/:id', async (req, res, next) => {
+router.delete('/templates/:id', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
@@ -142,7 +142,7 @@ router.delete('/templates/:id', async (req, res, next) => {
 // ============================================================
 // POST /api/passes/templates/sync — bulk upsert templates for a service
 // ============================================================
-router.post('/templates/sync', async (req, res, next) => {
+router.post('/templates/sync', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { service_id, templates } = req.body;
@@ -379,7 +379,7 @@ router.post('/', async (req, res, next) => {
 // ============================================================
 // PATCH /api/passes/:id — cancel pass (active → cancelled only)
 // ============================================================
-router.patch('/:id', async (req, res, next) => {
+router.patch('/:id', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
@@ -403,7 +403,7 @@ router.patch('/:id', async (req, res, next) => {
 // ============================================================
 // POST /api/passes/:id/debit — debit 1 session
 // ============================================================
-router.post('/:id/debit', async (req, res, next) => {
+router.post('/:id/debit', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;

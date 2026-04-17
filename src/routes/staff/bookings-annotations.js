@@ -3,6 +3,7 @@
  */
 const router = require('express').Router();
 const { queryWithRLS } = require('../../services/db');
+const { blockIfImpersonated } = require('../../middleware/auth');
 
 // BK-V13-005: UUID validation regex
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -260,7 +261,7 @@ router.post('/:id/notes', async (req, res, next) => {
   }
 });
 
-router.delete('/:bookingId/notes/:noteId', async (req, res, next) => {
+router.delete('/:bookingId/notes/:noteId', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     if (!UUID_RE.test(req.params.bookingId)) return res.status(400).json({ error: 'ID invalide' });
@@ -369,7 +370,7 @@ router.patch('/:bookingId/todos/:todoId', async (req, res, next) => {
   }
 });
 
-router.delete('/:bookingId/todos/:todoId', async (req, res, next) => {
+router.delete('/:bookingId/todos/:todoId', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     if (!UUID_RE.test(req.params.bookingId)) return res.status(400).json({ error: 'ID invalide' });
@@ -434,7 +435,7 @@ router.post('/:id/reminders', async (req, res, next) => {
   }
 });
 
-router.delete('/:bookingId/reminders/:reminderId', async (req, res, next) => {
+router.delete('/:bookingId/reminders/:reminderId', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     if (!UUID_RE.test(req.params.bookingId)) return res.status(400).json({ error: 'ID invalide' });

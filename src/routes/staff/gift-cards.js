@@ -141,7 +141,7 @@ router.post('/', async (req, res, next) => {
 // ============================================================
 // PATCH /api/gift-cards/:id — update status (cancel)
 // ============================================================
-router.patch('/:id', async (req, res, next) => {
+router.patch('/:id', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
@@ -165,7 +165,7 @@ router.patch('/:id', async (req, res, next) => {
 // ============================================================
 // POST /api/gift-cards/:id/debit — use gift card (staff in salon)
 // ============================================================
-router.post('/:id/debit', async (req, res, next) => {
+router.post('/:id/debit', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;

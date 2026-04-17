@@ -4,7 +4,7 @@
  */
 const router = require('express').Router();
 const { queryWithRLS } = require('../../services/db');
-const { requireAuth, requireOwner, requirePro } = require('../../middleware/auth');
+const { requireAuth, requireOwner, requirePro, blockIfImpersonated } = require('../../middleware/auth');
 const { invalidateMinisiteCache } = require('../public/helpers');
 
 // Drop the public minisite cache after every successful mutation on promotions.
@@ -307,7 +307,7 @@ router.patch('/:id', requireAuth, requireOwner, async (req, res, next) => {
 });
 
 // DELETE /:id — delete promo
-router.delete('/:id', requireAuth, requireOwner, async (req, res, next) => {
+router.delete('/:id', requireAuth, requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid promotion ID' });
 

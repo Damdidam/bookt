@@ -5,7 +5,7 @@
 const crypto = require('crypto');
 const router = require('express').Router();
 const { queryWithRLS, transactionWithRLS } = require('../../services/db');
-const { requireAuth, resolvePractitionerScope } = require('../../middleware/auth');
+const { requireAuth, resolvePractitionerScope, blockIfImpersonated } = require('../../middleware/auth');
 const { broadcast } = require('../../services/sse');
 
 router.use(requireAuth);
@@ -429,7 +429,7 @@ router.patch('/:id/move', async (req, res, next) => {
 // ============================================================
 // DELETE /api/tasks/:id — delete task (or entire group)
 // ============================================================
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const id = req.params.id;

@@ -11,7 +11,7 @@
 
 const router = require('express').Router();
 const { query, pool } = require('../../services/db');
-const { requireAuth, requireOwner } = require('../../middleware/auth');
+const { requireAuth, requireOwner, blockIfImpersonated } = require('../../middleware/auth');
 
 function getStripe() {
   const key = process.env.STRIPE_SECRET_KEY;
@@ -1237,7 +1237,7 @@ router.post('/connect/dashboard', requireAuth, requireOwner, async (req, res, ne
 });
 
 // DELETE /api/stripe/connect — Disconnect Connect account
-router.delete('/connect', requireAuth, requireOwner, async (req, res, next) => {
+router.delete('/connect', requireAuth, requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     // ST-3: Check for pending deposits before allowing disconnect

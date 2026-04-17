@@ -106,7 +106,7 @@ async function applySiblingNoShowStrikes(client, { affectedIds, bid, excludeClie
 // Update booking status (confirm / complete / no_show / cancel)
 // UI: Agenda → action buttons ( Terminé,  No-show, Annuler)
 // ============================================================
-router.patch('/:id/status', async (req, res, next) => {
+router.patch('/:id/status', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
@@ -1154,7 +1154,7 @@ router.patch('/:id/status', async (req, res, next) => {
 // PATCH /api/bookings/:id/deposit-refund — Manual refund by pro
 // UI: Booking detail → "Rembourser l'acompte" button
 // ============================================================
-router.patch('/:id/deposit-refund', async (req, res, next) => {
+router.patch('/:id/deposit-refund', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
@@ -1403,7 +1403,7 @@ router.patch('/:id/deposit-refund', async (req, res, next) => {
 // Sends a clean confirmation email with ZERO deposit mention
 // UI: Calendar → event detail → "Confirmer sans acompte"
 // ============================================================
-router.patch('/:id/waive-deposit', async (req, res, next) => {
+router.patch('/:id/waive-deposit', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
@@ -1550,7 +1550,7 @@ router.patch('/:id/waive-deposit', async (req, res, next) => {
 // Accepts { channels: ['email','sms'] } or legacy { channel: 'email' }
 // UI: Quick-create post-creation panel + Detail modal deposit banner
 // ============================================================
-router.post('/:id/send-deposit-request', async (req, res, next) => {
+router.post('/:id/send-deposit-request', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
@@ -1775,7 +1775,7 @@ router.post('/:id/send-deposit-request', async (req, res, next) => {
 // Retroactively require a deposit on an already-confirmed booking
 // UI: Calendar → event detail → "Exiger un acompte"
 // ============================================================
-router.post('/:id/require-deposit', async (req, res, next) => {
+router.post('/:id/require-deposit', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;

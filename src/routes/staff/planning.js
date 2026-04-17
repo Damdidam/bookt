@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const { queryWithRLS, transactionWithRLS } = require('../../services/db');
-const { requireAuth, requireOwner } = require('../../middleware/auth');
+const { requireAuth, requireOwner, blockIfImpersonated } = require('../../middleware/auth');
 const { sendEmail, buildEmailHTML, escHtml } = require('../../services/email');
 const { sendSMS } = require('../../services/sms');
 const { checkPracAvailability, calSyncPush } = require('./bookings-helpers');
@@ -602,7 +602,7 @@ router.patch('/absences/:id', requireOwner, async (req, res, next) => {
 // ============================================================
 // DELETE /api/planning/absences/:id
 // ============================================================
-router.delete('/absences/:id', requireOwner, async (req, res, next) => {
+router.delete('/absences/:id', requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
 

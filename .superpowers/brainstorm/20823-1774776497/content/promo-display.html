@@ -1,0 +1,71 @@
+<h2>Affichage des promos au client</h2>
+<p class="subtitle">Comment présenter les offres dans le step 1.5 du booking flow ?</p>
+
+<div class="options">
+  <div class="option" data-choice="cards" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Cartes empilées (1 à 3 max)</h3>
+      <p>Chaque promo est une carte avec image, titre, description et bouton "Ajouter". Maximum 3 promos visibles. Le client peut ignorer et passer à l'étape suivante.</p>
+      <div style="margin-top:12px;border:1px solid #e5e7eb;border-radius:10px;padding:16px;background:#fafafa">
+        <div style="display:flex;gap:12px;align-items:center;margin-bottom:8px">
+          <div style="width:50px;height:50px;background:#d4a574;border-radius:8px;display:flex;align-items:center;justify-content:center;color:white;font-size:20px">✦</div>
+          <div>
+            <div style="font-weight:600;font-size:14px">Massage crânien offert</div>
+            <div style="font-size:12px;color:#888">25 min · Valeur 30€ · Offert dès 50€ de panier</div>
+          </div>
+          <button style="margin-left:auto;padding:6px 14px;background:#0D7377;color:white;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">+ Ajouter</button>
+        </div>
+        <div style="display:flex;gap:12px;align-items:center">
+          <div style="width:50px;height:50px;background:#c4898a;border-radius:8px;display:flex;align-items:center;justify-content:center;color:white;font-size:20px">☀</div>
+          <div>
+            <div style="font-weight:600;font-size:14px">Masque capillaire été -20%</div>
+            <div style="font-size:12px;color:#888">45 min · 32€ au lieu de 40€ · Jusqu'au 30 juin</div>
+          </div>
+          <button style="margin-left:auto;padding:6px 14px;background:white;color:#0D7377;border:1.5px solid #0D7377;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">+ Ajouter</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="banner" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Bannière unique avec carousel</h3>
+      <p>Une seule bannière en haut avec les promos qui défilent (swipe). Plus discret, moins intrusif dans le flow.</p>
+      <div style="margin-top:12px;border:1px solid #e5e7eb;border-radius:10px;padding:20px;background:linear-gradient(135deg,#fef3c7,#fdf2f8);text-align:center">
+        <div style="font-size:11px;font-weight:700;color:#92400e;letter-spacing:1px;margin-bottom:4px">OFFRE SPÉCIALE</div>
+        <div style="font-weight:700;font-size:16px;color:#1a1a1a">Massage crânien offert dès 50€</div>
+        <div style="font-size:12px;color:#666;margin-top:4px">25 min de détente en plus · Valeur 30€</div>
+        <button style="margin-top:10px;padding:8px 20px;background:#0D7377;color:white;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer">En profiter →</button>
+        <div style="margin-top:8px;display:flex;justify-content:center;gap:6px">
+          <div style="width:8px;height:8px;background:#0D7377;border-radius:50%"></div>
+          <div style="width:8px;height:8px;background:#ccc;border-radius:50%"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="inline" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Intégré dans la liste des services</h3>
+      <p>Pas de step séparé. Les promos apparaissent comme des badges/tags sur les services éligibles dans le step 1. Le plus fluide mais moins visible.</p>
+      <div style="margin-top:12px;border:1px solid #e5e7eb;border-radius:10px;padding:12px;background:#fafafa">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #eee">
+          <div>
+            <span style="font-weight:600;font-size:14px">Coloration</span>
+            <span style="font-size:11px;background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:10px;margin-left:6px;font-weight:600">🎁 Massage offert dès 50€</span>
+          </div>
+          <span style="font-size:13px;color:#888">45€</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0">
+          <div>
+            <span style="font-weight:600;font-size:14px">Brushing</span>
+          </div>
+          <span style="font-size:13px;color:#888">25€</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

@@ -5,6 +5,7 @@
  */
 const router = require('express').Router();
 const { queryWithRLS, transactionWithRLS } = require('../../services/db');
+const { blockIfImpersonated } = require('../../middleware/auth');
 const { broadcast } = require('../../services/sse');
 const { calSyncPush, calSyncDelete, businessAllowsOverlap, getMaxConcurrent, checkBookingConflicts } = require('./bookings-helpers');
 const { refundPassForBooking } = require('../../services/pass-refund');
@@ -265,7 +266,7 @@ router.patch('/:id/ungroup', async (req, res, next) => {
 // If only 1 member left, it is also ungrouped.
 // UI: Calendar → detail modal → Group section → 🗑 button
 // ============================================================
-router.delete('/:id/group-remove', async (req, res, next) => {
+router.delete('/:id/group-remove', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;

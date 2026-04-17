@@ -733,7 +733,7 @@ router.delete('/categories/:id', requireOwner, async (req, res, next) => {
 // POST /api/business/close — Soft-delete business account
 // Deactivates account, cancels Stripe subscription, notifies affected clients
 // ============================================================
-router.post('/close', requireOwner, async (req, res, next) => {
+router.post('/close', requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { confirm_name } = req.body;

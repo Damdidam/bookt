@@ -1,0 +1,77 @@
+<h2>Quelles conditions et récompenses supporter ?</h2>
+<p class="subtitle">Coche tout ce qui te semble utile pour un MVP. On pourra ajouter le reste plus tard.</p>
+
+<h3 style="margin-top:24px">Conditions d'éligibilité</h3>
+<div class="options" data-multiselect>
+  <div class="option" data-choice="min-amount" onclick="toggleSelect(this)">
+    <div class="letter">1</div>
+    <div class="content">
+      <h3>Panier minimum</h3>
+      <p>"Si le panier dépasse 50€" — le plus classique pour l'upsell</p>
+    </div>
+  </div>
+  <div class="option" data-choice="specific-service" onclick="toggleSelect(this)">
+    <div class="letter">2</div>
+    <div class="content">
+      <h3>Service spécifique requis</h3>
+      <p>"Si vous réservez une coloration" — promo liée à un service précis</p>
+    </div>
+  </div>
+  <div class="option" data-choice="first-visit" onclick="toggleSelect(this)">
+    <div class="letter">3</div>
+    <div class="content">
+      <h3>Nouveau client</h3>
+      <p>"Offre de bienvenue" — seulement pour les clients sans historique</p>
+    </div>
+  </div>
+  <div class="option" data-choice="date-range" onclick="toggleSelect(this)">
+    <div class="letter">4</div>
+    <div class="content">
+      <h3>Période de validité</h3>
+      <p>"Du 1er au 30 juin" — promos saisonnières, événements</p>
+    </div>
+  </div>
+  <div class="option" data-choice="no-condition" onclick="toggleSelect(this)">
+    <div class="letter">5</div>
+    <div class="content">
+      <h3>Sans condition</h3>
+      <p>"Pour tous" — promo visible par tout le monde, toujours</p>
+    </div>
+  </div>
+</div>
+
+<h3 style="margin-top:32px">Types de récompenses</h3>
+<div class="options" data-multiselect>
+  <div class="option" data-choice="free-service" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Service offert</h3>
+      <p>"Massage crânien 25 min offert" — ajouté automatiquement au panier</p>
+    </div>
+  </div>
+  <div class="option" data-choice="discount-pct" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Réduction en %</h3>
+      <p>"-20% sur le deuxième service" — appliquée au total</p>
+    </div>
+  </div>
+  <div class="option" data-choice="discount-fixed" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Réduction fixe</h3>
+      <p>"-10€ sur votre réservation" — montant fixe déduit</p>
+    </div>
+  </div>
+  <div class="option" data-choice="info-only" onclick="toggleSelect(this)">
+    <div class="letter">D</div>
+    <div class="content">
+      <h3>Info / Suggestion (pas de réduction)</h3>
+      <p>"Découvrez notre nouveau soin visage" — juste de la mise en avant, pas de promo chiffrée</p>
+    </div>
+  </div>
+</div>
+
+<p style="margin-top:20px;font-size:13px;color:#888;text-align:center">
+  Sélection multiple possible — clique sur tous ceux que tu veux inclure
+</p>

@@ -1,0 +1,50 @@
+<h2>Comment le commercant configure ses promos ?</h2>
+<p class="subtitle">Choisis l'approche qui te semble la plus adaptée pour Genda</p>
+
+<div class="options">
+  <div class="option" data-choice="simple" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Simple — Texte libre</h3>
+      <p>Le commercant écrit sa promo comme il veut dans un champ texte + ajoute une image optionnelle. Aucune logique automatique : c'est juste de l'affichage.</p>
+      <div style="margin-top:12px;padding:10px 14px;background:#f0fdf4;border-radius:8px;font-size:13px">
+        <strong style="color:#15803d">+</strong> Ultra rapide à implémenter<br>
+        <strong style="color:#15803d">+</strong> Liberté totale pour le commercant<br>
+        <strong style="color:#dc2626">−</strong> Pas de vérification auto (panier min, dates)<br>
+        <strong style="color:#dc2626">−</strong> Le client doit croire la promo sur parole
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="structured" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Structuré — Formulaire complet</h3>
+      <p>Formulaire avec conditions (panier min €, service requis), récompense (service gratuit, -X%), dates de validité. L'app vérifie automatiquement l'éligibilité.</p>
+      <div style="margin-top:12px;padding:10px 14px;background:#fef3c7;border-radius:8px;font-size:13px">
+        <strong style="color:#15803d">+</strong> Vérification automatique de l'éligibilité<br>
+        <strong style="color:#15803d">+</strong> Ajout auto au panier si éligible<br>
+        <strong style="color:#dc2626">−</strong> Plus complexe à implémenter<br>
+        <strong style="color:#dc2626">−</strong> Le commercant doit remplir plus de champs
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="hybrid" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Hybride — Structuré + Personnalisable</h3>
+      <p>Le commercant crée des promos avec conditions (vérification auto), mais l'affichage au client est un texte/visuel libre. Le meilleur des deux mondes.</p>
+      <div style="margin-top:12px;padding:10px 14px;background:#eff6ff;border-radius:8px;font-size:13px">
+        <strong style="color:#15803d">+</strong> Vérification auto + liberté créative<br>
+        <strong style="color:#15803d">+</strong> Le client voit si la promo s'applique à lui<br>
+        <strong style="color:#dc2626">−</strong> Le plus complexe à coder<br>
+        <strong style="color:#dc2626">−</strong> Plus de champs pour le commercant
+      </div>
+    </div>
+  </div>
+</div>
+
+<p style="margin-top:20px;font-size:13px;color:#888;text-align:center">
+  💡 Recommandation : <strong>A (Simple)</strong> pour un MVP rapide, puis évoluer vers C plus tard
+</p>
