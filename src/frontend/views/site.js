@@ -14,6 +14,19 @@ const escAttr=s=>(s||'').replace(/"/g,'&quot;');
 const GRIP_SVG='<svg class="gi" viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/></svg>';
 
 // Clean pasted/stored HTML — keep only safe tags, strip all attributes except href
+// Q10 fix: safeUrl filter sur href (bloque javascript:/data: schemes) + escape text nodes
+// + rel/target sur liens (parité avec public/site.html:1400-1430 sanitizeDescHtml).
+function _safeDescUrl(u){
+  if(!u||typeof u!=='string')return'';
+  const trimmed=u.trim();
+  if(!trimmed)return'';
+  if(trimmed.startsWith('/'))return trimmed;
+  if(/^https?:\/\//i.test(trimmed))return trimmed;
+  return'';
+}
+function _escDescText(s){
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
 function _cleanDescHtml(html){
   if(!html)return '';
   const tmp=document.createElement('div');
@@ -22,12 +35,15 @@ function _cleanDescHtml(html){
   function walk(node){
     const out=[];
     for(const ch of node.childNodes){
-      if(ch.nodeType===3){out.push(ch.textContent);continue;}
+      if(ch.nodeType===3){out.push(_escDescText(ch.textContent));continue;}
       if(ch.nodeType!==1)continue;
       if(!allowed.has(ch.tagName)){out.push(walk(ch));continue;}
       const tag=ch.tagName.toLowerCase();
       let attrs='';
-      if(tag==='a'&&ch.getAttribute('href'))attrs=` href="${ch.getAttribute('href')}"`;
+      if(tag==='a'&&ch.getAttribute('href')){
+        const safe=_safeDescUrl(ch.getAttribute('href'));
+        if(safe)attrs=` href="${safe}" target="_blank" rel="noopener noreferrer"`;
+      }
       const inner=walk(ch);
       if(tag==='br'){out.push('<br>');continue;}
       if(inner.trim()||tag==='br')out.push(`<${tag}${attrs}>${inner}</${tag}>`);

@@ -1852,7 +1852,10 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'&&document.ge
           } else {
             // Service without variants: show as before
             var price = s.price_label || (s.price_cents ? (s.price_cents / 100).toFixed(2).replace('.',',') + '\u20ac' : '');
-            var detail = (s.duration_min || 0) + ' min' + (s.description ? ' \u00b7 ' + esc(s.description) : '');
+            // M-01 fix: affiche le préavis minimum (ex: 72h pour services devis) pour éviter les tentatives vaines
+            var noticeInfo = (s.min_booking_notice_hours && s.min_booking_notice_hours > 0)
+              ? ' \u00b7 min. ' + s.min_booking_notice_hours + 'h d\u2019avance' : '';
+            var detail = (s.duration_min || 0) + ' min' + noticeInfo + (s.description ? ' \u00b7 ' + esc(s.description) : '');
             if (notBookable) {
               sH += '<div class="service-item disabled" data-svc-id="' + s.id + '">';
             } else {

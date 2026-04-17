@@ -357,6 +357,9 @@ router.get('/:slug', slotsLimiter, async (req, res, next) => {
         bookable_online: s.bookable_online !== false,
         promo_eligible: s.promo_eligible !== false,
         quote_only: !!s.quote_only,
+        // M-01 fix: expose min_booking_notice au client (ex: prestations devis 72h, formations longues).
+        // Permet d'afficher "À réserver au moins Xh à l'avance" sur la carte service.
+        min_booking_notice_hours: s.min_booking_notice_hours || 0,
         available_schedule: s.available_schedule || null,
         variants: (varByService[s.id] || []).map(v => ({
           id: v.id, name: v.name, description: v.description || null, duration_min: v.duration_min,
