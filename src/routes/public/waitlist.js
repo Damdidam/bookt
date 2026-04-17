@@ -493,11 +493,14 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
         }
       } catch (emailErr) {
         console.warn('[EMAIL] Waitlist confirmation email error:', emailErr.message);
+        // B-03 fix: utiliser booking.id (closure parent scope L440) au lieu de bkRow.id
+        // (bkRow était const dans le if L460, hors scope ici → ReferenceError silencieusement avalé
+        // par le inner catch → UPDATE 'failed' jamais exécuté → row email_confirmation reste queued).
         try {
           await query(
             `UPDATE notifications SET status = 'failed', sent_at = NOW(), error = $2
              WHERE booking_id = $1 AND type = 'email_confirmation' AND status = 'queued'`,
-            [bkRow.id, emailErr.message || 'unknown']
+            [booking.id, emailErr.message || 'unknown']
           );
         } catch (_) {}
       }
