@@ -31,3 +31,8 @@ demo-service-modal.html
 preview-header.html
 public/js/app.css
 public/js/app.js
+
+# Session-local artifacts (brainstorm UI, superpowers plans)
+.superpowers/
+docs/superpowers/plans/
+docs/superpowers/specs/
