@@ -583,11 +583,10 @@ body.theme-dark .promo-banner-arrow{background:rgba(30,30,30,.9);border-color:va
       </div>
     </div>
 
-    <div class="fg" style="margin-top:8px">
-      <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-size:.78rem;color:var(--text-3)">
-        <input type="checkbox" id="bkConsent" style="margin-top:3px;flex-shrink:0">
-        <span>J'accepte de recevoir les confirmations, rappels et informations relatives à mon rendez-vous par email et SMS.</span>
-      </label>
+    <div class="fg" style="margin-top:8px;padding:10px 12px;background:rgba(107,101,96,.05);border-radius:6px;border-left:2px solid var(--border)">
+      <p style="margin:0;font-size:.72rem;color:var(--text-4);line-height:1.5">
+        En confirmant votre réservation, vous acceptez de recevoir les confirmations, rappels et informations relatives à votre rendez-vous par email et SMS.
+      </p>
     </div>
 
     </div><!-- /clientFormFields -->
@@ -2731,7 +2730,6 @@ async function submitBooking(){
   const phone=getFullPhone(document.getElementById('cPhone').value);
   const email=document.getElementById('cEmail').value.trim().toLowerCase();
   const comment=document.getElementById('cComment').value.trim();
-  const consent=!!document.getElementById('bkConsent').checked;
 
   const btn=document.getElementById('btnStep4');
   btn.disabled=true;btn.textContent=_hasQuoteSvc?'Envoi en cours...':'R\u00e9servation en cours...';
@@ -2743,7 +2741,8 @@ async function submitBooking(){
       appointment_mode:selectedMode||'cabinet',
       client_name:name,client_phone:phone,client_email:email,
       client_comment:comment||undefined,
-      consent_sms:consent,consent_email:consent,
+      // M-03 fix: consent implicite par remplissage formulaire (disclaimer RGPD affiché avant envoi)
+      consent_sms:true,consent_email:true,
       flexible:!!document.getElementById('bkFlexible').checked
     };
     // Split mode: send practitioners array instead of practitioner_id
