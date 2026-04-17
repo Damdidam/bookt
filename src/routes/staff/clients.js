@@ -1,5 +1,5 @@
 const router = require('express').Router();
-const { queryWithRLS } = require('../../services/db');
+const { queryWithRLS, transactionWithRLS } = require('../../services/db');
 const { requireAuth, requireOwner, resolvePractitionerScope } = require('../../middleware/auth');
 
 router.use(requireAuth);
@@ -158,7 +158,7 @@ router.post('/', async (req, res, next) => {
 });
 
 // POST /api/clients/import — bulk import from CSV data
-router.post('/import', async (req, res, next) => {
+router.post('/import', requireOwner, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { clients } = req.body;
