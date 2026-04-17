@@ -503,6 +503,18 @@ router.get('/:id/pdf', async (req, res, next) => {
       [invoice.id]
     );
 
+    // M7 fix: si impersonation admin, logger l'accès PDF (traçabilité RGPD — sinon fuite PDF fiscaux silencieuse).
+    if (req.user?.impersonated) {
+      try {
+        await queryWithRLS(bid,
+          `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, new_data)
+           VALUES ($1, $2, 'invoice', $3, 'pdf_download_impersonated', $4)`,
+          [bid, req.user.id, invoice.id,
+           JSON.stringify({ invoice_number: invoice.invoice_number, impersonated_by: req.user.impersonatedBy || null })]
+        );
+      } catch (_) { /* audit non-critique */ }
+    }
+
     const pdfBuffer = await generateInvoicePDF(invoice, itemsResult.rows);
 
     const filename = `${invoice.invoice_number.replace(/\//g, '-')}.pdf`;

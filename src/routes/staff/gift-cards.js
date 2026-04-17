@@ -139,7 +139,7 @@ router.post('/', async (req, res, next) => {
 });
 
 // ============================================================
-// PATCH /api/gift-cards/:id — update status (cancel)
+// PATCH /api/gift-cards/:id — update status (cancel or reactivate)
 // ============================================================
 router.patch('/:id', blockIfImpersonated, async (req, res, next) => {
   try {
@@ -151,6 +151,25 @@ router.patch('/:id', blockIfImpersonated, async (req, res, next) => {
       return res.status(400).json({ error: 'Statut invalide' });
     }
 
+    // M3 fix: protéger contre perte d'argent client. Si on annule une GC ACHETÉE via Stripe
+    // (stripe_payment_intent_id set) avec balance > 0, le client perd son argent sans refund.
+    // Forcer l'usage de POST /:id/refund qui fait le remboursement Stripe proprement.
+    if (status === 'cancelled') {
+      const gcRes = await queryWithRLS(bid,
+        `SELECT balance_cents, stripe_payment_intent_id, status FROM gift_cards WHERE id = $1 AND business_id = $2`,
+        [id, bid]
+      );
+      if (gcRes.rows.length === 0) return res.status(404).json({ error: 'Carte introuvable' });
+      const gc = gcRes.rows[0];
+      if (gc.status === 'cancelled') return res.status(409).json({ error: 'Carte déjà annulée' });
+      if ((gc.balance_cents || 0) > 0 && gc.stripe_payment_intent_id) {
+        return res.status(400).json({
+          error: 'Cette carte a un solde non utilisé et a été payée par carte bancaire. Utilisez plutôt le bouton "Rembourser" pour restituer le solde au client.',
+          code: 'use_refund_endpoint'
+        });
+      }
+    }
+
     const result = await queryWithRLS(bid,
       `UPDATE gift_cards SET status = $1, updated_at = NOW()
        WHERE id = $2 AND business_id = $3 RETURNING *`,
@@ -158,6 +177,17 @@ router.patch('/:id', blockIfImpersonated, async (req, res, next) => {
     );
 
     if (result.rows.length === 0) return res.status(404).json({ error: 'Carte introuvable' });
+
+    // Audit trail for traceability
+    try {
+      await queryWithRLS(bid,
+        `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, new_data)
+         VALUES ($1, $2, 'gift_card', $3, $4, $5)`,
+        [bid, req.user?.id || null, id, status === 'cancelled' ? 'gift_card_cancelled' : 'gift_card_reactivated',
+         JSON.stringify({ status, balance_cents: result.rows[0].balance_cents })]
+      );
+    } catch (_) { /* non-critical */ }
+
     res.json(result.rows[0]);
   } catch (err) { next(err); }
 });

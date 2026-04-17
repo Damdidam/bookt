@@ -182,6 +182,28 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
     // PUB-V12-012: This comparison is correct — Date objects normalize to UTC internally, so timezone is not a concern here
     if (startDate < new Date()) return res.status(400).json({ error: 'Impossible de réserver dans le passé' });
 
+    // Q11 fix: revalidation backend de min_booking_notice_hours. Le slot-engine filtre déjà les créneaux
+    // au display, mais un client peut bypasser via curl direct. Critique post-retrait du plancher 72h runtime
+    // (commits 69d87d0/6907e25/2bd237b) — seul le champ DB protège désormais les prestations devis.
+    const _svcIdsForMinNotice = isMultiService
+      ? service_ids
+      : (effectiveServiceId ? [effectiveServiceId] : []);
+    if (_svcIdsForMinNotice.length > 0) {
+      const _noticeRes = await query(
+        `SELECT name, min_booking_notice_hours FROM services WHERE id = ANY($1::uuid[]) AND business_id = $2`,
+        [_svcIdsForMinNotice, businessId]
+      );
+      const _now = new Date();
+      for (const _svc of _noticeRes.rows) {
+        const _h = _svc.min_booking_notice_hours || 0;
+        if (_h > 0 && startDate.getTime() - _now.getTime() < _h * 3600000) {
+          return res.status(400).json({
+            error: `La prestation "${_svc.name}" nécessite un préavis minimum de ${_h}h. Merci de choisir un créneau plus éloigné.`
+          });
+        }
+      }
+    }
+
     // ── Locked-week guard: reject non-featured bookings when week is locked ──
     // For split mode, check all involved practitioners
     const startDateBrussels = startDate.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
