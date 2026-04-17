@@ -205,6 +205,15 @@ async function sendPostBookingComms({
         const emailOpts = { booking: emailBooking, business: bizRow.rows[0] };
         if (groupServices) emailOpts.groupServices = groupServices;
         await sendBookingConfirmation(emailOpts);
+        // email_confirmation fix: marquer la row audit (insérée par queueBookingNotifications L28)
+        // comme 'sent' après l'envoi réussi — sinon elle reste 'queued' éternellement.
+        try {
+          await query(
+            `UPDATE notifications SET status = 'sent', sent_at = NOW()
+             WHERE booking_id = $1 AND type = 'email_confirmation' AND status = 'queued'`,
+            [createdBooking.id]
+          );
+        } catch (_) { /* non-critical */ }
 
         // SMS confirmation (pro plan)
         if (clientPhone && bizRow.rows[0].plan !== 'free') {
@@ -231,7 +240,17 @@ async function sendPostBookingComms({
           }
         }
       }
-    } catch (e) { console.warn(`[EMAIL] ${logPrefix} email error:`, e.message); }
+    } catch (e) {
+      console.warn(`[EMAIL] ${logPrefix} email error:`, e.message);
+      // email_confirmation fix: si l'envoi échoue, marquer la row 'failed' + error pour traçabilité
+      try {
+        await query(
+          `UPDATE notifications SET status = 'failed', sent_at = NOW(), error = $2
+           WHERE booking_id = $1 AND type = 'email_confirmation' AND status = 'queued'`,
+          [createdBooking.id, e.message || 'unknown']
+        );
+      } catch (_) { /* non-critical */ }
+    }
   })();
 }
 

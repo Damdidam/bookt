@@ -482,8 +482,25 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
           }
           const { sendBookingConfirmation } = require('../../services/email');
           await sendBookingConfirmation({ booking: bkRow, business: bizRow.rows[0], groupServices });
+          // email_confirmation fix: marquer la row audit (insérée L410) comme 'sent'
+          try {
+            await query(
+              `UPDATE notifications SET status = 'sent', sent_at = NOW()
+               WHERE booking_id = $1 AND type = 'email_confirmation' AND status = 'queued'`,
+              [bkRow.id]
+            );
+          } catch (_) { /* non-critical */ }
         }
-      } catch (emailErr) { console.warn('[EMAIL] Waitlist confirmation email error:', emailErr.message); }
+      } catch (emailErr) {
+        console.warn('[EMAIL] Waitlist confirmation email error:', emailErr.message);
+        try {
+          await query(
+            `UPDATE notifications SET status = 'failed', sent_at = NOW(), error = $2
+             WHERE booking_id = $1 AND type = 'email_confirmation' AND status = 'queued'`,
+            [bkRow.id, emailErr.message || 'unknown']
+          );
+        } catch (_) {}
+      }
     })();
 
     res.status(201).json({
