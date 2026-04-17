@@ -843,28 +843,187 @@ async function handleStripeWebhook(req, res) {
         break;
       }
 
-      // ST-1: Handle external refunds (issued from Stripe dashboard)
+      // ST-1: Handle external refunds (issued from Stripe dashboard OR echo from our own refund calls)
+      // H9 fix: distinguish 2 cases.
+      // (a) Echo — status='cancelled' already (our own refund fired this event). Just sync deposit_status.
+      // (b) External refund via Stripe Dashboard — status still 'confirmed' → cascade FULL cancel:
+      //     UPDATE status + cancel_reason, refund GC/pass, void invoices, audit, broadcast, pro notif, client email.
       case 'charge.refunded': {
         const charge = event.data.object;
         const pi = charge.payment_intent;
         if (pi) {
-          // After checkout.session.completed, deposit_payment_intent_id is updated to the pi_*.
-          // Legacy bookings may still hold cs_*, so match both.
           try {
             const sessions = await stripe.checkout.sessions.list({ payment_intent: pi, limit: 1 });
             const sessionId = sessions.data[0]?.id || null;
             const bookings = await query(
-              `SELECT id, business_id FROM bookings
+              `SELECT id, business_id, group_id, client_id, status, deposit_status
+               FROM bookings
                WHERE deposit_payment_intent_id IN ($1, $2)
                  AND deposit_status = 'paid'`,
               [pi, sessionId]
             );
             for (const bk of bookings.rows) {
-              await query(
-                `UPDATE bookings SET deposit_status = 'refunded', updated_at = NOW() WHERE id = $1`,
-                [bk.id]
-              );
-              console.log(`[STRIPE WH] External refund detected for booking ${bk.id} (PI: ${pi})`);
+              // (a) Echo: we already cancelled it, just sync deposit_status
+              if (bk.status === 'cancelled') {
+                await query(
+                  `UPDATE bookings SET deposit_status = 'refunded', updated_at = NOW() WHERE id = $1`,
+                  [bk.id]
+                );
+                console.log(`[STRIPE WH] Internal refund echo for already-cancelled booking ${bk.id}`);
+                continue;
+              }
+
+              // (b) External refund via Stripe Dashboard — cascade full cancel in a transaction
+              const txClient = await pool.connect();
+              try {
+                await txClient.query('BEGIN');
+                const cancelReason = 'Remboursé via Stripe Dashboard';
+                await txClient.query(
+                  `UPDATE bookings SET status = 'cancelled', deposit_status = 'refunded',
+                    cancel_reason = $2, updated_at = NOW()
+                   WHERE id = $1 AND status != 'cancelled'`,
+                  [bk.id, cancelReason]
+                );
+                if (bk.group_id) {
+                  await txClient.query(
+                    `UPDATE bookings SET status = 'cancelled', deposit_status = 'refunded',
+                      cancel_reason = $2, updated_at = NOW()
+                     WHERE group_id = $1 AND id != $3 AND business_id = $4
+                       AND deposit_payment_intent_id IN ($5, $6)
+                       AND status != 'cancelled'`,
+                    [bk.group_id, cancelReason + ' (groupe)', bk.id, bk.business_id, pi, sessionId]
+                  );
+                }
+
+                // Refund gift card debits (primary + siblings)
+                try {
+                  const { refundGiftCardForBooking } = require('../../services/gift-card-refund');
+                  await refundGiftCardForBooking(bk.id, txClient).catch(e => console.warn('[STRIPE WH] GC refund:', e.message));
+                  if (bk.group_id) {
+                    const sibs = await txClient.query(`SELECT id FROM bookings WHERE group_id = $1 AND id != $2 AND status = 'cancelled'`, [bk.group_id, bk.id]);
+                    for (const sib of sibs.rows) await refundGiftCardForBooking(sib.id, txClient).catch(e => console.warn('[STRIPE WH] Sib GC refund:', e.message));
+                  }
+                } catch (e) { console.warn('[STRIPE WH] GC refund module error:', e.message); }
+
+                // Refund pass sessions (primary + siblings)
+                try {
+                  const { refundPassForBooking } = require('../../services/pass-refund');
+                  await refundPassForBooking(bk.id, txClient).catch(e => console.warn('[STRIPE WH] Pass refund:', e.message));
+                  if (bk.group_id) {
+                    const sibs = await txClient.query(`SELECT id FROM bookings WHERE group_id = $1 AND id != $2 AND status = 'cancelled'`, [bk.group_id, bk.id]);
+                    for (const sib of sibs.rows) await refundPassForBooking(sib.id, txClient).catch(e => console.warn('[STRIPE WH] Sib pass refund:', e.message));
+                  }
+                } catch (e) { console.warn('[STRIPE WH] Pass refund module error:', e.message); }
+
+                // Decrement promo usage
+                try {
+                  const { decrementPromoUsage } = require('../public/helpers');
+                  await decrementPromoUsage(bk.id, txClient).catch(e => console.warn('[STRIPE WH] Promo dec:', e.message));
+                } catch (_) {}
+
+                // Void draft/sent invoices
+                const voidIds = [bk.id];
+                if (bk.group_id) {
+                  const sibInv = await txClient.query(`SELECT id FROM bookings WHERE group_id = $1 AND id != $2`, [bk.group_id, bk.id]);
+                  for (const s of sibInv.rows) voidIds.push(s.id);
+                }
+                await txClient.query(
+                  `UPDATE invoices SET status = 'cancelled', updated_at = NOW()
+                   WHERE booking_id = ANY($1::uuid[]) AND status IN ('draft', 'sent')`,
+                  [voidIds]
+                ).catch(e => console.warn('[STRIPE WH] Invoice void:', e.message));
+
+                // Audit log
+                await txClient.query(
+                  `INSERT INTO audit_logs (business_id, entity_type, entity_id, action, old_data, new_data)
+                   VALUES ($1, 'booking', $2, 'stripe_external_refund', $3, $4)`,
+                  [bk.business_id, bk.id,
+                   JSON.stringify({ status: bk.status, deposit_status: bk.deposit_status }),
+                   JSON.stringify({ status: 'cancelled', deposit_status: 'refunded', reason: cancelReason, payment_intent: pi })]
+                );
+
+                await txClient.query('COMMIT');
+                console.log(`[STRIPE WH] External refund cascade complete for booking ${bk.id} (PI: ${pi})`);
+
+                // Post-commit side effects
+                try {
+                  const { broadcast } = require('../../services/sse');
+                  if (broadcast) broadcast(bk.business_id, 'booking_update', { action: 'external_refund_cancelled', booking_id: bk.id });
+                } catch (_) {}
+                try {
+                  const { calSyncDelete } = require('./bookings-helpers');
+                  calSyncDelete(bk.business_id, bk.id);
+                  if (bk.group_id) {
+                    const sibs = await query(`SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2 AND id != $3`, [bk.group_id, bk.business_id, bk.id]);
+                    for (const sib of sibs.rows) calSyncDelete(bk.business_id, sib.id);
+                  }
+                } catch (_) {}
+                // Queue pro cancellation notif (email_cancellation_pro is routed by notification-processor.js:597)
+                try {
+                  await query(
+                    `INSERT INTO notifications (business_id, booking_id, type, status)
+                     VALUES ($1, $2, 'email_cancellation_pro', 'queued')`,
+                    [bk.business_id, bk.id]
+                  );
+                } catch (_) {}
+                // Send client cancellation email INLINE (pattern parity with public /cancel-booking)
+                try {
+                  const fullBk = await query(
+                    `SELECT b.*, CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS service_name,
+                            s.category AS service_category,
+                            COALESCE(sv.price_cents, s.price_cents, 0) AS service_price_cents,
+                            COALESCE(sv.duration_min, s.duration_min, 0) AS duration_min,
+                            p.display_name AS practitioner_name,
+                            c.full_name AS client_name, c.email AS client_email,
+                            biz.name AS biz_name, biz.email AS biz_email, biz.phone AS biz_phone, biz.address AS biz_address,
+                            biz.theme AS biz_theme, biz.slug AS biz_slug, biz.settings AS biz_settings
+                     FROM bookings b
+                     LEFT JOIN clients c ON c.id = b.client_id
+                     LEFT JOIN services s ON s.id = b.service_id
+                     LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+                     LEFT JOIN practitioners p ON p.id = b.practitioner_id
+                     JOIN businesses biz ON biz.id = b.business_id
+                     WHERE b.id = $1`, [bk.id]
+                  );
+                  if (fullBk.rows[0]?.client_email) {
+                    const row = fullBk.rows[0];
+                    let groupServices = null;
+                    if (row.group_id) {
+                      const grp = await query(
+                        `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' \u2014 ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
+                                COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                                COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at,
+                                b.practitioner_id, p.display_name AS practitioner_name, b.discount_pct
+                         FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+                         LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+                         LEFT JOIN practitioners p ON p.id = b.practitioner_id
+                         WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
+                        [row.group_id, row.business_id]
+                      );
+                      if (grp.rows.length > 1) {
+                        const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
+                        if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
+                        grp.rows.forEach(r => { if (r.discount_pct && r.price_cents) { r.original_price_cents = r.price_cents; r.price_cents = Math.round(r.price_cents * (100 - r.discount_pct) / 100); } });
+                        groupServices = grp.rows;
+                      }
+                    }
+                    const groupEndAt = groupServices ? groupServices[groupServices.length - 1].end_at : null;
+                    const { getGcPaidCents } = require('../../services/gift-card-refund');
+                    const gcPaidExt = await getGcPaidCents(bk.id);
+                    const { sendCancellationEmail } = require('../../services/email');
+                    await sendCancellationEmail({
+                      booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, service_category: row.service_category, custom_label: row.custom_label, service_price_cents: row.service_price_cents, booked_price_cents: row.booked_price_cents, discount_pct: row.discount_pct, duration_min: row.duration_min, promotion_label: row.promotion_label, promotion_discount_cents: row.promotion_discount_cents, promotion_discount_pct: row.promotion_discount_pct, practitioner_name: row.practitioner_name, deposit_required: row.deposit_required, deposit_status: 'refunded', deposit_amount_cents: row.deposit_amount_cents, deposit_paid_at: row.deposit_paid_at, deposit_payment_intent_id: row.deposit_payment_intent_id, gc_paid_cents: gcPaidExt, gc_refunded_cents: 0, pass_refunded: false, cancel_reason: cancelReason },
+                      business: { name: row.biz_name, email: row.biz_email, phone: row.biz_phone, address: row.biz_address, theme: row.biz_theme, slug: row.biz_slug, settings: row.biz_settings },
+                      groupServices
+                    });
+                  }
+                } catch (emailErr) { console.warn('[STRIPE WH] Client cancel email error:', emailErr.message); }
+              } catch (txErr) {
+                await txClient.query('ROLLBACK').catch(() => {});
+                console.error(`[STRIPE WH] External refund cascade failed for booking ${bk.id}:`, txErr.message);
+              } finally {
+                txClient.release();
+              }
             }
           } catch (refErr) {
             console.warn('[STRIPE WH] charge.refunded processing error:', refErr.message);
