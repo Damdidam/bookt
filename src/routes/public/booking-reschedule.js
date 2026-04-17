@@ -497,9 +497,12 @@ router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) 
         const _depFixed = parseInt(_depSettings.deposit_fixed_cents) || 0;
         if ((_depType === 'percent' && _depPct > 0) || (_depType === 'fixed' && _depFixed > 0)) {
           // Sum all booked_price_cents - promotion_discount_cents for the group
+          // H6 fix: promo est stockée sur le sibling matching condition_service_id (pas forcément group_order=0
+          // — index.js:553-558). Sommer sur TOUTES les lignes du groupe. La promo n'est appliquée qu'à une
+          // ligne par groupe donc la somme = valeur unique correcte.
           const totalRes = await client.query(
             `SELECT COALESCE(SUM(booked_price_cents), 0) AS total,
-                    COALESCE(SUM(CASE WHEN group_order = 0 THEN promotion_discount_cents ELSE 0 END), 0) AS promo
+                    COALESCE(SUM(promotion_discount_cents), 0) AS promo
              FROM bookings WHERE id = ANY($1::uuid[])`, [depIds]
           );
           const effectiveTotal = Math.max((parseInt(totalRes.rows[0].total) || 0) - (parseInt(totalRes.rows[0].promo) || 0), 0);
