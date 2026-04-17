@@ -3,8 +3,52 @@
  * - calSyncPush: push booking to connected calendars (non-blocking)
  * - calSyncDelete: remove booking from connected calendars (non-blocking)
  * - businessAllowsOverlap: check global overlap policy
+ * - syncDraftInvoicesForBookings: sync invoice_items + subtotal/vat on draft invoices
+ *   after booked_price_cents changes (H10 fix — parity with public reschedule).
  */
 const { queryWithRLS } = require('../../services/db');
+
+/**
+ * H10 fix: Sync DRAFT invoices that reference these bookings after price change.
+ * Mirror of booking-reschedule.js:517-552. `sent`/`paid` invoices are immutable
+ * (legal BE — credit note required for sent/paid mutations).
+ *
+ * @param {object} txClient - pg client already in a transaction (BEGIN active)
+ * @param {string[]} bookingIds - array of booking UUIDs
+ */
+async function syncDraftInvoicesForBookings(txClient, bookingIds) {
+  if (!Array.isArray(bookingIds) || bookingIds.length === 0) return;
+  const invIdsRes = await txClient.query(
+    `SELECT DISTINCT i.id
+     FROM invoices i JOIN invoice_items it ON it.invoice_id = i.id
+     WHERE it.booking_id = ANY($1::uuid[]) AND i.status = 'draft'`,
+    [bookingIds]
+  );
+  for (const iv of invIdsRes.rows) {
+    await txClient.query(
+      `UPDATE invoice_items it
+       SET unit_price_cents = b.booked_price_cents,
+           total_cents = COALESCE(it.quantity, 1) * b.booked_price_cents
+       FROM bookings b
+       WHERE it.invoice_id = $1 AND it.booking_id = b.id`,
+      [iv.id]
+    );
+    const itRes = await txClient.query(
+      `SELECT total_cents, vat_rate FROM invoice_items WHERE invoice_id = $1`, [iv.id]
+    );
+    let _sub = 0, _vat = 0;
+    for (const _it of itRes.rows) {
+      const _t = parseInt(_it.total_cents) || 0;
+      const _r = parseFloat(_it.vat_rate) || 21;
+      _sub += _t;
+      _vat += Math.round(_t * _r / (100 + _r));
+    }
+    await txClient.query(
+      `UPDATE invoices SET subtotal_cents = $1, vat_amount_cents = $2, total_cents = $1, updated_at = NOW() WHERE id = $3`,
+      [_sub, _vat, iv.id]
+    );
+  }
+}
 
 // ── Calendar auto-sync helper (non-blocking) ──
 // Bug M12 fix: Use queryWithRLS instead of query for tenant isolation
@@ -271,4 +315,4 @@ async function checkBookingConflicts(client, { bid, pracId, newStart, newEnd, ex
   return [...result.rows, ...taskConflicts.rows];
 }
 
-module.exports = { calSyncPush, calSyncDelete, businessAllowsOverlap, checkPracAvailability, getMaxConcurrent, checkBookingConflicts };
+module.exports = { calSyncPush, calSyncDelete, businessAllowsOverlap, checkPracAvailability, getMaxConcurrent, checkBookingConflicts, syncDraftInvoicesForBookings };

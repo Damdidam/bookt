@@ -6,7 +6,7 @@ const { queryWithRLS, transactionWithRLS } = require('../../services/db');
 const { broadcast } = require('../../services/sse');
 const { sendModificationEmail } = require('../../services/email');
 const { sendSMS } = require('../../services/sms');
-const { calSyncPush, businessAllowsOverlap, checkPracAvailability, getMaxConcurrent, checkBookingConflicts } = require('./bookings-helpers');
+const { calSyncPush, businessAllowsOverlap, checkPracAvailability, getMaxConcurrent, checkBookingConflicts, syncDraftInvoicesForBookings } = require('./bookings-helpers');
 const { isWithinLastMinuteWindow } = require('../public/helpers');
 
 // STS-V12-007: UUID validation regex (reused across all endpoints)
@@ -424,6 +424,9 @@ router.patch('/:id/move', async (req, res, next) => {
             }
           }
 
+          // H10 fix: sync DRAFT invoices after booked_price_cents change (parity with public reschedule)
+          await syncDraftInvoicesForBookings(client, updates.map(u => u.id));
+
           // Recalculate deposit_amount_cents for group after price changes
           // SKIP for quote_only groups — merchant set a specific amount manually
           if (draggedBooking.deposit_required) {
@@ -437,9 +440,10 @@ router.patch('/:id/move', async (req, res, next) => {
             const _gdPct = parseInt(_gds.deposit_percent) || 0;
             const _gdFixed = parseInt(_gds.deposit_fixed_cents) || 0;
             if (_gdQo.rows.length === 0 && ((_gdType === 'percent' && _gdPct > 0) || (_gdType === 'fixed' && _gdFixed > 0))) {
+              // H6 fix bis: promo peut être sur sibling non-primary (cf booking-reschedule.js même fix)
               const _gtRes = await client.query(
                 `SELECT COALESCE(SUM(booked_price_cents), 0) AS total,
-                        COALESCE(SUM(CASE WHEN group_order = 0 THEN promotion_discount_cents ELSE 0 END), 0) AS promo
+                        COALESCE(SUM(promotion_discount_cents), 0) AS promo
                  FROM bookings WHERE group_id = $1 AND business_id = $2`, [draggedBooking.group_id, bid]);
               const _gEff = Math.max((parseInt(_gtRes.rows[0].total) || 0) - (parseInt(_gtRes.rows[0].promo) || 0), 0);
               const _gNewDep = _gdType === 'fixed' ? Math.min(_gdFixed, _gEff) : Math.round(_gEff * _gdPct / 100);
@@ -764,6 +768,8 @@ router.patch('/:id/move', async (req, res, next) => {
               [bookedPrice, id, bid]
             );
           }
+          // H10 fix: sync DRAFT invoices after booked_price_cents change (single move)
+          await syncDraftInvoicesForBookings(client, [id]);
         }
 
         // M2 fix: Recalculate deposit_amount_cents when price changed on move (handles both percent AND fixed)
