@@ -1065,6 +1065,10 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
     let cancelResult;
     let gcRefundResult2 = { refunded: 0 };
     let passRefundResult2 = { refunded: 0 };
+    // B4 fix: capture net refund + retention reason so email matches what Stripe actually refunded
+    // (vs showing the gross amount). Pattern: parity with /cancel handler L68 (publicCancelNetRefundCents).
+    let cancelBookingNetRefundCents = null;
+    let cancelBookingRetentionReason = null;
     try {
       await txClient2.query('BEGIN');
       cancelResult = await txClient2.query(
@@ -1148,7 +1152,13 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
                   const _gc = parseInt(_gcR.rows[0]?.gc) || 0;
                   const _ch = Math.max(cancelBkFinal.deposit_amount_cents - _gc, 0);
                   const _net = Math.max(_ch - (_ch > 0 ? Math.round(_ch * 0.015) + 25 : 0), 0);
-                  if (_net > 0) await _stripe.refunds.create({ payment_intent: _piId, amount: _net });
+                  cancelBookingNetRefundCents = _net;
+                  if (_net > 0) {
+                    await _stripe.refunds.create({ payment_intent: _piId, amount: _net });
+                  } else {
+                    // Fees exceed charge — nothing to refund. Banner shows real cause.
+                    cancelBookingRetentionReason = 'fees_exceed_charge';
+                  }
                 } else { await _stripe.refunds.create({ payment_intent: _piId }); }
               }
             } catch (_e) {
@@ -1157,6 +1167,8 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
                 await txClient2.query(`UPDATE bookings SET deposit_status = 'cancelled' WHERE id = $1`, [cancelBkFinal.id]);
                 if (bk.group_id) await txClient2.query(`UPDATE bookings SET deposit_status = 'cancelled' WHERE group_id = $1 AND deposit_status = 'refunded'`, [bk.group_id]);
                 cancelResult = await txClient2.query(`SELECT * FROM bookings WHERE id = $1`, [cancelBkFinal.id]);
+                cancelBookingNetRefundCents = 0;
+                cancelBookingRetentionReason = 'stripe_failure';
               }
             }
           }
@@ -1269,8 +1281,9 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
           const { sendCancellationEmail } = require('../../services/email');
           const { getGcPaidCents } = require('../../services/gift-card-refund');
           const gcPaidCancel2 = await getGcPaidCents(bk.id);
+          // B4 fix: propagate net_refund_cents + deposit_retention_reason so email shows real Stripe amount + cause banner
           await sendCancellationEmail({
-            booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, service_category: row.service_category, custom_label: row.custom_label, practitioner_name: row.practitioner_name, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_paid_at: row.deposit_paid_at, deposit_payment_intent_id: row.deposit_payment_intent_id, gc_paid_cents: gcPaidCancel2, gc_refunded_cents: gcRefundResult2.refunded || 0, pass_refunded: (passRefundResult2.refunded || 0) !== 0, promotion_label: row.promotion_label, promotion_discount_cents: row.promotion_discount_cents, promotion_discount_pct: row.promotion_discount_pct, service_price_cents: row.service_price_cents, booked_price_cents: row.booked_price_cents, discount_pct: row.discount_pct, duration_min: row.duration_min, cancel_reason: row.cancel_reason },
+            booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, service_category: row.service_category, custom_label: row.custom_label, practitioner_name: row.practitioner_name, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_paid_at: row.deposit_paid_at, deposit_payment_intent_id: row.deposit_payment_intent_id, gc_paid_cents: gcPaidCancel2, gc_refunded_cents: gcRefundResult2.refunded || 0, pass_refunded: (passRefundResult2.refunded || 0) !== 0, net_refund_cents: cancelBookingNetRefundCents, deposit_retention_reason: cancelBookingRetentionReason, promotion_label: row.promotion_label, promotion_discount_cents: row.promotion_discount_cents, promotion_discount_pct: row.promotion_discount_pct, service_price_cents: row.service_price_cents, booked_price_cents: row.booked_price_cents, discount_pct: row.discount_pct, duration_min: row.duration_min, cancel_reason: row.cancel_reason },
             business: { name: row.biz_name, email: row.biz_email, phone: row.biz_phone, address: row.biz_address, theme: row.biz_theme, slug: row.biz_slug, settings: row.biz_settings },
             groupServices
           });
