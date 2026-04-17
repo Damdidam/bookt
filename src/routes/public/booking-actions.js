@@ -195,6 +195,9 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
             } catch (_stripeErr) {
               if (_stripeErr.code !== 'charge_already_refunded') {
                 console.error('[PUBLIC CANCEL] Stripe refund failed — deposit retained:', _stripeErr.message);
+                // R3 fix: reset netRefundCents=0 pour éviter email menteur sur montant calculé
+                // (était assigné à _netRefund ligne 173 avant le fail).
+                publicCancelNetRefundCents = 0;
                 publicCancelRetentionReason = 'stripe_failure';
                 // Rollback deposit_status to 'cancelled' (retained) before commit
                 await txClient.query(
@@ -1136,12 +1139,26 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
       await decrementPromoUsage(postCancelBk2.id, txClient2).catch(e => console.warn('[PROMO DEC]', e.message));
 
       // Stripe refund INSIDE transaction — if it fails, rollback deposit_status
+      // Pattern aligné sur /cancel L137-217 (parité complète : !stripeKey + net<50 UPDATE + stripeErr catch)
       const cancelBkFinal = cancelResult.rows[0];
       if (cancelBkFinal.deposit_status === 'refunded' && cancelBkFinal.deposit_payment_intent_id) {
         const _piRaw = cancelBkFinal.deposit_payment_intent_id;
         if (_piRaw && (_piRaw.startsWith('pi_') || _piRaw.startsWith('cs_'))) {
           const _stripeKey = process.env.STRIPE_SECRET_KEY;
-          if (_stripeKey) {
+          if (!_stripeKey) {
+            // B-01 fix: no Stripe key → rollback deposit_status so email doesn't lie "refunded"
+            console.warn('[CANCEL-BOOKING] STRIPE_SECRET_KEY missing — deposit retained');
+            cancelBookingNetRefundCents = 0;
+            cancelBookingRetentionReason = 'no_stripe_key';
+            await txClient2.query(`UPDATE bookings SET deposit_status = 'cancelled' WHERE id = $1`, [cancelBkFinal.id]);
+            if (bk.group_id) {
+              await txClient2.query(
+                `UPDATE bookings SET deposit_status = 'cancelled' WHERE group_id = $1 AND business_id = $2 AND deposit_status = 'refunded'`,
+                [bk.group_id, bk.business_id]
+              );
+            }
+            cancelResult = await txClient2.query(`SELECT * FROM bookings WHERE id = $1`, [cancelBkFinal.id]);
+          } else {
             try {
               const _stripe = require('stripe')(_stripeKey);
               let _piId = _piRaw;
@@ -1158,9 +1175,19 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
                   if (_net >= 50) {
                     await _stripe.refunds.create({ payment_intent: _piId, amount: _net });
                   } else {
-                    // Fees ≥ charge OU net trop petit pour Stripe — deposit retenu.
+                    // B-02 fix: Fees ≥ charge OU net trop petit pour Stripe — rollback deposit_status
+                    // primary + siblings + re-SELECT (parité /cancel L177-189)
+                    console.warn(`[CANCEL-BOOKING] netRefund=${_net}c <50c (fees, charge ${_ch}c) — deposit retained for PI ${_piId}`);
                     cancelBookingNetRefundCents = 0;
                     cancelBookingRetentionReason = 'fees_exceed_charge';
+                    await txClient2.query(`UPDATE bookings SET deposit_status = 'cancelled' WHERE id = $1`, [cancelBkFinal.id]);
+                    if (bk.group_id) {
+                      await txClient2.query(
+                        `UPDATE bookings SET deposit_status = 'cancelled' WHERE group_id = $1 AND business_id = $2 AND deposit_status = 'refunded'`,
+                        [bk.group_id, bk.business_id]
+                      );
+                    }
+                    cancelResult = await txClient2.query(`SELECT * FROM bookings WHERE id = $1`, [cancelBkFinal.id]);
                   }
                 } else { await _stripe.refunds.create({ payment_intent: _piId }); }
               }
@@ -1168,7 +1195,12 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
               if (_e.code !== 'charge_already_refunded') {
                 console.error('[CANCEL-BOOKING] Stripe refund failed — deposit retained:', _e.message);
                 await txClient2.query(`UPDATE bookings SET deposit_status = 'cancelled' WHERE id = $1`, [cancelBkFinal.id]);
-                if (bk.group_id) await txClient2.query(`UPDATE bookings SET deposit_status = 'cancelled' WHERE group_id = $1 AND deposit_status = 'refunded'`, [bk.group_id]);
+                if (bk.group_id) {
+                  await txClient2.query(
+                    `UPDATE bookings SET deposit_status = 'cancelled' WHERE group_id = $1 AND business_id = $2 AND deposit_status = 'refunded'`,
+                    [bk.group_id, bk.business_id]
+                  );
+                }
                 cancelResult = await txClient2.query(`SELECT * FROM bookings WHERE id = $1`, [cancelBkFinal.id]);
                 cancelBookingNetRefundCents = 0;
                 cancelBookingRetentionReason = 'stripe_failure';

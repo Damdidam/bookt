@@ -34,7 +34,8 @@ async function stripeRefundDeposit(depositPaymentIntentId, label, opts) {
         const actualStripeCharge = Math.max(opts.depositAmountCents - gcPaidCents, 0);
         const stripeFees = actualStripeCharge > 0 ? Math.round(actualStripeCharge * 0.015) + 25 : 0;
         const netRefund = Math.max(actualStripeCharge - stripeFees, 0);
-        if (netRefund > 0) {
+        // D-12 parity: Stripe min 50c. Sous ce seuil → no refund (retention appliquée en amont par le caller).
+        if (netRefund >= 50) {
           await stripe.refunds.create({ payment_intent: piId, amount: netRefund });
           console.log(`[${label}] Net refund: ${netRefund}c (fees: ${stripeFees}c, gc: ${gcPaidCents}c) for PI ${piId}`);
         }

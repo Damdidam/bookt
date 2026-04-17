@@ -1217,13 +1217,16 @@ router.patch('/:id/deposit-refund', blockIfImpersonated, async (req, res, next) 
               const actualStripeCharge = Math.max(bk.rows[0].deposit_amount_cents - gcPaidForRefundManual, 0);
               const stripeFees = actualStripeCharge > 0 ? Math.round(actualStripeCharge * 0.015) + 25 : 0;
               netRefundCentsManual = Math.max(actualStripeCharge - stripeFees, 0);
-              if (netRefundCentsManual > 0) {
+              // B-04 fix: D-12 pattern parity — Stripe refund min = 50c. net<50 → retention + reset net=0
+              // (avant: > 0 → Stripe rejette "Amount too small" → catch 500 au pro, flow cassé)
+              if (netRefundCentsManual >= 50) {
                 await stripe.refunds.create({ payment_intent: piId, amount: netRefundCentsManual });
                 console.log(`[DEPOSIT REFUND] Net refund: ${netRefundCentsManual}c (fees ${stripeFees}c, gc ${gcPaidForRefundManual}c) for PI ${piId}`);
               } else {
-                console.warn(`[DEPOSIT REFUND] netRefund=0 (fees ${stripeFees}c >= charge ${actualStripeCharge}c) — deposit retained for PI ${piId}`);
+                console.warn(`[DEPOSIT REFUND] netRefund=${netRefundCentsManual}c <50c Stripe min (fees ${stripeFees}c, charge ${actualStripeCharge}c) — deposit retained for PI ${piId}`);
                 finalDepStatusManual = 'cancelled';
                 depRetentionReasonManual = 'fees_exceed_charge';
+                netRefundCentsManual = 0;
               }
             } else {
               await stripe.refunds.create({ payment_intent: piId });

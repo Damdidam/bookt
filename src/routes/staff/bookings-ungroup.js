@@ -525,9 +525,13 @@ router.delete('/:id/group-remove', blockIfImpersonated, async (req, res, next) =
                       );
                       const _gcPaid = parseInt(_gcPaidRes.rows[0]?.gc_paid) || 0;
                       const _stripeRefundAmt = Math.max(overpayment - _gcPaid, 0);
-                      if (_stripeRefundAmt > 0) {
+                      // D-12 parity: Stripe min 50c. Overpayment <50c → log + skip (trop-perçu résiduel marginal,
+                      // Stripe rejetterait "Amount too small" de toute façon).
+                      if (_stripeRefundAmt >= 50) {
                         await _stripe.refunds.create({ payment_intent: _piId, amount: _stripeRefundAmt });
                         console.log(`[GROUP-REMOVE] Partial refund: ${_stripeRefundAmt}c for PI ${_piId}`);
+                      } else if (_stripeRefundAmt > 0) {
+                        console.warn(`[GROUP-REMOVE] Overpayment ${_stripeRefundAmt}c <50c Stripe min — not refunded`);
                       }
                     }
                   }
