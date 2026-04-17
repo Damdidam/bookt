@@ -768,6 +768,39 @@ router.post('/close', requireOwner, blockIfImpersonated, async (req, res, next) 
          RETURNING id, client_id`, [bid]
       );
 
+      // B-06 fix: collect all items needing Stripe/GC/pass refund (exec hors TX après COMMIT).
+      // Légal BE: fermer salon en gardant l'argent client = rétention indue (art. 1184 Code civil).
+      // Le client a droit à son acompte, solde GC et sessions pass non consommées.
+
+      // 2b-refund-1: bookings deposits paid via Stripe (exclut gc_/pass_/gc_absorbed)
+      const depositsToRefundRes = await client.query(
+        `SELECT id, deposit_amount_cents, deposit_payment_intent_id
+         FROM bookings
+         WHERE business_id = $1 AND cancel_reason = 'Fermeture du salon'
+           AND deposit_status = 'paid'
+           AND deposit_payment_intent_id IS NOT NULL
+           AND (deposit_payment_intent_id LIKE 'pi_%' OR deposit_payment_intent_id LIKE 'cs_%')`,
+        [bid]
+      );
+
+      // 2b-refund-2: gift cards avec balance restante + Stripe PI
+      const gcToRefundRes = await client.query(
+        `SELECT id, code, balance_cents, stripe_payment_intent_id
+         FROM gift_cards
+         WHERE business_id = $1 AND status = 'active' AND balance_cents > 0
+           AND stripe_payment_intent_id IS NOT NULL`,
+        [bid]
+      );
+
+      // 2b-refund-3: passes avec sessions restantes + Stripe PI
+      const passToRefundRes = await client.query(
+        `SELECT id, code, price_cents, sessions_total, sessions_remaining, stripe_payment_intent_id
+         FROM passes
+         WHERE business_id = $1 AND status = 'active' AND sessions_remaining > 0
+           AND stripe_payment_intent_id IS NOT NULL`,
+        [bid]
+      );
+
       // 2b2. Void all draft/sent invoices
       await client.query(
         `UPDATE invoices SET status = 'cancelled', updated_at = NOW()
@@ -820,8 +853,98 @@ router.post('/close', requireOwner, blockIfImpersonated, async (req, res, next) 
          JSON.stringify({ is_active: false, bookings_cancelled: futureRes.rows.length, affected_emails: affectedRes.rows.length })]
       );
 
-      return { futureCount: futureRes.rows.length, affected: affectedRes.rows };
+      return {
+        futureCount: futureRes.rows.length,
+        affected: affectedRes.rows,
+        depositsToRefund: depositsToRefundRes.rows,
+        gcToRefund: gcToRefundRes.rows,
+        passToRefund: passToRefundRes.rows
+      };
     });
+
+    // B-06 post-TX: exécuter les refunds Stripe hors transaction (API externe, volume possible).
+    // Si Stripe fail sur un item: log + notif support (manuelle requise). DB non mise à jour pour cet item.
+    const _refundStripe = async (stripe, piRaw, amount, label) => {
+      try {
+        let piId = piRaw;
+        if (piId.startsWith('cs_')) {
+          const sess = await stripe.checkout.sessions.retrieve(piId);
+          piId = sess.payment_intent;
+        }
+        if (!piId || !piId.startsWith('pi_')) return { ok: false, reason: 'invalid_pi' };
+        if (amount < 50) return { ok: false, reason: 'below_stripe_min' };
+        await stripe.refunds.create({ payment_intent: piId, amount });
+        console.log(`[CLOSE REFUND ${label}] ${amount}c OK pour PI ${piId}`);
+        return { ok: true };
+      } catch (e) {
+        if (e.code === 'charge_already_refunded') return { ok: true, note: 'already_refunded' };
+        console.error(`[CLOSE REFUND ${label}] FAILED for ${piRaw}:`, e.message);
+        return { ok: false, reason: e.message };
+      }
+    };
+
+    let refundStats = { deposits_refunded: 0, deposits_failed: 0, gc_refunded: 0, gc_failed: 0, pass_refunded: 0, pass_failed: 0 };
+    const stripeKeyClose = process.env.STRIPE_SECRET_KEY;
+    if (stripeKeyClose) {
+      const stripeClose = require('stripe')(stripeKeyClose);
+
+      // Deposits Stripe refund (policy=full systematic — fermeture de salon, pas de retention possible)
+      for (const dep of txResult.depositsToRefund) {
+        const amt = dep.deposit_amount_cents || 0;
+        if (amt <= 0) continue;
+        const res = await _refundStripe(stripeClose, dep.deposit_payment_intent_id, amt, 'deposit');
+        if (res.ok) {
+          refundStats.deposits_refunded++;
+          await queryWithRLS(bid,
+            `UPDATE bookings SET deposit_status = 'refunded', updated_at = NOW() WHERE id = $1`,
+            [dep.id]
+          ).catch(() => {});
+        } else {
+          refundStats.deposits_failed++;
+        }
+      }
+
+      // Gift cards refund Stripe (balance_cents) + mark status='refunded'
+      for (const gc of txResult.gcToRefund) {
+        const amt = gc.balance_cents || 0;
+        if (amt <= 0) continue;
+        const res = await _refundStripe(stripeClose, gc.stripe_payment_intent_id, amt, 'gift_card');
+        if (res.ok) {
+          refundStats.gc_refunded++;
+          await queryWithRLS(bid,
+            `UPDATE gift_cards SET status = 'refunded', balance_cents = 0, updated_at = NOW() WHERE id = $1`,
+            [gc.id]
+          ).catch(() => {});
+        } else {
+          refundStats.gc_failed++;
+        }
+      }
+
+      // Passes refund Stripe pro-rata (sessions_remaining * round(price/total)) + mark 'cancelled'
+      for (const p of txResult.passToRefund) {
+        if (!p.sessions_total || p.sessions_total <= 0) continue;
+        const unusedCents = p.sessions_remaining === p.sessions_total
+          ? p.price_cents  // full unused = full price (no rounding drift)
+          : p.sessions_remaining * Math.round(p.price_cents / p.sessions_total);
+        if (unusedCents <= 0) continue;
+        const res = await _refundStripe(stripeClose, p.stripe_payment_intent_id, unusedCents, 'pass');
+        if (res.ok) {
+          refundStats.pass_refunded++;
+          await queryWithRLS(bid,
+            `UPDATE passes SET status = 'cancelled', sessions_remaining = 0, updated_at = NOW() WHERE id = $1`,
+            [p.id]
+          ).catch(() => {});
+        } else {
+          refundStats.pass_failed++;
+        }
+      }
+      console.log('[CLOSE] Refund summary:', refundStats);
+    } else {
+      console.warn('[CLOSE] STRIPE_SECRET_KEY absent — aucun refund auto. Pro devra traiter manuellement.');
+      refundStats.deposits_failed = txResult.depositsToRefund.length;
+      refundStats.gc_failed = txResult.gcToRefund.length;
+      refundStats.pass_failed = txResult.passToRefund.length;
+    }
 
     // 3. Cancel Stripe subscription AFTER commit (external API call outside tx)
     if (biz.stripe_subscription_id) {
