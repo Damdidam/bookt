@@ -90,11 +90,13 @@ async function sendPostBookingComms({
 }) {
   (async () => {
     try {
-      // Skip client confirmation email for quote_only services — the quote-request endpoint sends its own email
-      // Pro notification is already queued via queueBookingNotifications (notification-processor handles it)
-      // Check ALL services (multi-service: if ANY is quote_only, skip)
+      // Skip client confirmation email for quote_only services — the quote-request endpoint sends its own email.
+      // H8 fix: EXCEPTION — if status='pending_deposit' (quote_only + deposit_required combo), we MUST
+      // send the deposit request email (L123) otherwise the client never receives the payment link and
+      // the booking expires silently. Only skip the needsConfirmation/regular confirmation branches.
+      // Pro notification is already queued via queueBookingNotifications (notification-processor handles it).
       const _qoIds = groupServices ? groupServices.map(gs => gs.service_id || gs.id).filter(Boolean) : (createdBooking.service_id ? [createdBooking.service_id] : []);
-      if (_qoIds.length > 0) {
+      if (_qoIds.length > 0 && createdBooking.status !== 'pending_deposit') {
         const _qoCheck = await query(`SELECT 1 FROM services WHERE id = ANY($1) AND quote_only = true LIMIT 1`, [_qoIds]);
         if (_qoCheck.rows.length > 0) return;
       }

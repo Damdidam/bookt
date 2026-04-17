@@ -2,6 +2,7 @@ const router = require('express').Router();
 const { query, queryWithRLS } = require('../../services/db');
 const { requireAuth, requireOwner, blockIfImpersonated } = require('../../middleware/auth');
 const { sanitizeRichText } = require('../../services/email-utils');
+const { invalidateMinisiteCache } = require('../public/helpers');
 
 // V11-025: Strip HTML tags from text fields to prevent injection
 function stripHtml(str) {
@@ -10,6 +11,15 @@ function stripHtml(str) {
 }
 
 router.use(requireAuth);
+// H7 fix: drop minisite cache after any successful mutation here (description rich-text,
+// theme, hours, logo, social links, page_sections, etc. sont tous rendus sur le minisite public).
+// Pattern identique à staff/services.js:8-13.
+router.use((req, res, next) => {
+  if (['POST', 'PATCH', 'PUT', 'DELETE'].includes(req.method)) {
+    res.on('finish', () => { if (res.statusCode < 400 && req.businessId) invalidateMinisiteCache(req.businessId); });
+  }
+  next();
+});
 
 // GET /api/business — full business details
 // UI: Settings page (all cards)

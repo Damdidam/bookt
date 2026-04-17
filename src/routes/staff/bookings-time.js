@@ -13,8 +13,10 @@ const { isWithinLastMinuteWindow } = require('../public/helpers');
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
- * Lock is visual-only (cadenas in booking modal).
- * Staff can always move/resize bookings — kept for API compat.
+ * Lock = vrai verrou (actif depuis commit 127628b — locked=true auto après
+ * paiement d'acompte confirmé). Bloque move/edit/resize/modify côté staff
+ * tant que le cadenas n'est pas retiré manuellement via la fiche booking.
+ * Le drag&drop calendar reçoit un 400 avec le reason ci-dessous.
  */
 function isBookingLocked(booking) {
   if (booking.locked) return { locked: true, reason: 'RDV verrouillé — déverrouillez-le d\'abord via la fiche' };
