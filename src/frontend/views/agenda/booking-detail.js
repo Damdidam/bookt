@@ -179,12 +179,14 @@ async function fcOpenDetail(bookingId) {
     if (b.deposit_payment_intent_id && b.deposit_payment_intent_id.startsWith('gc_')) {
       const gcCode = b.deposit_payment_intent_id.replace('gc_', '');
       const gcCents = parseInt(b.gc_paid_cents) || 0;
+      // Q6 fix: gc_absorbed (tiny remainder absorbé) — pas un vrai code
+      const gcLabel = gcCode === 'absorbed' ? 'reste absorb\u00e9' : esc(gcCode);
       const gcEl = document.createElement('div');
       gcEl.className = 'm-deposit-banner';
       gcEl.style.cssText = 'padding:12px 16px;margin:0 24px 12px;border-radius:10px;border:1.5px solid #C4B5FD;background:#F5F3FF';
       gcEl.innerHTML = `<div style="display:flex;align-items:center;gap:8px;font-size:.85rem;font-weight:700;color:#7C3AED">
         <svg class="gi" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8V21"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/></svg>
-        Pay\u00e9 par carte cadeau (${esc(gcCode)})${gcCents > 0 ? ' \u00b7 ' + (gcCents / 100).toFixed(2).replace('.', ',') + ' \u20ac' : ''}
+        Pay\u00e9 par carte cadeau (${gcLabel})${gcCents > 0 ? ' \u00b7 ' + (gcCents / 100).toFixed(2).replace('.', ',') + ' \u20ac' : ''}
       </div>`;
       document.getElementById('mStatusStrip').insertAdjacentElement('afterend', gcEl);
     } else if (!b.deposit_payment_intent_id && parseInt(b.gc_paid_cents) > 0) {

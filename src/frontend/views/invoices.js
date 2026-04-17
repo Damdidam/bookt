@@ -417,7 +417,8 @@ function invToggleUnbilled(idx,checked){
       if(b.deposit_payment_intent_id.startsWith('gc_')&&gcCents<=0){
         // Pure GC payment (legacy format)
         const gcCode=b.deposit_payment_intent_id.replace('gc_','');
-        const gcDesc='Acompte pay\u00e9 (Carte cadeau '+gcCode+')';
+        // Q6 fix: gc_absorbed (tiny remainder) — pas un vrai code, wording adapté
+        const gcDesc=gcCode==='absorbed'?'Acompte pay\u00e9 (reste absorb\u00e9 par carte cadeau)':('Acompte pay\u00e9 (Carte cadeau '+gcCode+')');
         const existing=[...container.querySelectorAll('.inv-desc')].some(el=>el.value===gcDesc);
         if(!existing){
           _addInvoiceLineFromBooking(b.id,gcDesc,1,-(totalDep/100));

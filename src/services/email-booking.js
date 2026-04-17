@@ -113,10 +113,15 @@ async function sendBookingConfirmation({ booking, business, groupServices }) {
     const depAmt = (booking.deposit_amount_cents / 100).toFixed(2).replace('.', ',');
     if (booking.deposit_payment_intent_id.startsWith('gc_')) {
       const gcCode = booking.deposit_payment_intent_id.replace('gc_', '');
+      // Q6 fix: gc_absorbed (tiny remainder < 50c) — pas une vraie carte, wording adapté
+      // Q7 fix: escHtml sur gcCode par défense (pattern parité avec passCode plus haut)
+      const gcLine = gcCode === 'absorbed'
+        ? `<div style="font-size:12px;color:#8D6E63;margin-top:4px">Reste absorb\u00e9 par votre carte cadeau</div>`
+        : `<div style="font-size:12px;color:#8D6E63;margin-top:4px">Carte ${escHtml(gcCode)}</div>`;
       bodyHTML += `
     <div style="background:#FFF8E1;border-radius:8px;padding:12px 16px;margin:16px 0;border-left:3px solid #F9A825">
       <div style="font-size:14px;color:#5D4037;font-weight:600">\u{1F381} Acompte de ${depAmt}\u00a0\u20ac r\u00e9gl\u00e9 via votre carte cadeau</div>
-      <div style="font-size:12px;color:#8D6E63;margin-top:4px">Carte ${gcCode}</div>
+      ${gcLine}
     </div>`;
     } else {
       bodyHTML += `
@@ -286,10 +291,14 @@ async function sendBookingConfirmationRequest({ booking, business, timeoutMin, g
     </div>`;
     } else if (booking.deposit_payment_intent_id.startsWith('gc_')) {
       const gcCode = booking.deposit_payment_intent_id.replace('gc_', '');
+      // Q6/Q7 fix: gc_absorbed wording + escHtml gcCode
+      const gcLine = gcCode === 'absorbed'
+        ? `<div style="font-size:12px;color:#8D6E63;margin-top:4px">Reste absorb\u00e9 par votre carte cadeau</div>`
+        : `<div style="font-size:12px;color:#8D6E63;margin-top:4px">Carte ${escHtml(gcCode)}</div>`;
       bodyHTML += `
     <div style="background:#FFF8E1;border-radius:8px;padding:12px 16px;margin:16px 0;border-left:3px solid #F9A825">
       <div style="font-size:14px;color:#5D4037;font-weight:600">\u{1F381} Acompte de ${depAmt}\u00a0\u20ac r\u00e9gl\u00e9 via votre carte cadeau</div>
-      <div style="font-size:12px;color:#8D6E63;margin-top:4px">Carte ${gcCode}</div>
+      ${gcLine}
     </div>`;
     } else {
       bodyHTML += `
