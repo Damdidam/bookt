@@ -70,10 +70,10 @@ router.get('/summary', async (req, res, next) => {
         COUNT(*) FILTER (WHERE status = 'cancelled') AS cancellations,
         COALESCE(SUM(
           GREATEST(
-            COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents, 0)
+            COALESCE(b.booked_price_cents, CASE WHEN COALESCE(b.discount_pct, 0) > 0 THEN (COALESCE(sv.price_cents, s.price_cents, 0) * (100 - b.discount_pct) / 100)::int ELSE COALESCE(sv.price_cents, s.price_cents, 0) END, 0)
             - COALESCE(b.promotion_discount_cents, 0)
             - COALESCE(alt.gc_paid_cents, 0)
-            - CASE WHEN alt.pass_used THEN COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents, 0) ELSE 0 END
+            - CASE WHEN alt.pass_used THEN COALESCE(b.booked_price_cents, CASE WHEN COALESCE(b.discount_pct, 0) > 0 THEN (COALESCE(sv.price_cents, s.price_cents, 0) * (100 - b.discount_pct) / 100)::int ELSE COALESCE(sv.price_cents, s.price_cents, 0) END, 0) ELSE 0 END
           , 0)
         ) FILTER (WHERE b.status IN ('confirmed', 'completed')), 0) AS revenue_cents
        FROM bookings b
@@ -118,6 +118,8 @@ router.get('/summary', async (req, res, next) => {
 
     // Pending todos
     const pendingTodos = await queryWithRLS(bid,
+      // M8 fix: practitioners voient les todos globaux (booking_id IS NULL) + leurs todos liés à leurs bookings.
+      // Avant: le filter IN(...) excluait silencieusement les todos business-wide pour les practitioners.
       `SELECT t.id, t.content, t.booking_id, t.created_at,
               b.start_at AS booking_start, s.name AS service_name, c.full_name AS client_name
        FROM practitioner_todos t
@@ -125,7 +127,7 @@ router.get('/summary', async (req, res, next) => {
        LEFT JOIN services s ON s.id = b.service_id
        LEFT JOIN clients c ON c.id = b.client_id
        WHERE t.business_id = $1 AND t.is_done = false
-       ${pracFilter ? 'AND t.booking_id IN (SELECT id FROM bookings WHERE practitioner_id = $2 AND business_id = $1)' : ''}
+       ${pracFilter ? 'AND (t.booking_id IS NULL OR t.booking_id IN (SELECT id FROM bookings WHERE practitioner_id = $2 AND business_id = $1))' : ''}
        ORDER BY t.created_at DESC LIMIT 20`,
       pracFilter ? [bid, pracFilter] : [bid]
     );
@@ -288,10 +290,10 @@ router.get('/analytics', async (req, res, next) => {
         COUNT(*) FILTER (WHERE b.status = 'cancelled') AS cancellations,
         COALESCE(SUM(
           GREATEST(
-            COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents, 0)
+            COALESCE(b.booked_price_cents, CASE WHEN COALESCE(b.discount_pct, 0) > 0 THEN (COALESCE(sv.price_cents, s.price_cents, 0) * (100 - b.discount_pct) / 100)::int ELSE COALESCE(sv.price_cents, s.price_cents, 0) END, 0)
             - COALESCE(b.promotion_discount_cents, 0)
             - COALESCE(alt.gc_paid_cents, 0)
-            - CASE WHEN alt.pass_used THEN COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents, 0) ELSE 0 END
+            - CASE WHEN alt.pass_used THEN COALESCE(b.booked_price_cents, CASE WHEN COALESCE(b.discount_pct, 0) > 0 THEN (COALESCE(sv.price_cents, s.price_cents, 0) * (100 - b.discount_pct) / 100)::int ELSE COALESCE(sv.price_cents, s.price_cents, 0) END, 0) ELSE 0 END
           , 0)
         ) FILTER (WHERE b.status IN ('confirmed', 'completed')), 0) AS revenue
        FROM bookings b
@@ -328,10 +330,10 @@ router.get('/analytics', async (req, res, next) => {
       `SELECT s.name, s.color, COUNT(b.id) AS count,
         COALESCE(SUM(
           GREATEST(
-            COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents, 0)
+            COALESCE(b.booked_price_cents, CASE WHEN COALESCE(b.discount_pct, 0) > 0 THEN (COALESCE(sv.price_cents, s.price_cents, 0) * (100 - b.discount_pct) / 100)::int ELSE COALESCE(sv.price_cents, s.price_cents, 0) END, 0)
             - COALESCE(b.promotion_discount_cents, 0)
             - COALESCE(alt.gc_paid_cents, 0)
-            - CASE WHEN alt.pass_used THEN COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents, 0) ELSE 0 END
+            - CASE WHEN alt.pass_used THEN COALESCE(b.booked_price_cents, CASE WHEN COALESCE(b.discount_pct, 0) > 0 THEN (COALESCE(sv.price_cents, s.price_cents, 0) * (100 - b.discount_pct) / 100)::int ELSE COALESCE(sv.price_cents, s.price_cents, 0) END, 0) ELSE 0 END
           , 0)
         ), 0) AS revenue
        FROM bookings b
@@ -370,10 +372,10 @@ router.get('/analytics', async (req, res, next) => {
         COUNT(*) FILTER (WHERE b.status IN ('confirmed', 'completed')) AS bookings,
         COALESCE(SUM(
           GREATEST(
-            COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents, 0)
+            COALESCE(b.booked_price_cents, CASE WHEN COALESCE(b.discount_pct, 0) > 0 THEN (COALESCE(sv.price_cents, s.price_cents, 0) * (100 - b.discount_pct) / 100)::int ELSE COALESCE(sv.price_cents, s.price_cents, 0) END, 0)
             - COALESCE(b.promotion_discount_cents, 0)
             - COALESCE(alt.gc_paid_cents, 0)
-            - CASE WHEN alt.pass_used THEN COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents, 0) ELSE 0 END
+            - CASE WHEN alt.pass_used THEN COALESCE(b.booked_price_cents, CASE WHEN COALESCE(b.discount_pct, 0) > 0 THEN (COALESCE(sv.price_cents, s.price_cents, 0) * (100 - b.discount_pct) / 100)::int ELSE COALESCE(sv.price_cents, s.price_cents, 0) END, 0) ELSE 0 END
           , 0)
         ) FILTER (WHERE b.status IN ('confirmed', 'completed')), 0) AS revenue
        FROM bookings b
