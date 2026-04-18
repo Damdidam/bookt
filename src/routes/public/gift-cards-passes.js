@@ -274,7 +274,7 @@ router.get('/:slug/pass-config', async (req, res, next) => {
     const tplRes = await query(
       `SELECT pt.id, pt.name, pt.description, pt.sessions_count, pt.price_cents, pt.validity_days, pt.service_variant_id,
               s.name AS service_name, s.category AS service_category, COALESCE(sv.price_cents, s.price_cents, 0) AS unit_price_cents, COALESCE(s.price_cents, 0) AS service_price_cents, sv.name AS variant_name
-       FROM pass_templates pt JOIN services s ON s.id = pt.service_id AND s.is_active = true LEFT JOIN service_variants sv ON sv.id = pt.service_variant_id
+       FROM pass_templates pt JOIN services s ON s.id = pt.service_id AND s.is_active = true AND COALESCE(s.quote_only, false) = false LEFT JOIN service_variants sv ON sv.id = pt.service_variant_id
        WHERE pt.business_id = $1 AND pt.is_active = true ORDER BY s.name, sv.name, pt.price_cents`,
       [biz.id]
     );
@@ -325,10 +325,13 @@ router.post('/:slug/pass/checkout', depositLimiter, async (req, res, next) => {
       return res.status(400).json({ error: 'Téléphone trop long (max 30)' });
     }
     const tplRes = await query(
-      `SELECT pt.*, s.name AS service_name FROM pass_templates pt JOIN services s ON s.id = pt.service_id AND s.is_active = true WHERE pt.id = $1 AND pt.business_id = $2 AND pt.is_active = true`,
+      `SELECT pt.*, s.name AS service_name, s.quote_only AS service_quote_only FROM pass_templates pt JOIN services s ON s.id = pt.service_id AND s.is_active = true WHERE pt.id = $1 AND pt.business_id = $2 AND pt.is_active = true`,
       [pass_template_id, biz.id]
     );
     if (tplRes.rows.length === 0) return res.status(404).json({ error: 'Formule introuvable' });
+    if (tplRes.rows[0].service_quote_only === true) {
+      return res.status(400).json({ error: 'Cette prestation est sur devis uniquement et ne peut pas être vendue sous forme de pass.' });
+    }
     const tpl = tplRes.rows[0];
     const baseUrl = BASE_URL;
     const passSessionOpts = {

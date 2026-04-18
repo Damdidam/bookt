@@ -98,15 +98,15 @@ router.post('/:slug/waitlist', bookingLimiter, async (req, res, next) => {
       `INSERT INTO waitlist_entries
         (business_id, practitioner_id, service_id, client_name, client_email,
          client_phone, preferred_days, preferred_time, note, priority)
-       SELECT $1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9,
+       SELECT $1::uuid, $2::uuid, $3::uuid, $4::text, $5::text, $6::text, $7::jsonb, $8::text, $9::text,
               COALESCE(MAX(we.priority), 0) + 1
        FROM waitlist_entries we
-       WHERE we.practitioner_id = $2 AND we.service_id = $3 AND we.status = 'waiting'
+       WHERE we.practitioner_id = $2::uuid AND we.service_id = $3::uuid AND we.status = 'waiting'
        AND NOT EXISTS (
          SELECT 1 FROM waitlist_entries dup
-         WHERE dup.practitioner_id = $2 AND dup.service_id = $3
-           AND LOWER(dup.client_email) = LOWER($5) AND dup.status = 'waiting'
-           AND dup.business_id = $1
+         WHERE dup.practitioner_id = $2::uuid AND dup.service_id = $3::uuid
+           AND LOWER(dup.client_email) = LOWER($5::text) AND dup.status = 'waiting'
+           AND dup.business_id = $1::uuid
        )
        RETURNING id, priority, created_at`,
       [businessId, practitioner_id, service_id, client_name, client_email,

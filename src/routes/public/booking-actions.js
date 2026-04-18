@@ -362,8 +362,14 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
 
 // ============================================================
 // POST /api/public/booking/:token/confirm
-// Client confirms a modified booking (modified_pending → confirmed)
-// UI: /booking/:token page → "Ça me convient" button
+// Client confirms a modified booking (modified_pending → confirmed).
+// UI: /booking/:token page → "Ça me convient" button.
+//
+// NB DX : Le sibling endpoint POST /booking/:token/confirm-booking gère
+// l'autre transition pending → confirmed (lien email). Les deux ne sont pas
+// fusionnés volontairement car ils viennent de flows UI distincts (page de
+// modification vs email de pré-confirmation) et font des side-effects légèrement
+// différents (voir ligne ~1366 pour confirm-booking).
 // ============================================================
 router.post('/booking/:token/confirm', async (req, res, next) => {
   try {
@@ -1039,6 +1045,14 @@ router.get('/booking/:token/cancel-booking', async (req, res, next) => {
 // POST /api/public/booking/:token/cancel-booking — actual cancellation (POST = safe from email preview)
 // ============================================================
 router.post('/booking/:token/cancel-booking', async (req, res, next) => {
+  // Content-Type negotiation: Accept: application/json → JSON, sinon HTML page (défaut email)
+  const wantsJson = req.accepts(['html', 'json']) === 'json';
+  const respondCancel = (status, title, message, color, businessName, extra = {}) => {
+    if (wantsJson) {
+      return res.status(status).json({ ok: status < 400, status: status < 400 ? 'ok' : 'error', title, message, business_name: businessName || null, ...extra });
+    }
+    return res.status(status).send(confirmationPage(title, message, color, businessName));
+  };
   try {
     const { token } = req.params;
 
@@ -1052,21 +1066,21 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).send(confirmationPage('Rendez-vous introuvable', 'Ce lien n\u2019est plus valide.', '#C62828'));
+      return respondCancel(404, 'Rendez-vous introuvable', 'Ce lien n\u2019est plus valide.', '#C62828', null, { code: 'not_found' });
     }
 
     const bk = result.rows[0];
 
     if (bk.status === 'cancelled') {
-      return res.send(confirmationPage('D\u00e9j\u00e0 annul\u00e9', 'Ce rendez-vous a d\u00e9j\u00e0 \u00e9t\u00e9 annul\u00e9.', '#C62828', bk.business_name));
+      return respondCancel(200, 'D\u00e9j\u00e0 annul\u00e9', 'Ce rendez-vous a d\u00e9j\u00e0 \u00e9t\u00e9 annul\u00e9.', '#C62828', bk.business_name, { code: 'already_cancelled' });
     }
     if (!['pending', 'confirmed', 'pending_deposit', 'modified_pending'].includes(bk.status)) {
-      return res.send(confirmationPage('Action impossible', 'Ce rendez-vous ne peut plus \u00eatre annul\u00e9.', '#A68B3C', bk.business_name));
+      return respondCancel(409, 'Action impossible', 'Ce rendez-vous ne peut plus \u00eatre annul\u00e9.', '#A68B3C', bk.business_name, { code: 'invalid_status', booking_status: bk.status });
     }
 
     // Block cancellation of past bookings
     if (new Date(bk.start_at) < new Date()) {
-      return res.send(confirmationPage('Rendez-vous pass\u00e9', 'Ce rendez-vous est d\u00e9j\u00e0 pass\u00e9 et ne peut plus \u00eatre annul\u00e9.', '#A68B3C', bk.business_name));
+      return respondCancel(409, 'Rendez-vous pass\u00e9', 'Ce rendez-vous est d\u00e9j\u00e0 pass\u00e9 et ne peut plus \u00eatre annul\u00e9.', '#A68B3C', bk.business_name, { code: 'past_booking' });
     }
 
     // Client can ALWAYS cancel future bookings — the deposit refund SQL handles the financial consequence
@@ -1102,7 +1116,7 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
 
     if (cancelResult.rowCount === 0) {
       await txClient2.query('ROLLBACK');
-      return res.send(confirmationPage('D\u00e9j\u00e0 modifi\u00e9', 'Ce rendez-vous a d\u00e9j\u00e0 \u00e9t\u00e9 modifi\u00e9 ou annul\u00e9.', '#A68B3C', bk.business_name));
+      return respondCancel(409, 'D\u00e9j\u00e0 modifi\u00e9', 'Ce rendez-vous a d\u00e9j\u00e0 \u00e9t\u00e9 modifi\u00e9 ou annul\u00e9.', '#A68B3C', bk.business_name, { code: 'already_modified' });
     }
 
     // Cancel group siblings (inside same transaction)
@@ -1350,7 +1364,7 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
 
     const dt = new Date(bk.start_at).toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Brussels' });
     const tm = new Date(bk.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
-    return res.send(confirmationPage('Rendez-vous annul\u00e9 \u274c', `Votre rendez-vous du <strong>${dt} \u00e0 ${tm}</strong> a \u00e9t\u00e9 annul\u00e9.`, '#C62828', bk.business_name));
+    return respondCancel(200, 'Rendez-vous annul\u00e9 \u274c', `Votre rendez-vous du <strong>${dt} \u00e0 ${tm}</strong> a \u00e9t\u00e9 annul\u00e9.`, '#C62828', bk.business_name, { code: 'cancelled', booking_id: bk.id, cancelled_at: new Date().toISOString() });
   } catch (err) { next(err); }
 });
 

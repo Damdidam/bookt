@@ -398,4 +398,58 @@ async function sendBookingLookupEmail({ email, bookings, business }) {
   });
 }
 
-module.exports = { sendSessionNotesEmail, sendPasswordResetEmail, sendReviewRequestEmail, sendGiftCardEmail, sendGiftCardReceiptEmail, sendPassPurchaseEmail, sendGiftCardPurchaseProEmail, sendPassPurchaseProEmail, sendBookingLookupEmail };
+// ── Invoice email ──
+// Sent when a pro marks a draft invoice as 'sent'. Includes PDF attachment.
+async function sendInvoiceEmail({ invoice, business, pdfBuffer }) {
+  if (!invoice?.client_email) return { success: false, error: 'Missing client_email' };
+  const color = safeColor(business.theme?.primary_color);
+  const totalStr = ((invoice.total_cents || 0) / 100).toFixed(2).replace('.', ',');
+  const issueDate = invoice.issue_date
+    ? new Date(invoice.issue_date).toLocaleDateString('fr-BE', { timeZone: 'Europe/Brussels', day: 'numeric', month: 'long', year: 'numeric' })
+    : '';
+  const dueDate = invoice.due_date
+    ? new Date(invoice.due_date).toLocaleDateString('fr-BE', { timeZone: 'Europe/Brussels', day: 'numeric', month: 'long', year: 'numeric' })
+    : '';
+  const isCredit = invoice.type === 'credit_note';
+  const title = isCredit ? 'Note de cr\u00e9dit' : 'Facture';
+
+  const bodyHTML = `
+    <p style="margin:0 0 16px">Bonjour${invoice.client_name ? ' ' + escHtml(invoice.client_name) : ''},</p>
+    <p style="margin:0 0 16px">Veuillez trouver ci-joint votre ${title.toLowerCase()} n\u00b0 <strong>${escHtml(invoice.invoice_number)}</strong>${issueDate ? ` du ${issueDate}` : ''}.</p>
+    <div style="background:#F5F4F1;border-radius:10px;padding:20px;margin:0 0 20px">
+      <table style="width:100%;font-size:14px;color:#3D3832" cellpadding="4" cellspacing="0">
+        <tr><td style="color:#9C958E">${title}</td><td style="text-align:right;font-weight:600;font-family:monospace">${escHtml(invoice.invoice_number)}</td></tr>
+        ${issueDate ? `<tr><td style="color:#9C958E">Date d'\u00e9mission</td><td style="text-align:right">${issueDate}</td></tr>` : ''}
+        ${dueDate && !isCredit ? `<tr><td style="color:#9C958E">\u00c9ch\u00e9ance</td><td style="text-align:right">${dueDate}</td></tr>` : ''}
+        <tr><td style="color:#9C958E">Montant ${isCredit ? '(cr\u00e9dit)' : '\u00e0 payer'}</td><td style="text-align:right;font-weight:700;font-size:16px;color:${color}">${totalStr} \u20ac</td></tr>
+      </table>
+    </div>
+    ${isCredit ? '' : `<p style="font-size:14px;color:#5C564F">Merci de bien vouloir proc\u00e9der au r\u00e8glement avant l'\u00e9ch\u00e9ance indiqu\u00e9e.</p>`}
+    <p style="font-size:13px;color:#9C958E;margin-top:16px">Pour toute question concernant cette ${title.toLowerCase()}, r\u00e9pondez simplement \u00e0 cet email.</p>`;
+
+  const footerParts = [business.name, business.address, business.phone, business.email, 'Via Genda.be'].filter(Boolean);
+  const html = buildEmailHTML({
+    title: `${title} ${invoice.invoice_number}`,
+    preheader: `${title} n\u00b0 ${invoice.invoice_number} \u2014 ${totalStr} \u20ac`,
+    bodyHTML,
+    businessName: business.name,
+    primaryColor: color,
+    footerText: footerParts.join(' \u00b7 ')
+  });
+
+  const filename = `${(invoice.invoice_number || 'facture').replace(/\//g, '-')}.pdf`;
+  const attachments = pdfBuffer ? [{ name: filename, content: pdfBuffer }] : [];
+
+  return sendEmail({
+    to: invoice.client_email,
+    toName: invoice.client_name || invoice.client_email,
+    subject: `${title} ${invoice.invoice_number} \u2014 ${business.name}`,
+    html,
+    fromName: business.name,
+    replyTo: business.email,
+    template: 'invoice_sent',
+    attachments
+  });
+}
+
+module.exports = { sendSessionNotesEmail, sendPasswordResetEmail, sendReviewRequestEmail, sendGiftCardEmail, sendGiftCardReceiptEmail, sendPassPurchaseEmail, sendGiftCardPurchaseProEmail, sendPassPurchaseProEmail, sendBookingLookupEmail, sendInvoiceEmail };

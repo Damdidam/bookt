@@ -24,18 +24,8 @@ async function sendSMS(opts) {
     return { success: false, error: 'Missing to or body' };
   }
 
-  // E2E mock : intercept avant appel Twilio
-  if (process.env.SKIP_SMS === '1') {
-    try {
-      await query(
-        `INSERT INTO test_mock_log (type, kind, recipient, payload) VALUES ('sms', $1, $2, $3)`,
-        ['sms', to, JSON.stringify({ to, body, businessId, from, consentSms, clientId })]
-      );
-    } catch (e) { console.warn('[MOCK SMS] Log error:', e.message); }
-    return { success: true, mocked: true, sid: 'mock-' + Date.now() };
-  }
-
   // RGPD: skip if caller knows client opted out, or if a clientId is provided and DB says false.
+  // Checked BEFORE mock log so a blocked SMS never appears in test_mock_log (mirrors prod behaviour).
   if (consentSms === false) {
     return { success: false, skipped: true, error: 'consent_sms=false' };
   }
@@ -46,6 +36,17 @@ async function sendSMS(opts) {
         return { success: false, skipped: true, error: 'consent_sms=false (auto-check)' };
       }
     } catch (e) { console.warn('[SMS] consent auto-check failed:', e.message); }
+  }
+
+  // E2E mock : intercept avant appel Twilio (après consent check pour cohérence prod)
+  if (process.env.SKIP_SMS === '1') {
+    try {
+      await query(
+        `INSERT INTO test_mock_log (type, kind, recipient, payload) VALUES ('sms', $1, $2, $3)`,
+        ['sms', to, JSON.stringify({ to, body, businessId, from, consentSms, clientId })]
+      );
+    } catch (e) { console.warn('[MOCK SMS] Log error:', e.message); }
+    return { success: true, mocked: true, sid: 'mock-' + Date.now() };
   }
 
   const sid = process.env.TWILIO_ACCOUNT_SID;

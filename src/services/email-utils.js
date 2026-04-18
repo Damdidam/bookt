@@ -137,6 +137,14 @@ async function sendEmail(opts) {
       payload.replyTo = { email: opts.replyTo };
     }
 
+    // Brevo supports attachments via base64 content (attachment[i].content + attachment[i].name)
+    if (Array.isArray(opts.attachments) && opts.attachments.length > 0) {
+      payload.attachment = opts.attachments.map(a => ({
+        name: a.name,
+        content: Buffer.isBuffer(a.content) ? a.content.toString('base64') : a.content
+      }));
+    }
+
     const response = await fetch(BREVO_API, {
       method: 'POST',
       headers: {

@@ -127,11 +127,6 @@ test.describe('C03 — promos edge: stacking & LM windows', () => {
       `UPDATE businesses SET settings = jsonb_set(settings, '{last_minute_deadline}', '"j-2"') WHERE id = $1`,
       [IDS.BUSINESS]
     );
-    // Also sync the lastminute_deadline alias for parity
-    await pool.query(
-      `UPDATE businesses SET settings = jsonb_set(settings, '{lastminute_deadline}', '"j-2"') WHERE id = $1`,
-      [IDS.BUSINESS]
-    );
     try {
       // Within j-2 window: iterate days 1..2, pick prac open that day.
       let withinSlot = null, withinPrac = null;
@@ -222,10 +217,6 @@ test.describe('C03 — promos edge: stacking & LM windows', () => {
       `UPDATE businesses SET settings = jsonb_set(settings, '{last_minute_deadline}', $2::jsonb) WHERE id = $1`,
       [IDS.BUSINESS, JSON.stringify(withinDeadline)]
     );
-    await pool.query(
-      `UPDATE businesses SET settings = jsonb_set(settings, '{lastminute_deadline}', $2::jsonb) WHERE id = $1`,
-      [IDS.BUSINESS, JSON.stringify(withinDeadline)]
-    );
     try {
       const email1 = `e2e-c03-lm-h24-in-${Date.now()}@genda-test.be`;
       const r1 = await bookSvcLong({
@@ -242,10 +233,6 @@ test.describe('C03 — promos edge: stacking & LM windows', () => {
       // For outside: set deadline = h-1 so the same kind of slot won't fit
       await pool.query(
         `UPDATE businesses SET settings = jsonb_set(settings, '{last_minute_deadline}', '"h-1"') WHERE id = $1`,
-        [IDS.BUSINESS]
-      );
-      await pool.query(
-        `UPDATE businesses SET settings = jsonb_set(settings, '{lastminute_deadline}', '"h-1"') WHERE id = $1`,
         [IDS.BUSINESS]
       );
 

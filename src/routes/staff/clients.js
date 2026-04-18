@@ -146,7 +146,7 @@ router.post('/', async (req, res, next) => {
     // Check for existing client with same phone or email
     if (phone || email) {
       const existing = await queryWithRLS(bid,
-        `SELECT id, full_name FROM clients WHERE business_id = $1 AND (($2 IS NOT NULL AND phone = $2) OR ($3 IS NOT NULL AND LOWER(email) = LOWER($3))) LIMIT 1`,
+        `SELECT id, full_name FROM clients WHERE business_id = $1 AND (($2::text IS NOT NULL AND phone = $2::text) OR ($3::text IS NOT NULL AND LOWER(email) = LOWER($3::text))) LIMIT 1`,
         [bid, phone || null, email || null]
       );
       if (existing.rows.length > 0) {

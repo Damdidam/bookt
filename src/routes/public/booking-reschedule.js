@@ -120,9 +120,10 @@ router.get('/manage/:token/slots', slotsLimiter, async (req, res, next) => {
 
 // ============================================================
 // POST /api/public/manage/:token/reschedule
+// Alias : POST /api/public/booking/:token/reschedule — unifié avec /cancel et /confirm.
 // Client self-reschedule — move booking to new time
 // ============================================================
-router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) => {
+router.post(['/manage/:token/reschedule', '/booking/:token/reschedule'], bookingLimiter, async (req, res, next) => {
   const client = await pool.connect();
   try {
     const { token } = req.params;

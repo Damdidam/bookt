@@ -1,12 +1,8 @@
 /**
  * C01 / spec 04 — Last-minute discount on public booking.
  *
- * Business TEST settings (after normalization in beforeAll):
+ * Business TEST settings:
  *   last_minute_enabled=true, last_minute_deadline='h-24', last_minute_discount_pct=20.
- *
- * NB: The canonical seed file (tests/e2e/fixtures/seeds/01-business.js) uses
- * `lastminute_*` keys, but the API (src/routes/public/index.js:1108) reads
- * `last_minute_*`. The test harness normalizes both conventions in beforeAll.
  *
  * 2 tests :
  *   1. LM alone — SVC_LONG (9500c) within 24h window + is_last_minute=true
@@ -36,15 +32,16 @@ test.describe('C01 — booking public mono: last-minute', () => {
   test.beforeEach(async () => { await resetMutables(); });
 
   test.beforeAll(async () => {
-    // Ensure LM settings are aligned to the code convention (code reads
-    // last_minute_* but seed writes lastminute_*). Mirror the keys if needed.
+    // Ensure LM settings sont au format canonique last_minute_* (au cas où un seed ancien
+    // aurait laissé les clés `lastminute_*`). La migration v71 s'occupe de la normalisation
+    // en prod, ce hook garde le test robuste face à d'anciens seeds.
     await pool.query(
       `UPDATE businesses
        SET settings = settings ||
          jsonb_build_object(
-           'last_minute_enabled',     COALESCE((settings->>'lastminute_enabled')::boolean, true),
-           'last_minute_discount_pct', COALESCE((settings->>'lastminute_discount_pct')::int, 20),
-           'last_minute_deadline',    COALESCE(settings->>'lastminute_deadline', 'h-24')
+           'last_minute_enabled',      true,
+           'last_minute_discount_pct', 20,
+           'last_minute_deadline',     'h-24'
          )
        WHERE id = $1`,
       [IDS.BUSINESS]

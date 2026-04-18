@@ -49,6 +49,7 @@ const reviewRoutes = require('./routes/staff/reviews');
 const promotionRoutes = require('./routes/staff/promotions');
 const adminRoutes = require('./routes/admin');
 const twilioWebhooks = require('./routes/webhooks/twilio');
+const brevoWebhooks = require('./routes/webhooks/brevo');
 const stripeRoutes = require('./routes/staff/stripe');
 const { handleStripeWebhook } = require('./routes/staff/stripe');
 
@@ -221,6 +222,9 @@ app.use('/api/promotions', _staffLimiter, promotionRoutes);
 
 // Webhooks (Twilio)
 app.use('/webhooks/twilio', twilioWebhooks);
+
+// Webhooks (Brevo) — track bounces, delivered, complaints, unsubscribes
+app.use('/webhooks/brevo', brevoWebhooks);
 
 // ===== PUBLIC MINI-SITE =====
 // Catch-all for /:slug → DB lookup → serve the right template

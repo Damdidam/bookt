@@ -490,7 +490,8 @@ router.get('/ical/:token', async (req, res) => {
     ical += 'END:VCALENDAR\r\n';
 
     res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
-    res.setHeader('Content-Disposition', `inline; filename="${bizName}.ics"`);
+    const asciiName = (bizName.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^\x20-\x7E]/g, '').replace(/"/g, '').trim() || 'calendar');
+    res.setHeader('Content-Disposition', `inline; filename="${asciiName}.ics"; filename*=UTF-8''${encodeURIComponent(bizName)}.ics`);
     res.send(ical);
   } catch (err) {
     console.error('[ICAL] Feed error:', err);

@@ -481,6 +481,47 @@ router.patch('/:id/status', requireOwner, blockIfImpersonated, async (req, res, 
       [status, status === 'paid' ? (paid_date || new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' })) : null,
        req.params.id, bid]
     );
+
+    // Trigger invoice email on transition → 'sent' (non-blocking, ne doit pas faire échouer l'update)
+    if (status === 'sent' && current.rows[0].status !== 'sent') {
+      (async () => {
+        try {
+          const invRes = await queryWithRLS(bid,
+            `SELECT inv.*, orig.invoice_number AS related_invoice_number, orig.issue_date AS related_invoice_date,
+                    biz.name AS biz_name, biz.email AS biz_email, biz.phone AS biz_phone, biz.address AS biz_address,
+                    biz.theme AS biz_theme, biz.slug AS biz_slug
+             FROM invoices inv
+             LEFT JOIN invoices orig ON orig.id = inv.related_invoice_id AND orig.business_id = inv.business_id
+             JOIN businesses biz ON biz.id = inv.business_id
+             WHERE inv.id = $1 AND inv.business_id = $2`,
+            [req.params.id, bid]
+          );
+          if (invRes.rows.length === 0) return;
+          const invoice = invRes.rows[0];
+          if (!invoice.client_email) {
+            console.warn('[INVOICE EMAIL] Pas de client_email pour', invoice.invoice_number);
+            return;
+          }
+          const items = await queryWithRLS(bid,
+            `SELECT * FROM invoice_items WHERE invoice_id = $1 ORDER BY sort_order`,
+            [invoice.id]
+          );
+          const pdfBuffer = await generateInvoicePDF(invoice, items.rows);
+          const { sendInvoiceEmail } = require('../../services/email');
+          await sendInvoiceEmail({
+            invoice,
+            business: {
+              name: invoice.biz_name, email: invoice.biz_email, phone: invoice.biz_phone,
+              address: invoice.biz_address, theme: invoice.biz_theme, slug: invoice.biz_slug
+            },
+            pdfBuffer
+          });
+        } catch (e) {
+          console.error('[INVOICE EMAIL] send error:', e.message);
+        }
+      })();
+    }
+
     res.json({ updated: true, status });
   } catch (err) { next(err); }
 });

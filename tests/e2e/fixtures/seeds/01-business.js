@@ -14,8 +14,7 @@ const SETTINGS = {
   reminder_email_24h: true, reminder_email_2h: true,
   reminder_sms_24h: false, reminder_sms_2h: false,
   min_booking_notice_hours: 1,
-  lastminute_enabled: true, lastminute_discount_pct: 20, lastminute_deadline: 'h-24',
-  // Also expose last_minute_* aliases — backend checks both prefixes in different code paths.
+  // Backend canonical convention: last_minute_* (voir schema-v46-last-minute.sql + v71 normalization).
   last_minute_enabled: true, last_minute_discount_pct: 20, last_minute_deadline: 'h-24',
   // C02: multi-service feature must be enabled on the business to allow service_ids[]
   multi_service_enabled: true,
