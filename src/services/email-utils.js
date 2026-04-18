@@ -104,6 +104,18 @@ async function sendEmail(opts) {
   if (!EMAIL_RE.test(opts.to)) return { success: false, error: 'Invalid recipient email' };
   if (opts.replyTo && !EMAIL_RE.test(opts.replyTo)) delete opts.replyTo;
 
+  // E2E mock : intercept avant appel Brevo
+  if (process.env.SKIP_EMAIL === '1') {
+    try {
+      const { query } = require('./db');
+      await query(
+        `INSERT INTO test_mock_log (type, kind, recipient, payload) VALUES ('email', $1, $2, $3)`,
+        [opts.template || opts.subject?.slice(0, 50) || 'unknown', opts.to, JSON.stringify(opts)]
+      );
+    } catch (e) { console.warn('[MOCK EMAIL] Log error:', e.message); }
+    return { success: true, mocked: true, messageId: 'mock-' + Date.now() };
+  }
+
   const apiKey = process.env.BREVO_API_KEY;
   if (!apiKey) {
     console.warn('[EMAIL] BREVO_API_KEY not set — email not sent:', opts.subject, '→', opts.to);
