@@ -50,13 +50,29 @@ async function resetMutables() {
     [IDS.BUSINESS]
   );
 
-  // 4. Delete transactions accumulées (debits GC + pass créés par les tests précédents)
+  // 4. Delete transactions accumulées (debits GC + pass créés par les tests précédents).
+  //    Also delete refunds for non-seed bookings so the FK doesn't block the booking DELETE below.
   await pool.query(
     `DELETE FROM gift_card_transactions WHERE business_id = $1 AND type = 'debit'`,
     [IDS.BUSINESS]
   );
   await pool.query(
     `DELETE FROM pass_transactions WHERE business_id = $1 AND type = 'debit'`,
+    [IDS.BUSINESS]
+  );
+  // C04 add: refund rows linked to non-seed bookings
+  await pool.query(
+    `DELETE FROM gift_card_transactions
+     WHERE business_id = $1 AND type = 'refund'
+       AND booking_id IS NOT NULL
+       AND booking_id NOT IN (SELECT entity_id FROM seed_tracking WHERE entity_type = 'booking_historique')`,
+    [IDS.BUSINESS]
+  );
+  await pool.query(
+    `DELETE FROM pass_transactions
+     WHERE business_id = $1 AND type = 'refund'
+       AND booking_id IS NOT NULL
+       AND booking_id NOT IN (SELECT entity_id FROM seed_tracking WHERE entity_type = 'booking_historique')`,
     [IDS.BUSINESS]
   );
 
