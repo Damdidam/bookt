@@ -142,59 +142,31 @@ test.describe('C01 — booking public mono: gift cards', () => {
     expect(gcRow.rows[0].balance_cents).toBe(10000 - 4750);
   });
 
-  test('3. GC expired — TESTGC03EXPD ignored, booking still goes to pending_deposit', async () => {
+  test('3. GC expired — TESTGC03EXPD rejected with 400 "Carte cadeau expirée"', async () => {
     const email = `e2e-gc-expired-${Date.now()}@genda-test.be`;
-    const startAt = isoPlusDays(11, 10); // Wed — Alice open
+    const startAt = isoPlusDays(11, 10);
     const { status, body } = await postBooking({
       serviceId: IDS.SVC_LONG,
       startAt,
       gcCode: CODE_EXPIRED,
       email,
     });
-    // API does NOT reject: invalid GC codes are silently ignored (documented behavior).
-    expect(status, `API error: ${JSON.stringify(body)}`).toBe(201);
-
-    const bkRow = await pool.query(
-      `SELECT status, deposit_status, deposit_payment_intent_id FROM bookings WHERE id = $1`,
-      [body.booking.id]
-    );
-    expect(bkRow.rows[0].status).toBe('pending_deposit');
-    expect(bkRow.rows[0].deposit_status).toBe('pending');
-    // GC was not used → payment_intent stays null
-    expect(bkRow.rows[0].deposit_payment_intent_id).toBeNull();
-
-    // No transactions recorded against the expired GC for this booking
-    const txRow = await pool.query(
-      `SELECT COUNT(*)::int AS cnt FROM gift_card_transactions WHERE booking_id = $1`,
-      [body.booking.id]
-    );
-    expect(txRow.rows[0].cnt).toBe(0);
+    // Fix: API REJECTS invalid GC codes with 400 (was silently ignored before)
+    expect(status).toBe(400);
+    expect(body.error).toMatch(/expir|inutilisable/i);
   });
 
-  test('4. GC cancelled — TESTGC04CNCL ignored, booking still goes to pending_deposit', async () => {
+  test('4. GC cancelled — TESTGC04CNCL rejected with 400 "Carte cadeau annulée"', async () => {
     const email = `e2e-gc-cancelled-${Date.now()}@genda-test.be`;
-    const startAt = isoPlusDays(11, 13); // Wed — Alice open, different hour
+    const startAt = isoPlusDays(11, 13);
     const { status, body } = await postBooking({
       serviceId: IDS.SVC_LONG,
       startAt,
       gcCode: CODE_CANCELLED,
       email,
     });
-    // API does NOT reject: invalid GC codes are silently ignored.
-    expect(status, `API error: ${JSON.stringify(body)}`).toBe(201);
-
-    const bkRow = await pool.query(
-      `SELECT status, deposit_status, deposit_payment_intent_id FROM bookings WHERE id = $1`,
-      [body.booking.id]
-    );
-    expect(bkRow.rows[0].status).toBe('pending_deposit');
-    expect(bkRow.rows[0].deposit_status).toBe('pending');
-    expect(bkRow.rows[0].deposit_payment_intent_id).toBeNull();
-
-    const txRow = await pool.query(
-      `SELECT COUNT(*)::int AS cnt FROM gift_card_transactions WHERE booking_id = $1`,
-      [body.booking.id]
-    );
-    expect(txRow.rows[0].cnt).toBe(0);
+    // Fix: API REJECTS cancelled GC with 400
+    expect(status).toBe(400);
+    expect(body.error).toMatch(/annul|inutilisable/i);
   });
 });

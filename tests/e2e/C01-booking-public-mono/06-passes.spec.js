@@ -120,47 +120,22 @@ test.describe('C01 — booking public mono: passes', () => {
     expect(bk.rows[0].deposit_amount_cents).toBeNull();
   });
 
-  test('2. PASS_EXPIRED on SVC_PASS → ignored, booking goes to pending_deposit', async () => {
+  test('2. PASS_EXPIRED on SVC_PASS → rejected with 400 "Abonnement expiré"', async () => {
     const email = `e2e-pass-expired-${Date.now()}@genda-test.be`;
-    const startAt = isoPlusDays(7, 11); // Sat — different slot from test 1
+    const startAt = isoPlusDays(7, 11);
     const { status, body } = await postBooking({ startAt, passCode: PASS_EXPIRED, email });
-    // API does NOT reject; invalid pass codes are silently ignored.
-    expect(status, `API error: ${JSON.stringify(body)}`).toBe(201);
-
-    // No debit recorded
-    const tx = await pool.query(
-      `SELECT COUNT(*)::int AS cnt FROM pass_transactions WHERE booking_id = $1`,
-      [body.booking.id]
-    );
-    expect(tx.rows[0].cnt).toBe(0);
-
-    const bk = await pool.query(
-      `SELECT status, deposit_status, deposit_payment_intent_id FROM bookings WHERE id = $1`,
-      [body.booking.id]
-    );
-    expect(bk.rows[0].status).toBe('pending_deposit');
-    expect(bk.rows[0].deposit_status).toBe('pending');
-    expect(bk.rows[0].deposit_payment_intent_id).toBeNull();
+    // Fix: API REJECTS expired pass with 400 (was silently ignored)
+    expect(status).toBe(400);
+    expect(body.error).toMatch(/expir|inutilisable/i);
   });
 
-  test('3. PASS_EMPTY (0 sessions) on SVC_PASS → ignored, booking goes to pending_deposit', async () => {
+  test('3. PASS_EMPTY (0 sessions) on SVC_PASS → rejected with 400 "séance restante"', async () => {
     const email = `e2e-pass-empty-${Date.now()}@genda-test.be`;
-    const startAt = isoPlusDays(7, 13); // Sat — different slot
+    const startAt = isoPlusDays(7, 13);
     const { status, body } = await postBooking({ startAt, passCode: PASS_EMPTY, email });
-    expect(status, `API error: ${JSON.stringify(body)}`).toBe(201);
-
-    const tx = await pool.query(
-      `SELECT COUNT(*)::int AS cnt FROM pass_transactions WHERE booking_id = $1`,
-      [body.booking.id]
-    );
-    expect(tx.rows[0].cnt).toBe(0);
-
-    const bk = await pool.query(
-      `SELECT status, deposit_status FROM bookings WHERE id = $1`,
-      [body.booking.id]
-    );
-    expect(bk.rows[0].status).toBe('pending_deposit');
-    expect(bk.rows[0].deposit_status).toBe('pending');
+    // Fix: API REJECTS empty pass with 400
+    expect(status).toBe(400);
+    expect(body.error).toMatch(/séance|épuis|inutilisable/i);
   });
 
   test('4. PASS_ACTIVE + PROMO_PCT — pass wins, promo does not apply to covered session', async () => {

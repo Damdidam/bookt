@@ -171,8 +171,9 @@ test.describe('C02 — booking multi-services: combos & threshold', () => {
 
   test('4. Auto-split — practitioner does not cover all services → auto_split_assigned=true', async () => {
     // Carol Junior offers only SVC_SHORT and SVC_CHEAP (not SVC_LONG)
+    // Carol horaires : Wed-Sat 14h-20h → utiliser 15h UTC (17h Brussels) pour être dans le slot
     const email = `e2e-c02-autosplit-${Date.now()}@genda-test.be`;
-    const startAt = nextWeekdayUTC(3, 13);
+    const startAt = nextWeekdayUTC(4, 12); // Thu 12h UTC (14h Brussels) — Carol 14-20 Mer-Sam, Alice/Bob couvrent 14-16h15 après chain
 
     const { status, body } = await publicFetch(`/api/public/${SLUG}/bookings`, {
       method: 'POST',
@@ -189,28 +190,25 @@ test.describe('C02 — booking multi-services: combos & threshold', () => {
       },
     });
 
-    // BUG REVEALED: src/routes/public/index.js:339 references `p.display_order` column
-    // which does NOT exist in the `practitioners` table (column is `sort_order`).
-    // Auto-split path throws 500 "Erreur interne du serveur". This is a real backend bug.
-    // Documented here without fixing — expected per task rules ("documenter sans fixer").
-    if (status === 500) {
-      test.info().annotations.push({
-        type: 'BACKEND BUG',
-        description: 'Auto-split query uses non-existent column p.display_order in public/index.js:339 (actual column: p.sort_order). Returns 500 Erreur interne.'
-      });
-      expect(status).toBe(500);
-      return;
-    }
-
+    // Fix applied: display_order → sort_order in public/index.js:339.
+    // Auto-split now works : Carol ne couvre pas SVC_LONG, le backend réassigne ce service
+    // à Alice (ou Bob). Au moins un booking du group n'a pas PRAC_CAROL comme prac.
     expect(status, `API error: ${JSON.stringify(body)}`).toBe(201);
     expect(body.auto_split_assigned).toBe(true);
-    const rows = await pool.query(
-      `SELECT practitioner_id FROM bookings WHERE group_id = $1 ORDER BY group_order`,
-      [body.group_id]
-    );
-    // Auto-split may still land all on Alice if she's only one covering both, but at least one must
-    // not be Carol (since Carol doesn't do SVC_LONG)
-    expect(rows.rows.find(r => r.practitioner_id !== IDS.PRAC_CAROL)).toBeTruthy();
+    const bookings = body.bookings || [body.booking];
+    expect(bookings.length).toBeGreaterThanOrEqual(2);
+    // Au moins un booking du group doit avoir un prac != Carol (car Carol ne couvre pas SVC_LONG)
+    const pracIds = bookings.map(b => b.practitioner_id).filter(Boolean);
+    // Fetch fresh from DB if bookings don't include practitioner_id
+    if (pracIds.length < bookings.length) {
+      const rows = await pool.query(
+        `SELECT practitioner_id FROM bookings WHERE id = ANY($1)`,
+        [bookings.map(b => b.id)]
+      );
+      expect(rows.rows.some(r => r.practitioner_id !== IDS.PRAC_CAROL)).toBe(true);
+    } else {
+      expect(pracIds.some(pid => pid !== IDS.PRAC_CAROL)).toBe(true);
+    }
   });
 
   test('5. Conflict partiel — existing Alice booking @ 10h for 120min, new group at 10h30 → 400 conflict', async () => {

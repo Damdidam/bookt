@@ -155,6 +155,49 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
     const stripeConnectStatus = bizResult.rows[0].stripe_connect_status;
     const { transactionWithRLS } = require('../../services/db');
 
+    // Fix: GC/pass invalide fourni → 400 explicite (avant : silent ignore).
+    // Le client qui saisit un code expiré/cancelled devait avoir un feedback.
+    if (gift_card_code) {
+      const gcValidCheck = await query(
+        `SELECT status, balance_cents, expires_at FROM gift_cards
+         WHERE business_id = $1 AND code = $2 LIMIT 1`,
+        [businessId, gift_card_code.toUpperCase().trim()]
+      );
+      if (gcValidCheck.rows.length === 0) {
+        return res.status(400).json({ error: 'Carte cadeau inconnue' });
+      }
+      const gc = gcValidCheck.rows[0];
+      if (gc.status !== 'active') {
+        return res.status(400).json({ error: `Carte cadeau ${gc.status === 'expired' ? 'expirée' : gc.status === 'cancelled' ? 'annulée' : 'inutilisable'}` });
+      }
+      if (gc.balance_cents <= 0) {
+        return res.status(400).json({ error: 'Solde carte cadeau épuisé' });
+      }
+      if (gc.expires_at && new Date(gc.expires_at) <= new Date()) {
+        return res.status(400).json({ error: 'Carte cadeau expirée' });
+      }
+    }
+    if (pass_code) {
+      const passValidCheck = await query(
+        `SELECT status, sessions_remaining, expires_at FROM passes
+         WHERE business_id = $1 AND code = $2 LIMIT 1`,
+        [businessId, pass_code.toUpperCase().trim()]
+      );
+      if (passValidCheck.rows.length === 0) {
+        return res.status(400).json({ error: 'Abonnement inconnu' });
+      }
+      const pass = passValidCheck.rows[0];
+      if (pass.status !== 'active') {
+        return res.status(400).json({ error: `Abonnement ${pass.status === 'expired' ? 'expiré' : pass.status === 'used' ? 'épuisé' : pass.status === 'cancelled' ? 'annulé' : 'inutilisable'}` });
+      }
+      if (pass.sessions_remaining <= 0) {
+        return res.status(400).json({ error: 'Aucune séance restante sur cet abonnement' });
+      }
+      if (pass.expires_at && new Date(pass.expires_at) <= new Date()) {
+        return res.status(400).json({ error: 'Abonnement expiré' });
+      }
+    }
+
     // Plan guard: free tier limited to 25 online bookings per week
     if (businessPlan === 'free') {
       const weekCount = await query(
@@ -336,7 +379,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
              FROM practitioner_services ps
              JOIN practitioners p ON p.id = ps.practitioner_id
              WHERE ps.service_id = ANY($1) AND p.business_id = $2 AND p.is_active = true AND p.booking_enabled = true
-             ORDER BY ps.service_id, (ps.practitioner_id = $3) DESC, p.display_order ASC`,
+             ORDER BY ps.service_id, (ps.practitioner_id = $3) DESC, p.sort_order ASC`,
             [service_ids, businessId, practitioner_id]
           );
           if (autoSplitResult.rows.length !== uniqueServiceIds.length) {
