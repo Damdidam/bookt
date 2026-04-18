@@ -8,8 +8,10 @@ const BASE_URL = process.env.APP_BASE_URL || 'https://genda.be';
 function signTestToken(userId, businessId, role = 'owner') {
   const secret = process.env.JWT_SECRET;
   if (!secret) throw new Error('JWT_SECRET missing — cannot sign test token');
+  // Match production JWT shape (auth.js:51 uses userId + businessId) so auth.js:40
+  // reads decoded.userId correctly.
   return jwt.sign(
-    { id: userId, business_id: businessId, role },
+    { userId, businessId, id: userId, business_id: businessId, role },
     secret,
     { expiresIn: '1h' }
   );
