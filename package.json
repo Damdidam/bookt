@@ -20,7 +20,16 @@
     "test:deposit": "node tests/sanity.js --section deposit",
     "test:calendar": "node tests/sanity.js --section calendar",
     "test:edge": "node tests/sanity.js --section edge",
-    "test:verbose": "node tests/sanity.js --verbose"
+    "test:verbose": "node tests/sanity.js --verbose",
+    "test:e2e": "playwright test --config=tests/e2e/playwright.config.js",
+    "test:e2e:smoke": "playwright test --config=tests/e2e/playwright.config.js smoke.spec.js",
+    "test:e2e:ui": "playwright test --ui --config=tests/e2e/playwright.config.js",
+    "test:e2e:debug": "PWDEBUG=1 playwright test --config=tests/e2e/playwright.config.js",
+    "test:e2e:bootstrap": "node tests/e2e/fixtures/seed.js",
+    "test:e2e:cleanup": "node scripts/test-cleanup-force.js",
+    "test:e2e:nuke": "node scripts/test-nuke.js",
+    "test:e2e:report": "playwright show-report tests/e2e/playwright-report",
+    "test:e2e:last-failed": "playwright test --last-failed --config=tests/e2e/playwright.config.js"
   },
   "dependencies": {
     "@fullcalendar/core": "~6.1.20",

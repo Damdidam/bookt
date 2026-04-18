@@ -36,3 +36,9 @@ public/js/app.js
 .superpowers/
 docs/superpowers/plans/
 docs/superpowers/specs/
+
+# E2E tests
+.env.test
+tests/e2e/playwright-report/
+tests/e2e/test-results/
+tests/e2e/.run-start-ts
