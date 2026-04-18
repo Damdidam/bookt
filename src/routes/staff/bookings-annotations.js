@@ -21,7 +21,7 @@ async function checkPracScope(req, res, bid, bookingId) {
 // PATCH /api/bookings/:id/note — Quick internal note
 // UI: Calendar → event detail → internal note field
 // ============================================================
-router.patch('/:id/note', async (req, res, next) => {
+router.patch('/:id/note', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
@@ -73,7 +73,7 @@ router.patch('/:id/note', async (req, res, next) => {
 // PATCH /api/bookings/:id/session-notes — Save session notes (rich text)
 // UI: Calendar → event detail → Séance tab → Enregistrer
 // ============================================================
-router.patch('/:id/session-notes', async (req, res, next) => {
+router.patch('/:id/session-notes', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
@@ -103,7 +103,7 @@ router.patch('/:id/session-notes', async (req, res, next) => {
 // POST /api/bookings/:id/send-session-notes — Save + send session notes by email
 // UI: Calendar → event detail → Séance tab → Envoyer
 // ============================================================
-router.post('/:id/send-session-notes', async (req, res, next) => {
+router.post('/:id/send-session-notes', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
@@ -229,7 +229,7 @@ router.post('/:id/send-session-notes', async (req, res, next) => {
 // ============================================================
 // NOTES CRUD — POST / DELETE
 // ============================================================
-router.post('/:id/notes', async (req, res, next) => {
+router.post('/:id/notes', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'ID invalide' });
@@ -283,7 +283,7 @@ router.delete('/:bookingId/notes/:noteId', blockIfImpersonated, async (req, res,
 // ============================================================
 // TODOS CRUD — POST / PATCH / DELETE
 // ============================================================
-router.post('/:id/todos', async (req, res, next) => {
+router.post('/:id/todos', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'ID invalide' });
@@ -315,7 +315,7 @@ router.post('/:id/todos', async (req, res, next) => {
   }
 });
 
-router.patch('/:bookingId/todos/:todoId', async (req, res, next) => {
+router.patch('/:bookingId/todos/:todoId', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     if (!UUID_RE.test(req.params.bookingId)) return res.status(400).json({ error: 'ID invalide' });
@@ -392,7 +392,7 @@ router.delete('/:bookingId/todos/:todoId', blockIfImpersonated, async (req, res,
 // ============================================================
 // REMINDERS CRUD — POST / DELETE
 // ============================================================
-router.post('/:id/reminders', async (req, res, next) => {
+router.post('/:id/reminders', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'ID invalide' });

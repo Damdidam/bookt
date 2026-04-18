@@ -396,6 +396,22 @@ router.patch('/:id', requireOwner, async (req, res, next) => {
     const params = [];
     let idx = 1;
 
+    // N19 fix: validation format email/phone avant UPDATE (parité avec POST /import L184).
+    // Avant: un pro pouvait sauver "pas un email" → notification silencieuses ensuite.
+    const _emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if ('email' in req.body && req.body.email) {
+      const _em = String(req.body.email).trim();
+      if (_em.length > 320 || !_emailRe.test(_em)) {
+        return res.status(400).json({ error: 'Format email invalide' });
+      }
+    }
+    if ('phone' in req.body && req.body.phone) {
+      const _ph = String(req.body.phone).trim();
+      if (_ph.length > 30) {
+        return res.status(400).json({ error: 'Téléphone trop long' });
+      }
+    }
+
     const fieldMap = { full_name: 'full_name', phone: 'phone', email: 'email',
       bce_number: 'bce_number', notes: 'notes', remarks: 'remarks', birthday: 'birthday',
       consent_sms: 'consent_sms', consent_marketing: 'consent_marketing', is_vip: 'is_vip' };

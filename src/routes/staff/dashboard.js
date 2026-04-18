@@ -70,10 +70,10 @@ router.get('/summary', async (req, res, next) => {
         COUNT(*) FILTER (WHERE status = 'cancelled') AS cancellations,
         COALESCE(SUM(
           GREATEST(
-            COALESCE(b.booked_price_cents, CASE WHEN COALESCE(b.discount_pct, 0) > 0 THEN (COALESCE(sv.price_cents, s.price_cents, 0) * (100 - b.discount_pct) / 100)::int ELSE COALESCE(sv.price_cents, s.price_cents, 0) END, 0)
+            COALESCE(b.booked_price_cents, CASE WHEN COALESCE(b.discount_pct, 0) > 0 THEN ROUND(COALESCE(sv.price_cents, s.price_cents, 0) * (100 - b.discount_pct) / 100.0)::int ELSE COALESCE(sv.price_cents, s.price_cents, 0) END, 0)
             - COALESCE(b.promotion_discount_cents, 0)
             - COALESCE(alt.gc_paid_cents, 0)
-            - CASE WHEN alt.pass_used THEN COALESCE(b.booked_price_cents, CASE WHEN COALESCE(b.discount_pct, 0) > 0 THEN (COALESCE(sv.price_cents, s.price_cents, 0) * (100 - b.discount_pct) / 100)::int ELSE COALESCE(sv.price_cents, s.price_cents, 0) END, 0) ELSE 0 END
+            - CASE WHEN alt.pass_used THEN COALESCE(b.booked_price_cents, CASE WHEN COALESCE(b.discount_pct, 0) > 0 THEN ROUND(COALESCE(sv.price_cents, s.price_cents, 0) * (100 - b.discount_pct) / 100.0)::int ELSE COALESCE(sv.price_cents, s.price_cents, 0) END, 0) ELSE 0 END
           , 0)
         ) FILTER (WHERE b.status IN ('confirmed', 'completed')), 0) AS revenue_cents
        FROM bookings b
@@ -85,7 +85,7 @@ router.get('/summary', async (req, res, next) => {
            EXISTS(SELECT 1 FROM pass_transactions WHERE booking_id = b.id AND type = 'debit' AND sessions > 0) AS pass_used
        ) alt ON true
        WHERE b.business_id = $1
-       AND b.start_at >= $2
+       AND b.start_at >= ($2::date AT TIME ZONE 'Europe/Brussels')
        ${pracFilter ? 'AND b.practitioner_id = $3' : ''}`,
       pracFilter ? [bid, monthStart, pracFilter] : [bid, monthStart]
     );
@@ -290,10 +290,10 @@ router.get('/analytics', async (req, res, next) => {
         COUNT(*) FILTER (WHERE b.status = 'cancelled') AS cancellations,
         COALESCE(SUM(
           GREATEST(
-            COALESCE(b.booked_price_cents, CASE WHEN COALESCE(b.discount_pct, 0) > 0 THEN (COALESCE(sv.price_cents, s.price_cents, 0) * (100 - b.discount_pct) / 100)::int ELSE COALESCE(sv.price_cents, s.price_cents, 0) END, 0)
+            COALESCE(b.booked_price_cents, CASE WHEN COALESCE(b.discount_pct, 0) > 0 THEN ROUND(COALESCE(sv.price_cents, s.price_cents, 0) * (100 - b.discount_pct) / 100.0)::int ELSE COALESCE(sv.price_cents, s.price_cents, 0) END, 0)
             - COALESCE(b.promotion_discount_cents, 0)
             - COALESCE(alt.gc_paid_cents, 0)
-            - CASE WHEN alt.pass_used THEN COALESCE(b.booked_price_cents, CASE WHEN COALESCE(b.discount_pct, 0) > 0 THEN (COALESCE(sv.price_cents, s.price_cents, 0) * (100 - b.discount_pct) / 100)::int ELSE COALESCE(sv.price_cents, s.price_cents, 0) END, 0) ELSE 0 END
+            - CASE WHEN alt.pass_used THEN COALESCE(b.booked_price_cents, CASE WHEN COALESCE(b.discount_pct, 0) > 0 THEN ROUND(COALESCE(sv.price_cents, s.price_cents, 0) * (100 - b.discount_pct) / 100.0)::int ELSE COALESCE(sv.price_cents, s.price_cents, 0) END, 0) ELSE 0 END
           , 0)
         ) FILTER (WHERE b.status IN ('confirmed', 'completed')), 0) AS revenue
        FROM bookings b
@@ -304,7 +304,7 @@ router.get('/analytics', async (req, res, next) => {
            COALESCE((SELECT SUM(amount_cents) FROM gift_card_transactions WHERE booking_id = b.id AND type = 'debit'), 0) AS gc_paid_cents,
            EXISTS(SELECT 1 FROM pass_transactions WHERE booking_id = b.id AND type = 'debit' AND sessions > 0) AS pass_used
        ) alt ON true
-       WHERE b.business_id = $1 AND b.start_at >= $2
+       WHERE b.business_id = $1 AND b.start_at >= ($2::date AT TIME ZONE 'Europe/Brussels')
        ${pracFilter ? 'AND b.practitioner_id = $3' : ''}
        GROUP BY day ORDER BY day`,
       pracFilter ? [bid, startStr, pracFilter] : [bid, startStr]
@@ -319,7 +319,7 @@ router.get('/analytics', async (req, res, next) => {
        FROM bookings b
        WHERE b.business_id = $1
        AND b.status IN ('confirmed', 'completed')
-       AND b.start_at >= $2
+       AND b.start_at >= ($2::date AT TIME ZONE 'Europe/Brussels')
        ${pracFilter ? 'AND b.practitioner_id = $3' : ''}
        GROUP BY weekday, hour ORDER BY weekday, hour`,
       pracFilter ? [bid, startStr, pracFilter] : [bid, startStr]
@@ -330,10 +330,10 @@ router.get('/analytics', async (req, res, next) => {
       `SELECT s.name, s.color, COUNT(b.id) AS count,
         COALESCE(SUM(
           GREATEST(
-            COALESCE(b.booked_price_cents, CASE WHEN COALESCE(b.discount_pct, 0) > 0 THEN (COALESCE(sv.price_cents, s.price_cents, 0) * (100 - b.discount_pct) / 100)::int ELSE COALESCE(sv.price_cents, s.price_cents, 0) END, 0)
+            COALESCE(b.booked_price_cents, CASE WHEN COALESCE(b.discount_pct, 0) > 0 THEN ROUND(COALESCE(sv.price_cents, s.price_cents, 0) * (100 - b.discount_pct) / 100.0)::int ELSE COALESCE(sv.price_cents, s.price_cents, 0) END, 0)
             - COALESCE(b.promotion_discount_cents, 0)
             - COALESCE(alt.gc_paid_cents, 0)
-            - CASE WHEN alt.pass_used THEN COALESCE(b.booked_price_cents, CASE WHEN COALESCE(b.discount_pct, 0) > 0 THEN (COALESCE(sv.price_cents, s.price_cents, 0) * (100 - b.discount_pct) / 100)::int ELSE COALESCE(sv.price_cents, s.price_cents, 0) END, 0) ELSE 0 END
+            - CASE WHEN alt.pass_used THEN COALESCE(b.booked_price_cents, CASE WHEN COALESCE(b.discount_pct, 0) > 0 THEN ROUND(COALESCE(sv.price_cents, s.price_cents, 0) * (100 - b.discount_pct) / 100.0)::int ELSE COALESCE(sv.price_cents, s.price_cents, 0) END, 0) ELSE 0 END
           , 0)
         ), 0) AS revenue
        FROM bookings b
@@ -346,7 +346,7 @@ router.get('/analytics', async (req, res, next) => {
        ) alt ON true
        WHERE b.business_id = $1
        AND b.status IN ('confirmed', 'completed')
-       AND b.start_at >= $2
+       AND b.start_at >= ($2::date AT TIME ZONE 'Europe/Brussels')
        ${pracFilter ? 'AND b.practitioner_id = $3' : ''}
        GROUP BY s.id, s.name, s.color
        ORDER BY count DESC LIMIT 10`,
@@ -357,7 +357,7 @@ router.get('/analytics', async (req, res, next) => {
     const statusBreakdown = await queryWithRLS(bid,
       `SELECT b.status, COUNT(*) AS count
        FROM bookings b
-       WHERE b.business_id = $1 AND b.start_at >= $2
+       WHERE b.business_id = $1 AND b.start_at >= ($2::date AT TIME ZONE 'Europe/Brussels')
        ${pracFilter ? 'AND b.practitioner_id = $3' : ''}
        GROUP BY b.status`,
       pracFilter ? [bid, startStr, pracFilter] : [bid, startStr]
@@ -372,10 +372,10 @@ router.get('/analytics', async (req, res, next) => {
         COUNT(*) FILTER (WHERE b.status IN ('confirmed', 'completed')) AS bookings,
         COALESCE(SUM(
           GREATEST(
-            COALESCE(b.booked_price_cents, CASE WHEN COALESCE(b.discount_pct, 0) > 0 THEN (COALESCE(sv.price_cents, s.price_cents, 0) * (100 - b.discount_pct) / 100)::int ELSE COALESCE(sv.price_cents, s.price_cents, 0) END, 0)
+            COALESCE(b.booked_price_cents, CASE WHEN COALESCE(b.discount_pct, 0) > 0 THEN ROUND(COALESCE(sv.price_cents, s.price_cents, 0) * (100 - b.discount_pct) / 100.0)::int ELSE COALESCE(sv.price_cents, s.price_cents, 0) END, 0)
             - COALESCE(b.promotion_discount_cents, 0)
             - COALESCE(alt.gc_paid_cents, 0)
-            - CASE WHEN alt.pass_used THEN COALESCE(b.booked_price_cents, CASE WHEN COALESCE(b.discount_pct, 0) > 0 THEN (COALESCE(sv.price_cents, s.price_cents, 0) * (100 - b.discount_pct) / 100)::int ELSE COALESCE(sv.price_cents, s.price_cents, 0) END, 0) ELSE 0 END
+            - CASE WHEN alt.pass_used THEN COALESCE(b.booked_price_cents, CASE WHEN COALESCE(b.discount_pct, 0) > 0 THEN ROUND(COALESCE(sv.price_cents, s.price_cents, 0) * (100 - b.discount_pct) / 100.0)::int ELSE COALESCE(sv.price_cents, s.price_cents, 0) END, 0) ELSE 0 END
           , 0)
         ) FILTER (WHERE b.status IN ('confirmed', 'completed')), 0) AS revenue
        FROM bookings b
@@ -386,7 +386,7 @@ router.get('/analytics', async (req, res, next) => {
            COALESCE((SELECT SUM(amount_cents) FROM gift_card_transactions WHERE booking_id = b.id AND type = 'debit'), 0) AS gc_paid_cents,
            EXISTS(SELECT 1 FROM pass_transactions WHERE booking_id = b.id AND type = 'debit' AND sessions > 0) AS pass_used
        ) alt ON true
-       WHERE b.business_id = $1 AND b.start_at >= $2
+       WHERE b.business_id = $1 AND b.start_at >= ($2::date AT TIME ZONE 'Europe/Brussels')
        ${pracFilter ? 'AND b.practitioner_id = $3' : ''}
        GROUP BY month ORDER BY month`,
       pracFilter ? [bid, sixMonthsAgo.toISOString(), pracFilter] : [bid, sixMonthsAgo.toISOString()]

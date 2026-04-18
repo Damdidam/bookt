@@ -579,6 +579,36 @@ router.patch('/:serviceId/variants/:variantId', requireOwner, async (req, res, n
       }
     }
 
+    // N23 fix: si price_cents change, recalc booked_price_cents des bookings futurs non-confirmés
+    // (pending/pending_deposit/modified_pending) + sync draft invoices. Pour les bookings 'confirmed'
+    // locked=true post-deposit, le prix reste le prix convenu au moment du deposit — pas recalc.
+    if (fields.price_cents !== undefined && fields.price_cents !== null) {
+      const newPrice = parseInt(fields.price_cents) || 0;
+      // CASE WHEN discount_pct : applique LM sur nouveau prix
+      const updRes = await queryWithRLS(bid,
+        `UPDATE bookings SET booked_price_cents = CASE
+           WHEN discount_pct IS NOT NULL AND discount_pct > 0
+           THEN ROUND($1 * (100 - discount_pct) / 100.0)::int
+           ELSE $1
+         END, updated_at = NOW()
+         WHERE service_variant_id = $2 AND business_id = $3
+           AND status IN ('pending', 'pending_deposit', 'modified_pending')
+           AND start_at > NOW()
+         RETURNING id`,
+        [newPrice, variantId, bid]
+      );
+      if (updRes.rows.length > 0) {
+        // Sync draft invoices via helper (post-TX, separate)
+        try {
+          const { transactionWithRLS } = require('../../services/db');
+          const { syncDraftInvoicesForBookings } = require('./bookings-helpers');
+          await transactionWithRLS(bid, async (txC) => {
+            await syncDraftInvoicesForBookings(txC, updRes.rows.map(r => r.id));
+          });
+        } catch (e) { console.warn('[VARIANTS PATCH] sync draft invoices:', e.message); }
+      }
+    }
+
     res.json({ variant: result.rows[0] });
   } catch (err) { next(err); }
 });

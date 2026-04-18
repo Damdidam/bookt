@@ -4,6 +4,7 @@
  */
 const router = require('express').Router();
 const { queryWithRLS, transactionWithRLS } = require('../../services/db');
+const { blockIfImpersonated } = require('../../middleware/auth');
 const { broadcast } = require('../../services/sse');
 const { sendBookingConfirmation } = require('../../services/email');
 const { calSyncPush, businessAllowsOverlap, getMaxConcurrent, checkPracAvailability, checkBookingConflicts } = require('./bookings-helpers');
@@ -14,7 +15,7 @@ const { dateToWeekday, timeToMinutes } = require('../../services/schedule-helper
 // Create a manual booking (from dashboard)
 // UI: Dashboard → "+ Nouveau RDV" button
 // ============================================================
-router.post('/manual', async (req, res, next) => {
+router.post('/manual', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { service_id, practitioner_id, client_id, start_at, appointment_mode, comment,
