@@ -2,8 +2,11 @@ const { query } = require('./db');
 
 async function refundPassForBooking(bookingId, dbClient) {
   const q = dbClient ? dbClient.query.bind(dbClient) : query;
+  // H-02 fix: fetch expires_at + status pour skip les passes expirés/cancelled
+  // (crediter un pass expiré ne le rend pas utilisable → email client "séance recréditée" mensonger).
   const debits = await q(
-    `SELECT pt.id, pt.pass_id, pt.sessions, p.code, p.business_id
+    `SELECT pt.id, pt.pass_id, pt.sessions, p.code, p.business_id,
+            p.expires_at, p.status AS pass_status
      FROM pass_transactions pt
      JOIN passes p ON p.id = pt.pass_id
      WHERE pt.booking_id = $1 AND pt.type = 'debit'`, [bookingId]
@@ -24,8 +27,16 @@ async function refundPassForBooking(bookingId, dbClient) {
   for (const debit of debits.rows) {
     // Skip if this pass already has as many refunds as debits for this booking
     if ((refundCounts[debit.pass_id] || 0) >= (debitCounts[debit.pass_id] || 0)) continue;
+    // H-02 fix: skip si pass expiré (expires_at passé) ou cancelled (hard cancel par pro).
+    // Crediter sessions_remaining sur un pass non-utilisable = email mensonger au client.
+    const isNaturallyExpired = debit.expires_at && new Date(debit.expires_at) <= new Date();
+    const isHardCancelled = debit.pass_status === 'cancelled';
+    if (isNaturallyExpired || isHardCancelled) {
+      console.log(`[PASS REFUND] skip pass ${debit.pass_id} (code ${debit.code}) — expired=${isNaturallyExpired} cancelled=${isHardCancelled} — client ne sera pas notifié "session recréditée"`);
+      continue;
+    }
     refundCounts[debit.pass_id] = (refundCounts[debit.pass_id] || 0) + 1;
-    // Credit sessions back (don't reactivate if naturally expired past expires_at)
+    // Credit sessions back (don't reactivate if naturally expired past expires_at — guard déjà ci-dessus)
     await q(
       `UPDATE passes SET sessions_remaining = sessions_remaining + ABS($1),
        status = CASE

@@ -5,7 +5,7 @@
 const router = require('express').Router();
 const { query, pool } = require('../../services/db');
 const { broadcast } = require('../../services/sse');
-const { stripeRefundDeposit, escHtml, decrementPromoUsage } = require('./helpers');
+const { stripeRefundDeposit, escHtml, decrementPromoUsage, invalidateMinisiteCache } = require('./helpers');
 const { processWaitlistForCancellation } = require('../../services/waitlist');
 const { sendBookingConfirmation } = require('../../services/email');
 const { refundPassForBooking } = require('../../services/pass-refund');
@@ -354,6 +354,8 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
     }
 
     broadcast(bk.business_id, 'booking_update', { action: 'cancelled', source: 'public' });
+    // H-07 fix: invalidate minisite cache (slot libéré)
+    try { invalidateMinisiteCache(bk.business_id); } catch (_) {}
     res.json({ cancelled: true, waitlist: waitlistResult });
   } catch (err) { next(err); }
 });
@@ -1268,6 +1270,8 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
     } catch (e) { console.warn('[INVOICE VOID] cancel-booking error:', e.message); }
 
     broadcast(bk.business_id, 'booking_update', { action: 'cancelled', source: 'public' });
+    // H-07 fix: invalidate minisite cache (slot libéré)
+    try { invalidateMinisiteCache(bk.business_id); } catch (_) {}
     // H3: Notify pro about client cancellation
     try { await query(`INSERT INTO notifications (business_id, booking_id, type, status) VALUES ($1, $2, 'email_cancellation_pro', 'queued')`, [bk.business_id, bk.id]); } catch (_) {}
 

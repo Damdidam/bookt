@@ -65,9 +65,12 @@ async function processExpiredPendingBookings() {
       if (upd.rows.length === 0) continue;
 
       // If part of a group, cancel siblings too
+      // H-04 fix: aligner sur deposit-expiry.js:62 — si deposit_status='pending' sur un sibling,
+      // le marquer 'cancelled' (sinon la DB garde "acompte en attente" sur un booking cancelled).
       if (bk.group_id) {
         await client.query(
-          `UPDATE bookings SET status = 'cancelled', updated_at = NOW(), confirmation_expires_at = NULL
+          `UPDATE bookings SET status = 'cancelled', updated_at = NOW(), confirmation_expires_at = NULL,
+            deposit_status = CASE WHEN deposit_status = 'pending' THEN 'cancelled' ELSE deposit_status END
            WHERE group_id = $1 AND id != $2 AND status = 'pending'`,
           [bk.group_id, bk.id]
         );

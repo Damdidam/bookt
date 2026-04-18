@@ -7,7 +7,7 @@ const { query, queryWithRLS } = require('../../services/db');
 const { broadcast } = require('../../services/sse');
 const { slotsLimiter, bookingLimiter } = require('../../middleware/rate-limiter');
 const { getAvailableSlots, getAvailableSlotsMultiPractitioner } = require('../../services/slot-engine');
-const { UUID_RE, isWithinLastMinuteWindow } = require('./helpers');
+const { UUID_RE, isWithinLastMinuteWindow, invalidateMinisiteCache } = require('./helpers');
 
 const { pool } = require('../../services/db');
 const { calSyncPush, checkPracAvailability, checkBookingConflicts } = require('../staff/bookings-helpers');
@@ -181,6 +181,37 @@ router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) 
 
     // Same slot check
     if (newStart.getTime() === new Date(bk.start_at).getTime()) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'C\'est déjà votre créneau actuel.' }); }
+
+    // H-08 fix: revalidation min_booking_notice_hours côté backend (Q11 ne couvrait que POST /bookings).
+    // Un client curlant directement POST /reschedule avec newStart arbitraire pouvait bypass le filtre
+    // getAvailableSlots. Critique pour prestations devis (min_booking_notice_hours=72h).
+    {
+      const _svcIds = [bk.service_id];
+      if (bk.group_id) {
+        const _grpSvcRes = await client.query(
+          `SELECT service_id FROM bookings WHERE group_id = $1 AND business_id = $2 AND service_id IS NOT NULL`,
+          [bk.group_id, bk.business_id]
+        );
+        for (const r of _grpSvcRes.rows) if (!_svcIds.includes(r.service_id)) _svcIds.push(r.service_id);
+      }
+      if (_svcIds.filter(Boolean).length > 0) {
+        const _noticeRes = await client.query(
+          `SELECT name, min_booking_notice_hours FROM services
+           WHERE id = ANY($1::uuid[]) AND business_id = $2`,
+          [_svcIds.filter(Boolean), bk.business_id]
+        );
+        const _nowMs = Date.now();
+        for (const _svc of _noticeRes.rows) {
+          const _h = _svc.min_booking_notice_hours || 0;
+          if (_h > 0 && newStart.getTime() - _nowMs < _h * 3600000) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({
+              error: `La prestation "${_svc.name}" nécessite un préavis minimum de ${_h}h. Merci de choisir un créneau plus éloigné.`
+            });
+          }
+        }
+      }
+    }
 
     // Deposit deadline check for approaching dates
     const oldStart = new Date(bk.start_at);
@@ -567,6 +598,8 @@ router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) 
 
     // Post-commit: SSE broadcast
     try { broadcast(bk.business_id, 'booking_update', { action: 'rescheduled', bookingId: bk.id, source: 'client' }); } catch (_) {}
+    // H-07 fix: invalidate minisite cache (slot déplacé → ancien slot libéré + nouveau pris)
+    try { invalidateMinisiteCache(bk.business_id); } catch (_) {}
 
     // Post-commit: notify waitlist for freed OLD slot(s) (non-blocking)
     try {

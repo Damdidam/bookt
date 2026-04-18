@@ -8,6 +8,7 @@ const { calSyncPush, calSyncDelete, checkBookingConflicts, getMaxConcurrent } = 
 const { refundGiftCardForBooking, getGcPaidCents } = require('../../services/gift-card-refund');
 const { refundPassForBooking } = require('../../services/pass-refund');
 const { blockIfImpersonated } = require('../../middleware/auth');
+const { invalidateMinisiteCache } = require('../public/helpers');
 
 // ===== STATE MACHINE: valid transitions (module-level for reuse) =====
 const TRANSITIONS = {
@@ -229,8 +230,10 @@ router.patch('/:id/status', blockIfImpersonated, async (req, res, next) => {
         );
       } else if (depositRestore === 'repaid') {
         // Deposit was retained → mark as paid again
+        // H-03 fix: rétablir locked=true (parité avec commit 127628b — tout booking confirmed avec
+        // deposit paid est locked. Sans ça, le restored booking était éditable sans cadenas).
         await client.query(
-          `UPDATE bookings SET status = 'confirmed', deposit_status = 'paid', deposit_paid_at = NOW(),
+          `UPDATE bookings SET status = 'confirmed', locked = true, deposit_status = 'paid', deposit_paid_at = NOW(),
             deposit_deadline = NULL, cancel_reason = NULL, updated_at = NOW()
            WHERE id = $1 AND business_id = $2`,
           [id, bid]
@@ -1118,6 +1121,8 @@ router.patch('/:id/status', blockIfImpersonated, async (req, res, next) => {
     }
 
     broadcast(bid, 'booking_update', { action: 'status_changed', booking_id: id, status, old_status: txResult.oldStatus });
+    // H-07 fix: invalidate minisite cache si slot libéré (cancelled/no_show change la dispo)
+    try { if (['cancelled', 'no_show'].includes(status)) invalidateMinisiteCache(bid); } catch (_) {}
     // STS-10: Broadcast for each affected sibling
     if (txResult.affectedSiblingIds && txResult.affectedSiblingIds.length > 0) {
       for (const sibId of txResult.affectedSiblingIds) {
@@ -1308,6 +1313,8 @@ router.patch('/:id/deposit-refund', blockIfImpersonated, async (req, res, next) 
     }
 
     broadcast(bid, 'booking_update', { action: 'deposit_refunded', booking_id: id, status: 'cancelled' });
+    // H-07 fix: invalidate minisite cache (slot libéré par deposit-refund = cancel)
+    try { invalidateMinisiteCache(bid); } catch (_) {}
     calSyncDelete(bid, id).catch(e => console.warn('[CAL_SYNC] Delete error:', e.message));
     // STS-11: calSyncDelete + SSE broadcast for affected siblings
     if (txResult.affectedSiblingIds && txResult.affectedSiblingIds.length > 0) {
@@ -2136,6 +2143,8 @@ router.delete('/:id', blockIfImpersonated, async (req, res, next) => {
     // STS-V12-004 fix: Broadcast for ALL deleted IDs, not just the primary
     for (const bId of deletedIds) {
       broadcast(bid, 'booking_update', { action: 'deleted', booking_id: bId });
+      // H-07 fix: invalidate minisite cache (slot libéré par delete)
+      try { invalidateMinisiteCache(bid); } catch (_) {}
     }
     res.json({ deleted: true, deleted_count: deletedIds.length });
   } catch (err) {

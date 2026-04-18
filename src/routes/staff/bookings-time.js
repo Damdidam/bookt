@@ -7,7 +7,7 @@ const { broadcast } = require('../../services/sse');
 const { sendModificationEmail } = require('../../services/email');
 const { sendSMS } = require('../../services/sms');
 const { calSyncPush, businessAllowsOverlap, checkPracAvailability, getMaxConcurrent, checkBookingConflicts, syncDraftInvoicesForBookings } = require('./bookings-helpers');
-const { isWithinLastMinuteWindow } = require('../public/helpers');
+const { isWithinLastMinuteWindow, invalidateMinisiteCache } = require('../public/helpers');
 
 // STS-V12-007: UUID validation regex (reused across all endpoints)
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -595,6 +595,8 @@ router.patch('/:id/move', async (req, res, next) => {
       }
 
       broadcast(bid, 'booking_update', { action: 'moved' });
+      // H-07 fix: invalidate minisite cache (slot déplacé)
+      try { invalidateMinisiteCache(bid); } catch (_) {}
       updates.forEach(u => calSyncPush(bid, u.id).catch(() => {}));
 
       // Notify waitlist for freed OLD slots — one per group member (non-blocking)
@@ -1193,6 +1195,11 @@ router.patch('/:id/edit', async (req, res, next) => {
             );
           }
 
+          // H-12 fix: sync draft invoices si service conversion a changé booked_price_cents (L1147).
+          if (serviceConversion && r.rows.length > 0) {
+            await syncDraftInvoicesForBookings(client, [id]);
+          }
+
           return { result: r, oldSnap: snap };
         });
         result = txRes.result;
@@ -1229,6 +1236,11 @@ router.patch('/:id/edit', async (req, res, next) => {
              VALUES ($1, $2, 'booking', $3, 'edit', $4, $5)`,
             [bid, req.user.id, id, JSON.stringify(od), JSON.stringify(nd)]
           );
+        }
+
+        // H-12 fix: sync draft invoices si service conversion a changé booked_price_cents (L1147).
+        if (serviceConversion && r.rows.length > 0) {
+          await syncDraftInvoicesForBookings(client, [id]);
         }
 
         return { result: r, oldSnap: snap };
@@ -1354,6 +1366,8 @@ router.patch('/:id/resize', async (req, res, next) => {
     }
 
     broadcast(bid, 'booking_update', { action: 'resized' });
+    // H-07 fix: invalidate minisite cache (slot redimensionné)
+    try { invalidateMinisiteCache(bid); } catch (_) {}
     calSyncPush(bid, id).catch(() => {});
     res.json({ updated: true, booking: resizeResult.rows[0] });
   } catch (err) {
@@ -1498,6 +1512,47 @@ router.patch('/:id/modify', async (req, res, next) => {
           );
         }
 
+        // H-13 fix: recalc LM discount + booked_price + sync invoice drafts après time change
+        // (parité avec /move L671-774 — /modify changeait le time sans ces recalc).
+        if (modified) {
+          const bizResModify = await client.query(`SELECT plan, settings FROM businesses WHERE id = $1`, [bid]);
+          const bizSettingsModify = bizResModify.rows[0]?.settings || {};
+          if (bizSettingsModify.last_minute_enabled && (bizResModify.rows[0]?.plan || 'free') !== 'free') {
+            const lmDeadlineModify = bizSettingsModify.last_minute_deadline || 'j-1';
+            const newStartBrusselsModify = new Date(modified.start_at).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+            const todayBrusselsModify = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+            const inLmWindowModify = isWithinLastMinuteWindow(newStartBrusselsModify, todayBrusselsModify, lmDeadlineModify);
+            const svcResModify = await client.query(
+              `SELECT s.price_cents, s.promo_eligible, COALESCE(sv.price_cents, s.price_cents, 0) AS eff_price, s.quote_only
+               FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+               LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+               WHERE b.id = $1`, [id]
+            );
+            const svcModify = svcResModify.rows[0];
+            const lmMinPriceModify = bizSettingsModify.last_minute_min_price_cents || 0;
+            let newDiscountPctModify = null;
+            if (inLmWindowModify && svcModify && svcModify.promo_eligible !== false && svcModify.eff_price > 0 && svcModify.eff_price >= lmMinPriceModify) {
+              newDiscountPctModify = bizSettingsModify.last_minute_discount_pct || 10;
+            }
+            await client.query(
+              `UPDATE bookings SET discount_pct = $1 WHERE id = $2 AND business_id = $3`,
+              [newDiscountPctModify, id, bid]
+            );
+            // Recalc booked_price_cents sauf quote_only (prix set manuellement)
+            if (svcModify && !svcModify.quote_only) {
+              const bookedPriceModify = newDiscountPctModify
+                ? Math.round(svcModify.eff_price * (100 - newDiscountPctModify) / 100)
+                : svcModify.eff_price;
+              await client.query(
+                `UPDATE bookings SET booked_price_cents = $1 WHERE id = $2 AND business_id = $3`,
+                [bookedPriceModify, id, bid]
+              );
+            }
+          }
+          // Sync invoices drafts (parité H10)
+          await syncDraftInvoicesForBookings(client, [id]);
+        }
+
         const oldTimes = { start_at: oldBooking.start_at, end_at: oldBooking.end_at, status: oldBooking.status };
         const newTimes = { start_at, end_at, status: newStatus, notified: shouldNotify, channel: effectiveChannel };
 
@@ -1603,6 +1658,8 @@ router.patch('/:id/modify', async (req, res, next) => {
     }
 
     broadcast(bid, 'booking_update', { action: 'modified' });
+    // H-07 fix: invalidate minisite cache (slot modifié)
+    try { invalidateMinisiteCache(bid); } catch (_) {}
     calSyncPush(bid, id).catch(() => {});
     res.json({
       updated: true,

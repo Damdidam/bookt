@@ -389,6 +389,23 @@ router.patch('/:id', blockIfImpersonated, async (req, res, next) => {
       return res.status(400).json({ error: 'Seule l\'annulation est autorisée via cette route' });
     }
 
+    // H-10 fix: protéger contre perte d'argent client (parité avec M3 gift-cards.js:157).
+    // Si pass acheté via Stripe avec sessions_remaining > 0, forcer usage de POST /:id/refund-full
+    // qui fait le remboursement Stripe pro-rata proprement.
+    const passRes = await queryWithRLS(bid,
+      `SELECT sessions_remaining, stripe_payment_intent_id, price_cents, status FROM passes WHERE id = $1 AND business_id = $2`,
+      [id, bid]
+    );
+    if (passRes.rows.length === 0) return res.status(404).json({ error: 'Pass introuvable' });
+    const pass = passRes.rows[0];
+    if (pass.status !== 'active') return res.status(404).json({ error: 'Pass introuvable ou déjà non-actif' });
+    if ((pass.sessions_remaining || 0) > 0 && pass.stripe_payment_intent_id && (pass.price_cents || 0) > 0) {
+      return res.status(400).json({
+        error: 'Ce pass a des séances non utilisées et a été payé par carte bancaire. Utilisez plutôt "Rembourser intégralement" pour restituer le montant pro-rata au client.',
+        code: 'use_refund_full_endpoint'
+      });
+    }
+
     const result = await queryWithRLS(bid,
       `UPDATE passes SET status = 'cancelled', updated_at = NOW()
        WHERE id = $1 AND business_id = $2 AND status = 'active' RETURNING *`,
@@ -396,6 +413,17 @@ router.patch('/:id', blockIfImpersonated, async (req, res, next) => {
     );
 
     if (result.rows.length === 0) return res.status(404).json({ error: 'Pass introuvable ou déjà non-actif' });
+
+    // Audit log
+    try {
+      await queryWithRLS(bid,
+        `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, new_data)
+         VALUES ($1, $2, 'pass', $3, 'pass_cancelled', $4)`,
+        [bid, req.user?.id || null, id,
+         JSON.stringify({ status: 'cancelled', sessions_remaining: pass.sessions_remaining, had_stripe_pi: !!pass.stripe_payment_intent_id })]
+      );
+    } catch (_) { /* non-critical */ }
+
     res.json(result.rows[0]);
   } catch (err) { next(err); }
 });
