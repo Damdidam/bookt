@@ -85,7 +85,7 @@ router.get('/summary', async (req, res, next) => {
            EXISTS(SELECT 1 FROM pass_transactions WHERE booking_id = b.id AND type = 'debit' AND sessions > 0) AS pass_used
        ) alt ON true
        WHERE b.business_id = $1
-       AND b.start_at >= ($2::date AT TIME ZONE 'Europe/Brussels')
+       AND b.start_at >= ($2::timestamp AT TIME ZONE 'Europe/Brussels')
        ${pracFilter ? 'AND b.practitioner_id = $3' : ''}`,
       pracFilter ? [bid, monthStart, pracFilter] : [bid, monthStart]
     );
@@ -304,7 +304,7 @@ router.get('/analytics', async (req, res, next) => {
            COALESCE((SELECT SUM(amount_cents) FROM gift_card_transactions WHERE booking_id = b.id AND type = 'debit'), 0) AS gc_paid_cents,
            EXISTS(SELECT 1 FROM pass_transactions WHERE booking_id = b.id AND type = 'debit' AND sessions > 0) AS pass_used
        ) alt ON true
-       WHERE b.business_id = $1 AND b.start_at >= ($2::date AT TIME ZONE 'Europe/Brussels')
+       WHERE b.business_id = $1 AND b.start_at >= ($2::timestamp AT TIME ZONE 'Europe/Brussels')
        ${pracFilter ? 'AND b.practitioner_id = $3' : ''}
        GROUP BY day ORDER BY day`,
       pracFilter ? [bid, startStr, pracFilter] : [bid, startStr]
@@ -319,7 +319,7 @@ router.get('/analytics', async (req, res, next) => {
        FROM bookings b
        WHERE b.business_id = $1
        AND b.status IN ('confirmed', 'completed')
-       AND b.start_at >= ($2::date AT TIME ZONE 'Europe/Brussels')
+       AND b.start_at >= ($2::timestamp AT TIME ZONE 'Europe/Brussels')
        ${pracFilter ? 'AND b.practitioner_id = $3' : ''}
        GROUP BY weekday, hour ORDER BY weekday, hour`,
       pracFilter ? [bid, startStr, pracFilter] : [bid, startStr]
@@ -346,7 +346,7 @@ router.get('/analytics', async (req, res, next) => {
        ) alt ON true
        WHERE b.business_id = $1
        AND b.status IN ('confirmed', 'completed')
-       AND b.start_at >= ($2::date AT TIME ZONE 'Europe/Brussels')
+       AND b.start_at >= ($2::timestamp AT TIME ZONE 'Europe/Brussels')
        ${pracFilter ? 'AND b.practitioner_id = $3' : ''}
        GROUP BY s.id, s.name, s.color
        ORDER BY count DESC LIMIT 10`,
@@ -357,7 +357,7 @@ router.get('/analytics', async (req, res, next) => {
     const statusBreakdown = await queryWithRLS(bid,
       `SELECT b.status, COUNT(*) AS count
        FROM bookings b
-       WHERE b.business_id = $1 AND b.start_at >= ($2::date AT TIME ZONE 'Europe/Brussels')
+       WHERE b.business_id = $1 AND b.start_at >= ($2::timestamp AT TIME ZONE 'Europe/Brussels')
        ${pracFilter ? 'AND b.practitioner_id = $3' : ''}
        GROUP BY b.status`,
       pracFilter ? [bid, startStr, pracFilter] : [bid, startStr]
@@ -386,7 +386,7 @@ router.get('/analytics', async (req, res, next) => {
            COALESCE((SELECT SUM(amount_cents) FROM gift_card_transactions WHERE booking_id = b.id AND type = 'debit'), 0) AS gc_paid_cents,
            EXISTS(SELECT 1 FROM pass_transactions WHERE booking_id = b.id AND type = 'debit' AND sessions > 0) AS pass_used
        ) alt ON true
-       WHERE b.business_id = $1 AND b.start_at >= ($2::date AT TIME ZONE 'Europe/Brussels')
+       WHERE b.business_id = $1 AND b.start_at >= ($2::timestamp AT TIME ZONE 'Europe/Brussels')
        ${pracFilter ? 'AND b.practitioner_id = $3' : ''}
        GROUP BY month ORDER BY month`,
       pracFilter ? [bid, sixMonthsAgo.toISOString(), pracFilter] : [bid, sixMonthsAgo.toISOString()]
