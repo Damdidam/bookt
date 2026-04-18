@@ -83,15 +83,20 @@ async function findOrCreateClient(txClient, {
     clientId = existingClient.id;
     if (matchType === 'oauth' || matchType === 'exact') {
       // Only fill empty fields — merchant edits in dashboard take priority
+      // H-01 RGPD fix: ne JAMAIS écraser un opt-out existant (consent=false) vers true via le flow
+      // public. Depuis M-03 (consent implicite par remplissage form), le front envoie toujours true.
+      // Sans cette garde, un client qui a explicitement opt-out (via dashboard pro ou précédent booking)
+      // se voit ré-opt-in silencieusement au booking suivant = violation RGPD (droit à l'opposition).
+      // Le pro peut toujours modifier via staff/clients.js PATCH s'il a une autorisation explicite.
       await txClient.query(
         `UPDATE clients SET
           full_name = COALESCE(full_name, NULLIF($1, '')),
           email = COALESCE(email, NULLIF($2, '')),
           phone = COALESCE(phone, NULLIF($3, '')),
           bce_number = COALESCE($4, bce_number),
-          consent_sms = COALESCE($5, consent_sms),
-          consent_email = COALESCE($6, consent_email),
-          consent_marketing = COALESCE($7, consent_marketing),
+          consent_sms = CASE WHEN consent_sms = false THEN false ELSE COALESCE($5, consent_sms) END,
+          consent_email = CASE WHEN consent_email = false THEN false ELSE COALESCE($6, consent_email) END,
+          consent_marketing = CASE WHEN consent_marketing = false THEN false ELSE COALESCE($7, consent_marketing) END,
           oauth_provider = COALESCE($9, oauth_provider),
           oauth_provider_id = COALESCE($10, oauth_provider_id),
           updated_at = NOW()
