@@ -25,6 +25,7 @@
 const { test, expect } = require('@playwright/test');
 const IDS = require('../fixtures/ids');
 const { publicFetch } = require('../fixtures/api-client');
+const { resetMutables } = require('../fixtures/reset-mutables');
 const { pool } = require('../../../src/services/db');
 
 const SLUG = 'test-demo-salon';
@@ -60,6 +61,8 @@ async function postBooking({ serviceId, startAt, gcCode, email }) {
 }
 
 test.describe('C01 — booking public mono: gift cards', () => {
+  test.beforeEach(async () => { await resetMutables(); });
+
   test.beforeAll(async () => {
     // Reset partial balance (previous runs may have debited it)
     await pool.query(

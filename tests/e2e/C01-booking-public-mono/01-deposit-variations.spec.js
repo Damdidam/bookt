@@ -25,6 +25,7 @@
 const { test, expect } = require('@playwright/test');
 const IDS = require('../fixtures/ids');
 const { publicFetch, getMockLogs, waitForMockLog } = require('../fixtures/api-client');
+const { resetMutables } = require('../fixtures/reset-mutables');
 const { pool } = require('../../../src/services/db');
 
 const SLUG = 'test-demo-salon';
@@ -91,6 +92,11 @@ const IS_REMOTE = (process.env.APP_BASE_URL || '').startsWith('http') &&
 test.describe('C01 — booking public mono: deposit variations', () => {
   let sinceTs;
   let stripeActive = false;
+
+  test.beforeEach(async () => {
+    sinceTs = new Date(Date.now() - 1000).toISOString();
+    await resetMutables();
+  });
 
   test.beforeAll(async () => {
     sinceTs = new Date(Date.now() - 5000).toISOString();

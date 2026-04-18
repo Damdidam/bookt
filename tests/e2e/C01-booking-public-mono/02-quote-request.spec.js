@@ -11,6 +11,7 @@
 const { test, expect } = require('@playwright/test');
 const IDS = require('../fixtures/ids');
 const { publicFetch } = require('../fixtures/api-client');
+const { resetMutables } = require('../fixtures/reset-mutables');
 const { pool } = require('../../../src/services/db');
 
 const SLUG = 'test-demo-salon';
@@ -23,6 +24,8 @@ function isoPlusDays(days, hour = 10) {
 }
 
 test.describe('C01 — booking public mono: quote-only service', () => {
+  test.beforeEach(async () => { await resetMutables(); });
+
   test('Quote request for SVC_QUOTE creates pending booking, no deposit', async () => {
     const uniqueEmail = `e2e-quote-${Date.now()}@genda-test.be`;
     const startAt = isoPlusDays(8, 11);

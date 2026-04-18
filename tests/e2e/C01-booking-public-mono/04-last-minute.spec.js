@@ -18,6 +18,7 @@
 const { test, expect } = require('@playwright/test');
 const IDS = require('../fixtures/ids');
 const { publicFetch } = require('../fixtures/api-client');
+const { resetMutables } = require('../fixtures/reset-mutables');
 const { pool } = require('../../../src/services/db');
 
 const SLUG = 'test-demo-salon';
@@ -32,6 +33,8 @@ function isoTomorrowAt(hourLocal) {
 }
 
 test.describe('C01 — booking public mono: last-minute', () => {
+  test.beforeEach(async () => { await resetMutables(); });
+
   test.beforeAll(async () => {
     // Ensure LM settings are aligned to the code convention (code reads
     // last_minute_* but seed writes lastminute_*). Mirror the keys if needed.

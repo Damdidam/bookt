@@ -17,6 +17,7 @@
 const { test, expect } = require('@playwright/test');
 const IDS = require('../fixtures/ids');
 const { publicFetch } = require('../fixtures/api-client');
+const { resetMutables } = require('../fixtures/reset-mutables');
 const { pool } = require('../../../src/services/db');
 
 const SLUG = 'test-demo-salon';
@@ -53,6 +54,8 @@ async function bookSvcLong({ email, days, hour, promotion_id, phone, extra = {} 
 }
 
 test.describe('C01 — booking public mono: promo types', () => {
+  test.beforeEach(async () => { await resetMutables(); });
+
   test('1. PROMO_PCT (20%, cond=none) → 1900c discount', async () => {
     const email = `e2e-promo-pct-${Date.now()}@genda-test.be`;
     const { status, body } = await bookSvcLong({ email, days: 7, hour: 9, promotion_id: IDS.PROMO_PCT });

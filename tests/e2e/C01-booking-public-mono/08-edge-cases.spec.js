@@ -16,6 +16,7 @@
 const { test, expect } = require('@playwright/test');
 const IDS = require('../fixtures/ids');
 const { publicFetch } = require('../fixtures/api-client');
+const { resetMutables } = require('../fixtures/reset-mutables');
 const { pool } = require('../../../src/services/db');
 
 const SLUG = 'test-demo-salon';
@@ -28,6 +29,8 @@ function isoPlusDays(days, hour = 10) {
 }
 
 test.describe('C01 — booking public mono: edge cases', () => {
+  test.beforeEach(async () => { await resetMutables(); });
+
   test('1. Concurrent double-booking on same slot → one 201, one conflict', async () => {
     // Same exact slot, different clients fired in parallel
     const startAt = isoPlusDays(7, 14); // Sat — Alice open

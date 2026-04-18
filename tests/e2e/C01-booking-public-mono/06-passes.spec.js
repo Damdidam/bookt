@@ -33,6 +33,7 @@
 const { test, expect } = require('@playwright/test');
 const IDS = require('../fixtures/ids');
 const { publicFetch } = require('../fixtures/api-client');
+const { resetMutables } = require('../fixtures/reset-mutables');
 const { pool } = require('../../../src/services/db');
 
 const SLUG = 'test-demo-salon';
@@ -68,6 +69,8 @@ async function postBooking({ startAt, passCode, promoId, email }) {
 }
 
 test.describe('C01 — booking public mono: passes', () => {
+  test.beforeEach(async () => { await resetMutables(); });
+
   test.beforeAll(async () => {
     // Reset PASS_ACTIVE to a known state so downstream tests can count transactions deterministically.
     await pool.query(

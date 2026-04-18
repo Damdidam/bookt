@@ -15,6 +15,7 @@
 const { test, expect } = require('@playwright/test');
 const IDS = require('../fixtures/ids');
 const { publicFetch, waitForMockLog } = require('../fixtures/api-client');
+const { resetMutables } = require('../fixtures/reset-mutables');
 const { pool } = require('../../../src/services/db');
 
 const SLUG = 'test-demo-salon';
@@ -27,6 +28,8 @@ function isoPlusDays(days, hour = 10) {
 }
 
 test.describe('C01 — booking public mono: consent & validation', () => {
+  test.beforeEach(async () => { await resetMutables(); });
+
   let sinceTs;
   test.beforeAll(() => { sinceTs = new Date(Date.now() - 5000).toISOString(); });
 
