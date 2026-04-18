@@ -68,18 +68,32 @@ async function syncDraftInvoicesForBookings(txClient, bookingIds) {
   for (const div of divergentRes.rows) {
     console.warn(`[INVOICE DIVERGENCE] Invoice ${div.invoice_number} (status=sent/paid) prix ${div.invoice_price}c ≠ booked_price ${div.current_price}c — note de crédit requise`);
     try {
-      await txClient.query(
-        `INSERT INTO notifications (business_id, booking_id, type, status, metadata)
-         VALUES ($1, $2, 'email_dispute_alert', 'queued', $3)
-         ON CONFLICT DO NOTHING`,
-        [div.business_id, div.booking_id, JSON.stringify({
-          kind: 'invoice_price_divergence',
-          invoice_id: div.id,
-          invoice_number: div.invoice_number,
-          invoice_unit_price_cents: div.invoice_price,
-          current_booked_price_cents: div.current_price
-        })]
+      // Idempotence manuelle : check si une notif existe déjà pour ce couple
+      // (booking_id, metadata.invoice_id) — évite spam si helper appelé plusieurs fois
+      // (table notifications n'a pas de unique constraint composite, ON CONFLICT inapplicable).
+      const existing = await txClient.query(
+        `SELECT 1 FROM notifications
+         WHERE booking_id = $1
+           AND type = 'email_dispute_alert'
+           AND metadata->>'kind' = 'invoice_price_divergence'
+           AND metadata->>'invoice_id' = $2
+           AND created_at > NOW() - INTERVAL '7 days'
+         LIMIT 1`,
+        [div.booking_id, String(div.id)]
       );
+      if (existing.rows.length === 0) {
+        await txClient.query(
+          `INSERT INTO notifications (business_id, booking_id, type, status, metadata)
+           VALUES ($1, $2, 'email_dispute_alert', 'queued', $3)`,
+          [div.business_id, div.booking_id, JSON.stringify({
+            kind: 'invoice_price_divergence',
+            invoice_id: div.id,
+            invoice_number: div.invoice_number,
+            invoice_unit_price_cents: div.invoice_price,
+            current_booked_price_cents: div.current_price
+          })]
+        );
+      }
     } catch (_) { /* audit non-critique */ }
   }
 }
