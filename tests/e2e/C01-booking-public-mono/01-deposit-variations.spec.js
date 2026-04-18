@@ -24,7 +24,7 @@
  */
 const { test, expect } = require('@playwright/test');
 const IDS = require('../fixtures/ids');
-const { publicFetch, getMockLogs } = require('../fixtures/api-client');
+const { publicFetch, getMockLogs, waitForMockLog } = require('../fixtures/api-client');
 const { pool } = require('../../../src/services/db');
 
 const SLUG = 'test-demo-salon';
@@ -61,8 +61,8 @@ async function waitForEmailNotification(bookingId, recipient, timeoutMs = 8000) 
  * the rows or [] if nothing.
  */
 async function findMockEmails(recipient, sinceTs) {
-  const emails = await getMockLogs('email', sinceTs);
-  return emails.filter(e => e.recipient === recipient);
+  // Use polling helper (5s timeout) — emails are fire-and-forget, race avec test
+  return await waitForMockLog('email', recipient, sinceTs, 5000, 1);
 }
 
 /**

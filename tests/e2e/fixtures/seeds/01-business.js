@@ -19,18 +19,26 @@ const SETTINGS = {
 
 async function seedBusiness() {
   // Schema-adapted: dropped `iban` (n'existe pas), renommé bce → bce_number
+  // Fix: stripe_connect_status='active' + plan='pro' pour que shouldRequireDeposit()
+  // déclenche (bloquée en plan=free, et retourne false si stripe_connect !== 'active')
   await pool.query(`
     INSERT INTO businesses (
       id, name, slug, email, phone, address, bce_number,
-      sector, category, is_test_account, settings
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, $10)
+      sector, category, is_test_account, settings,
+      stripe_connect_id, stripe_connect_status, plan
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, $10, $11, 'active', 'pro')
     ON CONFLICT (id) DO UPDATE SET
       name = EXCLUDED.name, slug = EXCLUDED.slug, email = EXCLUDED.email,
-      settings = EXCLUDED.settings, is_test_account = true, updated_at = NOW()
+      settings = EXCLUDED.settings, is_test_account = true,
+      stripe_connect_id = EXCLUDED.stripe_connect_id,
+      stripe_connect_status = 'active',
+      plan = 'pro',
+      updated_at = NOW()
   `, [
     IDS.BUSINESS, 'TEST — Demo Salon Genda', 'test-demo-salon', 'test-bookt@genda.be',
     '+32491999999', '1 rue du Test, 1000 Bruxelles', 'BE0999999999',
     'coiffeur', 'salon', JSON.stringify(SETTINGS),
+    process.env.STRIPE_CONNECT_TEST_ACCOUNT || 'acct_test_e2e_placeholder',
   ]);
 
   await pool.query(

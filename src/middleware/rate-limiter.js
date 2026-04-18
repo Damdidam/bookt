@@ -1,6 +1,12 @@
 const rateLimit = require('express-rate-limit');
 
 /**
+ * E2E bypass : si DISABLE_RATE_LIMIT=1 (uniquement set dans l'env du serveur local
+ * lancé pour tests E2E), tous les limiters sautent. En prod : rate limiters actifs normalement.
+ */
+const e2eBypass = () => process.env.DISABLE_RATE_LIMIT === '1';
+
+/**
  * Rate limiter for public booking creation.
  * Prevents spam-booking (filling an agenda with fake RDVs).
  * 5 bookings per hour per IP.
@@ -10,7 +16,8 @@ const bookingLimiter = rateLimit({
   max: 5,
   message: { error: 'Trop de réservations. Réessayez dans une heure.' },
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
+  skip: e2eBypass
 });
 
 /**
@@ -23,7 +30,8 @@ const slotsLimiter = rateLimit({
   max: 60,
   message: { error: 'Trop de requêtes. Réessayez dans une minute.' },
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
+  skip: e2eBypass
 });
 
 /**
@@ -35,7 +43,8 @@ const authLimiter = rateLimit({
   max: 5,
   message: { error: 'Trop de tentatives. Réessayez dans 15 minutes.' },
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
+  skip: e2eBypass
 });
 
 /**
@@ -47,7 +56,8 @@ const clientPhoneLimiter = rateLimit({
   max: 15,
   message: { error: 'Trop de tentatives. Réessayez plus tard.' },
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
+  skip: e2eBypass
 });
 
 /**
@@ -59,7 +69,8 @@ const depositLimiter = rateLimit({
   max: 10,
   message: { error: 'Trop de tentatives de paiement. Réessayez plus tard.' },
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
+  skip: e2eBypass
 });
 
 /**
@@ -71,7 +82,8 @@ const bookingActionLimiter = rateLimit({
   max: 20,
   message: { error: 'Trop de requêtes. Réessayez dans une minute.' },
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
+  skip: e2eBypass
 });
 
 /**
@@ -83,7 +95,8 @@ const adminLimiter = rateLimit({
   max: 60,
   message: { error: 'Trop de requêtes admin.' },
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
+  skip: e2eBypass
 });
 
 /**
@@ -95,7 +108,8 @@ const staffLimiter = rateLimit({
   max: 120,
   message: { error: 'Trop de requêtes. Réessayez dans une minute.' },
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
+  skip: e2eBypass
 });
 
 /**
@@ -107,7 +121,8 @@ const lookupLimiter = rateLimit({
   max: 5,
   message: { error: 'Trop de tentatives. Réessayez dans 15 minutes.' },
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
+  skip: e2eBypass
 });
 
 module.exports = { bookingLimiter, slotsLimiter, authLimiter, clientPhoneLimiter, depositLimiter, bookingActionLimiter, adminLimiter, staffLimiter, lookupLimiter };
