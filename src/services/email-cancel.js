@@ -203,7 +203,7 @@ async function sendCancellationEmail({ booking, business, groupServices }) {
  * Send reschedule confirmation email to client (after self-reschedule).
  * Shows old vs new time.
  */
-async function sendRescheduleConfirmationEmail({ booking, business, oldStartAt, oldEndAt, groupServices }) {
+async function sendRescheduleConfirmationEmail({ booking, business, oldStartAt, oldEndAt, groupServices, oldNetPriceCents }) {
   if (!booking.client_email) return;
   const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
   const color = safeColor(business.theme?.primary_color);
@@ -291,6 +291,38 @@ async function sendRescheduleConfirmationEmail({ booking, business, oldStartAt, 
         ${detailLines}
       </table>
     </div>`;
+
+  // X4 : bandeau diff de prix si le reschedule a changé le tarif net (typiquement LM window crossed).
+  // On compare l'ancien prix net (booked - promo) au nouveau prix net calculé depuis le booking courant.
+  if (typeof oldNetPriceCents === 'number' && oldNetPriceCents > 0) {
+    let newTotalCents = 0;
+    if (groupServices && groupServices.length > 1) {
+      newTotalCents = groupServices.reduce((s, g) => s + (parseInt(g.price_cents) || 0), 0);
+    } else {
+      newTotalCents = parseInt(booking.booked_price_cents) || 0;
+    }
+    const newPromoCents = parseInt(booking.promotion_discount_cents) || 0;
+    const newNetPriceCents = Math.max(newTotalCents - newPromoCents, 0);
+    const diff = newNetPriceCents - oldNetPriceCents;
+    if (diff !== 0 && newNetPriceCents > 0) {
+      const oldStr = (oldNetPriceCents / 100).toFixed(2).replace('.', ',');
+      const newStr = (newNetPriceCents / 100).toFixed(2).replace('.', ',');
+      const absDiffStr = (Math.abs(diff) / 100).toFixed(2).replace('.', ',');
+      if (diff > 0) {
+        // Prix a augmenté (typiquement: perte de la remise last-minute)
+        bodyHTML += `
+    <div style="background:#FFF3E0;border-radius:8px;padding:12px 16px;margin:16px 0;border-left:3px solid #FB8C00">
+      <div style="font-size:14px;color:#E65100;font-weight:600">\u26a0\ufe0f Le nouveau cr\u00e9neau ne b\u00e9n\u00e9ficie plus de la m\u00eame remise. Le tarif passe de <s style="opacity:.7">${oldStr}\u00a0\u20ac</s> \u00e0 <strong>${newStr}\u00a0\u20ac</strong> (+${absDiffStr}\u00a0\u20ac).</div>
+    </div>`;
+      } else {
+        // Prix a baissé (ex: nouveau créneau entre dans le window LM)
+        bodyHTML += `
+    <div style="background:#E8F5E9;border-radius:8px;padding:12px 16px;margin:16px 0;border-left:3px solid #43A047">
+      <div style="font-size:14px;color:#2E7D32;font-weight:600">\ud83c\udf89 Bonne nouvelle, le nouveau cr\u00e9neau b\u00e9n\u00e9ficie d'une remise. Le tarif passe de <s style="opacity:.7">${oldStr}\u00a0\u20ac</s> \u00e0 <strong>${newStr}\u00a0\u20ac</strong> (\u2212${absDiffStr}\u00a0\u20ac).</div>
+    </div>`;
+      }
+    }
+  }
 
   // Deposit info for reschedule email
   if (booking.deposit_status === 'paid' && booking.deposit_amount_cents > 0) {

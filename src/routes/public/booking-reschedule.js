@@ -144,6 +144,7 @@ router.post(['/manage/:token/reschedule', '/booking/:token/reschedule'], booking
               b.business_id, b.service_id, b.service_variant_id, b.practitioner_id,
               b.group_id, b.client_id, b.appointment_mode, b.public_token,
               b.deposit_required, b.deposit_status, b.deposit_deadline,
+              b.booked_price_cents, b.discount_pct, b.promotion_discount_cents,
               COALESCE(sv.duration_min, s.duration_min) AS duration_min,
               biz.settings AS business_settings,
               biz.slug AS business_slug,
@@ -231,7 +232,8 @@ router.post(['/manage/:token/reschedule', '/booking/:token/reschedule'], booking
     let groupMembers = [];
     if (bk.group_id) {
       const grpRes = await client.query(
-        `SELECT id, start_at, end_at, practitioner_id, service_id, group_order
+        `SELECT id, start_at, end_at, practitioner_id, service_id, group_order,
+                booked_price_cents, promotion_discount_cents
          FROM bookings
          WHERE group_id = $1 AND business_id = $2
          ORDER BY group_order, start_at
@@ -480,6 +482,20 @@ router.post(['/manage/:token/reschedule', '/booking/:token/reschedule'], booking
       }
     }
 
+    // X4 : snapshot ancien prix total (booked + promo discount) AVANT recalc pour pouvoir
+    // afficher la différence dans l'email client si le reschedule change le tarif
+    // (ex: perte de la remise LM quand le nouveau créneau sort du window).
+    let _oldTotalPriceCents = 0;
+    let _oldPromoDiscountCents = 0;
+    if (bk.group_id && groupMembers.length > 0) {
+      _oldTotalPriceCents = groupMembers.reduce((s, m) => s + (parseInt(m.booked_price_cents) || 0), 0);
+      _oldPromoDiscountCents = groupMembers.reduce((s, m) => s + (parseInt(m.promotion_discount_cents) || 0), 0);
+    } else {
+      _oldTotalPriceCents = parseInt(bk.booked_price_cents) || 0;
+      _oldPromoDiscountCents = parseInt(bk.promotion_discount_cents) || 0;
+    }
+    const _oldNetPriceCents = Math.max(_oldTotalPriceCents - _oldPromoDiscountCents, 0);
+
     // Recalculate booked_price_cents after LM + promo discount changes
     // SKIP for quote_only services — the merchant manually set the price, don't overwrite it
     {
@@ -684,7 +700,10 @@ router.post(['/manage/:token/reschedule', '/booking/:token/reschedule'], booking
             business: { name: r.business_name, slug: r.business_slug, settings: r.settings, theme: r.theme, email: r.business_email, phone: r.business_phone, address: r.business_address },
             oldStartAt: bk.start_at,
             oldEndAt: groupMembers.length > 1 ? groupMembers[groupMembers.length - 1].end_at : bk.end_at,
-            groupServices: groupSvcs
+            groupServices: groupSvcs,
+            // X4 : propager le prix net (booked - promo) avant reschedule pour afficher un bandeau
+            // "Le tarif passe de X à Y" si le recalc LM a changé le montant.
+            oldNetPriceCents: _oldNetPriceCents
           });
         }
       } catch (emailErr) { console.error('[RESCHEDULE] Email error:', emailErr.message); }
