@@ -558,7 +558,9 @@ router.delete('/:id', requireOwner, blockIfImpersonated, async (req, res, next) 
 router.get('/export', async (req, res, next) => {
   try {
     const bid = req.businessId;
-    const result = await query(
+    // N12 fix: queryWithRLS au lieu de query pour défense profondeur.
+    // WHERE business_id=$1 déjà présent mais RLS = filet de sécurité si refacto oublie.
+    const result = await queryWithRLS(bid,
       `SELECT i.*,
               COALESCE(
                 (SELECT string_agg(

@@ -65,6 +65,9 @@ async function sendDepositConfirmationSideEffects(bookingId) {
         const { getGcPaidCents } = require('./gift-card-refund');
         const gcPaidForEmail = await getGcPaidCents(row.id);
         const { sendDepositPaidEmail, sendDepositPaidProEmail } = require('./email');
+        // R2 fix: propage booked_price_cents + discount_pct pour que email deposit-paid
+        // affiche la bannière LM (last minute -X%) + prix barré. Avant: template tombait
+        // sur rawPriceDP (catalogue brut) car hasLmDP = booking.discount_pct = undefined.
         const _emailBooking = {
           start_at: row.start_at, end_at: groupEndAt || row.end_at,
           deposit_amount_cents: row.deposit_amount_cents,
@@ -77,6 +80,8 @@ async function sendDepositConfirmationSideEffects(bookingId) {
           promotion_discount_cents: row.promotion_discount_cents,
           promotion_discount_pct: row.promotion_discount_pct,
           service_price_cents: row.service_price_cents,
+          booked_price_cents: row.booked_price_cents,
+          discount_pct: row.discount_pct,
           duration_min: row.duration_min
         };
         await sendDepositPaidEmail({

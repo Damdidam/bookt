@@ -12,23 +12,31 @@ router.get('/', async (req, res, next) => {
     const bid = req.businessId;
     const { search, limit, offset, filter } = req.query;
 
+    const params = [bid];
+    let idx = 2;
+    // N14 fix: si pracFilter, le JOIN doit aussi filtrer par practitioner_id pour que les
+    // stats (total_bookings, completed_count, last_visit, tag) reflètent UNIQUEMENT les bookings
+    // que le practitioner a avec ce client. Avant: stats globales business leakaient.
+    let joinFilter = '';
+    if (req.practitionerFilter) {
+      params.push(req.practitionerFilter);
+      joinFilter = ` AND b.practitioner_id = $${idx}`;
+      idx++;
+    }
+
     let sql = `
       SELECT c.*,
         COUNT(b.id) AS total_bookings,
         COUNT(b.id) FILTER (WHERE b.status = 'completed') AS completed_count,
         MAX(b.start_at) AS last_visit
       FROM clients c
-      LEFT JOIN bookings b ON b.client_id = c.id AND b.business_id = c.business_id
+      LEFT JOIN bookings b ON b.client_id = c.id AND b.business_id = c.business_id${joinFilter}
       WHERE c.business_id = $1`;
-
-    const params = [bid];
-    let idx = 2;
 
     // Practitioner scope: only show clients who have bookings with this practitioner
     if (req.practitionerFilter) {
-      sql += ` AND c.id IN (SELECT DISTINCT client_id FROM bookings WHERE practitioner_id = $${idx} AND business_id = $1)`;
-      params.push(req.practitionerFilter);
-      idx++;
+      // Réutilise $2 (pracId déjà pushé ci-dessus)
+      sql += ` AND c.id IN (SELECT DISTINCT client_id FROM bookings WHERE practitioner_id = $2 AND business_id = $1)`;
     }
 
     if (search) {

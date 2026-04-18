@@ -48,6 +48,40 @@ async function syncDraftInvoicesForBookings(txClient, bookingIds) {
       [_sub, _vat, iv.id]
     );
   }
+
+  // P2a-11 fix: invoices sent/paid sont IMMUTABLES (legal BE — credit note requise).
+  // Mais si booked_price_cents a changé, l'invoice officielle ne reflète plus le prix réel.
+  // Détecter la divergence et queue une notif pro pour action manuelle (émettre note de crédit).
+  const divergentRes = await txClient.query(
+    `SELECT DISTINCT i.id, i.invoice_number, i.business_id, i.total_cents AS invoice_total,
+            it.booking_id, it.unit_price_cents AS invoice_price, b.booked_price_cents AS current_price
+     FROM invoices i
+     JOIN invoice_items it ON it.invoice_id = i.id
+     JOIN bookings b ON b.id = it.booking_id
+     WHERE it.booking_id = ANY($1::uuid[])
+       AND i.status IN ('sent', 'paid')
+       AND b.booked_price_cents IS NOT NULL
+       AND it.unit_price_cents IS NOT NULL
+       AND it.unit_price_cents != b.booked_price_cents`,
+    [bookingIds]
+  );
+  for (const div of divergentRes.rows) {
+    console.warn(`[INVOICE DIVERGENCE] Invoice ${div.invoice_number} (status=sent/paid) prix ${div.invoice_price}c ≠ booked_price ${div.current_price}c — note de crédit requise`);
+    try {
+      await txClient.query(
+        `INSERT INTO notifications (business_id, booking_id, type, status, metadata)
+         VALUES ($1, $2, 'email_dispute_alert', 'queued', $3)
+         ON CONFLICT DO NOTHING`,
+        [div.business_id, div.booking_id, JSON.stringify({
+          kind: 'invoice_price_divergence',
+          invoice_id: div.id,
+          invoice_number: div.invoice_number,
+          invoice_unit_price_cents: div.invoice_price,
+          current_booked_price_cents: div.current_price
+        })]
+      );
+    } catch (_) { /* audit non-critique */ }
+  }
 }
 
 // ── Calendar auto-sync helper (non-blocking) ──

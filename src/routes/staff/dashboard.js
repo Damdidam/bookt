@@ -393,10 +393,16 @@ router.get('/analytics', async (req, res, next) => {
     );
 
     // 6. New clients this period
+    // N13 fix: pracFilter — practitioner ne doit voir que les clients ayant bookées avec lui.
+    // Avant: COUNT global business → fuite RBAC (practitioner voyait stats autres collègues).
     const newClients = await queryWithRLS(bid,
-      `SELECT COUNT(*) AS count FROM clients
-       WHERE business_id = $1 AND created_at >= $2`,
-      [bid, startStr]
+      pracFilter
+        ? `SELECT COUNT(*) AS count FROM clients c
+           WHERE c.business_id = $1 AND c.created_at >= $2
+             AND c.id IN (SELECT DISTINCT client_id FROM bookings WHERE practitioner_id = $3 AND business_id = $1)`
+        : `SELECT COUNT(*) AS count FROM clients
+           WHERE business_id = $1 AND created_at >= $2`,
+      pracFilter ? [bid, startStr, pracFilter] : [bid, startStr]
     );
 
     // 7. Totals for the period

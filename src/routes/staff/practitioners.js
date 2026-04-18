@@ -4,6 +4,8 @@ const fs = require('fs');
 const path = require('path');
 const { queryWithRLS, query, transactionWithRLS } = require('../../services/db');
 const { requireAuth, requireOwner, blockIfImpersonated } = require('../../middleware/auth');
+const { refundGiftCardForBooking } = require('../../services/gift-card-refund');
+const { refundPassForBooking } = require('../../services/pass-refund');
 
 router.use(requireAuth);
 
@@ -726,16 +728,92 @@ router.delete('/:id', requireOwner, blockIfImpersonated, async (req, res, next) 
     }
 
     // Cancel future bookings if requested
+    // N8 fix: cascade proper (cancel_reason + Stripe refund + GC/pass refund + void invoices +
+    // email client/pro + broadcast + calSyncDelete). Avant: simple UPDATE silencieux = deposit
+    // retenu + GC/pass non remboursés + pas d'email + invoices orphelines.
     let cancelledCount = 0;
+    let cancelledDetails = [];
     if (cancelBookings && futureCount > 0) {
-      const cancelRes = await queryWithRLS(bid,
-        `UPDATE bookings SET status = 'cancelled', updated_at = NOW()
-         WHERE practitioner_id = $1 AND business_id = $2
-         AND start_at > NOW()
-         AND status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')`,
-        [pracId, bid]
-      );
-      cancelledCount = cancelRes.rowCount;
+      // 1) Lister les bookings à cancel + snapshot refund targets dans une TX
+      const txTargets = await transactionWithRLS(bid, async (client) => {
+        const listRes = await client.query(
+          `SELECT id, group_id, client_id, deposit_status, deposit_amount_cents, deposit_payment_intent_id
+           FROM bookings
+           WHERE practitioner_id = $1 AND business_id = $2
+             AND start_at > NOW()
+             AND status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')
+           FOR UPDATE`,
+          [pracId, bid]
+        );
+        const cancelReasonPrac = 'Praticien retiré du planning';
+        await client.query(
+          `UPDATE bookings SET status = 'cancelled', cancel_reason = $3,
+            deposit_status = CASE WHEN deposit_status = 'pending' THEN 'cancelled' ELSE deposit_status END,
+            updated_at = NOW()
+           WHERE practitioner_id = $1 AND business_id = $2
+             AND start_at > NOW()
+             AND status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')`,
+          [pracId, bid, cancelReasonPrac]
+        );
+        // Refund GC + pass dans la même TX
+        for (const bk of listRes.rows) {
+          try { await refundGiftCardForBooking(bk.id, client); } catch (e) { console.warn('[PRAC DEL] GC:', e.message); }
+          try { await refundPassForBooking(bk.id, client); } catch (e) { console.warn('[PRAC DEL] Pass:', e.message); }
+        }
+        // Void draft/sent invoices des bookings cancelled
+        const bkIds = listRes.rows.map(r => r.id);
+        if (bkIds.length > 0) {
+          await client.query(
+            `UPDATE invoices SET status = 'cancelled', updated_at = NOW()
+             WHERE booking_id = ANY($1::uuid[]) AND status IN ('draft', 'sent')`,
+            [bkIds]
+          );
+        }
+        return listRes.rows;
+      });
+      cancelledCount = txTargets.length;
+      cancelledDetails = txTargets;
+
+      // 2) Post-TX : Stripe refunds + emails + SSE + calSync (external APIs, hors tx)
+      const _stripeKeyPrac = process.env.STRIPE_SECRET_KEY;
+      for (const bk of cancelledDetails) {
+        // Stripe refund si deposit paid via pi_/cs_
+        if (bk.deposit_status === 'paid' && bk.deposit_payment_intent_id && _stripeKeyPrac &&
+            (bk.deposit_payment_intent_id.startsWith('pi_') || bk.deposit_payment_intent_id.startsWith('cs_'))) {
+          try {
+            const _s = require('stripe')(_stripeKeyPrac);
+            let _piId = bk.deposit_payment_intent_id;
+            if (_piId.startsWith('cs_')) {
+              const _sess = await _s.checkout.sessions.retrieve(_piId);
+              _piId = _sess.payment_intent;
+            }
+            if (_piId && _piId.startsWith('pi_')) {
+              await _s.refunds.create({ payment_intent: _piId });
+              await queryWithRLS(bid,
+                `UPDATE bookings SET deposit_status = 'refunded' WHERE id = $1`, [bk.id]
+              );
+            }
+          } catch (e) {
+            if (e.code !== 'charge_already_refunded') console.warn(`[PRAC DEL] Stripe refund ${bk.id}:`, e.message);
+          }
+        }
+        // calSyncDelete
+        try { const { calSyncDelete } = require('./bookings-helpers'); calSyncDelete(bid, bk.id); } catch (_) {}
+        // Queue email_cancellation_pro
+        try {
+          await query(
+            `INSERT INTO notifications (business_id, booking_id, type, status) VALUES ($1, $2, 'email_cancellation_pro', 'queued')`,
+            [bid, bk.id]
+          );
+        } catch (_) {}
+      }
+      // Broadcast SSE (un seul pour le batch)
+      try {
+        const { broadcast } = require('../../services/sse');
+        if (broadcast) broadcast(bid, 'booking_update', { action: 'practitioner_removed_cascade', practitioner_id: pracId, count: cancelledCount });
+      } catch (_) {}
+      // Invalidate minisite cache (bookings libérés)
+      try { const { invalidateMinisiteCache } = require('../public/helpers'); invalidateMinisiteCache(bid); } catch (_) {}
     }
 
     if (req.query.permanent === 'true') {

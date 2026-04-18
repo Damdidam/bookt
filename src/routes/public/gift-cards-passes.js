@@ -141,12 +141,16 @@ router.post('/deposit/:token/gift-card', depositLimiter, async (req, res, next) 
     if (remaining <= 0) {
       // B2 fix: align with deposit.js:74-89 post-127628b — GC-full path must set locked=true, deposit_deadline=NULL,
       // and propagate deposit_payment_intent_id to siblings so downstream crons match the same PI.
-      await client.query(
+      // P2a-04 fix: RETURNING id + rowCount check → si race concurrent déjà confirmé,
+      //              skip l'envoi email pour éviter double.
+      const _gcFullPrimary = await client.query(
         `UPDATE bookings SET status = 'confirmed', locked = true, deposit_status = 'paid',
           deposit_paid_at = NOW(), deposit_deadline = NULL, deposit_payment_intent_id = $1
-         WHERE id = $2 AND status = 'pending_deposit' AND deposit_status = 'pending'`,
+         WHERE id = $2 AND status = 'pending_deposit' AND deposit_status = 'pending'
+         RETURNING id`,
         [`gc_${gc.code}`, bk.id]
       );
+      const _gcFullMatched = _gcFullPrimary.rowCount;
       if (bk.group_id) {
         await client.query(
           `UPDATE bookings SET status = 'confirmed', locked = true, deposit_status = 'paid',
@@ -158,6 +162,10 @@ router.post('/deposit/:token/gift-card', depositLimiter, async (req, res, next) 
         );
       }
       await client.query('COMMIT');
+      // P2a-04 idempotence: si race → skip email + broadcast
+      if (_gcFullMatched === 0) {
+        return res.json({ success: true, fully_paid: true, gc_amount_used: gcDebit, remaining: 0, gc_balance: newBalance, note: 'already_confirmed' });
+      }
       // Send deposit-paid confirmation email
       try {
         const fullBk = await query(

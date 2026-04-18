@@ -72,16 +72,21 @@ router.post('/deposit/:token/checkout', depositLimiter, async (req, res, next) =
       // Auto-confirm: the tiny remaining amount is absorbed — mark deposit paid AND confirm booking.
       // Q14 fix: wrap primary + siblings updates in a single transaction (atomicité — un crash entre
       // les 2 queries laissait le groupe partiellement confirmé).
+      // P2a-04/15 fix: RETURNING id + rowCount check → si concurrent (déjà confirmé), skip side-effects
+      //                 pour éviter double-email client/pro.
       const _gcAbsClient = await pool.connect();
+      let _gcAbsMatched = 0;
       try {
         await _gcAbsClient.query('BEGIN');
-        await _gcAbsClient.query(
+        const _rPrimary = await _gcAbsClient.query(
           `UPDATE bookings SET status = 'confirmed', locked = true,
             deposit_status = 'paid', deposit_paid_at = NOW(), deposit_deadline = NULL,
             deposit_payment_intent_id = COALESCE(deposit_payment_intent_id, 'gc_absorbed')
-           WHERE id = $1 AND status = 'pending_deposit' AND deposit_status = 'pending'`,
+           WHERE id = $1 AND status = 'pending_deposit' AND deposit_status = 'pending'
+           RETURNING id`,
           [bk.id]
         );
+        _gcAbsMatched = _rPrimary.rowCount;
         if (bk.group_id) {
           await _gcAbsClient.query(
             `UPDATE bookings SET status = 'confirmed', locked = true,
@@ -99,10 +104,13 @@ router.post('/deposit/:token/checkout', depositLimiter, async (req, res, next) =
       }
       _gcAbsClient.release();
       // H13 fix: trigger side-effects (email client/pro, SSE, cal sync) — non-blocking
-      try {
-        const { sendDepositConfirmationSideEffects } = require('../../services/deposit-confirmation-side-effects');
-        sendDepositConfirmationSideEffects(bk.id).catch(e => console.warn('[GC ABSORBED checkout] side-effects:', e.message));
-      } catch (_) {}
+      // P2a-04 idempotence: ne trigger QUE si le UPDATE primary a vraiment matché (race protection).
+      if (_gcAbsMatched > 0) {
+        try {
+          const { sendDepositConfirmationSideEffects } = require('../../services/deposit-confirmation-side-effects');
+          sendDepositConfirmationSideEffects(bk.id).catch(e => console.warn('[GC ABSORBED checkout] side-effects:', e.message));
+        } catch (_) {}
+      }
       return res.json({ status: 'already_paid', message: 'Acompte couvert par votre carte cadeau' });
     }
     if (amountCents <= 0) return res.json({ status: 'already_paid', message: 'Acompte déjà couvert' });
@@ -237,16 +245,20 @@ router.get('/deposit/:token/pay', depositLimiter, async (req, res, next) => {
     const amountCents = (bk.deposit_amount_cents || 0) - gcPaid2;
     // S3-8: Auto-confirm if remaining is below Stripe minimum (same logic as POST /checkout)
     // Q14 fix: même pattern transactionnel qu'au POST /checkout
+    // P2a-04/15 fix: RETURNING + rowCount check pour idempotence race
     if (amountCents > 0 && amountCents < 50) {
       const _gcAbsPayClient = await pool.connect();
+      let _gcAbsPayMatched = 0;
       try {
         await _gcAbsPayClient.query('BEGIN');
-        await _gcAbsPayClient.query(
+        const _rPrimaryPay = await _gcAbsPayClient.query(
           `UPDATE bookings SET status = 'confirmed', locked = true,
             deposit_status = 'paid', deposit_paid_at = NOW(), deposit_deadline = NULL,
             deposit_payment_intent_id = COALESCE(deposit_payment_intent_id, 'gc_absorbed')
-           WHERE id = $1 AND status = 'pending_deposit' AND deposit_status = 'pending'`, [bk.id]
+           WHERE id = $1 AND status = 'pending_deposit' AND deposit_status = 'pending'
+           RETURNING id`, [bk.id]
         );
+        _gcAbsPayMatched = _rPrimaryPay.rowCount;
         if (bk.group_id) {
           await _gcAbsPayClient.query(
             `UPDATE bookings SET status = 'confirmed', locked = true,
@@ -264,10 +276,13 @@ router.get('/deposit/:token/pay', depositLimiter, async (req, res, next) => {
       }
       _gcAbsPayClient.release();
       // H13 fix: trigger side-effects (email client/pro, SSE, cal sync) — non-blocking
-      try {
-        const { sendDepositConfirmationSideEffects } = require('../../services/deposit-confirmation-side-effects');
-        sendDepositConfirmationSideEffects(bk.id).catch(e => console.warn('[GC ABSORBED pay] side-effects:', e.message));
-      } catch (_) {}
+      // P2a-04 idempotence: skip si race (pas de UPDATE matché)
+      if (_gcAbsPayMatched > 0) {
+        try {
+          const { sendDepositConfirmationSideEffects } = require('../../services/deposit-confirmation-side-effects');
+          sendDepositConfirmationSideEffects(bk.id).catch(e => console.warn('[GC ABSORBED pay] side-effects:', e.message));
+        } catch (_) {}
+      }
       return res.redirect(depositPageUrl + '?paid=1');
     }
     if (amountCents <= 0) return res.redirect(depositPageUrl + '?paid=1');
