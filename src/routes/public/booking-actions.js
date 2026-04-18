@@ -545,6 +545,10 @@ router.post('/booking/:token/reject', async (req, res, next) => {
     let passRefundReject = { refunded: 0 };
     // Batch 13 REG1 fix: capture retention_reason for reject email (no_stripe_key / stripe_failure)
     let rejectRetentionReason = null;
+    // X3C-04 fix: symétrie avec /cancel + /cancel-booking — capture net_refund_cents (reset=0 si
+    // retention). Reject fait full refund Stripe (pas de fees déduits), donc en success rejectNetRefundCents
+    // reste null → fallback email-cancel.js sur gross (= deposit_amount - gcPaid) = montant correct.
+    let rejectNetRefundCents = null;
     try {
       await txClient.query('BEGIN');
       result = await txClient.query(
@@ -628,6 +632,7 @@ router.post('/booking/:token/reject', async (req, res, next) => {
             // Batch 13 REG1 fix: no Stripe key → rollback deposit_status so email is accurate
             console.warn('[REJECT] STRIPE_SECRET_KEY missing — deposit retained');
             rejectRetentionReason = 'no_stripe_key';
+            rejectNetRefundCents = 0;
             await txClient.query(`UPDATE bookings SET deposit_status = 'cancelled' WHERE id = $1`, [rejBkFinal.id]);
             if (rejBkFinal.group_id) {
               await txClient.query(
@@ -651,6 +656,7 @@ router.post('/booking/:token/reject', async (req, res, next) => {
               if (_e.code !== 'charge_already_refunded') {
                 console.error('[REJECT] Stripe refund failed — deposit retained:', _e.message);
                 rejectRetentionReason = 'stripe_failure';
+                rejectNetRefundCents = 0;
                 await txClient.query(`UPDATE bookings SET deposit_status = 'cancelled' WHERE id = $1`, [rejBkFinal.id]);
                 if (rejBkFinal.group_id) await txClient.query(`UPDATE bookings SET deposit_status = 'cancelled' WHERE group_id = $1 AND deposit_status = 'refunded'`, [rejBkFinal.group_id]);
                 result = await txClient.query(`SELECT * FROM bookings WHERE id = $1`, [rejBkFinal.id]);
@@ -740,7 +746,8 @@ router.post('/booking/:token/reject', async (req, res, next) => {
           await sendCancellationEmail({
             // H11 fix: reject email must carry a cancel_reason (matches the other 5 callers).
             // Batch 13 REG1 fix: forward deposit_retention_reason so email shows accurate status
-            booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, service_category: row.service_category, custom_label: row.custom_label, practitioner_name: row.practitioner_name, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_paid_at: row.deposit_paid_at, deposit_payment_intent_id: row.deposit_payment_intent_id, gc_paid_cents: gcPaidReject, gc_refunded_cents: gcRefundReject.refunded || 0, pass_refunded: (passRefundReject.refunded || 0) !== 0, deposit_retention_reason: rejectRetentionReason, promotion_label: row.promotion_label, promotion_discount_cents: row.promotion_discount_cents, promotion_discount_pct: row.promotion_discount_pct, service_price_cents: row.service_price_cents, booked_price_cents: row.booked_price_cents, discount_pct: row.discount_pct, duration_min: row.duration_min, cancel_reason: 'Nouveau créneau proposé refusé par le client' },
+            // X3C-04 fix: propage net_refund_cents pour symétrie avec /cancel + /cancel-booking
+            booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, service_category: row.service_category, custom_label: row.custom_label, practitioner_name: row.practitioner_name, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_paid_at: row.deposit_paid_at, deposit_payment_intent_id: row.deposit_payment_intent_id, gc_paid_cents: gcPaidReject, gc_refunded_cents: gcRefundReject.refunded || 0, pass_refunded: (passRefundReject.refunded || 0) !== 0, net_refund_cents: rejectNetRefundCents, deposit_retention_reason: rejectRetentionReason, promotion_label: row.promotion_label, promotion_discount_cents: row.promotion_discount_cents, promotion_discount_pct: row.promotion_discount_pct, service_price_cents: row.service_price_cents, booked_price_cents: row.booked_price_cents, discount_pct: row.discount_pct, duration_min: row.duration_min, cancel_reason: 'Nouveau créneau proposé refusé par le client' },
             business: { name: row.biz_name, email: row.biz_email, phone: row.biz_phone, address: row.biz_address, theme: row.biz_theme, slug: row.biz_slug, settings: row.biz_settings },
             groupServices
           });
