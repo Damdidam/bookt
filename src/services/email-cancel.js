@@ -79,15 +79,20 @@ async function sendCancellationEmail({ booking, business, groupServices }) {
   const depAmtStr = hadDeposit ? ((booking.deposit_amount_cents || 0) / 100).toFixed(2).replace('.', ',') : '';
 
   const gcCancelCents = booking.gc_paid_cents || 0;
+  // X3A-04 fix: deposit_payment_intent_id='gc_absorbed' = tiny remainder <50c absorbé par GC.
+  // Aucun Stripe refund n'aura lieu (PI=gc_*). Forcer isFullGcCancel (pas mix) pour éviter
+  // l'email "X€ remboursé Stripe" mensonger quand Stripe n'a jamais été chargé.
+  const _piRaw = booking.deposit_payment_intent_id || '';
+  const _isGcPath = _piRaw.startsWith('gc_');
   // B2 fix: use net_refund_cents (actual Stripe refund amount) instead of gross if the caller
   // computed it (policy='net' deducts fees). Fallback to gross when not provided (policy='full').
-  const grossStripeCancelCents = hadDeposit ? Math.max((booking.deposit_amount_cents || 0) - gcCancelCents, 0) : 0;
+  const grossStripeCancelCents = (hadDeposit && !_isGcPath) ? Math.max((booking.deposit_amount_cents || 0) - gcCancelCents, 0) : 0;
   const stripeCancelCents = (booking.net_refund_cents != null && !Number.isNaN(booking.net_refund_cents))
     ? booking.net_refund_cents
     : grossStripeCancelCents;
   const stripeCancelFeesDeducted = Math.max(grossStripeCancelCents - stripeCancelCents, 0);
   const isFullGcCancel = gcCancelCents > 0 && grossStripeCancelCents <= 0;
-  const isMixCancel = gcCancelCents > 0 && stripeCancelCents > 0;
+  const isMixCancel = gcCancelCents > 0 && stripeCancelCents > 0 && !_isGcPath;
 
   let depositHTML = '';
   if (depositRefunded) {

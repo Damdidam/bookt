@@ -1066,6 +1066,9 @@ router.patch('/:id/status', blockIfImpersonated, async (req, res, next) => {
             },
             business: { name: d.business_name, email: d.business_email, phone: d.business_phone, address: d.business_address, theme: d.theme, settings: d.settings },
             groupServices
+          }).then(() => {
+            // R1 fix: audit email_confirmation='sent' (parité avec booking-notifications.js:213)
+            return queryWithRLS(bid, `INSERT INTO notifications (business_id, booking_id, type, recipient_email, status, sent_at) VALUES ($1, $2, 'email_confirmation', $3, 'sent', NOW())`, [bid, id, d.client_email]).catch(() => {});
           }).catch(e => console.warn('[EMAIL] Confirmation email error:', e.message));
         }
       } catch (e) { console.warn('[EMAIL] Confirmation email fetch error:', e.message); }
@@ -1547,6 +1550,10 @@ router.patch('/:id/waive-deposit', blockIfImpersonated, async (req, res, next) =
           business: { name: b.business_name, email: b.business_email, address: b.business_address, phone: b.business_phone, theme: b.theme, settings: b.settings },
           groupServices
         });
+        // R1 fix: audit email_confirmation='sent' après waive-deposit send
+        try {
+          await queryWithRLS(bid, `INSERT INTO notifications (business_id, booking_id, type, recipient_email, status, sent_at) VALUES ($1, $2, 'email_confirmation', $3, 'sent', NOW())`, [bid, id, b.client_email]);
+        } catch (_) { /* audit non-critique */ }
       } catch (emailErr) {
         console.error('[WAIVE_DEPOSIT] Confirmation email error:', emailErr.message);
       }

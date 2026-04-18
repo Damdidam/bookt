@@ -1485,6 +1485,10 @@ router.post('/booking/:token/confirm-booking', async (req, res, next) => {
             business: { name: row.biz_name, email: row.biz_email, phone: row.biz_phone, address: row.biz_address, theme: row.biz_theme, settings: row.biz_settings },
             groupServices
           });
+          // R1 fix: audit email_confirmation='sent' après send (public /confirm-booking)
+          try {
+            await query(`INSERT INTO notifications (business_id, booking_id, type, recipient_email, status, sent_at) VALUES ($1, $2, 'email_confirmation', $3, 'sent', NOW())`, [bk.business_id, bk.id, row.client_email]);
+          } catch (_) {}
 
           // SMS confirmation (pro plan) — skip if already sent (e.g. confirm channel='both' SMS sent at booking time)
           if (row.client_phone && row.biz_plan !== 'free') {

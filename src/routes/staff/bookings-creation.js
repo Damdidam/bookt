@@ -209,6 +209,10 @@ router.post('/manual', async (req, res, next) => {
                 booking: { ...bookings[0], client_name: cl.rows[0].full_name, client_email: client_email, service_name: custom_label || 'Rendez-vous libre', practitioner_name: prac.rows[0]?.display_name || '' },
                 business: biz.rows[0]
               });
+              // R1 fix: audit email_confirmation='sent' après send (manual free-text booking)
+              try {
+                await queryWithRLS(bid, `INSERT INTO notifications (business_id, booking_id, type, recipient_email, status, sent_at) VALUES ($1, $2, 'email_confirmation', $3, 'sent', NOW())`, [bid, bookings[0].id, client_email]);
+              } catch (_) {}
             }
           } catch (e) { console.warn('[EMAIL] Confirmation send error:', e.message); }
         })();
@@ -576,6 +580,13 @@ router.post('/manual', async (req, res, next) => {
               business: biz.rows[0],
               groupServices
             });
+            // R1 fix: audit email_confirmation='sent' après send (staff manual normal)
+            // P2a-12 fix: pour multi-service, INSERT audit pour CHAQUE booking du groupe
+            try {
+              for (const _bk of bookings) {
+                await queryWithRLS(bid, `INSERT INTO notifications (business_id, booking_id, type, recipient_email, status, sent_at) VALUES ($1, $2, 'email_confirmation', $3, 'sent', NOW())`, [bid, _bk.id, client_email]);
+              }
+            } catch (_) {}
           }
         } catch (e) { console.warn('[EMAIL] Confirmation send error:', e.message); }
       })();

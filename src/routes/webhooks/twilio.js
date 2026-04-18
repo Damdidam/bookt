@@ -198,6 +198,10 @@ router.post('/sms/inbound', async (req, res) => {
               business: { name: row.biz_name, email: row.biz_email, phone: row.biz_phone, address: row.biz_address, theme: row.biz_theme, settings: row.biz_settings },
               groupServices
             });
+            // R1 fix: audit email_confirmation='sent' (SMS STOP/START reply triggers email confirm)
+            try {
+              await query(`INSERT INTO notifications (business_id, booking_id, type, recipient_email, status, sent_at) VALUES ($1, $2, 'email_confirmation', $3, 'sent', NOW())`, [row.business_id, row.id, row.client_email]);
+            } catch (_) {}
           }
         } catch (e) { console.warn('[SMS INBOUND] Confirmation email error:', e.message); }
       })();

@@ -1049,6 +1049,9 @@ async function handleStripeWebhook(req, res) {
                       business: { name: row.biz_name, email: row.biz_email, phone: row.biz_phone, address: row.biz_address, theme: row.biz_theme, slug: row.biz_slug, settings: row.biz_settings },
                       groupServices
                     });
+                    // X3C-05 fix: poser le flag cancellation_email_sent_at pour parité avec cron (éviter
+                    // double-email si un futur sweep pick up ce cancel_reason).
+                    await query(`UPDATE bookings SET cancellation_email_sent_at = NOW() WHERE id = $1`, [bk.id]).catch(() => {});
                   }
                 } catch (emailErr) { console.warn('[STRIPE WH] Client cancel email error:', emailErr.message); }
               } catch (txErr) {
