@@ -1,0 +1,73 @@
+name: E2E Tests (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      category:
+        description: 'Catégorie à tester (vide = toutes)'
+        required: false
+        default: ''
+        type: string
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Create .env.test
+        run: |
+          cat > .env.test <<EOF
+          NODE_ENV=production
+          DATABASE_URL=${{ secrets.TEST_DATABASE_URL }}
+          STRIPE_SECRET_KEY=${{ secrets.STRIPE_TEST_SECRET_KEY }}
+          STRIPE_SECRET_KEY_TEST=${{ secrets.STRIPE_TEST_SECRET_KEY }}
+          STRIPE_PUBLISHABLE_KEY=${{ secrets.STRIPE_TEST_PUBLISHABLE_KEY }}
+          STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_TEST_WEBHOOK_SECRET }}
+          STRIPE_CONNECT_TEST_ACCOUNT=${{ secrets.STRIPE_CONNECT_TEST_ACCOUNT }}
+          SKIP_EMAIL=1
+          SKIP_SMS=1
+          APP_BASE_URL=https://genda.be
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
+          TEST_BUSINESS_ID=00000000-0000-4000-8000-000000000001
+          EOF
+
+      - name: Bootstrap test data
+        run: npm run test:e2e:bootstrap
+
+      - name: Run E2E
+        run: |
+          if [ -z "${{ inputs.category }}" ]; then
+            npm run test:e2e
+          else
+            npx playwright test --config=tests/e2e/playwright.config.js tests/e2e/${{ inputs.category }}
+          fi
+
+      - name: Upload HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ github.run_number }}
+          path: tests/e2e/playwright-report/
+          retention-days: 30
+
+      - name: Upload traces on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces-${{ github.run_number }}
+          path: tests/e2e/test-results/
+          retention-days: 14
