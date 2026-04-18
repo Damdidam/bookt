@@ -572,6 +572,30 @@ app.listen(PORT, async () => {
       'email_giftcard_expiry_warning','email_pass_expiry_warning'
     ))`);
   } catch (e) { console.warn('  ⚠ schema-v69 auto-migrate:', e.message); }
+  // schema-v73 (E2E tests infra): is_test_account flag + seed_tracking + test_mock_log
+  try {
+    await pool.query(`ALTER TABLE businesses ADD COLUMN IF NOT EXISTS is_test_account BOOLEAN NOT NULL DEFAULT false`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_businesses_test ON businesses(is_test_account) WHERE is_test_account = true`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS seed_tracking (
+        entity_type TEXT NOT NULL,
+        entity_id UUID NOT NULL,
+        seeded_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (entity_type, entity_id)
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS test_mock_log (
+        id SERIAL PRIMARY KEY,
+        type TEXT NOT NULL,
+        kind TEXT,
+        recipient TEXT,
+        payload JSONB NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_test_mock_log_lookup ON test_mock_log (type, created_at DESC)`);
+  } catch (e) { console.warn('  ⚠ schema-v73 auto-migrate:', e.message); }
   console.log(`  Dashboard: http://localhost:${PORT}`);
   console.log(`  Public booking: http://localhost:${PORT}/api/public/:slug\n`);
 
