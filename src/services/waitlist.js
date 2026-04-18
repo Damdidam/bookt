@@ -71,7 +71,7 @@ async function processWaitlistForCancellation(bookingId, businessId, overrideSlo
        AND we.service_id = $2
        AND we.business_id = $3
        AND we.status = 'waiting'
-       AND (we.preferred_days @> $4::jsonb)
+       AND (we.preferred_days @> $4::jsonb OR we.preferred_days IS NULL OR jsonb_array_length(we.preferred_days) = 0)
        AND (we.preferred_time = 'any' OR we.preferred_time = $5)
      ORDER BY we.priority ASC, we.created_at ASC`,
     [bk.practitioner_id, bk.service_id, bk.business_id,
@@ -277,7 +277,7 @@ async function processExpiredOffers() {
              AND service_id = $2
              AND business_id = $3
              AND status = 'waiting'
-             AND (preferred_days @> $4::jsonb)
+             AND (preferred_days @> $4::jsonb OR preferred_days IS NULL OR jsonb_array_length(preferred_days) = 0)
              AND (preferred_time = 'any' OR preferred_time = $5)
            ORDER BY priority ASC, created_at ASC
            LIMIT 1`,

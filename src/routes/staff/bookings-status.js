@@ -1252,10 +1252,14 @@ router.patch('/:id/deposit-refund', blockIfImpersonated, async (req, res, next) 
       await refundGiftCardForBooking(id, client);
       await refundPassForBooking(id, client).catch(e => console.warn('[PASS REFUND]', e.message));
 
+      // N25: cancel_reason reflète l'issue réelle (refund vs retention)
+      const cancelReasonManual = finalDepStatusManual === 'cancelled'
+        ? `Acompte retenu (${depRetentionReasonManual || 'frais supérieurs au montant'})`
+        : 'Acompte remboursé manuellement';
       await client.query(
-        `UPDATE bookings SET deposit_status = $3, status = 'cancelled', cancel_reason = 'Acompte remboursé manuellement', updated_at = NOW()
+        `UPDATE bookings SET deposit_status = $3, status = 'cancelled', cancel_reason = $4, updated_at = NOW()
          WHERE id = $1 AND business_id = $2`,
-        [id, bid, finalDepStatusManual]
+        [id, bid, finalDepStatusManual, cancelReasonManual]
       );
 
       // Bug M14 fix: Propagate cancellation to group siblings
@@ -1266,7 +1270,7 @@ router.patch('/:id/deposit-refund', blockIfImpersonated, async (req, res, next) 
           bid,
           excludeId: id,
           status: 'cancelled',
-          cancelReason: 'Acompte remboursé manuellement (groupe)'
+          cancelReason: `${cancelReasonManual} (groupe)`
         });
 
         // Also update sibling deposits — use same finalDepStatus (H1 fix: respect net/fees retention)
@@ -1369,7 +1373,7 @@ router.patch('/:id/deposit-refund', blockIfImpersonated, async (req, res, next) 
         // M4 fix: if retention applies (fees>=charge / stripe fail / no key), send cancellation
         // email (with retention banner expliquant pourquoi rien n'a été remboursé) AU LIEU du
         // refund email qui afficherait "0€ remboursé" sans contexte.
-        const _manualRefBk = { start_at: d.start_at, end_at: groupEndAt || d.end_at, deposit_required: true, deposit_status: txResult.finalDepStatusManual, deposit_paid_at: new Date().toISOString(), deposit_amount_cents: d.deposit_amount_cents, deposit_payment_intent_id: d.deposit_payment_intent_id, gc_paid_cents: gcPaidManual, net_refund_cents: txResult.netRefundCentsManual, gc_refunded_cents: txResult.gcPaidForRefundManual || 0, deposit_retention_reason: txResult.depRetentionReasonManual, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name, service_category: d.service_category, service_price_cents: d.service_price_cents, booked_price_cents: d.booked_price_cents, discount_pct: d.discount_pct, duration_min: d.duration_min, practitioner_name: d.practitioner_name, promotion_label: d.promotion_label, promotion_discount_cents: d.promotion_discount_cents, promotion_discount_pct: d.promotion_discount_pct, cancel_reason: 'Acompte remboursé manuellement' };
+        const _manualRefBk = { start_at: d.start_at, end_at: groupEndAt || d.end_at, deposit_required: true, deposit_status: txResult.finalDepStatusManual, deposit_paid_at: new Date().toISOString(), deposit_amount_cents: d.deposit_amount_cents, deposit_payment_intent_id: d.deposit_payment_intent_id, gc_paid_cents: gcPaidManual, net_refund_cents: txResult.netRefundCentsManual, gc_refunded_cents: txResult.gcPaidForRefundManual || 0, deposit_retention_reason: txResult.depRetentionReasonManual, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name, service_category: d.service_category, service_price_cents: d.service_price_cents, booked_price_cents: d.booked_price_cents, discount_pct: d.discount_pct, duration_min: d.duration_min, practitioner_name: d.practitioner_name, promotion_label: d.promotion_label, promotion_discount_cents: d.promotion_discount_cents, promotion_discount_pct: d.promotion_discount_pct, cancel_reason: txResult.finalDepStatusManual === 'cancelled' ? `Acompte retenu (${txResult.depRetentionReasonManual || 'frais supérieurs au montant'})` : 'Acompte remboursé manuellement' };
         if (txResult.finalDepStatusManual === 'cancelled' && txResult.depRetentionReasonManual) {
           // Retention : pas d'argent remboursé — envoyer cancellation email avec banner explicatif
           const { sendCancellationEmail } = require('../../services/email');

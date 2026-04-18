@@ -5,7 +5,7 @@
 const router = require('express').Router();
 const { query, pool } = require('../../services/db');
 const { broadcast } = require('../../services/sse');
-const { stripeRefundDeposit, escHtml, decrementPromoUsage, invalidateMinisiteCache } = require('./helpers');
+const { escHtml, decrementPromoUsage, invalidateMinisiteCache } = require('./helpers');
 const { processWaitlistForCancellation } = require('../../services/waitlist');
 const { sendBookingConfirmation } = require('../../services/email');
 const { refundPassForBooking } = require('../../services/pass-refund');

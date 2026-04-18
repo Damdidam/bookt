@@ -117,7 +117,9 @@ router.get('/booking/:token', bookingActionLimiter, async (req, res, next) => {
         net_deposit_amount_cents: Math.max(0, (bk.deposit_amount_cents || 0) - gcPaidCents),
         gc_paid_cents: gcPaidCents,
         deposit_status: bk.deposit_status, deposit_deadline: bk.deposit_deadline, deposit_payment_url: bk.deposit_payment_url,
-        deposit_payment_intent_id: bk.deposit_payment_intent_id || null,
+        // P2a-17: expose only non-sensitive prefixes (pass_/gc_ are client-known codes); mask Stripe pi_/cs_
+        deposit_payment_intent_id: (bk.deposit_payment_intent_id && (bk.deposit_payment_intent_id.startsWith('pass_') || bk.deposit_payment_intent_id.startsWith('gc_'))) ? bk.deposit_payment_intent_id : null,
+        has_payment_intent: !!bk.deposit_payment_intent_id,
         service_price_cents: serviceInfo.price_cents, duration_min: serviceInfo.duration_min,
         promotion_label: promoSib.promotion_label || null,
         promotion_discount_cents: promoSib.promotion_discount_cents || 0,
@@ -302,7 +304,9 @@ router.get('/manage/:token', bookingActionLimiter, async (req, res, next) => {
         net_deposit_amount_cents: Math.max(0, (bk.deposit_amount_cents || 0) - gcPaidCents),
         gc_paid_cents: gcPaidCents,
         deposit_status: bk.deposit_status, deposit_deadline: bk.deposit_deadline, deposit_payment_url: bk.deposit_payment_url,
-        deposit_payment_intent_id: bk.deposit_payment_intent_id || null,
+        // P2a-17: expose only non-sensitive prefixes (pass_/gc_ are client-known codes); mask Stripe pi_/cs_
+        deposit_payment_intent_id: (bk.deposit_payment_intent_id && (bk.deposit_payment_intent_id.startsWith('pass_') || bk.deposit_payment_intent_id.startsWith('gc_'))) ? bk.deposit_payment_intent_id : null,
+        has_payment_intent: !!bk.deposit_payment_intent_id,
         service_price_cents: serviceInfo.price_cents, duration_min: serviceInfo.duration_min,
         promotion_label: promoSib2.promotion_label || null,
         promotion_discount_cents: promoSib2.promotion_discount_cents || 0,

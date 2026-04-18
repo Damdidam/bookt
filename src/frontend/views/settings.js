@@ -658,7 +658,7 @@ async function saveAllSettings(){
       settings_reminder_email_2h:el('s_rem_email_2h').checked
     });
 
-    // Deposit / cancel settings
+    // Deposit settings
     if(el('s_dep_enabled'))Object.assign(body,{
       settings_deposit_enabled:el('s_dep_enabled').checked,
       settings_deposit_noshow_threshold:el('s_dep_threshold')?.value||2,
@@ -670,7 +670,12 @@ async function saveAllSettings(){
       settings_deposit_deduct:el('s_dep_deduct')?.checked??true,
       settings_deposit_price_threshold_cents:Math.round((parseFloat(el('s_dep_price_thresh')?.value)||0)*100),
       settings_deposit_duration_threshold_min:parseInt(el('s_dep_dur_thresh')?.value)||0,
-      settings_deposit_threshold_mode:el('s_dep_thresh_mode')?.value||'any',
+      settings_deposit_threshold_mode:el('s_dep_thresh_mode')?.value||'any'
+    });
+
+    // R6 fix: Cancel/refund settings (carte standalone post-b7fa02c) — save séparé pour que
+    // si la carte deposit n'est pas rendue, ces settings soient quand même sauvegardés.
+    if(el('s_cancel_deadline'))Object.assign(body,{
       settings_cancel_deadline_hours:parseInt(el('s_cancel_deadline')?.value)||24,
       settings_cancel_grace_minutes:(Number.isFinite(parseInt(el('s_cancel_grace')?.value))?parseInt(el('s_cancel_grace')?.value):4)*60,
       settings_cancel_policy_text:el('s_cancel_policy')?.value||'',

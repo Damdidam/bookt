@@ -3,54 +3,6 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const escHtml = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 
 /**
- * Attempt Stripe refund for a deposit. Handles both pi_ (PaymentIntent) and cs_ (Checkout Session) IDs.
- * Respects refund_policy ('full' or 'net') from business settings.
- * @param {string} depositPaymentIntentId - stored ID (may be cs_ or pi_)
- * @param {string} label - log label for error messages
- * @param {object} [opts] - optional { refundPolicy, depositAmountCents, bookingId }
- */
-async function stripeRefundDeposit(depositPaymentIntentId, label, opts) {
-  if (!depositPaymentIntentId) return;
-  const key = process.env.STRIPE_SECRET_KEY;
-  if (!key) return;
-  try {
-    const stripe = require('stripe')(key);
-    let piId = depositPaymentIntentId;
-    if (piId.startsWith('cs_')) {
-      const session = await stripe.checkout.sessions.retrieve(piId);
-      piId = session.payment_intent;
-      if (!piId) return; // session not yet paid
-    }
-    if (piId && piId.startsWith('pi_')) {
-      const refundPolicy = opts?.refundPolicy || 'full';
-      if (refundPolicy === 'net' && opts?.depositAmountCents && opts?.bookingId) {
-        const { query: dbQuery } = require('../../services/db');
-        const gcRes = await dbQuery(
-          `SELECT COALESCE(SUM(amount_cents), 0) AS gc_paid_cents
-           FROM gift_card_transactions WHERE booking_id = $1 AND type = 'debit'`,
-          [opts.bookingId]
-        );
-        const gcPaidCents = parseInt(gcRes.rows[0]?.gc_paid_cents) || 0;
-        const actualStripeCharge = Math.max(opts.depositAmountCents - gcPaidCents, 0);
-        const stripeFees = actualStripeCharge > 0 ? Math.round(actualStripeCharge * 0.015) + 25 : 0;
-        const netRefund = Math.max(actualStripeCharge - stripeFees, 0);
-        // D-12 parity: Stripe min 50c. Sous ce seuil → no refund (retention appliquée en amont par le caller).
-        if (netRefund >= 50) {
-          await stripe.refunds.create({ payment_intent: piId, amount: netRefund });
-          console.log(`[${label}] Net refund: ${netRefund}c (fees: ${stripeFees}c, gc: ${gcPaidCents}c) for PI ${piId}`);
-        }
-      } else {
-        await stripe.refunds.create({ payment_intent: piId });
-      }
-    }
-  } catch (stripeErr) {
-    if (stripeErr.code !== 'charge_already_refunded') {
-      console.error(`[${label}] Stripe refund failed:`, stripeErr.message);
-    }
-  }
-}
-
-/**
  * Determine if a deposit should be required for a public booking.
  * Returns { required: true, depCents, reason } or { required: false }.
  *
@@ -416,7 +368,7 @@ function isDisposableEmail(email) {
 }
 
 module.exports = {
-  UUID_RE, escHtml, stripeRefundDeposit, shouldRequireDeposit,
+  UUID_RE, escHtml, shouldRequireDeposit,
   computeDepositDeadline, isWithinLastMinuteWindow, SECTOR_PRACTITIONER,
   _nextSlotCache, _minisiteCache, invalidateMinisiteCache, BASE_URL, validateAndCalcPromo, decrementPromoUsage,
   normalizeEmail, isDisposableEmail

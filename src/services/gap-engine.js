@@ -223,7 +223,7 @@ async function detectGaps({ businessId, date, practitionerId }) {
        FROM waitlist_entries
        WHERE business_id = $1 AND practitioner_id = ANY($2)
        AND status = 'waiting'
-       AND (preferred_days @> $3::jsonb)
+       AND (preferred_days @> $3::jsonb OR preferred_days IS NULL OR jsonb_array_length(preferred_days) = 0)
        ORDER BY priority ASC, created_at ASC`,
       [businessId, practitionerIds, JSON.stringify([weekday])]);
     for (const row of wlResult.rows) {

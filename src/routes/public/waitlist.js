@@ -584,7 +584,7 @@ router.post('/waitlist/:token/decline', bookingLimiter, async (req, res, next) =
              SELECT id FROM waitlist_entries
              WHERE practitioner_id = $5 AND service_id = $6 AND business_id = $7
                AND status = 'waiting'
-               AND (preferred_days @> $8::jsonb)
+               AND (preferred_days @> $8::jsonb OR preferred_days IS NULL OR jsonb_array_length(preferred_days) = 0)
                AND (preferred_time = 'any' OR preferred_time = $9)
              ORDER BY priority ASC, created_at ASC
              LIMIT 1
