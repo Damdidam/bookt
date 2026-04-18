@@ -21,12 +21,6 @@ export const ST_LABELS = {
 export const DAY_NAMES = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
 export const MONTH_NAMES = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
 
-/** Format cents to EUR string */
-export function fmtEur(cents) {
-  if (!cents && cents !== 0) return 'Gratuit';
-  return new Intl.NumberFormat('fr-BE', { style: 'currency', currency: 'EUR' }).format(cents / 100);
-}
-
 /** Format phone number for display */
 export function formatPhoneDisplay(phone) {
   if (!phone) return '';

@@ -44,6 +44,17 @@ async function generateInvoicePDF(invoice, items, opts = {}) {
       y += 14;
       doc.text(`Échéance : ${formatDate(invoice.due_date, lang)}`, W / 2 + 50, y, { width: W / 2, align: 'right' });
     }
+    // BE legal (AR n°1 art.14): credit note must reference the original invoice it cancels.
+    if (isCreditNote && invoice.related_invoice_number) {
+      y += 14;
+      doc.font('Helvetica-Bold').fillColor(TEXT)
+        .text(`Annule la facture ${invoice.related_invoice_number}`, W / 2 + 50, y, { width: W / 2, align: 'right' });
+      if (invoice.related_invoice_date) {
+        y += 12;
+        doc.font('Helvetica').fillColor(MUTED)
+          .text(`du ${formatDate(invoice.related_invoice_date, lang)}`, W / 2 + 50, y, { width: W / 2, align: 'right' });
+      }
+    }
 
     // Business details (left)
     y = 80;

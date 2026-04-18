@@ -491,8 +491,12 @@ router.patch('/:id/status', requireOwner, blockIfImpersonated, async (req, res, 
 router.get('/:id/pdf', async (req, res, next) => {
   try {
     const bid = req.businessId;
+    // BE legal (AR n°1 art.14): pour une note de crédit, le PDF doit référencer la facture originale.
     const invResult = await queryWithRLS(bid,
-      `SELECT * FROM invoices WHERE id = $1 AND business_id = $2`,
+      `SELECT inv.*, orig.invoice_number AS related_invoice_number, orig.issue_date AS related_invoice_date
+       FROM invoices inv
+       LEFT JOIN invoices orig ON orig.id = inv.related_invoice_id AND orig.business_id = inv.business_id
+       WHERE inv.id = $1 AND inv.business_id = $2`,
       [req.params.id, bid]
     );
     if (invResult.rows.length === 0) return res.status(404).json({ error: 'Facture introuvable' });
