@@ -446,28 +446,6 @@ const GendaUI = {
   },
 
   /**
-   * Format price from cents
-   */
-  formatPrice(cents) {
-    if (!cents && cents !== 0) return 'Gratuit';
-    return new Intl.NumberFormat('fr-BE', { style: 'currency', currency: 'EUR' }).format(cents / 100);
-  },
-
-  /**
-   * Format date
-   */
-  formatDate(dateStr) {
-    return new Intl.DateTimeFormat('fr-BE', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(dateStr));
-  },
-
-  /**
-   * Format time
-   */
-  formatTime(timeStr) {
-    return timeStr.slice(0, 5);
-  },
-
-  /**
    * Require auth — redirect to login if not logged in
    */
   requireAuth() {
