@@ -1,4 +1,50 @@
 const PDFDocument = require('pdfkit');
+const fs = require('fs');
+
+// Cache : résout une fois les polices Unicode-complètes embarquées depuis le système.
+// PDFKit par défaut utilise Helvetica AFM (référence non embarquée) — sur mobile et
+// lecteurs PDF sans Helvetica locale, les glyphes Unicode étendus (€, —, accents rares,
+// cyrillique) peuvent mal rendre. En embarquant un TTF on garantit le rendu partout.
+// Chemins tentés : Render/Ubuntu (DejaVu), macOS dev (Arial Unicode), override ENV.
+let _resolvedFonts = null;
+function resolvePdfFonts() {
+  if (_resolvedFonts) return _resolvedFonts;
+  const candidates = [
+    // ENV override — permet de bundler une police custom dans le repo plus tard
+    process.env.PDF_FONT_REGULAR && process.env.PDF_FONT_BOLD && {
+      regular: process.env.PDF_FONT_REGULAR,
+      bold: process.env.PDF_FONT_BOLD,
+      italic: process.env.PDF_FONT_ITALIC || process.env.PDF_FONT_REGULAR,
+      source: 'env'
+    },
+    // Render/Ubuntu (fonts-dejavu-core, installé par défaut sur la plupart des images)
+    {
+      regular: '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+      bold: '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+      italic: '/usr/share/fonts/truetype/dejavu/DejaVuSans-Oblique.ttf',
+      source: 'dejavu'
+    },
+    // macOS dev
+    {
+      regular: '/System/Library/Fonts/Supplemental/Arial Unicode.ttf',
+      bold: '/System/Library/Fonts/Supplemental/Arial Unicode.ttf',
+      italic: '/System/Library/Fonts/Supplemental/Arial Unicode.ttf',
+      source: 'arial-unicode'
+    }
+  ].filter(Boolean);
+  for (const c of candidates) {
+    try {
+      if (fs.existsSync(c.regular) && fs.existsSync(c.bold)) {
+        console.log(`[PDF FONT] Embedded TTF source=${c.source}`);
+        _resolvedFonts = c;
+        return _resolvedFonts;
+      }
+    } catch (_) { /* continue */ }
+  }
+  console.log('[PDF FONT] Fallback to Helvetica AFM (no embedded TTF found)');
+  _resolvedFonts = { regular: 'Helvetica', bold: 'Helvetica-Bold', italic: 'Helvetica-Oblique', source: 'afm' };
+  return _resolvedFonts;
+}
 
 /**
  * Generate a Belgian-compliant invoice PDF
@@ -11,6 +57,19 @@ async function generateInvoicePDF(invoice, items, opts = {}) {
     doc.on('data', b => buffers.push(b));
     doc.on('end', () => resolve(Buffer.concat(buffers)));
     doc.on('error', reject);
+
+    // Registre les polices embarquées sous alias Helvetica* pour ne pas avoir à changer
+    // chaque appel `doc.font('Helvetica*')` du fichier.
+    const _fonts = resolvePdfFonts();
+    if (_fonts.source !== 'afm') {
+      try {
+        doc.registerFont('Helvetica', _fonts.regular);
+        doc.registerFont('Helvetica-Bold', _fonts.bold);
+        doc.registerFont('Helvetica-Oblique', _fonts.italic);
+      } catch (e) {
+        console.warn('[PDF FONT] registerFont failed, fallback AFM:', e.message);
+      }
+    }
 
     const W = doc.page.width - 100; // usable width
     const isQuote = invoice.type === 'quote';

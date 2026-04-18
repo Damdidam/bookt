@@ -10,6 +10,7 @@ import { bridge } from '../../utils/window-bridge.js';
 import { fcRefresh } from './calendar-init.js';
 import { fcOpenQuickCreate } from './quick-create.js';
 import { fcIsMobile } from '../../utils/touch.js';
+import { formatEur } from '../../utils/format.js';
 
 // ── State ──
 let gaActive = false;
@@ -32,7 +33,7 @@ function fmtMin(min) {
   return h > 0 ? h + 'h' + (m > 0 ? String(m).padStart(2, '0') : '') : m + 'min';
 }
 
-function fmtEur(cents) { return ((cents || 0) / 100).toFixed(2).replace('.',',') + '\u202f\u20ac'; }
+function fmtEur(cents) { return formatEur(cents, { narrow: true }); }
 
 // ── Toggle ──
 async function gaToggleMode() {

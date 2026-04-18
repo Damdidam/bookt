@@ -6,12 +6,12 @@ import { bridge } from '../utils/window-bridge.js';
 import { IC } from '../utils/icons.js';
 import { guardModal } from '../utils/dirty-guard.js';
 import { isPro, showProGate } from '../utils/plan-gate.js';
+import { formatEur as fmtEur } from '../utils/format.js';
 
 let depositFilter='all',depositFrom='',depositTo='';
 let _lastDeps=[];
 
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-function fmtEur(cents){return((cents||0)/100).toFixed(2).replace('.',',')+' \u20ac';}
 
 async function loadDeposits(){
   if (!isPro()) { showProGate(document.getElementById('contentArea'), 'Acomptes'); return; }

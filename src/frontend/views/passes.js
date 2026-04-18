@@ -6,12 +6,12 @@ import { bridge } from '../utils/window-bridge.js';
 import { guardModal, closeModal, showConfirmDialog } from '../utils/dirty-guard.js';
 import { isPro, showProGate } from '../utils/plan-gate.js';
 import { trapFocus, releaseFocus } from '../utils/focus-trap.js';
+import { formatEur as fmtEur } from '../utils/format.js';
 
 let passFilter='all', passSearch='';
 let _lastPasses=[];
 
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-function fmtEur(cents){return((cents||0)/100).toFixed(2).replace('.',',')+' €';}
 
 let _passFeatureEnabled=true;
 

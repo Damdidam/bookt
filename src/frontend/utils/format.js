@@ -37,6 +37,16 @@ export function formatPhoneDisplay(phone) {
   return phone;
 }
 
+/**
+ * Format cents as EUR in fr-BE convention ("12,34 €"). Returns "0,00 €" for null/undefined/0.
+ * @param {number|null|undefined} cents
+ * @param {{ narrow?: boolean }} [opts]  narrow:true uses NNBSP before € (prevents line wrap in tight UIs)
+ */
+export function formatEur(cents, opts) {
+  const sep = opts && opts.narrow ? '\u202f' : ' ';
+  return ((cents || 0) / 100).toFixed(2).replace('.', ',') + sep + '\u20ac';
+}
+
 /** Calculate difference in minutes between two time strings */
 export function timeDiffMin(startStr, endStr) {
   const [sh, sm] = startStr.split(':').map(Number);
