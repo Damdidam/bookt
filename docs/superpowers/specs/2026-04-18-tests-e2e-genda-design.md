@@ -743,6 +743,108 @@ GHA free tier (2000 min/mois) → ~30-35 runs complets gratuits/mois.
 | Business TEST corrompu | Script `test-nuke.js` reset complet en 30 sec |
 | Tests flaky (network timing) | Playwright retry=0 initialement, corriger à la source. Peut passer retry=1 ciblé |
 
+## Implementation roadmap (décomposition en 5 phases)
+
+180 tests = trop pour un seul plan d'implémentation. Décomposition en
+5 sub-projects livrables indépendamment, chacun avec son propre plan :
+
+### Phase 1 — Infrastructure (~1 jour)
+
+**Livrables :**
+- Migration `schema-v73-e2e-tests-infra.sql` (col `is_test_account`,
+  tables `seed_tracking`, `test_mock_log`)
+- Patch `src/services/stripe.js` (business-scoped key)
+- Patch `src/services/email.js` + tous `email-*.js` (SKIP_EMAIL mock)
+- Patch `src/services/sms.js` (SKIP_SMS mock)
+- `tests/e2e/playwright.config.js`
+- `tests/e2e/global-setup.js` + `global-teardown.js`
+- `tests/e2e/fixtures/seed.js` + `seeds/*.js` (10 fichiers)
+- `tests/e2e/fixtures/ids.js`, `api-client.js`, `stripe-test.js`
+- `scripts/test-bootstrap.js`, `test-cleanup-force.js`, `test-nuke.js`
+- `.env.test` template (gitignored)
+- `.github/workflows/e2e.yml`
+- Documentation `tests/README.md`
+- Scripts npm `test:e2e*`
+
+**Critère d'acceptation :** `npm run test:e2e:bootstrap` crée le business
+TEST + toutes ses entités. `npm run test:e2e` tourne (0 tests) avec setup
+et teardown OK. GHA workflow button trigger OK.
+
+### Phase 2 — Tests critiques finance/booking (C01-C05, ~60 tests)
+
+**Livrables :**
+- C01 booking public mono (27 tests)
+- C02 booking multi-services (16 tests)
+- C03 promos edge (11 tests)
+- C04 client post-booking (16 tests)
+- C05 refunds Stripe (10 tests)
+
+**Critère d'acceptation :** `npm run test:e2e -- C0[1-5]` passe 100%.
+
+### Phase 3 — Tests GC/Pass/Invoices/Staff (C06-C10, ~81 tests)
+
+**Livrables :**
+- C06 gift cards (12 tests)
+- C07 passes (9 tests)
+- C08 staff dashboard & ops (33 tests)
+- C09 invoices légal BE (17 tests)
+- C10 waitlist (10 tests)
+
+### Phase 4 — Tests RBAC/Notifs/Quotes/Alerts/Calendar (C11-C15, ~57 tests)
+
+**Livrables :**
+- C11 multi-tenant RBAC (7 tests)
+- C12 emails & SMS payloads (24 tests)
+- C13 quotes/devis (7 tests)
+- C14 dashboard alerts (7 tests)
+- C15 calendar sync (9 tests)
+
+### Phase 5 — Tests Webhooks/Minisite/Settings/Signup/Cron (C16-C20, ~39 tests)
+
+**Livrables :**
+- C16 webhooks (10 tests)
+- C17 minisite public (5 tests)
+- C18 settings configuration (9 tests)
+- C19 signup onboarding (7 tests)
+- C20 cron background (9 tests)
+
+### Ordre et dépendances
+
+```
+Phase 1 (infra) → Phase 2 (booking/finance)
+                          ↓
+                  Phase 3 (GC/pass/invoices/staff)
+                          ↓
+                  Phase 4 (RBAC/notifs/quotes/alerts/cal)
+                          ↓
+                  Phase 5 (webhooks/misc)
+```
+
+Phase 1 bloque tout. Phases 2-5 peuvent être écrites en parallèle une
+fois l'infra prête, mais testées séquentiellement.
+
+### Estimation temps
+
+- Phase 1 : 1 jour (infra lourde, mais débloque tout le reste)
+- Phase 2 : 2-3 jours (tests les plus complexes : Stripe UI, combos)
+- Phase 3 : 2 jours
+- Phase 4 : 1-2 jours
+- Phase 5 : 1 jour
+
+**Total : ~7-9 jours de dev pour la suite complète.**
+
+### Writing-plans
+
+Le writing-plans suivant ne couvrira **que la Phase 1 (infra)**. Chaque
+phase suivante aura son propre plan dédié, écrit après validation de la
+précédente. Cela permet d'ajuster au fur et à mesure (ex: si un pattern
+de test se révèle plus simple/complexe que prévu).
+
 ## Questions ouvertes
 
-Aucune. Toutes les décisions sont prises. Prêt pour writing-plans.
+Aucune pour le design global. Les questions tactiques (ex: quel sélecteur
+CSS pour tel bouton) sont résolues à l'implémentation de chaque phase.
+
+## Action suivante
+
+Validation du spec par Hakim → writing-plans pour **Phase 1 (infrastructure)** uniquement.
