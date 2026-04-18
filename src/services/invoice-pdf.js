@@ -55,6 +55,7 @@ async function generateInvoicePDF(invoice, items, opts = {}) {
           .text(`du ${formatDate(invoice.related_invoice_date, lang)}`, W / 2 + 50, y, { width: W / 2, align: 'right' });
       }
     }
+    const rightBottomY = y + 12; // last text line height (fontSize 9 ≈ 12px)
 
     // Business details (left)
     y = 80;
@@ -64,8 +65,8 @@ async function generateInvoicePDF(invoice, items, opts = {}) {
     if (invoice.business_iban) { doc.text(`IBAN : ${invoice.business_iban}`, 50, y); y += 12; }
     if (invoice.business_bic) { doc.text(`BIC : ${invoice.business_bic}`, 50, y); y += 12; }
 
-    // Divider
-    y = Math.max(y, 130) + 10;
+    // Divider — take max(leftY, rightY, 130) pour éviter overlap quand le bloc droit est long (CN + date originale)
+    y = Math.max(y, rightBottomY, 130) + 10;
     doc.moveTo(50, y).lineTo(W + 50, y).strokeColor(BORDER).lineWidth(1).stroke();
     y += 20;
 
