@@ -578,7 +578,7 @@ router.post('/waitlist/:token/decline', bookingLimiter, async (req, res, next) =
     const result = await query(
       `UPDATE waitlist_entries SET status = 'declined', updated_at = NOW()
        WHERE offer_token = $1 AND status = 'offered'
-       RETURNING id, practitioner_id, service_id, business_id, offer_booking_start, offer_booking_end`,
+       RETURNING id, practitioner_id, service_id, service_variant_id, business_id, offer_booking_start, offer_booking_end`,
       [req.params.token]
     );
 
