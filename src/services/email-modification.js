@@ -127,6 +127,12 @@ async function sendModificationEmail({ booking, business, groupServices }) {
     </div>`;
   }
 
+  // BUG-MODIF-COMMENT fix: afficher remarque client (parité email-cancel).
+  const _modifComment = booking.comment || booking.comment_client;
+  if (_modifComment && String(_modifComment).trim()) {
+    bodyHTML += `<div style="background:#F5F4F1;border-radius:8px;padding:12px 14px;margin:14px 0;font-size:13px;color:#3D3832"><strong>Votre remarque :</strong><br>${escHtml(_modifComment)}</div>`;
+  }
+
   bodyHTML += `
     <p style="margin-top:20px;font-size:15px">Ce nouvel horaire vous convient-il ?</p>
     <div style="text-align:center;margin:28px 0">

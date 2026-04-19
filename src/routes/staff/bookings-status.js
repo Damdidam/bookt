@@ -773,7 +773,7 @@ router.patch('/:id/status', blockIfImpersonated, async (req, res, next) => {
     if (status === 'cancelled') {
       try {
         const emailData = await queryWithRLS(bid,
-          `SELECT b.start_at, b.end_at, b.client_id, b.group_id, b.public_token, b.custom_label,
+          `SELECT b.start_at, b.end_at, b.client_id, b.group_id, b.public_token, b.custom_label, b.comment_client,
                   b.deposit_required, b.deposit_status, b.deposit_amount_cents, b.deposit_paid_at, b.deposit_payment_intent_id,
                   b.booked_price_cents, b.cancel_reason,
                   b.promotion_label, b.promotion_discount_cents, b.promotion_discount_pct, b.discount_pct,
@@ -817,7 +817,7 @@ router.patch('/:id/status', blockIfImpersonated, async (req, res, next) => {
             // B2 fix: include net_refund_cents so email-cancel.js refund banner shows actual
             // amount refunded by Stripe (net of fees if policy='net'), matching the separate
             // sendDepositRefundEmail instead of contradicting it.
-            booking: { start_at: d.start_at, end_at: groupEndAt || d.end_at, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name, service_category: d.service_category, custom_label: d.custom_label, practitioner_name: d.practitioner_name, deposit_required: d.deposit_required, deposit_status: d.deposit_status, deposit_amount_cents: d.deposit_amount_cents, deposit_paid_at: d.deposit_paid_at, deposit_payment_intent_id: d.deposit_payment_intent_id, gc_paid_cents: gcPaidForEmail, gc_refunded_cents: txResult.gcRefundForEmail?.refunded || 0, pass_refunded: !!(txResult.passRefundForEmail?.refunded), net_refund_cents: txResult.netRefundCentsForEmail, promotion_label: d.promotion_label, promotion_discount_cents: d.promotion_discount_cents, promotion_discount_pct: d.promotion_discount_pct, service_price_cents: d.service_price_cents, booked_price_cents: d.booked_price_cents, discount_pct: d.discount_pct, duration_min: d.duration_min, cancel_reason: d.cancel_reason, deposit_retention_reason: txResult.depRetentionReason },
+            booking: { start_at: d.start_at, end_at: groupEndAt || d.end_at, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name, service_category: d.service_category, custom_label: d.custom_label, comment_client: d.comment_client, practitioner_name: d.practitioner_name, deposit_required: d.deposit_required, deposit_status: d.deposit_status, deposit_amount_cents: d.deposit_amount_cents, deposit_paid_at: d.deposit_paid_at, deposit_payment_intent_id: d.deposit_payment_intent_id, gc_paid_cents: gcPaidForEmail, gc_refunded_cents: txResult.gcRefundForEmail?.refunded || 0, pass_refunded: !!(txResult.passRefundForEmail?.refunded), net_refund_cents: txResult.netRefundCentsForEmail, promotion_label: d.promotion_label, promotion_discount_cents: d.promotion_discount_cents, promotion_discount_pct: d.promotion_discount_pct, service_price_cents: d.service_price_cents, booked_price_cents: d.booked_price_cents, discount_pct: d.discount_pct, duration_min: d.duration_min, cancel_reason: d.cancel_reason, deposit_retention_reason: txResult.depRetentionReason },
             business: { name: d.biz_name, slug: d.slug, email: d.biz_email, phone: d.biz_phone, address: d.address, theme: d.theme, settings: d.biz_settings },
             groupServices
           }).catch(e => console.warn('[EMAIL] Cancellation email error:', e.message));
@@ -830,9 +830,9 @@ router.patch('/:id/status', blockIfImpersonated, async (req, res, next) => {
       try {
         const emailData = await queryWithRLS(bid,
           `SELECT b.start_at, b.end_at, b.deposit_amount_cents, b.deposit_payment_intent_id, b.client_id, b.group_id,
-                  b.booked_price_cents, b.discount_pct,
+                  b.booked_price_cents, b.discount_pct, b.comment_client,
                   b.promotion_label, b.promotion_discount_cents, b.promotion_discount_pct,
-                  c.full_name AS client_name, c.email AS client_email,
+                  c.full_name AS client_name, c.email AS client_email, c.phone AS client_phone,
                   CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS service_name,
                   s.category AS service_category,
                   COALESCE(sv.price_cents, s.price_cents, 0) AS service_price_cents,
@@ -869,7 +869,7 @@ router.patch('/:id/status', blockIfImpersonated, async (req, res, next) => {
           const { sendDepositRefundEmail, sendDepositRefundProEmail } = require('../../services/email');
           // M2: net_refund_cents = what client actually receives back to bank (policy='net' deducts Stripe fees)
           // Falls back to deposit_amount_cents when policy='full' or no Stripe component (txResult.netRefundCentsForEmail null)
-          const _refundBooking = { start_at: d.start_at, end_at: groupEndAt || d.end_at, deposit_amount_cents: d.deposit_amount_cents, deposit_payment_intent_id: d.deposit_payment_intent_id, gc_paid_cents: gcPaidRefund, net_refund_cents: txResult.netRefundCentsForEmail, gc_refunded_cents: txResult.gcPaidForRefundEmail || 0, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name, service_category: d.service_category, practitioner_name: d.practitioner_name, promotion_label: d.promotion_label, promotion_discount_cents: d.promotion_discount_cents, promotion_discount_pct: d.promotion_discount_pct, service_price_cents: d.service_price_cents, booked_price_cents: d.booked_price_cents, discount_pct: d.discount_pct, duration_min: d.duration_min };
+          const _refundBooking = { start_at: d.start_at, end_at: groupEndAt || d.end_at, deposit_amount_cents: d.deposit_amount_cents, deposit_payment_intent_id: d.deposit_payment_intent_id, gc_paid_cents: gcPaidRefund, net_refund_cents: txResult.netRefundCentsForEmail, gc_refunded_cents: txResult.gcPaidForRefundEmail || 0, client_name: d.client_name, client_email: d.client_email, client_phone: d.client_phone, comment_client: d.comment_client, service_name: d.service_name, service_category: d.service_category, practitioner_name: d.practitioner_name, promotion_label: d.promotion_label, promotion_discount_cents: d.promotion_discount_cents, promotion_discount_pct: d.promotion_discount_pct, service_price_cents: d.service_price_cents, booked_price_cents: d.booked_price_cents, discount_pct: d.discount_pct, duration_min: d.duration_min };
           sendDepositRefundEmail({
             booking: _refundBooking,
             business: { name: d.biz_name, slug: d.slug, email: d.biz_email, phone: d.biz_phone, address: d.address, settings: d.settings, theme: d.theme },
@@ -1346,9 +1346,9 @@ router.patch('/:id/deposit-refund', blockIfImpersonated, async (req, res, next) 
     try {
       const emailData = await queryWithRLS(bid,
         `SELECT b.start_at, b.end_at, b.deposit_amount_cents, b.deposit_payment_intent_id, b.client_id, b.group_id,
-                b.booked_price_cents, b.discount_pct,
+                b.booked_price_cents, b.discount_pct, b.comment_client,
                 b.promotion_label, b.promotion_discount_cents, b.promotion_discount_pct,
-                c.full_name AS client_name, c.email AS client_email,
+                c.full_name AS client_name, c.email AS client_email, c.phone AS client_phone,
                 CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS service_name,
                 s.category AS service_category,
                 COALESCE(sv.price_cents, s.price_cents, 0) AS service_price_cents,
@@ -1384,7 +1384,7 @@ router.patch('/:id/deposit-refund', blockIfImpersonated, async (req, res, next) 
         // M4 fix: if retention applies (fees>=charge / stripe fail / no key), send cancellation
         // email (with retention banner expliquant pourquoi rien n'a été remboursé) AU LIEU du
         // refund email qui afficherait "0€ remboursé" sans contexte.
-        const _manualRefBk = { start_at: d.start_at, end_at: groupEndAt || d.end_at, deposit_required: true, deposit_status: txResult.finalDepStatusManual, deposit_paid_at: new Date().toISOString(), deposit_amount_cents: d.deposit_amount_cents, deposit_payment_intent_id: d.deposit_payment_intent_id, gc_paid_cents: gcPaidManual, net_refund_cents: txResult.netRefundCentsManual, gc_refunded_cents: txResult.gcPaidForRefundManual || 0, deposit_retention_reason: txResult.depRetentionReasonManual, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name, service_category: d.service_category, service_price_cents: d.service_price_cents, booked_price_cents: d.booked_price_cents, discount_pct: d.discount_pct, duration_min: d.duration_min, practitioner_name: d.practitioner_name, promotion_label: d.promotion_label, promotion_discount_cents: d.promotion_discount_cents, promotion_discount_pct: d.promotion_discount_pct, cancel_reason: txResult.finalDepStatusManual === 'cancelled' ? `Acompte retenu (${txResult.depRetentionReasonManual || 'frais supérieurs au montant'})` : 'Acompte remboursé manuellement' };
+        const _manualRefBk = { start_at: d.start_at, end_at: groupEndAt || d.end_at, deposit_required: true, deposit_status: txResult.finalDepStatusManual, deposit_paid_at: new Date().toISOString(), deposit_amount_cents: d.deposit_amount_cents, deposit_payment_intent_id: d.deposit_payment_intent_id, gc_paid_cents: gcPaidManual, net_refund_cents: txResult.netRefundCentsManual, gc_refunded_cents: txResult.gcPaidForRefundManual || 0, deposit_retention_reason: txResult.depRetentionReasonManual, client_name: d.client_name, client_email: d.client_email, client_phone: d.client_phone, comment_client: d.comment_client, service_name: d.service_name, service_category: d.service_category, service_price_cents: d.service_price_cents, booked_price_cents: d.booked_price_cents, discount_pct: d.discount_pct, duration_min: d.duration_min, practitioner_name: d.practitioner_name, promotion_label: d.promotion_label, promotion_discount_cents: d.promotion_discount_cents, promotion_discount_pct: d.promotion_discount_pct, cancel_reason: txResult.finalDepStatusManual === 'cancelled' ? `Acompte retenu (${txResult.depRetentionReasonManual || 'frais supérieurs au montant'})` : 'Acompte remboursé manuellement' };
         if (txResult.finalDepStatusManual === 'cancelled' && txResult.depRetentionReasonManual) {
           // Retention : pas d'argent remboursé — envoyer cancellation email avec banner explicatif
           const { sendCancellationEmail } = require('../../services/email');

@@ -592,10 +592,17 @@ async function sendDepositRefundEmail({ booking, business, groupServices }) {
       const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(business.address)}`;
       contactHTML += `<div style="font-size:13px;color:#6B6560;padding:4px 0">${escHtml(business.address)} \u2014 <a href="${mapsUrl}" target="_blank" style="color:#0D9488;text-decoration:none;font-weight:500">Google Maps \u2192</a></div>`;
     }
-    if (business.phone) contactHTML += `<div style="font-size:13px;color:#6B6560;padding:4px 0">${escHtml(business.phone)}</div>`;
-    if (business.email) contactHTML += `<div style="font-size:13px;color:#6B6560;padding:4px 0">${escHtml(business.email)}</div>`;
+    // BUG-DEPPRO-TEL fix: tel: + mailto: clickable (parité buildBookingFooter).
+    if (business.phone) contactHTML += `<div style="font-size:13px;color:#6B6560;padding:4px 0"><a href="tel:${escHtml(business.phone)}" style="color:#6B6560;text-decoration:none">${escHtml(business.phone)}</a></div>`;
+    if (business.email) contactHTML += `<div style="font-size:13px;color:#6B6560;padding:4px 0"><a href="mailto:${escHtml(business.email)}" style="color:#6B6560;text-decoration:none">${escHtml(business.email)}</a></div>`;
     contactHTML += '</div>';
     bodyHTML += contactHTML;
+  }
+
+  // BUG-DEPREFUND-COMMENT fix: afficher remarque client (parité email-cancel).
+  const _refComment = booking.comment || booking.comment_client;
+  if (_refComment && String(_refComment).trim()) {
+    bodyHTML += `<div style="background:#F5F4F1;border-radius:8px;padding:12px 14px;margin:14px 0;font-size:13px;color:#3D3832"><strong>Votre remarque :</strong><br>${escHtml(_refComment)}</div>`;
   }
 
   const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';

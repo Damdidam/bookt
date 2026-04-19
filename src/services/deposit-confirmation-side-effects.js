@@ -22,7 +22,7 @@ async function sendDepositConfirmationSideEffects(bookingId) {
               COALESCE(sv.price_cents, s.price_cents, 0) AS service_price_cents,
               COALESCE(sv.duration_min, s.duration_min, 0) AS duration_min,
               p.display_name AS practitioner_name,
-              c.full_name AS client_name, c.email AS client_email,
+              c.full_name AS client_name, c.email AS client_email, c.phone AS client_phone,
               biz.name AS biz_name, biz.email AS biz_email, biz.phone AS biz_phone, biz.address AS biz_address,
               biz.theme AS biz_theme, biz.slug AS biz_slug, biz.settings AS biz_settings
        FROM bookings b
@@ -72,7 +72,7 @@ async function sendDepositConfirmationSideEffects(bookingId) {
           start_at: row.start_at, end_at: groupEndAt || row.end_at,
           deposit_amount_cents: row.deposit_amount_cents,
           gc_paid_cents: gcPaidForEmail,
-          client_name: row.client_name, client_email: row.client_email,
+          client_name: row.client_name, client_email: row.client_email, client_phone: row.client_phone,
           service_name: row.service_name, service_category: row.service_category,
           practitioner_name: row.practitioner_name,
           public_token: row.public_token,

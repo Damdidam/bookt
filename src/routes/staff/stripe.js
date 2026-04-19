@@ -1056,12 +1056,28 @@ async function handleStripeWebhook(req, res) {
                   const { broadcast } = require('../../services/sse');
                   if (broadcast) broadcast(bk.business_id, 'booking_update', { action: 'external_refund_cancelled', booking_id: bk.id });
                 } catch (_) {}
+                // BUG-CHARGEREF-CACHE fix: parité avec 7 autres cancel paths — invalidate minisite cache
+                try {
+                  const { invalidateMinisiteCache } = require('../public/helpers');
+                  invalidateMinisiteCache(bk.business_id);
+                } catch (_) {}
                 try {
                   const { calSyncDelete } = require('./bookings-helpers');
                   calSyncDelete(bk.business_id, bk.id);
                   if (bk.group_id) {
                     const sibs = await query(`SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2 AND id != $3`, [bk.group_id, bk.business_id, bk.id]);
                     for (const sib of sibs.rows) calSyncDelete(bk.business_id, sib.id);
+                  }
+                } catch (_) {}
+                // BUG-CHARGEREF-WAITLIST fix: parité avec 7 autres cancel paths — notifier waitlist
+                try {
+                  const { processWaitlistForCancellation } = require('../../services/waitlist');
+                  await processWaitlistForCancellation(bk.id, bk.business_id);
+                  if (bk.group_id) {
+                    const sibsWl = await query(`SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2 AND id != $3 AND status = 'cancelled'`, [bk.group_id, bk.business_id, bk.id]);
+                    for (const sib of sibsWl.rows) {
+                      try { await processWaitlistForCancellation(sib.id, bk.business_id); } catch (_) {}
+                    }
                   }
                 } catch (_) {}
                 // Queue pro cancellation notif (email_cancellation_pro is routed by notification-processor.js:597)

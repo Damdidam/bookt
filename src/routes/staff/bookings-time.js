@@ -560,6 +560,8 @@ let sql = `UPDATE bookings SET start_at = $1, end_at = $2, reminder_24h_sent_at 
                   deposit_status: bk.deposit_status,
                   deposit_amount_cents: bk.deposit_amount_cents,
                   deposit_paid_at: bk.deposit_paid_at,
+                  deposit_deadline: bk.deposit_deadline,
+                  comment_client: bk.comment_client,
                   old_start_at: old_start_at || draggedBooking.start_at,
                   old_end_at: old_end_at || draggedBooking.end_at,
                   new_start_at: gt.group_start,
@@ -892,6 +894,8 @@ let sql = `UPDATE bookings SET start_at = $1, end_at = $2, reminder_24h_sent_at 
                   deposit_status: bk.deposit_status,
                   deposit_amount_cents: bk.deposit_amount_cents,
                   deposit_paid_at: bk.deposit_paid_at,
+                  deposit_deadline: bk.deposit_deadline,
+                  comment_client: bk.comment_client,
                   old_start_at: old_start_at || draggedBooking.start_at,
                   old_end_at: old_end_at || draggedBooking.end_at,
                   new_start_at: bk.start_at,
@@ -1701,6 +1705,17 @@ router.patch('/:id/modify', async (req, res, next) => {
     // H-07 fix: invalidate minisite cache (slot modifié)
     try { invalidateMinisiteCache(bid); } catch (_) {}
     calSyncPush(bid, id).catch(() => {});
+
+    // BUG-MODIFY-WAITLIST fix: parité avec /move group (L608) + /move single (L948) + public /reschedule.
+    // /modify déplace aussi le booking → l'ancien créneau est libéré → waitlist doit être notifiée.
+    if (new Date(oldBooking.start_at).getTime() !== new Date(start_at).getTime()
+      || new Date(oldBooking.end_at).getTime() !== new Date(end_at).getTime()) {
+      try {
+        const { processWaitlistForCancellation } = require('../../services/waitlist');
+        await processWaitlistForCancellation(id, bid, { start_at: oldBooking.start_at, end_at: oldBooking.end_at });
+      } catch (_) { /* best-effort */ }
+    }
+
     res.json({
       updated: true,
       booking: result.rows[0],
