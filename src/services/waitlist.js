@@ -67,14 +67,18 @@ async function processWaitlistForCancellation(bookingId, businessId, overrideSlo
   // BUG-WL-VARIANT-MATCH fix: respect service_variant_id when matching.
   // Entry variant NULL = accepts any variant. Entry variant X = only match slot with variant X.
   // Slot (booking) variant NULL = no variant attached; entries demanding a specific variant excluded.
+  // BUG-WL-VARIANT-INACTIVE fix: si le pro désactive un variant (sv.is_active=false),
+  // ne pas proposer aux entries ciblant ce variant. LEFT JOIN car variant NULL est légitime.
   const matches = await queryWithRLS(businessId,
     `SELECT we.* FROM waitlist_entries we
      JOIN services s ON s.id = we.service_id AND s.is_active = true
+     LEFT JOIN service_variants sv ON sv.id = we.service_variant_id
      WHERE we.practitioner_id = $1
        AND we.service_id = $2
        AND we.business_id = $3
        AND we.status = 'waiting'
        AND (we.service_variant_id IS NULL OR we.service_variant_id = $6)
+       AND (we.service_variant_id IS NULL OR sv.is_active = true)
        AND (we.preferred_days @> $4::jsonb OR we.preferred_days IS NULL OR jsonb_array_length(we.preferred_days) = 0)
        AND (we.preferred_time = 'any' OR we.preferred_time = $5)
      ORDER BY we.priority ASC, we.created_at ASC`,
@@ -145,28 +149,35 @@ async function processWaitlistForCancellation(bookingId, businessId, overrideSlo
         return { processed: false, reason: 'slot_taken' };
       }
 
-      // FIFO: offer to the first matching entry
-      entry = matches.rows[0];
+      // FIFO with retry: if first candidate was already offered by a concurrent tx
+      // (status != 'waiting'), try the next one. Previously, we'd bail after rows[0]
+      // failed → slot orphaned with valid candidates still in queue.
       token = crypto.randomBytes(20).toString('hex');
       expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2h timer
+      entry = null;
+      for (const candidate of matches.rows) {
+        const offerResult = await txClient.query(
+          `UPDATE waitlist_entries SET
+            status = 'offered',
+            offer_token = $1,
+            offer_booking_start = $2,
+            offer_booking_end = $3,
+            offer_sent_at = NOW(),
+            offer_expires_at = $4,
+            updated_at = NOW()
+           WHERE id = $5 AND business_id = $6 AND status = 'waiting'
+           RETURNING id`,
+          [token, bk.start_at, bk.end_at, expiresAt.toISOString(), candidate.id, bk.business_id]
+        );
+        if (offerResult.rows.length > 0) {
+          entry = candidate;
+          break;
+        }
+      }
 
-      const offerResult = await txClient.query(
-        `UPDATE waitlist_entries SET
-          status = 'offered',
-          offer_token = $1,
-          offer_booking_start = $2,
-          offer_booking_end = $3,
-          offer_sent_at = NOW(),
-          offer_expires_at = $4,
-          updated_at = NOW()
-         WHERE id = $5 AND business_id = $6 AND status = 'waiting'
-         RETURNING id`,
-        [token, bk.start_at, bk.end_at, expiresAt.toISOString(), entry.id, bk.business_id]
-      );
-
-      if (offerResult.rows.length === 0) {
+      if (!entry) {
         await txClient.query('ROLLBACK');
-        return { processed: false, reason: 'entry_no_longer_waiting' };
+        return { processed: false, reason: 'no_candidate_still_waiting' };
       }
 
       await txClient.query('COMMIT');
@@ -307,15 +318,17 @@ async function processExpiredOffers() {
         // If expired entry demanded X, slot was X → next accepts NULL or X.
         // If expired entry was NULL, slot variant unknown → next must be NULL (conservative).
         const next = await client.query(
-          `SELECT * FROM waitlist_entries
-           WHERE practitioner_id = $1
-             AND service_id = $2
-             AND business_id = $3
-             AND status = 'waiting'
-             AND (service_variant_id IS NULL OR service_variant_id = $6)
-             AND (preferred_days @> $4::jsonb OR preferred_days IS NULL OR jsonb_array_length(preferred_days) = 0)
-             AND (preferred_time = 'any' OR preferred_time = $5)
-           ORDER BY priority ASC, created_at ASC
+          `SELECT we.* FROM waitlist_entries we
+             LEFT JOIN service_variants sv ON sv.id = we.service_variant_id
+           WHERE we.practitioner_id = $1
+             AND we.service_id = $2
+             AND we.business_id = $3
+             AND we.status = 'waiting'
+             AND (we.service_variant_id IS NULL OR we.service_variant_id = $6)
+             AND (we.service_variant_id IS NULL OR sv.is_active = true)
+             AND (we.preferred_days @> $4::jsonb OR we.preferred_days IS NULL OR jsonb_array_length(we.preferred_days) = 0)
+             AND (we.preferred_time = 'any' OR we.preferred_time = $5)
+           ORDER BY we.priority ASC, we.created_at ASC
            LIMIT 1`,
           [entry.practitioner_id, entry.service_id, entry.business_id,
            JSON.stringify([weekday]), timeOfDay, entry.service_variant_id]

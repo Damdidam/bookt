@@ -129,13 +129,15 @@ router.post('/', async (req, res, next) => {
       finalVariantId = service_variant_id;
     }
 
-    // Duplicate check: same email already waiting for this practitioner+service
+    // Duplicate check: same email already waiting for this (practitioner, service, variant).
+    // Variant-aware: NULL=NULL via IS NOT DISTINCT FROM (entry variant A n'empêche pas variant B).
     const dupCheck = await queryWithRLS(bid,
       `SELECT 1 FROM waitlist_entries
        WHERE business_id = $1 AND practitioner_id = $2 AND service_id = $3
+         AND service_variant_id IS NOT DISTINCT FROM $5
          AND LOWER(client_email) = LOWER($4) AND status = 'waiting'
        LIMIT 1`,
-      [bid, finalPracId, service_id, client_email.toLowerCase().trim()]
+      [bid, finalPracId, service_id, client_email.toLowerCase().trim(), finalVariantId]
     );
     if (dupCheck.rows.length > 0) {
       return res.status(409).json({ error: 'Ce client est déjà en liste d\'attente pour cette prestation' });
