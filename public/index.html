@@ -462,6 +462,91 @@ h1, h2, h3, h4 { font-family: var(--font-heading); font-weight: 700; line-height
   .anti-mp-punch { font-size: 28px; }
 }
 
+/* ========== PRICING ========== */
+.pricing { background: var(--bg); }
+.pricing h2 { text-align: center; color: var(--text); font-size: 32px; margin-bottom: 10px; }
+.pricing .lead { text-align: center; color: var(--text-2); font-size: 15px; margin-bottom: 36px; max-width: 520px; margin-left: auto; margin-right: auto; }
+.plans {
+  display: grid; gap: 16px;
+  grid-template-columns: 1fr;
+  max-width: 880px; margin: 0 auto;
+}
+.plan {
+  background: var(--white);
+  border: var(--border-w) solid var(--ink);
+  border-radius: var(--radius-md);
+  padding: 28px 24px;
+  position: relative;
+  display: flex; flex-direction: column;
+}
+.plan.free { box-shadow: 5px 5px 0 var(--pink); }
+.plan.pro {
+  box-shadow: 6px 6px 0 var(--violet);
+  transform: none;
+}
+.plan-popular {
+  position: absolute; top: -14px; right: 20px;
+  background: var(--yellow); color: var(--ink);
+  padding: 6px 14px; border-radius: var(--radius-pill);
+  font-family: var(--font-heading); font-weight: 700; font-size: 12px;
+  border: 2px solid var(--ink);
+  transform: rotate(4deg);
+}
+.plan-name {
+  font-family: var(--font-heading); font-weight: 700;
+  font-size: 14px; letter-spacing: 2px; text-transform: uppercase;
+  color: var(--text-3); margin-bottom: 10px;
+}
+.plan-price {
+  font-family: var(--font-heading); font-weight: 700;
+  font-size: 48px; color: var(--ink); letter-spacing: -0.035em;
+  line-height: 1;
+}
+.plan-price sub {
+  font-family: var(--font-body); font-size: 14px;
+  font-weight: 500; color: var(--text-2);
+  margin-left: 6px; vertical-align: baseline;
+}
+.plan-desc {
+  font-size: 14px; color: var(--text-2);
+  margin: 10px 0 24px; line-height: 1.5;
+}
+.plan-features {
+  list-style: none; margin: 0 0 24px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.plan-features li {
+  font-size: 14px; color: var(--text-2);
+  display: flex; gap: 10px; line-height: 1.5;
+}
+.plan-features li::before {
+  content: ''; flex-shrink: 0;
+  width: 20px; height: 20px; margin-top: 2px;
+  background: var(--yellow) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231A1A1A' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><polyline points='20 6 9 17 4 12'/></svg>") center/14px no-repeat;
+  border-radius: 50%; border: 1.5px solid var(--ink);
+}
+.plan-cta {
+  margin-top: auto;
+  padding: 14px 20px; border-radius: var(--radius-pill);
+  font-family: var(--font-heading); font-weight: 700; font-size: 14px;
+  border: var(--border-w) solid var(--ink);
+  text-align: center;
+  transition: transform 150ms ease, box-shadow 150ms ease;
+  min-height: 48px; display: inline-flex; align-items: center; justify-content: center;
+}
+.plan-cta.primary { background: var(--violet); color: var(--white); box-shadow: 4px 4px 0 var(--ink); }
+.plan-cta.primary:hover { transform: translate(-1px, -1px); box-shadow: 5px 5px 0 var(--ink); }
+.plan-cta.outline { background: var(--white); color: var(--ink); }
+.plan-cta.outline:hover { background: var(--yellow); }
+
+@media (min-width: 768px) {
+  .pricing h2 { font-size: 40px; }
+  .plans { grid-template-columns: 1fr 1fr; }
+}
+@media (min-width: 1024px) {
+  .pricing h2 { font-size: 48px; }
+}
+
 /* ========== UTILITIES ========== */
 .container { max-width: var(--container-max); margin: 0 auto; padding: 0 20px; }
 .section { padding: 48px 0; }
@@ -741,6 +826,46 @@ a:focus-visible, button:focus-visible, summary:focus-visible {
       </div>
       <p class="anti-mp-punch">Votre métier, vos clients, vos revenus.</p>
       <a href="/signup.html" class="anti-mp-cta">Je rejoins Genda →</a>
+    </div>
+  </section>
+
+  <!-- PRICING -->
+  <section id="pricing" class="pricing section" aria-labelledby="pricing-title">
+    <div class="container">
+      <h2 id="pricing-title">Simple. Transparent. Sans surprise.</h2>
+      <p class="lead">Commencez gratuitement. Passez Pro quand ça vaut le coup. Jamais de commission.</p>
+      <div class="plans">
+        <article class="plan free">
+          <div class="plan-name">Gratuit</div>
+          <div class="plan-price">0 €<sub>/mois</sub></div>
+          <p class="plan-desc">Pour démarrer sans engagement et tester Genda sur vos prochains RDV.</p>
+          <ul class="plan-features">
+            <li>Agenda illimité</li>
+            <li>Minisite public inclus</li>
+            <li>Rappels email automatiques</li>
+            <li>1 promotion active</li>
+            <li>Export clients CSV</li>
+          </ul>
+          <a href="/signup.html" class="plan-cta outline">Commencer gratuitement</a>
+        </article>
+        <article class="plan pro">
+          <span class="plan-popular">Le + choisi</span>
+          <div class="plan-name">Pro</div>
+          <div class="plan-price">60 €<sub>/mois</sub></div>
+          <p class="plan-desc">Toutes les fonctionnalités Genda, sans limite. 14 jours gratuits, sans CB.</p>
+          <ul class="plan-features">
+            <li>Tout du plan Gratuit, plus :</li>
+            <li>Rappels SMS (économie no-shows)</li>
+            <li>Acomptes Stripe &amp; remboursements auto</li>
+            <li>Remises last-minute intelligentes</li>
+            <li>Cartes cadeau &amp; abonnements</li>
+            <li>Factures BE conformes (TVA, notes de crédit)</li>
+            <li>Équipe illimitée &amp; planning avancé</li>
+            <li>Liste d'attente automatique</li>
+          </ul>
+          <a href="/signup.html" class="plan-cta primary">Démarrer l'essai 14 jours</a>
+        </article>
+      </div>
     </div>
   </section>
 </main>
