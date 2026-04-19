@@ -14,7 +14,7 @@ const { checkBookingConflicts } = require('../staff/bookings-helpers');
 router.post('/:slug/waitlist', bookingLimiter, async (req, res, next) => {
   try {
     const { slug } = req.params;
-    const { practitioner_id, service_id, client_name, client_email,
+    const { practitioner_id, service_id, service_variant_id, client_name, client_email,
             client_phone, preferred_days, preferred_time, note } = req.body;
 
     if (!practitioner_id || !service_id || !client_name || !client_email) {
@@ -34,6 +34,10 @@ router.post('/:slug/waitlist', bookingLimiter, async (req, res, next) => {
     // Validate service_id is a single valid UUID (reject arrays or non-string values)
     if (typeof service_id !== 'string' || !UUID_RE.test(service_id)) {
       return res.status(400).json({ error: 'service_id invalide' });
+    }
+    // BUG-WL-VARIANT fix: capture the variant choice so LM/deposit/email use the right price
+    if (service_variant_id !== undefined && service_variant_id !== null && !UUID_RE.test(service_variant_id)) {
+      return res.status(400).json({ error: 'service_variant_id invalide' });
     }
 
     if (client_name.length > 200) return res.status(400).json({ error: 'Nom trop long (max 200)' });
@@ -90,15 +94,25 @@ router.post('/:slug/waitlist', bookingLimiter, async (req, res, next) => {
     if (svcCheck.rows.length === 0) {
       return res.status(404).json({ error: 'Prestation introuvable ou non disponible à la réservation' });
     }
+    // Validate variant (if provided) belongs to the service
+    if (service_variant_id) {
+      const varCheck = await query(
+        `SELECT id FROM service_variants WHERE id = $1 AND service_id = $2`,
+        [service_variant_id, service_id]
+      );
+      if (varCheck.rows.length === 0) {
+        return res.status(404).json({ error: 'Variante introuvable pour cette prestation' });
+      }
+    }
 
     // Bug M9 fix: Atomic INSERT with duplicate check + priority calculation
     // Uses a subquery to avoid race conditions between check/priority/insert
     // Also includes business_id in the duplicate check for proper tenant isolation
     const result = await query(
       `INSERT INTO waitlist_entries
-        (business_id, practitioner_id, service_id, client_name, client_email,
+        (business_id, practitioner_id, service_id, service_variant_id, client_name, client_email,
          client_phone, preferred_days, preferred_time, note, priority)
-       SELECT $1::uuid, $2::uuid, $3::uuid, $4::text, $5::text, $6::text, $7::jsonb, $8::text, $9::text,
+       SELECT $1::uuid, $2::uuid, $3::uuid, $10::uuid, $4::text, $5::text, $6::text, $7::jsonb, $8::text, $9::text,
               COALESCE(MAX(we.priority), 0) + 1
        FROM waitlist_entries we
        WHERE we.practitioner_id = $2::uuid AND we.service_id = $3::uuid AND we.status = 'waiting'
@@ -113,7 +127,8 @@ router.post('/:slug/waitlist', bookingLimiter, async (req, res, next) => {
        client_phone || null,
        JSON.stringify(preferred_days || [0,1,2,3,4]),
        preferred_time || 'any',
-       note || null]
+       note || null,
+       service_variant_id || null]
     );
 
     if (result.rows.length === 0) {
@@ -197,12 +212,15 @@ router.get('/waitlist/:token', async (req, res, next) => {
 router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) => {
   try {
     const entry = await query(
-      `SELECT w.id, w.business_id, w.practitioner_id, w.service_id,
+      // BUG-WL-VARIANT fix: fetch service_variant_id + variant duration for correct booking
+      `SELECT w.id, w.business_id, w.practitioner_id, w.service_id, w.service_variant_id,
               w.client_name, w.client_email, w.client_phone,
               w.offer_expires_at, w.offer_booking_start, w.offer_booking_end,
-              s.duration_min, s.buffer_before_min, s.buffer_after_min
+              COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+              s.buffer_before_min, s.buffer_after_min
        FROM waitlist_entries w
        JOIN services s ON s.id = w.service_id
+       LEFT JOIN service_variants sv ON sv.id = w.service_variant_id
        WHERE w.offer_token = $1 AND w.status = 'offered'`,
       [req.params.token]
     );
@@ -302,13 +320,15 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
       }
 
       // Create booking
+      // BUG-WL-VARIANT fix: forward service_variant_id from waitlist entry so LM/deposit/email
+      // use the variant-specific price + duration (not the base service).
       const bk = await client.query(
-        `INSERT INTO bookings (business_id, practitioner_id, service_id, client_id,
+        `INSERT INTO bookings (business_id, practitioner_id, service_id, service_variant_id, client_id,
           channel, start_at, end_at, status, locked, appointment_mode)
-         VALUES ($1, $2, $3, $4, 'web', $5, $6, 'confirmed', true, 'cabinet')
+         VALUES ($1, $2, $3, $7, $4, 'web', $5, $6, 'confirmed', true, 'cabinet')
          RETURNING id, public_token, start_at, end_at, status`,
         [e.business_id, e.practitioner_id, e.service_id, clientId,
-         e.offer_booking_start, e.offer_booking_end]
+         e.offer_booking_start, e.offer_booking_end, e.service_variant_id || null]
       );
 
       // H10: Check deposit requirement (same as normal booking flow)
@@ -316,8 +336,13 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
       const wlBizPlan = bizSettingsWl.rows[0]?.plan || 'free';
       const wlBizSettings = bizSettingsWl.rows[0]?.settings || {};
       const wlStripeConnectStatus = bizSettingsWl.rows[0]?.stripe_connect_status;
+      // BUG-WL-VARIANT fix: resolve price/duration from variant if set, else base service.
       const svcPriceWl = await client.query(
-        `SELECT COALESCE(price_cents, 0) AS price, COALESCE(duration_min, 0) AS duration FROM services WHERE id = $1`, [e.service_id]
+        `SELECT COALESCE(sv.price_cents, s.price_cents, 0) AS price,
+                COALESCE(sv.duration_min, s.duration_min, 0) AS duration
+           FROM services s
+           LEFT JOIN service_variants sv ON sv.id = $2 AND sv.service_id = s.id
+          WHERE s.id = $1`, [e.service_id, e.service_variant_id || null]
       );
       const wlPrice = parseInt(svcPriceWl.rows[0]?.price) || 0;
       const wlDuration = parseInt(svcPriceWl.rows[0]?.duration) || 0;
@@ -354,7 +379,7 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
         // H3 fix: also check promo_eligible and min_price before applying LM discount
         const _wlSvcRes = await client.query(
           `SELECT s.promo_eligible, COALESCE(sv.price_cents, s.price_cents, 0) AS eff_price
-           FROM services s LEFT JOIN service_variants sv ON sv.id = $2
+           FROM services s LEFT JOIN service_variants sv ON sv.id = $2 AND sv.service_id = s.id
            WHERE s.id = $1`, [e.service_id, e.service_variant_id || null]
         );
         const _wlSvc = _wlSvcRes.rows[0];

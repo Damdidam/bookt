@@ -1268,6 +1268,53 @@ router.patch('/:id/edit', async (req, res, next) => {
 
     broadcast(bid, 'booking_update', { action: 'edited' });
     calSyncPush(bid, id).catch(() => {});
+
+    // BUG-EDIT-PRAC-EMAIL fix: if practitioner_id changed, notify the client so they don't
+    // discover the new person on arrival. Uses sendPractitionerChangeEmail (same slot, diff pro).
+    const _oldPracId = oldSnap?.rows?.[0]?.practitioner_id;
+    const _newPracId = result.rows[0]?.practitioner_id;
+    if (_oldPracId && _newPracId && String(_oldPracId) !== String(_newPracId)) {
+      (async () => {
+        try {
+          const fullEdit = await queryWithRLS(bid,
+            `SELECT b.id, b.public_token, b.start_at, b.end_at, b.custom_label,
+                    CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS service_name,
+                    s.category AS service_category,
+                    c.full_name AS client_name, c.email AS client_email,
+                    p_new.display_name AS new_practitioner_name,
+                    p_old.display_name AS old_practitioner_name,
+                    biz.name AS biz_name, biz.email AS biz_email, biz.phone AS biz_phone, biz.address AS biz_address,
+                    biz.theme AS biz_theme
+               FROM bookings b
+               LEFT JOIN clients c ON c.id = b.client_id
+               LEFT JOIN services s ON s.id = b.service_id
+               LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+               LEFT JOIN practitioners p_new ON p_new.id = b.practitioner_id
+               LEFT JOIN practitioners p_old ON p_old.id = $2::uuid
+               JOIN businesses biz ON biz.id = b.business_id
+              WHERE b.id = $1 AND b.business_id = $3`,
+            [id, _oldPracId, bid]
+          );
+          if (fullEdit.rows[0]?.client_email) {
+            const ed = fullEdit.rows[0];
+            const { sendPractitionerChangeEmail } = require('../../services/email');
+            await sendPractitionerChangeEmail({
+              booking: {
+                client_name: ed.client_name, client_email: ed.client_email,
+                public_token: ed.public_token,
+                service_name: ed.service_name, service_category: ed.service_category,
+                custom_label: ed.custom_label,
+                start_at: ed.start_at,
+                old_practitioner_name: ed.old_practitioner_name,
+                new_practitioner_name: ed.new_practitioner_name
+              },
+              business: { name: ed.biz_name, email: ed.biz_email, phone: ed.biz_phone, address: ed.biz_address, theme: ed.biz_theme }
+            });
+          }
+        } catch (e) { console.warn('[EDIT PRAC EMAIL] error:', e.message); }
+      })();
+    }
+
     res.json({ updated: true, booking: result.rows[0] });
   } catch (err) {
     if (err.type === 'immutable') return res.status(400).json({ error: err.message });

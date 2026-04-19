@@ -174,4 +174,59 @@ async function sendModificationEmail({ booking, business, groupServices }) {
   });
 }
 
-module.exports = { sendModificationEmail };
+/**
+ * Send a simple "practitioner changed" notification to the client.
+ * Used when staff reassigns a booking to a different practitioner via /edit
+ * (no time change — just the person is swapped). Without this email, the
+ * client discovers the change on arrival at the salon.
+ */
+async function sendPractitionerChangeEmail({ booking, business }) {
+  if (!booking.client_email) return { success: false, error: 'no_client_email' };
+  const color = safeColor(business.theme?.primary_color);
+  const safeClientName = escHtml(booking.client_name || 'Client');
+  const oldPrac = escHtml(booking.old_practitioner_name || '');
+  const newPrac = escHtml(booking.new_practitioner_name || '');
+  const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+  const manageUrl = booking.public_token ? `${baseUrl}/booking/${booking.public_token}` : null;
+
+  const dateStr = new Date(booking.start_at).toLocaleDateString('fr-BE', {
+    timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+  });
+  const timeStr = fmtTimeBrussels(booking.start_at);
+  const safeService = escHtml(fmtSvcLabel(booking.service_category, booking.service_name, null, booking.custom_label));
+
+  const bodyHTML = `
+    <p>Bonjour <strong>${safeClientName}</strong>,</p>
+    <p>Petit changement concernant votre rendez-vous : la personne qui vous recevra a \u00e9t\u00e9 modifi\u00e9e.</p>
+    <div style="background:#FEF3E2;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #E6A817">
+      <div style="font-size:13px;color:#92700C;margin-bottom:4px"><strong>Avant :</strong> avec <s style="opacity:.7">${oldPrac || '—'}</s></div>
+    </div>
+    <div style="background:#EEFAF1;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #1B7A42">
+      <div style="font-size:14px;color:#15613A;margin-bottom:4px"><strong>Nouveau :</strong> avec <strong>${newPrac || '—'}</strong></div>
+      <div style="font-size:13px;color:#15613A;margin-top:6px">${escHtml(dateStr)} \u00e0 ${escHtml(timeStr)}</div>
+      <div style="font-size:13px;color:#15613A">${safeService}</div>
+    </div>
+    <p style="font-size:14px;color:#3D3832">Votre cr\u00e9neau reste identique. Si ce changement ne vous convient pas, n'h\u00e9sitez pas \u00e0 nous contacter.</p>`;
+
+  const html = buildEmailHTML({
+    title: 'Changement de praticien',
+    preheader: `Votre RDV est maintenant avec ${booking.new_practitioner_name || ''}`,
+    bodyHTML,
+    ctaText: manageUrl ? 'G\u00e9rer mon rendez-vous' : null,
+    ctaUrl: manageUrl,
+    businessName: business.name,
+    primaryColor: color,
+    footerText: `${business.name}${business.address ? ' \u00b7 ' + business.address : ''} \u00b7 Via Genda.be`
+  });
+
+  return sendEmail({
+    to: booking.client_email,
+    toName: booking.client_name,
+    subject: `Changement de praticien \u2014 ${business.name}`,
+    html,
+    fromName: business.name,
+    replyTo: business.email
+  });
+}
+
+module.exports = { sendModificationEmail, sendPractitionerChangeEmail };
