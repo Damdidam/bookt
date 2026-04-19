@@ -176,8 +176,10 @@ async function sendCancellationEmail({ booking, business, groupServices }) {
   }
 
   // BUG-CANCEL-COMMENT fix: show the client's original comment so they see what they had asked.
-  if (booking.comment && String(booking.comment).trim()) {
-    bodyHTML += `<div style="background:#F5F4F1;border-radius:8px;padding:12px 14px;margin:14px 0;font-size:13px;color:#3D3832"><strong>Votre remarque :</strong><br>${escHtml(booking.comment)}</div>`;
+  // Accept both `comment` (normalized) and `comment_client` (raw column name — what `SELECT b.*` yields).
+  const _cancelComment = booking.comment || booking.comment_client;
+  if (_cancelComment && String(_cancelComment).trim()) {
+    bodyHTML += `<div style="background:#F5F4F1;border-radius:8px;padding:12px 14px;margin:14px 0;font-size:13px;color:#3D3832"><strong>Votre remarque :</strong><br>${escHtml(_cancelComment)}</div>`;
   }
 
   const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
@@ -351,8 +353,10 @@ async function sendRescheduleConfirmationEmail({ booking, business, oldStartAt, 
   }
 
   // BUG-RESCH-COMMENT fix: show the client's comment so they see what they had asked.
-  if (booking.comment && String(booking.comment).trim()) {
-    bodyHTML += `<div style="background:#F5F4F1;border-radius:8px;padding:12px 14px;margin:14px 0;font-size:13px;color:#3D3832"><strong>Votre remarque :</strong><br>${escHtml(booking.comment)}</div>`;
+  // Accept both `comment` and `comment_client` (raw column name from SELECT b.*).
+  const _reschComment = booking.comment || booking.comment_client;
+  if (_reschComment && String(_reschComment).trim()) {
+    bodyHTML += `<div style="background:#F5F4F1;border-radius:8px;padding:12px 14px;margin:14px 0;font-size:13px;color:#3D3832"><strong>Votre remarque :</strong><br>${escHtml(_reschComment)}</div>`;
   }
 
   // Footer: address, contact, payment methods, calendar links

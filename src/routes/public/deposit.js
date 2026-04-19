@@ -469,7 +469,7 @@ router.post('/deposit/:token/verify', depositLimiter, async (req, res, next) => 
           `SELECT b.start_at, b.end_at, b.deposit_amount_cents, b.group_id, b.public_token,
                   b.booked_price_cents,
                   b.promotion_label, b.promotion_discount_cents, b.promotion_discount_pct, b.discount_pct,
-                  c.full_name AS client_name, c.email AS client_email,
+                  c.full_name AS client_name, c.email AS client_email, c.phone AS client_phone,
                   CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
                   s.category AS service_category,
                   COALESCE(sv.duration_min, s.duration_min) AS duration_min,

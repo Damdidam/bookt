@@ -357,7 +357,7 @@ async function handleStripeWebhook(req, res) {
                 `SELECT b.start_at, b.end_at, b.deposit_amount_cents, b.group_id, b.public_token,
                         b.booked_price_cents, b.discount_pct,
                         b.promotion_label, b.promotion_discount_cents, b.promotion_discount_pct,
-                        c.full_name AS client_name, c.email AS client_email,
+                        c.full_name AS client_name, c.email AS client_email, c.phone AS client_phone,
                         CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
                         s.category AS service_category,
                         COALESCE(sv.price_cents, s.price_cents, 0) AS service_price_cents,
@@ -1115,7 +1115,7 @@ async function handleStripeWebhook(req, res) {
                     // B-08 fix: propagation des vraies valeurs GC/pass refunded capturées + net_refund_cents
                     // depuis charge.amount_refunded (full refund car isPartialRefund=false ici).
                     await sendCancellationEmail({
-                      booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, service_category: row.service_category, custom_label: row.custom_label, service_price_cents: row.service_price_cents, booked_price_cents: row.booked_price_cents, discount_pct: row.discount_pct, duration_min: row.duration_min, promotion_label: row.promotion_label, promotion_discount_cents: row.promotion_discount_cents, promotion_discount_pct: row.promotion_discount_pct, practitioner_name: row.practitioner_name, deposit_required: row.deposit_required, deposit_status: 'refunded', deposit_amount_cents: row.deposit_amount_cents, deposit_paid_at: row.deposit_paid_at, deposit_payment_intent_id: row.deposit_payment_intent_id, gc_paid_cents: gcPaidExt, gc_refunded_cents: _whGcRefunded, pass_refunded: _whPassRefunded, net_refund_cents: charge.amount_refunded, cancel_reason: cancelReason },
+                      booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, service_category: row.service_category, custom_label: row.custom_label, comment_client: row.comment_client, service_price_cents: row.service_price_cents, booked_price_cents: row.booked_price_cents, discount_pct: row.discount_pct, duration_min: row.duration_min, promotion_label: row.promotion_label, promotion_discount_cents: row.promotion_discount_cents, promotion_discount_pct: row.promotion_discount_pct, practitioner_name: row.practitioner_name, deposit_required: row.deposit_required, deposit_status: 'refunded', deposit_amount_cents: row.deposit_amount_cents, deposit_paid_at: row.deposit_paid_at, deposit_payment_intent_id: row.deposit_payment_intent_id, gc_paid_cents: gcPaidExt, gc_refunded_cents: _whGcRefunded, pass_refunded: _whPassRefunded, net_refund_cents: charge.amount_refunded, cancel_reason: cancelReason },
                       business: { name: row.biz_name, email: row.biz_email, phone: row.biz_phone, address: row.biz_address, theme: row.biz_theme, slug: row.biz_slug, settings: row.biz_settings },
                       groupServices
                     });
