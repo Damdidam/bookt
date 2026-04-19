@@ -312,6 +312,84 @@ h1, h2, h3, h4 { font-family: var(--font-heading); font-weight: 700; line-height
   .pain-grid { grid-template-columns: repeat(3, 1fr); gap: 20px; }
 }
 
+/* ========== FEATURES ========== */
+.features { background: var(--bg); }
+.features-header { text-align: center; margin-bottom: 40px; }
+.features-header h2 {
+  font-size: 32px; color: var(--text);
+  margin-bottom: 8px;
+}
+.features-header .lead {
+  font-size: 15px; color: var(--text-2);
+  max-width: 520px; margin: 0 auto;
+}
+.pillar { margin-bottom: 56px; }
+.pillar:last-child { margin-bottom: 0; }
+.pillar-label {
+  font-family: var(--font-heading); font-weight: 700;
+  font-size: 11px; letter-spacing: 3px; text-transform: uppercase;
+  margin-bottom: 12px;
+}
+.pillar-01 .pillar-label { color: var(--violet); }
+.pillar-02 .pillar-label { color: var(--magenta); }
+.pillar-03 .pillar-label { color: var(--emerald); }
+.pillar-04 .pillar-label { color: var(--yellow-deep); }
+.pillar-title {
+  font-size: 24px; color: var(--ink);
+  margin-bottom: 20px;
+}
+.feature-grid {
+  display: grid; gap: 14px;
+  grid-template-columns: 1fr;
+}
+.feature-card {
+  background: var(--white);
+  border: var(--border-w) solid var(--ink);
+  border-radius: var(--radius-md);
+  padding: 20px 18px;
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+.feature-card:hover { transform: translate(-1px, -1px); }
+.pillar-01 .feature-card { box-shadow: 4px 4px 0 var(--violet); }
+.pillar-01 .feature-card:hover { box-shadow: 5px 5px 0 var(--violet); }
+.pillar-02 .feature-card { box-shadow: 4px 4px 0 var(--magenta); }
+.pillar-02 .feature-card:hover { box-shadow: 5px 5px 0 var(--magenta); }
+.pillar-03 .feature-card { box-shadow: 4px 4px 0 var(--emerald); }
+.pillar-03 .feature-card:hover { box-shadow: 5px 5px 0 var(--emerald); }
+.pillar-04 .feature-card { box-shadow: 4px 4px 0 var(--yellow-deep); }
+.pillar-04 .feature-card:hover { box-shadow: 5px 5px 0 var(--yellow-deep); }
+.feature-icon {
+  width: 44px; height: 44px;
+  border: var(--border-w) solid var(--ink);
+  border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  margin-bottom: 12px;
+}
+.feature-icon svg { width: 20px; height: 20px; color: var(--ink); }
+.pillar-01 .feature-icon { background: var(--pink); }
+.pillar-02 .feature-icon { background: var(--yellow); }
+.pillar-03 .feature-icon { background: #A7F3D0; }
+.pillar-04 .feature-icon { background: var(--yellow); }
+.feature-card h4 {
+  font-size: 16px; color: var(--ink);
+  margin-bottom: 6px; line-height: 1.25;
+}
+.feature-card p {
+  font-size: 13.5px; color: var(--text-2);
+  line-height: 1.5;
+}
+
+@media (min-width: 768px) {
+  .features-header h2 { font-size: 40px; }
+  .pillar-title { font-size: 28px; }
+  .feature-grid { grid-template-columns: repeat(2, 1fr); gap: 18px; }
+}
+@media (min-width: 1024px) {
+  .features-header h2 { font-size: 48px; }
+  .pillar-title { font-size: 30px; }
+  .feature-grid { grid-template-columns: repeat(3, 1fr); gap: 20px; }
+}
+
 /* ========== UTILITIES ========== */
 .container { max-width: var(--container-max); margin: 0 auto; padding: 0 20px; }
 .section { padding: 48px 0; }
@@ -426,6 +504,48 @@ a:focus-visible, button:focus-visible, summary:focus-visible {
           <p>RDV réservés, clients absents, aucun acompte. Vous encaissez le trou. Multipliez par 12 mois, c'est 3 600€ qui s'évaporent.</p>
         </article>
       </div>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section id="features" class="features section" aria-labelledby="features-title">
+    <div class="container">
+      <div class="features-header">
+        <h2 id="features-title">Tout Genda, dans 4 piliers.</h2>
+        <p class="lead">De la réservation au paiement, en passant par la fidélité — tout est pensé pour les pros indépendants.</p>
+      </div>
+
+      <!-- PILIER 01 -->
+      <div class="pillar pillar-01">
+        <div class="pillar-label">01 · Booker plus</div>
+        <h3 class="pillar-title">Vos clients réservent, tout le temps.</h3>
+        <div class="feature-grid">
+          <article class="feature-card">
+            <span class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+            </span>
+            <h4>Minisite public inclus</h4>
+            <p>Votre site perso (photos, prestations, équipe, réservation en ligne). Zéro configuration. Votre URL : genda.be/votre-salon.</p>
+          </article>
+          <article class="feature-card">
+            <span class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+            </span>
+            <h4>Multi-service en un clic</h4>
+            <p>Coupe + couleur + brushing ? Le client combine, vous voyez tout sur un seul RDV. Durée et prix calculés automatiquement.</p>
+          </article>
+          <article class="feature-card">
+            <span class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>
+            </span>
+            <h4>Remises last-minute automatiques</h4>
+            <p>Créneau à moins de 24h ? Genda affiche -20% et remplit le trou tout seul. Vous récupérez de l'argent qui partait en fumée.</p>
+          </article>
+        </div>
+      </div>
+
+      <!-- PILIERS 02-04 À VENIR -->
+
     </div>
   </section>
 </main>
