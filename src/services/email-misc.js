@@ -108,11 +108,13 @@ async function sendReviewRequestEmail({ booking, business }) {
 
   // BUG-REVIEW-NET fix: subtract promotion_discount_cents so the client sees what they
   // actually paid (not the pre-promo catalogue price, which looked like a false billing).
+  // Price string only shown for > 0 — preserves pre-fix behaviour for gratuit services
+  // (where booked_price_cents=0 previously rendered empty via truthy check).
   const _reviewGrossCents = booking.booked_price_cents ?? booking.service_price_cents;
   const _reviewNetCents = _reviewGrossCents != null
     ? Math.max(0, _reviewGrossCents - (booking.promotion_discount_cents || 0))
-    : null;
-  const _reviewPriceStr = _reviewNetCents != null
+    : 0;
+  const _reviewPriceStr = _reviewNetCents > 0
     ? ' (' + (_reviewNetCents / 100).toFixed(2).replace('.', ',') + '\u00a0\u20ac)'
     : '';
 
