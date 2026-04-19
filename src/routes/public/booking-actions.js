@@ -716,10 +716,11 @@ router.post('/booking/:token/reject', async (req, res, next) => {
 
     // BUG-REJECT-AUDIT fix: 5 sibling cancel paths insert audit_logs entries, reject didn't —
     // staff "Historique" tab couldn't see that the client rejected the modification proposal.
+    // NB: audit_logs.action is VARCHAR(20) — keep the string short ('client_reject' = 13 chars).
     try {
       await query(
         `INSERT INTO audit_logs (business_id, entity_type, entity_id, action, old_data, new_data)
-         VALUES ($1, 'booking', $2, 'client_reject_modification', $3, $4)`,
+         VALUES ($1, 'booking', $2, 'client_reject', $3, $4)`,
         [rejBk.business_id, rejBk.id,
          JSON.stringify({ status: 'modified_pending' }),
          JSON.stringify({ status: 'cancelled', cancel_reason: 'Nouveau créneau proposé refusé par le client' })]
