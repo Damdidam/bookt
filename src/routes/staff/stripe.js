@@ -219,7 +219,27 @@ async function handleStripeWebhook(req, res) {
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
-  console.log(`[STRIPE WH] ${event.type}`);
+  console.log(`[STRIPE WH] ${event.type} (id=${event.id})`);
+
+  // BUG-G fix: idempotence by event.id — prevents double-processing of
+  // replayed/retried webhooks (Stripe retries on any non-2xx, and dashboard
+  // replay button). Required especially for charge.refunded which currently
+  // cascades cancel + emails + refund GC/pass on every delivery.
+  try {
+    const idemRes = await query(
+      `INSERT INTO stripe_webhook_events (event_id, event_type) VALUES ($1, $2)
+       ON CONFLICT (event_id) DO NOTHING RETURNING event_id`,
+      [event.id, event.type]
+    );
+    if (idemRes.rows.length === 0) {
+      console.log(`[STRIPE WH] Duplicate event ${event.id} (${event.type}) — already processed, returning 200`);
+      return res.json({ received: true, duplicate: true });
+    }
+  } catch (idemErr) {
+    // If the table is missing (pre-v72 deploy) or DB blip, log and proceed —
+    // fall back to the per-handler duplicate detection already in place.
+    console.warn('[STRIPE WH] Idempotence check failed (proceeding anyway):', idemErr.message);
+  }
 
   try {
     switch (event.type) {
@@ -428,12 +448,47 @@ async function handleStripeWebhook(req, res) {
               );
             } catch (logErr) { /* non-critical */ }
           } else {
-            // UPDATE returned 0 rows — either already confirmed (duplicate webhook) or truly cancelled
-            const currentCheck = await query(`SELECT status, deposit_status FROM bookings WHERE id = $1`, [bookingId]);
+            // UPDATE returned 0 rows — either already confirmed (duplicate webhook),
+            // parallel payment (GC+Stripe race across 2 tabs), or truly cancelled.
+            const currentCheck = await query(`SELECT status, deposit_status, deposit_payment_intent_id FROM bookings WHERE id = $1`, [bookingId]);
             const cur = currentCheck.rows[0];
             if (cur && (cur.status === 'confirmed' || cur.deposit_status === 'paid')) {
-              // Duplicate webhook — booking already confirmed by first delivery, ignore
-              console.log(`[STRIPE WH] Duplicate deposit webhook for booking ${bookingId} (status: ${cur.status}, deposit: ${cur.deposit_status}) — ignoring`);
+              // BUG-G fix: distinguish TRUE duplicate (same PI) from PARALLEL payment
+              // (different PI — client paid via GC in tab A and Stripe in tab B).
+              // Parallel payment → auto-refund the incoming Stripe PI so the salon
+              // doesn't keep money the client paid twice.
+              const storedPi = cur.deposit_payment_intent_id;
+              const paidByGcOrPass = !!(storedPi && (storedPi.startsWith('gc_') || storedPi.startsWith('pass_')));
+              let resolvedStoredPi = storedPi;
+              if (storedPi && storedPi.startsWith('cs_')) {
+                try {
+                  const _sess = await stripe.checkout.sessions.retrieve(storedPi);
+                  resolvedStoredPi = _sess.payment_intent || storedPi;
+                } catch (_) { /* ignore — can't resolve, fall through */ }
+              }
+              const differentPi = !paidByGcOrPass && resolvedStoredPi && piId && resolvedStoredPi !== piId;
+              if (paidByGcOrPass || differentPi) {
+                console.warn(`[STRIPE WH] PARALLEL PAYMENT for booking ${bookingId}: already paid via ${storedPi}, incoming PI ${piId} — auto-refunding the duplicate`);
+                try {
+                  if (piId && piId.startsWith('pi_')) {
+                    await stripe.refunds.create({ payment_intent: piId });
+                    console.log(`[STRIPE WH] Parallel-payment auto-refund successful for PI ${piId}`);
+                  }
+                  try {
+                    await query(
+                      `INSERT INTO notifications (business_id, booking_id, type, status, metadata)
+                       VALUES ($1, $2, 'email_deposit_orphan', 'queued', $3)`,
+                      [businessId, bookingId, JSON.stringify({ payment_intent: piId, auto_refunded: true, reason: 'parallel_payment', stored_pi: storedPi })]
+                    );
+                  } catch (_) {}
+                } catch (refundErr) {
+                  if (refundErr.code !== 'charge_already_refunded') {
+                    console.error(`[STRIPE WH] Parallel-payment refund FAILED for PI ${piId}:`, refundErr.message);
+                  }
+                }
+              } else {
+                console.log(`[STRIPE WH] Duplicate deposit webhook for booking ${bookingId} (status: ${cur.status}, deposit: ${cur.deposit_status}) — ignoring`);
+              }
             } else {
               // Booking was truly cancelled/expired — auto-refund the orphaned payment
               console.warn(`[STRIPE WH] Deposit payment for cancelled booking ${bookingId} — initiating auto-refund`);

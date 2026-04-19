@@ -926,7 +926,7 @@ async function saveService(id){
   const dupName=body.name.trim().toLowerCase();
   const dupCat=(body.category||'').toLowerCase();
   const dup=allServices.find(s=>s.name.trim().toLowerCase()===dupName&&(s.category||'').toLowerCase()===dupCat&&s.is_active!==false&&s.id!==id);
-  if(dup){GendaUI.toast('Une prestation avec ce nom existe déjà dans cette catégorie','error');return;}
+  if(dup){GendaUI.toast('Une prestation avec ce nom existe déjà dans cette catégorie','error');if(saveBtn){saveBtn.disabled=false;saveBtn.textContent=id?'Enregistrer':'Créer';}return;}
   const varRows=document.querySelectorAll('#svc_variants_list .svc-var-row');
   body.variants=[...varRows].map(row=>({id:row.querySelector('.svc-var-id').value||undefined,name:row.querySelector('.svc-var-name').value.trim(),duration_min:parseInt(row.querySelector('.svc-var-dur').value)||0,price_cents:row.querySelector('.svc-var-price').value?Math.round(parseFloat(row.querySelector('.svc-var-price').value)*100):null,description:row.querySelector('.svc-var-desc')?.value.trim()||null,processing_time:parseInt(row.querySelector('.svc-var-pose-time')?.value)||0,processing_start:parseInt(row.querySelector('.svc-var-pose-start')?.value)||0})).filter(v=>v.name&&v.duration_min>0);
   try{

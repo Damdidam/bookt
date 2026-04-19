@@ -120,7 +120,7 @@ async function processWaitlistForCancellation(bookingId, businessId, overrideSlo
     const conflict = await queryWithRLS(businessId,
       `SELECT id FROM bookings
        WHERE practitioner_id = $1 AND business_id = $2
-         AND status IN ('confirmed', 'pending', 'pending_deposit')
+         AND status IN ('confirmed', 'pending', 'pending_deposit', 'modified_pending')
          AND start_at < $4 AND end_at > $3
        LIMIT 1`,
       [bk.practitioner_id, bk.business_id, bk.start_at, bk.end_at]
@@ -293,7 +293,7 @@ async function processExpiredOffers() {
           const slotConflict = await client.query(
             `SELECT id FROM bookings
              WHERE practitioner_id = $1 AND business_id = $2
-               AND status IN ('confirmed', 'pending', 'pending_deposit')
+               AND status IN ('confirmed', 'pending', 'pending_deposit', 'modified_pending')
                AND start_at < $4 AND end_at > $3
              LIMIT 1`,
             [entry.practitioner_id, entry.business_id, entry.offer_booking_start, entry.offer_booking_end]

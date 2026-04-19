@@ -76,72 +76,10 @@ async function processExpiredPendingBookings() {
         );
       }
 
-      // Stripe refund: if a deposit was paid on this pending booking, refund it (parity with deposit-expiry/staff cancel).
-      // Applies refund_policy from business settings — 'net' deducts Stripe fees (~1.5% + 25c), 'full' refunds everything.
-      if (bk.deposit_status === 'paid' && bk.deposit_payment_intent_id) {
-        const _stripeKey = process.env.STRIPE_SECRET_KEY;
-        if (_stripeKey) {
-          try {
-            const stripe = require('stripe')(_stripeKey);
-            let _piId = bk.deposit_payment_intent_id;
-            if (_piId.startsWith('cs_')) {
-              const _sess = await stripe.checkout.sessions.retrieve(_piId);
-              _piId = _sess.payment_intent;
-            }
-            if (_piId && _piId.startsWith('pi_')) {
-              const _refundPolicy = bk.biz_settings?.refund_policy || 'full';
-              let _finalDepStatus = 'refunded';
-              if (_refundPolicy === 'net' && bk.deposit_amount_cents) {
-                // Deduct gift card portion (Stripe only charged the remainder)
-                const _gcPaidRes = await client.query(
-                  `SELECT COALESCE(SUM(amount_cents), 0) AS gc_paid_cents
-                   FROM gift_card_transactions WHERE booking_id = $1 AND type = 'debit'`,
-                  [bk.id]
-                );
-                const _gcPaidCents = parseInt(_gcPaidRes.rows[0]?.gc_paid_cents) || 0;
-                const _actualStripeCharge = Math.max(bk.deposit_amount_cents - _gcPaidCents, 0);
-                const _stripeFees = _actualStripeCharge > 0 ? Math.round(_actualStripeCharge * 0.015) + 25 : 0;
-                const _netRefund = Math.max(_actualStripeCharge - _stripeFees, 0);
-                // D-12 fix: Stripe refund minimum = 50c. Si netRefund < 50, refund impossible → même
-                // cause UX que fees>=charge (non-remboursable techniquement). Classifier pareil pour
-                // afficher message correct dans email (pas "raison technique" stripe_failure).
-                if (_netRefund >= 50) {
-                  await stripe.refunds.create({ payment_intent: _piId, amount: _netRefund });
-                  console.log(`[CONFIRM CRON] Net refund: ${_netRefund}c (fees ${_stripeFees}c, gc ${_gcPaidCents}c) for PI ${_piId}`);
-                  _netRefundForEmail = _netRefund;
-                } else {
-                  // Fees ≥ charge OU net trop petit pour refund Stripe — deposit retenu.
-                  console.warn(`[CONFIRM CRON] netRefund=${_netRefund}c <50c Stripe min (fees ${_stripeFees}c, charge ${_actualStripeCharge}c) — deposit retained for PI ${_piId}`);
-                  _finalDepStatus = 'cancelled';
-                  _netRefundForEmail = 0;
-                  _retentionReason = 'fees_exceed_charge';
-                }
-              } else {
-                await stripe.refunds.create({ payment_intent: _piId });
-              }
-              await client.query(`UPDATE bookings SET deposit_status = $2 WHERE id = $1`, [bk.id, _finalDepStatus]);
-              if (bk.group_id) {
-                await client.query(
-                  `UPDATE bookings SET deposit_status = $2 WHERE group_id = $1 AND deposit_payment_intent_id = $3 AND id != $4`,
-                  [bk.group_id, _finalDepStatus, bk.deposit_payment_intent_id, bk.id]
-                );
-              }
-            }
-          } catch (stripeErr) {
-            if (stripeErr.code !== 'charge_already_refunded') {
-              console.error('[CONFIRM CRON] Stripe refund failed for', bk.id, ':', stripeErr.message);
-              await client.query(`UPDATE bookings SET deposit_status = 'cancelled' WHERE id = $1`, [bk.id]);
-              _netRefundForEmail = 0;
-              _retentionReason = 'stripe_failure';
-            }
-          }
-        } else {
-          console.warn('[CONFIRM CRON] Stripe key missing — paid deposit on', bk.id, 'cannot be refunded');
-          await client.query(`UPDATE bookings SET deposit_status = 'cancelled' WHERE id = $1`, [bk.id]);
-          _netRefundForEmail = 0;
-          _retentionReason = 'no_stripe_key';
-        }
-      }
+      // BUG-F fix: Stripe refund moved AFTER all other DB operations (pass/gc refunds,
+      // invoice void, audit, strike counter) so that if ANY of those throw, savepoint
+      // rollback annule tout — no orphan Stripe refund with booking still 'pending'.
+      // See just before `cancelledBookingIds.push` below for the moved block.
 
       // Refund pass sessions
       let passRefundConf = { refunded: 0 };
@@ -212,6 +150,68 @@ async function processExpiredPendingBookings() {
              WHERE id = $1 AND business_id = $2`,
             [sib.client_id, bk.business_id]
           );
+        }
+      }
+
+      // BUG-F fix: Stripe refund last so any upstream DB throw rolls back to savepoint
+      // without having refunded money (otherwise booking stays 'pending' with PI refunded).
+      if (bk.deposit_status === 'paid' && bk.deposit_payment_intent_id) {
+        const _stripeKey = process.env.STRIPE_SECRET_KEY;
+        if (_stripeKey) {
+          try {
+            const stripe = require('stripe')(_stripeKey);
+            let _piId = bk.deposit_payment_intent_id;
+            if (_piId.startsWith('cs_')) {
+              const _sess = await stripe.checkout.sessions.retrieve(_piId);
+              _piId = _sess.payment_intent;
+            }
+            if (_piId && _piId.startsWith('pi_')) {
+              const _refundPolicy = bk.biz_settings?.refund_policy || 'full';
+              let _finalDepStatus = 'refunded';
+              if (_refundPolicy === 'net' && bk.deposit_amount_cents) {
+                const _gcPaidRes = await client.query(
+                  `SELECT COALESCE(SUM(amount_cents), 0) AS gc_paid_cents
+                   FROM gift_card_transactions WHERE booking_id = $1 AND type = 'debit'`,
+                  [bk.id]
+                );
+                const _gcPaidCents = parseInt(_gcPaidRes.rows[0]?.gc_paid_cents) || 0;
+                const _actualStripeCharge = Math.max(bk.deposit_amount_cents - _gcPaidCents, 0);
+                const _stripeFees = _actualStripeCharge > 0 ? Math.round(_actualStripeCharge * 0.015) + 25 : 0;
+                const _netRefund = Math.max(_actualStripeCharge - _stripeFees, 0);
+                if (_netRefund >= 50) {
+                  await stripe.refunds.create({ payment_intent: _piId, amount: _netRefund });
+                  console.log(`[CONFIRM CRON] Net refund: ${_netRefund}c (fees ${_stripeFees}c, gc ${_gcPaidCents}c) for PI ${_piId}`);
+                  _netRefundForEmail = _netRefund;
+                } else {
+                  console.warn(`[CONFIRM CRON] netRefund=${_netRefund}c <50c Stripe min (fees ${_stripeFees}c, charge ${_actualStripeCharge}c) — deposit retained for PI ${_piId}`);
+                  _finalDepStatus = 'cancelled';
+                  _netRefundForEmail = 0;
+                  _retentionReason = 'fees_exceed_charge';
+                }
+              } else {
+                await stripe.refunds.create({ payment_intent: _piId });
+              }
+              await client.query(`UPDATE bookings SET deposit_status = $2 WHERE id = $1`, [bk.id, _finalDepStatus]);
+              if (bk.group_id) {
+                await client.query(
+                  `UPDATE bookings SET deposit_status = $2 WHERE group_id = $1 AND deposit_payment_intent_id = $3 AND id != $4`,
+                  [bk.group_id, _finalDepStatus, bk.deposit_payment_intent_id, bk.id]
+                );
+              }
+            }
+          } catch (stripeErr) {
+            if (stripeErr.code !== 'charge_already_refunded') {
+              console.error('[CONFIRM CRON] Stripe refund failed for', bk.id, ':', stripeErr.message);
+              await client.query(`UPDATE bookings SET deposit_status = 'cancelled' WHERE id = $1`, [bk.id]);
+              _netRefundForEmail = 0;
+              _retentionReason = 'stripe_failure';
+            }
+          }
+        } else {
+          console.warn('[CONFIRM CRON] Stripe key missing — paid deposit on', bk.id, 'cannot be refunded');
+          await client.query(`UPDATE bookings SET deposit_status = 'cancelled' WHERE id = $1`, [bk.id]);
+          _netRefundForEmail = 0;
+          _retentionReason = 'no_stripe_key';
         }
       }
 
@@ -410,4 +410,58 @@ async function processExpiredPendingBookings() {
   }
 }
 
-module.exports = { processExpiredPendingBookings };
+/**
+ * Auto-confirm bookings in `modified_pending` state when their start_at is close
+ * (default 2h). The /modify staff endpoint sends an email telling the client
+ * "sera automatiquement confirmé" — this cron fulfills that promise.
+ *
+ * Without this function, modified_pending bookings stay indefinitely (no cron
+ * touches them, reminders skip them because they filter status='confirmed' only).
+ *
+ * Called every ~2 min from server.js alongside processExpiredPendingBookings.
+ * @returns {Promise<{confirmed: number}>}
+ */
+async function processAutoConfirmModifiedPending() {
+  const client = await pool.connect();
+  const confirmed = [];
+  try {
+    await client.query('BEGIN');
+
+    // Auto-confirm threshold: 2h before start_at (matches reminder 2h cadence).
+    // Also picks up bookings whose start_at has already passed (late cleanup).
+    const rows = await client.query(
+      `SELECT b.id, b.business_id, b.group_id
+         FROM bookings b
+        WHERE b.status = 'modified_pending'
+          AND b.start_at < NOW() + INTERVAL '2 hours'
+        FOR UPDATE OF b SKIP LOCKED`
+    );
+
+    for (const bk of rows.rows) {
+      await client.query(
+        `UPDATE bookings SET status = 'confirmed', updated_at = NOW()
+          WHERE id = $1 AND status = 'modified_pending'`,
+        [bk.id]
+      );
+      confirmed.push({ id: bk.id, business_id: bk.business_id, group_id: bk.group_id });
+    }
+
+    await client.query('COMMIT');
+
+    // Post-commit: SSE broadcast so staff dashboard refreshes without F5
+    for (const c of confirmed) {
+      try {
+        broadcast(c.business_id, 'booking_update', { action: 'auto_confirmed_modified', bookingId: c.id });
+      } catch (_) { /* SSE best-effort */ }
+    }
+
+    return { confirmed: confirmed.length };
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+module.exports = { processExpiredPendingBookings, processAutoConfirmModifiedPending };

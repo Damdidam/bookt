@@ -286,12 +286,18 @@ function openDebitPass(id){
 }
 
 async function debitPass(id){
+  const btn=document.querySelector('#passDebitModal .m-btn-primary');
+  if(btn?.disabled)return;
+  if(btn){btn.disabled=true;btn.textContent='Traitement...';}
   try{
     await api.post(`/api/passes/${id}/debit`);
     closeModal('passDebitModal');
     GendaUI.toast('Séance débitée avec succès','success');
     loadPasses();
-  }catch(e){GendaUI.toast(e.message||'Erreur lors du débit','error');}
+  }catch(e){
+    if(btn){btn.disabled=false;btn.textContent='Débiter 1 séance';}
+    GendaUI.toast(e.message||'Erreur lors du débit','error');
+  }
 }
 
 // ── Refund ──
@@ -336,12 +342,18 @@ async function refundPass(id){
 }
 
 async function submitRefundPass(id){
+  const btn=document.querySelector('#passRefundModal .m-btn-primary');
+  if(btn?.disabled)return;
+  if(btn){btn.disabled=true;btn.textContent='Traitement...';}
   try{
     await api.post(`/api/passes/${id}/refund`);
     closeModal('passRefundModal');
     GendaUI.toast('Séance remboursée avec succès','success');
     loadPasses();
-  }catch(e){GendaUI.toast(e.message||'Erreur lors du remboursement','error');}
+  }catch(e){
+    if(btn){btn.disabled=false;btn.textContent='Rembourser 1 séance';}
+    GendaUI.toast(e.message||'Erreur lors du remboursement','error');
+  }
 }
 
 // ── Full refund (Stripe pro-rata + pass cancelled) ──
@@ -394,6 +406,9 @@ async function fullRefundPass(id){
 }
 
 async function submitFullRefundPass(id){
+  const btn=document.querySelector('#passFullRefundModal .m-btn-danger');
+  if(btn?.disabled)return;
+  if(btn){btn.disabled=true;btn.textContent='Traitement...';}
   try{
     const reason=document.getElementById('fullRefundReason')?.value?.trim()||null;
     const r=await api.post(`/api/passes/${id}/refund-full`,{reason});
@@ -406,7 +421,10 @@ async function submitFullRefundPass(id){
       GendaUI.toast('Pass annulé (pas de paiement Stripe à rembourser)','success');
     }
     loadPasses();
-  }catch(e){GendaUI.toast(e.message||'Erreur lors du remboursement total','error');}
+  }catch(e){
+    if(btn){btn.disabled=false;btn.textContent='Rembourser et annuler';}
+    GendaUI.toast(e.message||'Erreur lors du remboursement total','error');
+  }
 }
 
 // ── Cancel ──

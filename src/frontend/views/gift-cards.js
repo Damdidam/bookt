@@ -312,10 +312,12 @@ function openDebitGiftCard(id){
 }
 
 async function submitDebitGiftCard(id){
+  const btn=document.querySelector('#gcDebitModal .m-btn-primary');
+  if(btn?.disabled)return;
   const amountVal=parseFloat(document.getElementById('gcDebitAmount').value);
   const note=document.getElementById('gcDebitNote').value.trim();
   if(!amountVal||amountVal<=0){GendaUI.toast('Veuillez saisir un montant valide','error');return;}
-
+  if(btn){btn.disabled=true;btn.textContent='Traitement...';}
   try{
     await api.post(`/api/gift-cards/${id}/debit`,{
       amount_cents:Math.round(amountVal*100),
@@ -324,7 +326,10 @@ async function submitDebitGiftCard(id){
     closeModal('gcDebitModal');
     GendaUI.toast('Carte débitée avec succès','success');
     loadGiftCards();
-  }catch(e){GendaUI.toast(e.message||'Erreur lors du débit','error');}
+  }catch(e){
+    if(btn){btn.disabled=false;btn.textContent='Débiter';}
+    GendaUI.toast(e.message||'Erreur lors du débit','error');
+  }
 }
 
 // ── Refund ──
@@ -381,19 +386,29 @@ async function refundGiftCard(id){
 }
 
 async function submitRefundGiftCard(id){
+  const btn=document.querySelector('#gcRefundModal .m-btn-primary');
+  if(btn?.disabled)return;
   const amountVal=parseFloat(document.getElementById('gcRefundAmount').value);
   const note=document.getElementById('gcRefundNote').value.trim();
   if(!amountVal||amountVal<=0){GendaUI.toast('Veuillez saisir un montant valide','error');return;}
-
+  if(btn){btn.disabled=true;btn.textContent='Traitement...';}
   try{
-    await api.post(`/api/gift-cards/${id}/refund`,{
+    const r=await api.post(`/api/gift-cards/${id}/refund`,{
       amount_cents:Math.round(amountVal*100),
       note:note||undefined
     });
     closeModal('gcRefundModal');
-    GendaUI.toast('Remboursement effectué','success');
+    if(r&&r.stripe_refund_cents!=null){
+      const amt=(r.stripe_refund_cents/100).toFixed(2).replace('.', ',')+' €';
+      GendaUI.toast(`Remboursement effectué (${amt} Stripe${r.stripe_fees_cents>0?' — frais '+(r.stripe_fees_cents/100).toFixed(2).replace('.', ',')+' €':''})`,'success');
+    }else{
+      GendaUI.toast('Remboursement effectué','success');
+    }
     loadGiftCards();
-  }catch(e){GendaUI.toast(e.message||'Erreur lors du remboursement','error');}
+  }catch(e){
+    if(btn){btn.disabled=false;btn.textContent='Rembourser';}
+    GendaUI.toast(e.message||'Erreur lors du remboursement','error');
+  }
 }
 
 // ── Cancel ──

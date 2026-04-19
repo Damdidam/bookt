@@ -242,7 +242,11 @@ router.post('/:id/debit', blockIfImpersonated, async (req, res, next) => {
 });
 
 // ============================================================
-// POST /api/gift-cards/:id/refund — credit back
+// POST /api/gift-cards/:id/refund — credit back + Stripe money-back if applicable
+// BUG-GC-REFUND fix: previously this endpoint only restored the INTERNAL balance_cents
+// — no Stripe API call → client who bought the GC via Stripe could not actually get
+// their money back on their card. Now mirrors /api/passes/:id/refund-full pattern:
+// if stripe_payment_intent_id is set, Stripe refund is issued (with net/full policy).
 // ============================================================
 router.post('/:id/refund', blockIfImpersonated, async (req, res, next) => {
   try {
@@ -253,6 +257,10 @@ router.post('/:id/refund', blockIfImpersonated, async (req, res, next) => {
     if (!amount_cents || amount_cents <= 0) {
       return res.status(400).json({ error: 'Montant invalide' });
     }
+
+    // Read business settings (refund_policy) outside tx
+    const bizRes = await queryWithRLS(bid, `SELECT settings FROM businesses WHERE id = $1`, [bid]);
+    const refundPolicy = bizRes.rows[0]?.settings?.refund_policy || 'full';
 
     const result = await transactionWithRLS(bid, async (client) => {
       const gc = await client.query(
@@ -265,6 +273,50 @@ router.post('/:id/refund', blockIfImpersonated, async (req, res, next) => {
       const newBalance = card.balance_cents + amount_cents;
       if (newBalance > card.amount_cents) throw Object.assign(new Error('Le remboursement dépasse le montant initial'), { status: 400 });
 
+      // Stripe refund if GC was purchased via Stripe
+      let stripeRefundCents = null;
+      let stripeFeesCents = 0;
+      if (card.stripe_payment_intent_id) {
+        const stripeKey = process.env.STRIPE_SECRET_KEY;
+        if (!stripeKey) {
+          throw Object.assign(new Error('STRIPE_SECRET_KEY manquant — remboursement Stripe impossible'), { status: 500 });
+        }
+        const stripe = require('stripe')(stripeKey);
+        try {
+          let piId = card.stripe_payment_intent_id;
+          if (piId.startsWith('cs_')) {
+            const sess = await stripe.checkout.sessions.retrieve(piId);
+            piId = sess.payment_intent;
+          }
+          if (!piId || !piId.startsWith('pi_')) {
+            throw new Error('Identifiant Stripe invalide');
+          }
+          if (refundPolicy === 'net') {
+            stripeFeesCents = amount_cents > 0 ? Math.round(amount_cents * 0.015) + 25 : 0;
+            stripeRefundCents = Math.max(amount_cents - stripeFeesCents, 0);
+          } else {
+            stripeRefundCents = amount_cents;
+          }
+          // D-12 parity: Stripe min = 50c. <50 → no Stripe refund but balance still restored internally.
+          if (stripeRefundCents >= 50) {
+            await stripe.refunds.create({ payment_intent: piId, amount: stripeRefundCents });
+            console.log(`[GC REFUND] Stripe refund ${stripeRefundCents}c (gross ${amount_cents}c, fees ${stripeFeesCents}c, policy ${refundPolicy}) for PI ${piId}`);
+          } else {
+            console.warn(`[GC REFUND] netRefund=${stripeRefundCents}c <50c Stripe min — balance restored but no Stripe refund`);
+            stripeRefundCents = 0;
+          }
+        } catch (stripeErr) {
+          if (stripeErr.code === 'charge_already_refunded') {
+            console.warn(`[GC REFUND] Stripe says already refunded for GC ${id} — proceeding with balance update`);
+            stripeRefundCents = 0;
+          } else {
+            // Stripe must succeed before we credit the balance — keep everything as-is, return error
+            console.error('[GC REFUND] Stripe refund failed:', stripeErr.message);
+            throw Object.assign(new Error(`Remboursement Stripe échoué : ${stripeErr.message}`), { status: 502 });
+          }
+        }
+      }
+
       await client.query(
         `UPDATE gift_cards SET balance_cents = $1, status = 'active', updated_at = NOW()
          WHERE id = $2`,
@@ -272,13 +324,23 @@ router.post('/:id/refund', blockIfImpersonated, async (req, res, next) => {
       );
 
       // Link transaction to a booking if the staff specified one — improves audit trail.
+      const _noteFinal = note || (stripeRefundCents != null ? `Remboursement (${(stripeRefundCents/100).toFixed(2).replace('.',',')} € net Stripe)` : 'Remboursement');
       await client.query(
         `INSERT INTO gift_card_transactions (gift_card_id, business_id, booking_id, amount_cents, type, note, created_by)
          VALUES ($1, $2, $3, $4, 'refund', $5, $6)`,
-        [id, bid, booking_id || null, amount_cents, note || 'Remboursement', req.user.id]
+        [id, bid, booking_id || null, amount_cents, _noteFinal, req.user.id]
       );
 
-      return { ...card, balance_cents: newBalance, status: 'active' };
+      // Audit log — compliance trace of who issued the refund (impersonation included)
+      await client.query(
+        `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
+         VALUES ($1, $2, 'gift_card', $3, 'gc_refund', $4, $5)`,
+        [bid, req.user.id, id,
+         JSON.stringify({ code: card.code, balance_cents: card.balance_cents, amount_cents: card.amount_cents, status: card.status }),
+         JSON.stringify({ balance_cents: newBalance, refund_amount_cents: amount_cents, stripe_refund_cents: stripeRefundCents, stripe_fees_cents: stripeFeesCents, note: note || null, impersonated_by: req.user.impersonatedBy || null })]
+      );
+
+      return { ...card, balance_cents: newBalance, status: 'active', stripe_refund_cents: stripeRefundCents, stripe_fees_cents: stripeFeesCents };
     });
 
     res.json(result);

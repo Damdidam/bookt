@@ -248,6 +248,54 @@ router.get('/:slug/multi-slots', slotsLimiter, async (req, res, next) => {
       }
     }
 
+    // ── Last-minute discount tagging (multi-service parity with /slots) ──
+    // BUG-LM fix: /multi-slots never tagged is_last_minute → frontend book.html:2757
+    // never set bookingBody.is_last_minute=true → backend skipped LM bloc →
+    // multi-service bookings never got LM. Parity with /slots L60-98 handling.
+    if (bizSettings.last_minute_enabled && bizPlan !== 'free' && slots.length > 0) {
+      const discountPct = bizSettings.last_minute_discount_pct || 10;
+      const minPriceCents = bizSettings.last_minute_min_price_cents || 0;
+      const deadline = bizSettings.last_minute_deadline || 'j-1';
+
+      const svcRows = await query(
+        `SELECT id, price_cents, promo_eligible FROM services WHERE id = ANY($1::uuid[]) AND business_id = $2`,
+        [ids, businessId]
+      );
+      const svcMap = Object.fromEntries(svcRows.rows.map(r => [r.id, r]));
+
+      // All services must be promo_eligible for LM to apply to the group
+      const allEligible = ids.every(id => svcMap[id]?.promo_eligible !== false);
+
+      if (allEligible) {
+        // Compute total catalog price with variant overrides
+        let totalCatalogCents = 0;
+        for (let i = 0; i < ids.length; i++) {
+          let priceCents = svcMap[ids[i]]?.price_cents || 0;
+          const vid = vids[i];
+          if (vid) {
+            const varRes = await query(
+              `SELECT price_cents FROM service_variants WHERE id = $1 AND service_id = $2`,
+              [vid, ids[i]]
+            );
+            if (varRes.rows[0]?.price_cents != null) priceCents = varRes.rows[0].price_cents;
+          }
+          totalCatalogCents += priceCents;
+        }
+
+        if (totalCatalogCents > 0 && totalCatalogCents >= minPriceCents) {
+          const discountedCents = Math.round(totalCatalogCents * (100 - discountPct) / 100);
+          for (const slot of slots) {
+            if (isWithinLastMinuteWindow(slot.date, brusselsToday, deadline)) {
+              slot.is_last_minute = true;
+              slot.discount_pct = discountPct;
+              slot.original_price_cents = totalCatalogCents;
+              slot.discounted_price_cents = discountedCents;
+            }
+          }
+        }
+      }
+    }
+
     const byDate = {};
     for (const slot of slots) {
       if (!byDate[slot.date]) byDate[slot.date] = [];

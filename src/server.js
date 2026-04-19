@@ -651,10 +651,17 @@ app.listen(PORT, async () => {
     if (confirmRunning) return;
     confirmRunning = true;
     try {
-      const { processExpiredPendingBookings } = require('./services/booking-confirmation');
+      const { processExpiredPendingBookings, processAutoConfirmModifiedPending } = require('./services/booking-confirmation');
       const result = await processExpiredPendingBookings();
       if (result.processed > 0) {
         console.log(`[CONFIRM CRON] ${result.processed} unconfirmed booking(s) auto-cancelled`);
+      }
+      // BUG-D fix: auto-confirm modified_pending bookings ≤ 2h before start_at.
+      // Staff /modify email promises "sera automatiquement confirmé" — without this,
+      // modified_pending bookings stay zombie forever (reminders filter confirmed only).
+      const autoConfRes = await processAutoConfirmModifiedPending();
+      if (autoConfRes.confirmed > 0) {
+        console.log(`[CONFIRM CRON] ${autoConfRes.confirmed} modified_pending booking(s) auto-confirmed`);
       }
     } catch (e) {
       console.error('[CONFIRM CRON] Error:', e.message); Sentry.captureException(e);

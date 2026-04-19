@@ -20,7 +20,10 @@ router.get('/booking/:token', bookingActionLimiter, async (req, res, next) => {
               CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
                   s.category AS service_category,
               COALESCE(sv.duration_min, s.duration_min) AS duration_min,
-              COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents) AS price_cents,
+              -- BUG-LM fix: return RAW catalog price (not booked_price_cents post-LM),
+              -- so frontend can apply discount_pct once. booked_price_cents was creating
+              -- double-LM application on manage-booking.html rendering.
+              COALESCE(sv.price_cents, s.price_cents) AS price_cents,
               s.quote_only AS service_quote_only, s.color AS service_color,
               p.display_name AS practitioner_name, p.title AS practitioner_title,
               c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email,
@@ -59,7 +62,8 @@ router.get('/booking/:token', bookingActionLimiter, async (req, res, next) => {
       const grp = await query(
         `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' \u2014 ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
                 COALESCE(sv.duration_min, s.duration_min) AS duration_min,
-                COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents) AS price_cents, s.color, b.end_at,
+                -- BUG-LM fix: RAW catalog price only (see comment above).
+                COALESCE(sv.price_cents, s.price_cents) AS price_cents, s.color, b.end_at,
                 b.practitioner_id, p.display_name AS practitioner_name, b.start_at AS svc_start_at,
                 b.promotion_discount_cents, b.promotion_discount_pct, b.promotion_label,
                 b.discount_pct
@@ -174,7 +178,8 @@ router.get('/manage/:token', bookingActionLimiter, async (req, res, next) => {
               CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
               s.category AS service_category,
               COALESCE(sv.duration_min, s.duration_min) AS duration_min,
-              COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents) AS price_cents,
+              -- BUG-LM fix: RAW catalog price only — frontend applies LM discount_pct once.
+              COALESCE(sv.price_cents, s.price_cents) AS price_cents,
               s.quote_only AS service_quote_only, s.color AS service_color,
               p.display_name AS practitioner_name, p.title AS practitioner_title,
               c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email,
@@ -238,7 +243,8 @@ router.get('/manage/:token', bookingActionLimiter, async (req, res, next) => {
       const grp = await query(
         `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' \u2014 ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
                 COALESCE(sv.duration_min, s.duration_min) AS duration_min,
-                COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents) AS price_cents, s.color, b.end_at,
+                -- BUG-LM fix: RAW catalog price only — frontend applies LM discount_pct once.
+                COALESCE(sv.price_cents, s.price_cents) AS price_cents, s.color, b.end_at,
                 b.practitioner_id, p.display_name AS practitioner_name, b.start_at AS svc_start_at,
                 b.service_id, b.service_variant_id,
                 b.promotion_discount_cents, b.promotion_discount_pct, b.promotion_label,

@@ -404,12 +404,16 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
       }
 
       // Queue confirmation notification + pro notification
+      // BUG-WL-EMAIL fix: if deposit UPDATE above flipped status to pending_deposit,
+      // queue email_deposit_request (pay-to-confirm) instead of email_confirmation
+      // — client must pay an acompte, not "rdv confirmé" banner (else silently expires).
+      const _wlNotifType = bk.rows[0].status === 'pending_deposit' ? 'email_deposit_request' : 'email_confirmation';
       try {
         await client.query('SAVEPOINT notif_sp1');
         await client.query(
           `INSERT INTO notifications (business_id, booking_id, type, recipient_email, status)
-           VALUES ($1, $2, 'email_confirmation', $3, 'queued')`,
-          [e.business_id, bk.rows[0].id, e.client_email]
+           VALUES ($1, $2, $4, $3, 'queued')`,
+          [e.business_id, bk.rows[0].id, e.client_email, _wlNotifType]
         );
       } catch (notifErr) {
         await client.query('ROLLBACK TO SAVEPOINT notif_sp1');
@@ -480,27 +484,50 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
               bkRow.end_at = grp.rows[grp.rows.length - 1].end_at;
             }
           }
-          const { sendBookingConfirmation } = require('../../services/email');
-          await sendBookingConfirmation({ booking: bkRow, business: bizRow.rows[0], groupServices });
-          // email_confirmation fix: marquer la row audit (insérée L410) comme 'sent'
-          try {
-            await query(
-              `UPDATE notifications SET status = 'sent', sent_at = NOW()
-               WHERE booking_id = $1 AND type = 'email_confirmation' AND status = 'queued'`,
-              [bkRow.id]
-            );
-          } catch (_) { /* non-critical */ }
+          // BUG-WL-EMAIL fix: when waitlist-accept triggered a deposit requirement
+          // (status='pending_deposit' via L338-345), send sendDepositRequestEmail
+          // (pay-to-confirm) instead of sendBookingConfirmation — else client thinks
+          // the RDV is confirmed, ignores the implicit deposit deadline, cron expires it.
+          if (bkRow.status === 'pending_deposit') {
+            const depositUrl = `${BASE_URL}/deposit/${bkRow.public_token}`;
+            const payUrl = `${BASE_URL}/api/public/deposit/${bkRow.public_token}/pay`;
+            try { await query(`UPDATE bookings SET deposit_payment_url = $1 WHERE id = $2`, [depositUrl, bkRow.id]); } catch (_) {}
+            const { sendDepositRequestEmail } = require('../../services/email');
+            const emailOpts = { booking: bkRow, business: bizRow.rows[0], depositUrl, payUrl };
+            if (groupServices) emailOpts.groupServices = groupServices;
+            await sendDepositRequestEmail(emailOpts);
+            try {
+              await query(
+                `UPDATE notifications SET status = 'sent', sent_at = NOW()
+                 WHERE booking_id = $1 AND type = 'email_deposit_request' AND status = 'queued'`,
+                [bkRow.id]
+              );
+            } catch (_) { /* non-critical */ }
+          } else {
+            const { sendBookingConfirmation } = require('../../services/email');
+            await sendBookingConfirmation({ booking: bkRow, business: bizRow.rows[0], groupServices });
+            // email_confirmation fix: marquer la row audit (insérée L410) comme 'sent'
+            try {
+              await query(
+                `UPDATE notifications SET status = 'sent', sent_at = NOW()
+                 WHERE booking_id = $1 AND type = 'email_confirmation' AND status = 'queued'`,
+                [bkRow.id]
+              );
+            } catch (_) { /* non-critical */ }
+          }
         }
       } catch (emailErr) {
-        console.warn('[EMAIL] Waitlist confirmation email error:', emailErr.message);
+        console.warn('[EMAIL] Waitlist confirmation/deposit email error:', emailErr.message);
         // B-03 fix: utiliser booking.id (closure parent scope L440) au lieu de bkRow.id
         // (bkRow était const dans le if L460, hors scope ici → ReferenceError silencieusement avalé
-        // par le inner catch → UPDATE 'failed' jamais exécuté → row email_confirmation reste queued).
+        // par le inner catch → UPDATE 'failed' jamais exécuté → row reste queued).
         try {
+          // BUG-WL-EMAIL fix: mark the correct notification type (deposit_request or confirmation)
+          const _failType = booking.status === 'pending_deposit' ? 'email_deposit_request' : 'email_confirmation';
           await query(
             `UPDATE notifications SET status = 'failed', sent_at = NOW(), error = $2
-             WHERE booking_id = $1 AND type = 'email_confirmation' AND status = 'queued'`,
-            [booking.id, emailErr.message || 'unknown']
+             WHERE booking_id = $1 AND type = $3 AND status = 'queued'`,
+            [booking.id, emailErr.message || 'unknown', _failType]
           );
         } catch (_) {}
       }
