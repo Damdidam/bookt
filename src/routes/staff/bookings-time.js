@@ -1632,16 +1632,18 @@ router.patch('/:id/modify', async (req, res, next) => {
             // H11 fix: pass raw + booked + discount_pct séparés pour que le template affiche LM barré
             // BUG-MODIFY-STALE fix: use freshBk (post-tx values) for booked_price, discount_pct,
             // promo and deposit — oldBooking is pre-tx and misses LM recalc changes.
+            // IMPORTANT: use a single `_modBk` source (freshBk if fetch OK, else oldBooking) —
+            // `??` fallback breaks when discount_pct goes to null (out-of-LM-window recalc).
             service_price_cents: oldBooking.service_price_cents,
-            booked_price_cents: (freshBk?.booked_price_cents ?? oldBooking.booked_price_cents),
-            discount_pct: (freshBk?.discount_pct ?? oldBooking.discount_pct),
+            booked_price_cents: (freshBk ? freshBk.booked_price_cents : oldBooking.booked_price_cents),
+            discount_pct: (freshBk ? freshBk.discount_pct : oldBooking.discount_pct),
             duration_min: oldBooking.duration_min,
-            promotion_label: (freshBk?.promotion_label ?? oldBooking.promotion_label),
-            promotion_discount_cents: (freshBk?.promotion_discount_cents ?? oldBooking.promotion_discount_cents),
-            promotion_discount_pct: (freshBk?.promotion_discount_pct ?? oldBooking.promotion_discount_pct),
-            deposit_status: (freshBk?.deposit_status ?? oldBooking.deposit_status),
-            deposit_amount_cents: (freshBk?.deposit_amount_cents ?? oldBooking.deposit_amount_cents),
-            deposit_paid_at: (freshBk?.deposit_paid_at ?? oldBooking.deposit_paid_at),
+            promotion_label: (freshBk ? freshBk.promotion_label : oldBooking.promotion_label),
+            promotion_discount_cents: (freshBk ? freshBk.promotion_discount_cents : oldBooking.promotion_discount_cents),
+            promotion_discount_pct: (freshBk ? freshBk.promotion_discount_pct : oldBooking.promotion_discount_pct),
+            deposit_status: (freshBk ? freshBk.deposit_status : oldBooking.deposit_status),
+            deposit_amount_cents: (freshBk ? freshBk.deposit_amount_cents : oldBooking.deposit_amount_cents),
+            deposit_paid_at: (freshBk ? freshBk.deposit_paid_at : oldBooking.deposit_paid_at),
             old_start_at: oldBooking.start_at,
             old_end_at: oldBooking.end_at,
             new_start_at: start_at,
