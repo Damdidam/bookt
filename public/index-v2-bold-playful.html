@@ -1,0 +1,1115 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Genda — Logiciel de réservation pour salons indépendants | Sans commission</title>
+<meta name="description" content="Genda : le logiciel de réservation en ligne pour salons de coiffure, instituts et pros de la beauté en Belgique, France et Luxembourg. Agenda intelligent, rappels SMS, acomptes, cartes cadeau. Zéro commission. Essai gratuit 14 jours.">
+<link rel="canonical" href="https://genda.be/">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://genda.be/">
+<meta property="og:title" content="Genda — Logiciel de réservation pour salons indépendants">
+<meta property="og:description" content="Agenda, minisite, rappels, paiements. Sans commission. Pour salons indépendants en Belgique, France et Luxembourg. Essai gratuit.">
+<meta property="og:locale" content="fr_BE">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Genda — Logiciel de réservation pour salons indépendants">
+<meta name="twitter:description" content="Agenda, rappels, paiements. Zéro commission. Pour salons indés BE/FR/LU.">
+
+<!-- Google Fonts — Fredoka (headings) + Nunito (body) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+/* ========== CSS VARIABLES ========== */
+:root {
+  /* Palette */
+  --violet: #8B5CF6;
+  --violet-dark: #6D28D9;
+  --yellow: #FDE047;
+  --yellow-deep: #EAB308;
+  --magenta: #EC4899;
+  --pink: #F9A8D4;
+  --bg: #FDF2F8;
+  --text: #831843;
+  --text-2: #6B1F43;
+  --text-3: #9B3464;
+  --ink: #1A1A1A;
+  --emerald: #059669;
+  --white: #FFFFFF;
+  --cream: #FAF7F2;
+
+  /* Fonts */
+  --font-heading: 'Fredoka', system-ui, -apple-system, sans-serif;
+  --font-body: 'Nunito', system-ui, -apple-system, sans-serif;
+
+  /* Layout */
+  --container-max: 1200px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-pill: 50px;
+  --border-w: 2.5px;
+}
+
+/* ========== RESET ========== */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+body {
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.55;
+  color: var(--text-2);
+  background: var(--bg);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+img { max-width: 100%; height: auto; display: block; }
+a { color: inherit; text-decoration: none; }
+button { font: inherit; cursor: pointer; border: 0; background: transparent; }
+h1, h2, h3, h4 { font-family: var(--font-heading); font-weight: 700; line-height: 1.05; letter-spacing: -0.02em; color: var(--ink); }
+
+/* ========== NAV ========== */
+.nav {
+  position: sticky; top: 0; z-index: 50;
+  background: rgba(253, 242, 248, 0.85);
+  backdrop-filter: saturate(140%) blur(12px);
+  -webkit-backdrop-filter: saturate(140%) blur(12px);
+  border-bottom: 1.5px solid rgba(26, 26, 26, 0.08);
+}
+.nav-inner {
+  max-width: var(--container-max);
+  margin: 0 auto;
+  padding: 12px 20px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+}
+.nav-logo {
+  font-family: var(--font-heading); font-weight: 700; font-size: 22px;
+  color: var(--text); letter-spacing: -0.02em;
+}
+.nav-links {
+  display: none;
+  gap: 24px; align-items: center;
+  font-size: 14px; font-weight: 500; color: var(--text-2);
+}
+.nav-links a { transition: color 150ms ease; }
+.nav-links a:hover { color: var(--violet); }
+.nav-cta {
+  background: var(--violet); color: var(--white);
+  padding: 10px 18px; border-radius: var(--radius-pill);
+  font-family: var(--font-heading); font-weight: 600; font-size: 13px;
+  border: 2px solid var(--ink);
+  box-shadow: 3px 3px 0 var(--yellow);
+  transition: transform 150ms ease, box-shadow 150ms ease;
+  min-height: 44px; display: inline-flex; align-items: center; justify-content: center;
+}
+.nav-cta:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--yellow); }
+.nav-burger {
+  display: inline-flex; width: 44px; height: 44px;
+  align-items: center; justify-content: center;
+  color: var(--ink);
+}
+.nav-burger svg { width: 26px; height: 26px; }
+
+/* Mobile menu overlay */
+.nav-menu {
+  display: none;
+  position: fixed; inset: 0; z-index: 60;
+  background: var(--bg);
+  padding: 72px 24px 24px;
+}
+.nav-menu.open { display: block; }
+.nav-menu-close {
+  position: absolute; top: 12px; right: 16px;
+  width: 44px; height: 44px;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.nav-menu-close svg { width: 24px; height: 24px; color: var(--ink); }
+.nav-menu ul { list-style: none; display: flex; flex-direction: column; gap: 18px; }
+.nav-menu a { font-family: var(--font-heading); font-size: 22px; font-weight: 600; color: var(--ink); }
+.nav-menu .nav-menu-cta {
+  margin-top: 24px; display: inline-flex;
+  background: var(--violet); color: var(--white);
+  padding: 14px 24px; border-radius: var(--radius-pill);
+  font-weight: 600; font-size: 16px; border: 2.5px solid var(--ink);
+  box-shadow: 4px 4px 0 var(--yellow);
+}
+
+@media (min-width: 768px) {
+  .nav-links { display: flex; }
+  .nav-burger { display: none; }
+}
+
+/* ========== HERO ========== */
+.hero {
+  background: var(--violet);
+  color: var(--white);
+  padding: 60px 20px 0;
+  position: relative;
+  overflow: hidden;
+}
+.hero-inner {
+  max-width: var(--container-max);
+  margin: 0 auto;
+  display: grid; grid-template-columns: 1fr; gap: 36px;
+  padding-bottom: 28px;
+  position: relative;
+}
+.hero-sticker {
+  background: var(--yellow);
+  color: var(--ink);
+  border: var(--border-w) solid var(--ink);
+  border-radius: var(--radius-pill);
+  padding: 6px 14px;
+  font-family: var(--font-heading); font-weight: 700; font-size: 12px;
+  display: inline-block;
+  transform: rotate(-4deg);
+  box-shadow: 3px 3px 0 var(--ink);
+  margin-bottom: 12px;
+}
+.hero h1 {
+  font-size: 44px; color: var(--white);
+  font-weight: 700; line-height: 0.98; letter-spacing: -0.035em;
+}
+.hero h1 em {
+  display: block;
+  font-style: italic;
+  font-weight: 500;
+  color: var(--yellow);
+}
+.hero-sub {
+  margin-top: 18px;
+  font-family: var(--font-body);
+  font-size: 15px; line-height: 1.55;
+  color: rgba(255, 255, 255, 0.92);
+  max-width: 540px;
+}
+.hero-ctas {
+  margin-top: 22px;
+  display: flex; flex-wrap: wrap; gap: 10px;
+}
+.btn-primary {
+  background: var(--yellow);
+  color: var(--ink);
+  padding: 14px 24px;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-heading); font-weight: 700; font-size: 14px;
+  border: var(--border-w) solid var(--ink);
+  box-shadow: 4px 4px 0 var(--ink);
+  display: inline-flex; align-items: center; gap: 8px;
+  min-height: 48px;
+  transition: transform 150ms ease, box-shadow 150ms ease;
+}
+.btn-primary:hover { transform: translate(-1px, -1px); box-shadow: 5px 5px 0 var(--ink); }
+.btn-ghost-white {
+  background: transparent; color: var(--white);
+  padding: 12px 22px;
+  border-radius: var(--radius-pill);
+  border: var(--border-w) solid var(--white);
+  font-family: var(--font-heading); font-weight: 600; font-size: 14px;
+  min-height: 48px; display: inline-flex; align-items: center;
+  transition: background 150ms ease, color 150ms ease;
+}
+.btn-ghost-white:hover { background: var(--white); color: var(--violet); }
+.hero-side-sticker {
+  display: none;
+}
+.hero-proof {
+  margin-top: 28px;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 10px 18px;
+  margin-left: -20px; margin-right: -20px;
+  font-family: var(--font-body);
+  font-size: 12px; color: rgba(255, 255, 255, 0.88);
+  display: flex; align-items: center; justify-content: center;
+  flex-wrap: wrap; gap: 10px;
+}
+.hero-proof .sep { opacity: 0.4; }
+.hero-proof .stars { color: var(--yellow); letter-spacing: 1px; }
+
+@media (min-width: 1024px) {
+  .hero { padding-top: 80px; }
+  .hero-inner { grid-template-columns: 1.35fr 1fr; align-items: center; }
+  .hero h1 { font-size: 76px; }
+  .hero-sub { font-size: 18px; }
+  .hero-side-sticker {
+    display: flex; flex-direction: column; align-items: flex-end;
+    position: relative;
+  }
+  .hero-side-sticker .card {
+    background: var(--white); color: var(--ink);
+    border: var(--border-w) solid var(--ink);
+    border-radius: var(--radius-md);
+    padding: 16px 18px;
+    box-shadow: 5px 5px 0 var(--yellow);
+    transform: rotate(3deg);
+    max-width: 260px;
+    font-family: var(--font-heading);
+  }
+  .hero-side-sticker .card .big {
+    color: var(--emerald); font-size: 20px; font-weight: 700;
+  }
+  .hero-side-sticker .card .small {
+    font-family: var(--font-body); font-size: 12px; color: var(--text-2);
+    margin-top: 4px; font-weight: 400;
+  }
+  .hero-proof { font-size: 13px; }
+}
+@media (min-width: 768px) and (max-width: 1023px) {
+  .hero h1 { font-size: 56px; }
+}
+
+/* ========== PAIN ========== */
+.pain {
+  background: var(--bg);
+}
+.pain h2 {
+  text-align: center;
+  font-size: 32px; color: var(--text);
+  margin-bottom: 10px;
+}
+.pain .lead {
+  text-align: center;
+  font-size: 15px; color: var(--text-2);
+  max-width: 520px; margin: 0 auto 36px;
+}
+.pain-grid {
+  display: grid; gap: 16px;
+  grid-template-columns: 1fr;
+}
+.pain-card {
+  background: var(--white);
+  border: var(--border-w) solid var(--ink);
+  border-radius: var(--radius-md);
+  padding: 22px 20px;
+  box-shadow: 4px 4px 0 var(--magenta);
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+.pain-card:hover { transform: translate(-1px, -1px); box-shadow: 5px 5px 0 var(--magenta); }
+.pain-icon {
+  width: 48px; height: 48px;
+  background: var(--yellow);
+  border: var(--border-w) solid var(--ink);
+  border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  margin-bottom: 14px;
+}
+.pain-icon svg { width: 22px; height: 22px; color: var(--ink); }
+.pain-card h3 {
+  font-size: 18px; color: var(--ink);
+  margin-bottom: 8px;
+  line-height: 1.2;
+}
+.pain-card p {
+  font-size: 14px; color: var(--text-2);
+  line-height: 1.55;
+}
+
+@media (min-width: 768px) { .pain h2 { font-size: 40px; } }
+@media (min-width: 1024px) {
+  .pain h2 { font-size: 48px; }
+  .pain-grid { grid-template-columns: repeat(3, 1fr); gap: 20px; }
+}
+
+/* ========== FEATURES ========== */
+.features { background: var(--bg); }
+.features-header { text-align: center; margin-bottom: 40px; }
+.features-header h2 {
+  font-size: 32px; color: var(--text);
+  margin-bottom: 8px;
+}
+.features-header .lead {
+  font-size: 15px; color: var(--text-2);
+  max-width: 520px; margin: 0 auto;
+}
+.pillar { margin-bottom: 56px; }
+.pillar:last-child { margin-bottom: 0; }
+.pillar-label {
+  font-family: var(--font-heading); font-weight: 700;
+  font-size: 11px; letter-spacing: 3px; text-transform: uppercase;
+  margin-bottom: 12px;
+}
+.pillar-01 .pillar-label { color: var(--violet); }
+.pillar-02 .pillar-label { color: var(--magenta); }
+.pillar-03 .pillar-label { color: var(--emerald); }
+.pillar-04 .pillar-label { color: var(--yellow-deep); }
+.pillar-title {
+  font-size: 24px; color: var(--ink);
+  margin-bottom: 20px;
+}
+.feature-grid {
+  display: grid; gap: 14px;
+  grid-template-columns: 1fr;
+}
+.feature-card {
+  background: var(--white);
+  border: var(--border-w) solid var(--ink);
+  border-radius: var(--radius-md);
+  padding: 20px 18px;
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+.feature-card:hover { transform: translate(-1px, -1px); }
+.pillar-01 .feature-card { box-shadow: 4px 4px 0 var(--violet); }
+.pillar-01 .feature-card:hover { box-shadow: 5px 5px 0 var(--violet); }
+.pillar-02 .feature-card { box-shadow: 4px 4px 0 var(--magenta); }
+.pillar-02 .feature-card:hover { box-shadow: 5px 5px 0 var(--magenta); }
+.pillar-03 .feature-card { box-shadow: 4px 4px 0 var(--emerald); }
+.pillar-03 .feature-card:hover { box-shadow: 5px 5px 0 var(--emerald); }
+.pillar-04 .feature-card { box-shadow: 4px 4px 0 var(--yellow-deep); }
+.pillar-04 .feature-card:hover { box-shadow: 5px 5px 0 var(--yellow-deep); }
+.feature-icon {
+  width: 44px; height: 44px;
+  border: var(--border-w) solid var(--ink);
+  border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  margin-bottom: 12px;
+}
+.feature-icon svg { width: 20px; height: 20px; color: var(--ink); }
+.pillar-01 .feature-icon { background: var(--pink); }
+.pillar-02 .feature-icon { background: var(--yellow); }
+.pillar-03 .feature-icon { background: #A7F3D0; }
+.pillar-04 .feature-icon { background: var(--yellow); }
+.feature-card h4 {
+  font-size: 16px; color: var(--ink);
+  margin-bottom: 6px; line-height: 1.25;
+}
+.feature-card p {
+  font-size: 13.5px; color: var(--text-2);
+  line-height: 1.5;
+}
+
+@media (min-width: 768px) {
+  .features-header h2 { font-size: 40px; }
+  .pillar-title { font-size: 28px; }
+  .feature-grid { grid-template-columns: repeat(2, 1fr); gap: 18px; }
+}
+@media (min-width: 1024px) {
+  .features-header h2 { font-size: 48px; }
+  .pillar-title { font-size: 30px; }
+  .feature-grid { grid-template-columns: repeat(3, 1fr); gap: 20px; }
+}
+
+/* ========== ANTI-MARKETPLACE ========== */
+.anti-mp {
+  background: var(--ink);
+  color: var(--white);
+}
+.anti-mp h2 {
+  color: var(--white); font-size: 32px;
+  text-align: center; margin-bottom: 10px;
+}
+.anti-mp .lead {
+  text-align: center;
+  font-size: 15px; color: rgba(255, 255, 255, 0.75);
+  max-width: 560px; margin: 0 auto 36px;
+}
+.anti-mp-table {
+  background: rgba(255, 255, 255, 0.04);
+  border: var(--border-w) solid var(--yellow);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.anti-mp-row {
+  display: grid; grid-template-columns: 1.3fr 1fr 1fr;
+  border-top: 1.5px solid rgba(255, 255, 255, 0.12);
+  font-family: var(--font-body);
+}
+.anti-mp-row:first-child { border-top: 0; background: rgba(255, 255, 255, 0.08); }
+.anti-mp-cell {
+  padding: 14px 16px; font-size: 13px;
+}
+.anti-mp-cell.label { font-weight: 600; color: rgba(255, 255, 255, 0.9); }
+.anti-mp-cell.bad { color: rgba(255, 255, 255, 0.6); }
+.anti-mp-cell.good {
+  color: var(--yellow); font-weight: 700;
+  background: rgba(253, 224, 71, 0.08);
+}
+.anti-mp-row:first-child .anti-mp-cell {
+  font-family: var(--font-heading); font-size: 11px;
+  font-weight: 700; text-transform: uppercase; letter-spacing: 2px;
+  color: rgba(255, 255, 255, 0.5);
+}
+.anti-mp-row:first-child .anti-mp-cell.good { color: var(--yellow); background: transparent; }
+.anti-mp-punch {
+  text-align: center; margin-top: 32px;
+  font-family: var(--font-heading); font-weight: 700;
+  font-size: 22px; color: var(--yellow);
+}
+.anti-mp-cta {
+  display: block; text-align: center;
+  margin: 24px auto 0; width: fit-content;
+  background: var(--yellow); color: var(--ink);
+  padding: 14px 26px; border-radius: var(--radius-pill);
+  font-family: var(--font-heading); font-weight: 700; font-size: 14px;
+  border: var(--border-w) solid var(--yellow);
+  box-shadow: 4px 4px 0 rgba(253, 224, 71, 0.35);
+  transition: transform 150ms ease;
+  min-height: 48px;
+}
+.anti-mp-cta:hover { transform: translate(-1px, -1px); }
+
+@media (max-width: 767px) {
+  .anti-mp-row { grid-template-columns: 1.2fr 1fr 1fr; }
+  .anti-mp-cell { padding: 12px 10px; font-size: 12px; }
+}
+@media (min-width: 768px) {
+  .anti-mp h2 { font-size: 40px; }
+}
+@media (min-width: 1024px) {
+  .anti-mp h2 { font-size: 48px; }
+  .anti-mp-cell { font-size: 15px; padding: 18px 22px; }
+  .anti-mp-punch { font-size: 28px; }
+}
+
+/* ========== PRICING ========== */
+.pricing { background: var(--bg); }
+.pricing h2 { text-align: center; color: var(--text); font-size: 32px; margin-bottom: 10px; }
+.pricing .lead { text-align: center; color: var(--text-2); font-size: 15px; margin-bottom: 36px; max-width: 520px; margin-left: auto; margin-right: auto; }
+.plans {
+  display: grid; gap: 16px;
+  grid-template-columns: 1fr;
+  max-width: 880px; margin: 0 auto;
+}
+.plan {
+  background: var(--white);
+  border: var(--border-w) solid var(--ink);
+  border-radius: var(--radius-md);
+  padding: 28px 24px;
+  position: relative;
+  display: flex; flex-direction: column;
+}
+.plan.free { box-shadow: 5px 5px 0 var(--pink); }
+.plan.pro {
+  box-shadow: 6px 6px 0 var(--violet);
+  transform: none;
+}
+.plan-popular {
+  position: absolute; top: -14px; right: 20px;
+  background: var(--yellow); color: var(--ink);
+  padding: 6px 14px; border-radius: var(--radius-pill);
+  font-family: var(--font-heading); font-weight: 700; font-size: 12px;
+  border: 2px solid var(--ink);
+  transform: rotate(4deg);
+}
+.plan-name {
+  font-family: var(--font-heading); font-weight: 700;
+  font-size: 14px; letter-spacing: 2px; text-transform: uppercase;
+  color: var(--text-3); margin-bottom: 10px;
+}
+.plan-price {
+  font-family: var(--font-heading); font-weight: 700;
+  font-size: 48px; color: var(--ink); letter-spacing: -0.035em;
+  line-height: 1;
+}
+.plan-price sub {
+  font-family: var(--font-body); font-size: 14px;
+  font-weight: 500; color: var(--text-2);
+  margin-left: 6px; vertical-align: baseline;
+}
+.plan-desc {
+  font-size: 14px; color: var(--text-2);
+  margin: 10px 0 24px; line-height: 1.5;
+}
+.plan-features {
+  list-style: none; margin: 0 0 24px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.plan-features li {
+  font-size: 14px; color: var(--text-2);
+  display: flex; gap: 10px; line-height: 1.5;
+}
+.plan-features li::before {
+  content: ''; flex-shrink: 0;
+  width: 20px; height: 20px; margin-top: 2px;
+  background: var(--yellow) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231A1A1A' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><polyline points='20 6 9 17 4 12'/></svg>") center/14px no-repeat;
+  border-radius: 50%; border: 1.5px solid var(--ink);
+}
+.plan-cta {
+  margin-top: auto;
+  padding: 14px 20px; border-radius: var(--radius-pill);
+  font-family: var(--font-heading); font-weight: 700; font-size: 14px;
+  border: var(--border-w) solid var(--ink);
+  text-align: center;
+  transition: transform 150ms ease, box-shadow 150ms ease;
+  min-height: 48px; display: inline-flex; align-items: center; justify-content: center;
+}
+.plan-cta.primary { background: var(--violet); color: var(--white); box-shadow: 4px 4px 0 var(--ink); }
+.plan-cta.primary:hover { transform: translate(-1px, -1px); box-shadow: 5px 5px 0 var(--ink); }
+.plan-cta.outline { background: var(--white); color: var(--ink); }
+.plan-cta.outline:hover { background: var(--yellow); }
+
+@media (min-width: 768px) {
+  .pricing h2 { font-size: 40px; }
+  .plans { grid-template-columns: 1fr 1fr; }
+}
+@media (min-width: 1024px) {
+  .pricing h2 { font-size: 48px; }
+}
+
+/* ========== FAQ ========== */
+.faq { background: var(--bg); }
+.faq h2 {
+  text-align: center; color: var(--text);
+  font-size: 32px; margin-bottom: 32px;
+}
+.faq-list {
+  max-width: 720px; margin: 0 auto;
+}
+.faq-item {
+  border-top: 1.5px solid rgba(26, 26, 26, 0.15);
+  padding: 0;
+}
+.faq-item:last-child { border-bottom: 1.5px solid rgba(26, 26, 26, 0.15); }
+.faq-item summary {
+  list-style: none;
+  padding: 20px 0;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px;
+  cursor: pointer;
+  font-family: var(--font-heading); font-weight: 600;
+  font-size: 16px; color: var(--ink);
+}
+.faq-item summary::-webkit-details-marker { display: none; }
+.faq-item summary::after {
+  content: '+';
+  font-family: var(--font-heading); font-weight: 400;
+  font-size: 28px; color: var(--violet);
+  line-height: 1;
+  transition: transform 200ms ease;
+}
+.faq-item[open] summary::after { transform: rotate(45deg); }
+.faq-item .faq-a {
+  padding: 0 0 20px;
+  font-size: 14.5px; color: var(--text-2);
+  line-height: 1.65;
+}
+
+@media (min-width: 768px) {
+  .faq h2 { font-size: 40px; }
+  .faq-item summary { font-size: 18px; padding: 22px 0; }
+  .faq-item .faq-a { font-size: 15px; }
+}
+@media (min-width: 1024px) { .faq h2 { font-size: 48px; } }
+
+/* ========== CTA FINAL ========== */
+.cta-final {
+  background: var(--violet);
+  color: var(--white);
+  padding: 60px 20px;
+  text-align: center;
+}
+.cta-final h2 {
+  color: var(--white); font-size: 32px;
+  max-width: 680px; margin: 0 auto 14px;
+}
+.cta-final p {
+  font-size: 16px; color: rgba(255, 255, 255, 0.88);
+  max-width: 540px; margin: 0 auto 28px;
+}
+.cta-final-btn {
+  display: inline-flex; align-items: center; gap: 10px;
+  background: var(--yellow); color: var(--ink);
+  padding: 16px 30px;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-heading); font-weight: 700; font-size: 16px;
+  border: var(--border-w) solid var(--ink);
+  box-shadow: 5px 5px 0 var(--ink);
+  min-height: 52px;
+  transition: transform 150ms ease, box-shadow 150ms ease;
+}
+.cta-final-btn:hover { transform: translate(-2px, -2px); box-shadow: 7px 7px 0 var(--ink); }
+
+@media (min-width: 768px) {
+  .cta-final { padding: 80px 20px; }
+  .cta-final h2 { font-size: 44px; }
+}
+@media (min-width: 1024px) {
+  .cta-final h2 { font-size: 54px; }
+}
+
+/* ========== FOOTER ========== */
+.footer {
+  background: var(--ink);
+  color: rgba(255, 255, 255, 0.75);
+  padding: 48px 20px 24px;
+  font-size: 13px; line-height: 1.6;
+}
+.footer-inner {
+  max-width: var(--container-max); margin: 0 auto;
+  display: grid; gap: 32px;
+  grid-template-columns: 1fr;
+}
+.footer-brand .footer-logo {
+  font-family: var(--font-heading); font-weight: 700;
+  font-size: 24px; color: var(--white);
+  display: block; margin-bottom: 10px;
+}
+.footer-brand p {
+  max-width: 320px; font-size: 13.5px;
+  color: rgba(255, 255, 255, 0.6);
+}
+.footer-col h4 {
+  font-family: var(--font-heading); font-weight: 700;
+  font-size: 11px; letter-spacing: 2.5px; text-transform: uppercase;
+  color: var(--yellow); margin-bottom: 14px;
+}
+.footer-col ul { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.footer-col a { color: rgba(255, 255, 255, 0.78); transition: color 150ms ease; }
+.footer-col a:hover { color: var(--yellow); }
+.footer-bottom {
+  max-width: var(--container-max); margin: 32px auto 0;
+  border-top: 1.5px solid rgba(255, 255, 255, 0.12);
+  padding-top: 20px;
+  font-size: 12px; color: rgba(255, 255, 255, 0.5);
+  display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px;
+}
+
+@media (min-width: 768px) {
+  .footer-inner { grid-template-columns: 1.4fr 1fr 1fr 1fr; }
+}
+@media (min-width: 1024px) {
+  .footer { padding: 64px 20px 32px; }
+}
+
+/* ========== UTILITIES ========== */
+.container { max-width: var(--container-max); margin: 0 auto; padding: 0 20px; }
+.section { padding: 48px 0; }
+@media (min-width: 768px) { .section { padding: 64px 0; } }
+@media (min-width: 1024px) { .section { padding: 80px 0; } }
+
+/* Focus visible for a11y */
+a:focus-visible, button:focus-visible, summary:focus-visible {
+  outline: 2.5px solid var(--violet);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ========== ANIMATIONS ========== */
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 500ms ease-out, transform 500ms ease-out;
+}
+.reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+@media (prefers-reduced-motion: reduce) {
+  .reveal { opacity: 1; transform: none; transition: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="nav" aria-label="Navigation principale">
+  <div class="nav-inner">
+    <a href="#" class="nav-logo">genda</a>
+    <div class="nav-links">
+      <a href="#features">Fonctionnalités</a>
+      <a href="#pricing">Tarifs</a>
+      <a href="/login">Connexion</a>
+      <a href="/signup.html" class="nav-cta">Essai gratuit</a>
+    </div>
+    <button class="nav-burger" aria-label="Ouvrir le menu" aria-expanded="false" aria-controls="nav-menu" onclick="document.getElementById('nav-menu').classList.add('open'); this.setAttribute('aria-expanded','true');">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+    </button>
+  </div>
+</nav>
+
+<!-- Mobile menu overlay -->
+<div class="nav-menu" id="nav-menu" role="dialog" aria-label="Menu mobile">
+  <button class="nav-menu-close" aria-label="Fermer le menu" onclick="document.getElementById('nav-menu').classList.remove('open'); document.querySelector('.nav-burger').setAttribute('aria-expanded','false');">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="6" y1="18" x2="18" y2="6"/></svg>
+  </button>
+  <ul>
+    <li><a href="#features" onclick="document.getElementById('nav-menu').classList.remove('open')">Fonctionnalités</a></li>
+    <li><a href="#pricing" onclick="document.getElementById('nav-menu').classList.remove('open')">Tarifs</a></li>
+    <li><a href="/login">Connexion</a></li>
+    <li><a href="/signup.html" class="nav-menu-cta">Essai gratuit</a></li>
+  </ul>
+</div>
+
+<!-- MAIN CONTENT TO COME -->
+<main id="main">
+  <!-- HERO -->
+  <section class="hero" aria-labelledby="hero-title">
+    <div class="hero-inner">
+      <div>
+        <span class="hero-sticker">✦ 0% commission</span>
+        <h1 id="hero-title">Un client.<br>Un RDV.<br><em>Zéro galère.</em></h1>
+        <p class="hero-sub">Le logiciel qui s'occupe de votre agenda pendant que vous vous occupez de vos clients.</p>
+        <div class="hero-ctas">
+          <a href="/signup.html" class="btn-primary">Essai gratuit 14 jours <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></a>
+          <a href="#features" class="btn-ghost-white">Voir les fonctionnalités</a>
+        </div>
+      </div>
+      <div class="hero-side-sticker" aria-hidden="true">
+        <div class="card">
+          <div class="big">Vos clients.</div>
+          <div class="big" style="color: var(--violet);">Vos règles.</div>
+          <div class="small">Pas de marketplace. Pas de commission. Pas de concurrent affiché à côté de vous.</div>
+        </div>
+      </div>
+    </div>
+    <div class="hero-proof">
+      <span class="stars" aria-hidden="true">★★★★★</span>
+      <span class="sep">·</span>
+      <span>BE · FR · LU</span>
+      <span class="sep">·</span>
+      <span>Essai gratuit, sans carte bancaire</span>
+    </div>
+  </section>
+
+  <!-- PAIN -->
+  <section class="pain section reveal" aria-labelledby="pain-title">
+    <div class="container">
+      <h2 id="pain-title">Ça vous rappelle quelqu'un ?</h2>
+      <p class="lead">Les 3 galères qu'on entend le plus souvent chez les salons indépendants.</p>
+      <div class="pain-grid">
+        <article class="pain-card">
+          <span class="pain-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+          </span>
+          <h3>Vos clients appellent pendant que vous coupez</h3>
+          <p>Le téléphone sonne. Vous interrompez la coupe. Vous perdez 2 minutes, et parfois le client à qui vous tournez le dos. Vous ne pouvez pas tout faire en même temps.</p>
+        </article>
+        <article class="pain-card">
+          <span class="pain-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          </span>
+          <h3>Les trous de 11h sont des heures perdues</h3>
+          <p>Une annulation, un créneau vide, personne pour le combler avant 14h. Votre journée se troue. Vos revenus aussi.</p>
+        </article>
+        <article class="pain-card">
+          <span class="pain-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          </span>
+          <h3>Les no-shows vous coûtent 300€ par mois</h3>
+          <p>RDV réservés, clients absents, aucun acompte. Vous encaissez le trou. Multipliez par 12 mois, c'est 3 600€ qui s'évaporent.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section id="features" class="features section reveal" aria-labelledby="features-title">
+    <div class="container">
+      <div class="features-header">
+        <h2 id="features-title">Tout Genda, dans 4 piliers.</h2>
+        <p class="lead">De la réservation au paiement, en passant par la fidélité — tout est pensé pour les pros indépendants.</p>
+      </div>
+
+      <!-- PILIER 01 -->
+      <div class="pillar pillar-01">
+        <div class="pillar-label">01 · Booker plus</div>
+        <h3 class="pillar-title">Vos clients réservent, tout le temps.</h3>
+        <div class="feature-grid">
+          <article class="feature-card">
+            <span class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+            </span>
+            <h4>Minisite public inclus</h4>
+            <p>Votre site perso (photos, prestations, équipe, réservation en ligne). Zéro configuration. Votre URL : genda.be/votre-salon.</p>
+          </article>
+          <article class="feature-card">
+            <span class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+            </span>
+            <h4>Multi-service en un clic</h4>
+            <p>Coupe + couleur + brushing ? Le client combine, vous voyez tout sur un seul RDV. Durée et prix calculés automatiquement.</p>
+          </article>
+          <article class="feature-card">
+            <span class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>
+            </span>
+            <h4>Remises last-minute automatiques</h4>
+            <p>Créneau à moins de 24h ? Genda affiche -20% et remplit le trou tout seul. Vous récupérez de l'argent qui partait en fumée.</p>
+          </article>
+        </div>
+      </div>
+
+      <!-- PILIER 02 -->
+      <div class="pillar pillar-02">
+        <div class="pillar-label">02 · Organiser mieux</div>
+        <h3 class="pillar-title">Votre temps, vraiment maîtrisé.</h3>
+        <div class="feature-grid">
+          <article class="feature-card">
+            <span class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            </span>
+            <h4>Agenda drag &amp; drop</h4>
+            <p>Vue jour, semaine, mois. Déplacez un RDV à la souris, il se met à jour partout (client, équipe, Google Calendar).</p>
+          </article>
+          <article class="feature-card">
+            <span class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </span>
+            <h4>Planning d'équipe</h4>
+            <p>Chaque praticien a son agenda, ses horaires, ses services. Vous voyez le vôtre ou tout le salon en un clic.</p>
+          </article>
+          <article class="feature-card">
+            <span class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+            </span>
+            <h4>Liste d'attente auto</h4>
+            <p>Un créneau se libère ? Les clients en attente reçoivent l'offre par email. Premier arrivé, premier servi.</p>
+          </article>
+        </div>
+      </div>
+
+      <!-- PILIER 03 -->
+      <div class="pillar pillar-03">
+        <div class="pillar-label">03 · Sécuriser vos revenus</div>
+        <h3 class="pillar-title">Plus de no-shows, plus d'oublis.</h3>
+        <div class="feature-grid">
+          <article class="feature-card">
+            <span class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+            </span>
+            <h4>Acomptes Stripe automatiques</h4>
+            <p>Montant ou %. Prélevé à la réservation. Remboursé automatiquement si annulation dans les délais. Fini les trous.</p>
+          </article>
+          <article class="feature-card">
+            <span class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+            </span>
+            <h4>Rappels SMS &amp; email</h4>
+            <p>Automatiques à J-1 et H-2. Le client confirme en un clic. Taux d'ouverture SMS : 98%. Taux de no-show divisé par 3.</p>
+          </article>
+          <article class="feature-card">
+            <span class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            </span>
+            <h4>Factures BE conformes</h4>
+            <p>Numérotation légale, TVA multi-taux (6% + 21%), communication structurée, notes de crédit. Conforme AR n°1 art.14.</p>
+          </article>
+        </div>
+      </div>
+
+      <!-- PILIER 04 -->
+      <div class="pillar pillar-04">
+        <div class="pillar-label">04 · Fidéliser vos clients</div>
+        <h3 class="pillar-title">Donnez-leur une raison de revenir.</h3>
+        <div class="feature-grid">
+          <article class="feature-card">
+            <span class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>
+            </span>
+            <h4>Cartes cadeau</h4>
+            <p>Vendues en ligne 24/7, utilisables immédiatement. Votre client achète, le destinataire reçoit le code par email. Zéro papier.</p>
+          </article>
+          <article class="feature-card">
+            <span class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"/><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"/><path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z"/></svg>
+            </span>
+            <h4>Abonnements (passes)</h4>
+            <p>"Pack 5 brushings" vendu en ligne, débité auto à chaque RDV. Fidélise, prévisionne la trésorerie, simplifie tout.</p>
+          </article>
+          <article class="feature-card">
+            <span class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+            </span>
+            <h4>Promos auto &amp; remises ciblées</h4>
+            <p>Première visite -20%, pack complet, promo mercredi. Les règles se configurent une fois, s'appliquent pour toujours.</p>
+          </article>
+        </div>
+      </div>
+
+
+    </div>
+  </section>
+
+  <!-- ANTI-MARKETPLACE -->
+  <section class="anti-mp section reveal" aria-labelledby="antimp-title">
+    <div class="container">
+      <h2 id="antimp-title">Genda n'est pas une marketplace.</h2>
+      <p class="lead">Votre salon n'apparaît pas à côté de 40 concurrents. Vos clients sont les vôtres. Point final.</p>
+      <div class="anti-mp-table">
+        <div class="anti-mp-row">
+          <div class="anti-mp-cell">&nbsp;</div>
+          <div class="anti-mp-cell">Planity · Booksy · Timify</div>
+          <div class="anti-mp-cell good">Genda</div>
+        </div>
+        <div class="anti-mp-row">
+          <div class="anti-mp-cell label">Commission par réservation</div>
+          <div class="anti-mp-cell bad">1 à 5 € + %</div>
+          <div class="anti-mp-cell good">0 €</div>
+        </div>
+        <div class="anti-mp-row">
+          <div class="anti-mp-cell label">Salon dans un annuaire</div>
+          <div class="anti-mp-cell bad">Oui</div>
+          <div class="anti-mp-cell good">Non</div>
+        </div>
+        <div class="anti-mp-row">
+          <div class="anti-mp-cell label">Données clients</div>
+          <div class="anti-mp-cell bad">Partagées</div>
+          <div class="anti-mp-cell good">100 % à vous</div>
+        </div>
+        <div class="anti-mp-row">
+          <div class="anti-mp-cell label">Contact direct client</div>
+          <div class="anti-mp-cell bad">Masqué</div>
+          <div class="anti-mp-cell good">Visible</div>
+        </div>
+      </div>
+      <p class="anti-mp-punch">Votre métier, vos clients, vos revenus.</p>
+      <a href="/signup.html" class="anti-mp-cta">Je rejoins Genda →</a>
+    </div>
+  </section>
+
+  <!-- PRICING -->
+  <section id="pricing" class="pricing section reveal" aria-labelledby="pricing-title">
+    <div class="container">
+      <h2 id="pricing-title">Simple. Transparent. Sans surprise.</h2>
+      <p class="lead">Commencez gratuitement. Passez Pro quand ça vaut le coup. Jamais de commission.</p>
+      <div class="plans">
+        <article class="plan free">
+          <div class="plan-name">Gratuit</div>
+          <div class="plan-price">0 €<sub>/mois</sub></div>
+          <p class="plan-desc">Pour démarrer sans engagement et tester Genda sur vos prochains RDV.</p>
+          <ul class="plan-features">
+            <li>Agenda illimité</li>
+            <li>Minisite public inclus</li>
+            <li>Rappels email automatiques</li>
+            <li>1 promotion active</li>
+            <li>Export clients CSV</li>
+          </ul>
+          <a href="/signup.html" class="plan-cta outline">Commencer gratuitement</a>
+        </article>
+        <article class="plan pro">
+          <span class="plan-popular">Le + choisi</span>
+          <div class="plan-name">Pro</div>
+          <div class="plan-price">60 €<sub>/mois</sub></div>
+          <p class="plan-desc">Toutes les fonctionnalités Genda, sans limite. 14 jours gratuits, sans CB.</p>
+          <ul class="plan-features">
+            <li>Tout du plan Gratuit, plus :</li>
+            <li>Rappels SMS (économie no-shows)</li>
+            <li>Acomptes Stripe &amp; remboursements auto</li>
+            <li>Remises last-minute intelligentes</li>
+            <li>Cartes cadeau &amp; abonnements</li>
+            <li>Factures BE conformes (TVA, notes de crédit)</li>
+            <li>Équipe illimitée &amp; planning avancé</li>
+            <li>Liste d'attente automatique</li>
+          </ul>
+          <a href="/signup.html" class="plan-cta primary">Démarrer l'essai 14 jours</a>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="faq section reveal" aria-labelledby="faq-title">
+    <div class="container">
+      <h2 id="faq-title">Les questions qu'on nous pose.</h2>
+      <div class="faq-list">
+        <details class="faq-item">
+          <summary>Je peux annuler à tout moment ?</summary>
+          <p class="faq-a">Oui. Sans engagement. Votre minisite reste actif en mode gratuit. Vos données restent exportables tant que votre compte existe.</p>
+        </details>
+        <details class="faq-item">
+          <summary>Mes données m'appartiennent ?</summary>
+          <p class="faq-a">À 100 %. Export CSV et JSON disponibles à tout moment (clients, RDV, factures). Nous ne revendons jamais vos données. Nous ne les partageons avec aucun autre salon.</p>
+        </details>
+        <details class="faq-item">
+          <summary>Je peux migrer depuis Planity, Booksy ou Timify ?</summary>
+          <p class="faq-a">Oui pour les clients : import CSV depuis votre export. Les RDV futurs sont généralement ressaisis à la main (les plateformes n'autorisent pas l'export). On vous aide si besoin.</p>
+        </details>
+        <details class="faq-item">
+          <summary>Comment mes clients reçoivent les rappels ?</summary>
+          <p class="faq-a">Automatiquement : email à J-1, SMS à H-2 (plan Pro). Le client confirme en un clic. Taux d'ouverture SMS &gt; 98 %, les no-shows chutent typiquement de 60 à 80 %.</p>
+        </details>
+        <details class="faq-item">
+          <summary>C'est compatible avec mon Google ou Apple Calendar ?</summary>
+          <p class="faq-a">Oui. Synchronisation bi-directionnelle via iCal (Google, Apple, Outlook). Les RDV Genda apparaissent dans votre calendrier personnel, et vos blocages persos apparaissent dans Genda.</p>
+        </details>
+        <details class="faq-item">
+          <summary>Je dois avoir une TVA pour m'inscrire ?</summary>
+          <p class="faq-a">Non. Les indépendants complémentaires (sans TVA) peuvent utiliser Genda. Les factures s'adaptent automatiquement à votre statut (avec ou sans TVA, mention "franchise PME" si applicable).</p>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA FINAL -->
+  <section class="cta-final reveal" aria-labelledby="final-cta-title">
+    <h2 id="final-cta-title">Prêt à arrêter de courir après vos clients ?</h2>
+    <p>Créez votre salon sur Genda en 3 minutes. Essai gratuit 14 jours, sans carte bancaire.</p>
+    <a href="/signup.html" class="cta-final-btn">Créer mon salon <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></a>
+  </section>
+</main>
+
+<!-- FOOTER -->
+<footer class="footer" role="contentinfo">
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <span class="footer-logo">genda</span>
+      <p>Le logiciel de réservation pour salons indépendants en Belgique, France et Luxembourg. Sans marketplace, sans commission.</p>
+    </div>
+    <div class="footer-col">
+      <h4>Produit</h4>
+      <ul>
+        <li><a href="#features">Fonctionnalités</a></li>
+        <li><a href="#pricing">Tarifs</a></li>
+        <li><a href="/login">Connexion</a></li>
+        <li><a href="/signup.html">Essai gratuit</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>Secteurs</h4>
+      <ul>
+        <li>Coiffure</li>
+        <li>Institut de beauté</li>
+        <li>Onglerie</li>
+        <li>Barbershop</li>
+        <li>Bien-être</li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>Légal &amp; contact</h4>
+      <ul>
+        <li><a href="/cgu">CGU</a></li>
+        <li><a href="/privacy">Politique de confidentialité</a></li>
+        <li><a href="/rgpd">RGPD</a></li>
+        <li><a href="/mentions-legales">Mentions légales</a></li>
+        <li><a href="mailto:hello@genda.be">hello@genda.be</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <div>© 2026 Genda — Fait en Belgique</div>
+    <div>BE · FR · LU</div>
+  </div>
+</footer>
+
+<script>
+// Scroll reveal (honors prefers-reduced-motion via CSS)
+(function() {
+  if (!('IntersectionObserver' in window)) {
+    document.querySelectorAll('.reveal').forEach(function(el) { el.classList.add('visible'); });
+    return;
+  }
+  var io = new IntersectionObserver(function(entries) {
+    entries.forEach(function(e) {
+      if (e.isIntersecting) {
+        e.target.classList.add('visible');
+        io.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+  document.querySelectorAll('.reveal').forEach(function(el) { io.observe(el); });
+})();
+</script>
+
+</body>
+</html>
