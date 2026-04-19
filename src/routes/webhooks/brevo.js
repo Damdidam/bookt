@@ -76,15 +76,17 @@ async function processBrevoEvent(evt) {
 
   // Stratégie de matching : messageId d'abord, sinon fallback sur email + recent.
   // Les événements arrivent en prod avec un léger décalage, on matche la notif la + récente.
+  // Casts ::text explicites nécessaires — pg ne déduit pas le type quand un paramètre est
+  // utilisé dans 2 contextes différents (SET + CASE WHEN) ou dans LOWER(), cf bugs #1/#2.
   let updated = null;
   if (messageId) {
     const r = await query(
       `UPDATE notifications
-         SET status = $1,
-             error = COALESCE($2, error),
-             sent_at = COALESCE(sent_at, CASE WHEN $1 = 'sent' THEN NOW() ELSE sent_at END),
-             metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('brevo_event', $3, 'brevo_ts', $4, 'brevo_reason', $5)
-       WHERE provider = 'brevo' AND provider_message_id = $6
+         SET status = $1::text,
+             error = COALESCE($2::text, error),
+             sent_at = COALESCE(sent_at, CASE WHEN $1::text = 'sent' THEN NOW() ELSE sent_at END),
+             metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('brevo_event', $3::text, 'brevo_ts', $4::bigint, 'brevo_reason', $5::text)
+       WHERE provider = 'brevo' AND provider_message_id = $6::text
        RETURNING id`,
       [mapping.status, errorText, String(evt.event || ''), evt.ts || evt.ts_event || null, reason, messageId]
     );
@@ -94,12 +96,12 @@ async function processBrevoEvent(evt) {
     // Fallback : dernière notif pour cet email dans les 7 derniers jours sans event terminal.
     const r = await query(
       `UPDATE notifications
-         SET status = $1,
-             error = COALESCE($2, error),
-             metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('brevo_event', $3, 'brevo_reason', $4, 'matched_by', 'email_fallback')
+         SET status = $1::text,
+             error = COALESCE($2::text, error),
+             metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('brevo_event', $3::text, 'brevo_reason', $4::text, 'matched_by', 'email_fallback')
        WHERE id = (
          SELECT id FROM notifications
-          WHERE LOWER(recipient_email) = $5
+          WHERE LOWER(recipient_email) = LOWER($5::text)
             AND created_at >= NOW() - INTERVAL '7 days'
           ORDER BY created_at DESC
           LIMIT 1
