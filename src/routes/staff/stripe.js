@@ -575,9 +575,12 @@ async function handleStripeWebhook(req, res) {
                VALUES ($1, $2, $3, $3, $4, $5, $6, $7, $8, $9, $10)
                ON CONFLICT (stripe_payment_intent_id) WHERE stripe_payment_intent_id IS NOT NULL DO NOTHING
                RETURNING *`,
+              // BUG-GC-EMAIL-LOWER fix: normalize emails to lowercase at INSERT so auto-debit
+              // lookups (WHERE LOWER(recipient_email) = LOWER($x)) remain consistent even si
+              // Stripe/clients saisissent la casse différemment.
               [bizId, code, amountCents,
-               session.metadata.buyer_name || null, session.metadata.buyer_email || null,
-               session.metadata.recipient_name || null, session.metadata.recipient_email || null,
+               session.metadata.buyer_name || null, session.metadata.buyer_email ? String(session.metadata.buyer_email).toLowerCase() : null,
+               session.metadata.recipient_name || null, session.metadata.recipient_email ? String(session.metadata.recipient_email).toLowerCase() : null,
                session.metadata.message || null, piId, expiresAt]
             );
             if (gc.rows.length === 0) {
@@ -710,7 +713,8 @@ async function handleStripeWebhook(req, res) {
                VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8, $9, $10, $11, $12)
                ON CONFLICT (stripe_payment_intent_id) WHERE stripe_payment_intent_id IS NOT NULL DO NOTHING
                RETURNING *`,
-              [business_id, pass_template_id, tpl.service_id, tpl.service_variant_id || null, code, tpl.name, tpl.sessions_count, tpl.price_cents, buyer_name, buyer_email, _passStripeId, expiresAt.toISOString()]
+              // BUG-PASS-EMAIL-LOWER fix: normalize buyer_email lowercase for consistent matching.
+              [business_id, pass_template_id, tpl.service_id, tpl.service_variant_id || null, code, tpl.name, tpl.sessions_count, tpl.price_cents, buyer_name, buyer_email ? String(buyer_email).toLowerCase() : null, _passStripeId, expiresAt.toISOString()]
             );
             if (passRes.rows.length === 0) {
               console.log(`[STRIPE WH] Pass INSERT conflict for PI ${session.payment_intent} (race with concurrent webhook), skipping.`);
@@ -935,25 +939,43 @@ async function handleStripeWebhook(req, res) {
           try {
             const sessions = await stripe.checkout.sessions.list({ payment_intent: pi, limit: 1 });
             const sessionId = sessions.data[0]?.id || null;
-            const bookings = await query(
-              `SELECT id, business_id, group_id, client_id, status, deposit_status
-               FROM bookings
-               WHERE deposit_payment_intent_id IN ($1, $2)
-                 AND deposit_status = 'paid'`,
-              [pi, sessionId]
-            );
-            for (const bk of bookings.rows) {
-              // (a) Echo: we already cancelled it, just sync deposit_status
-              if (bk.status === 'cancelled') {
-                await query(
-                  `UPDATE bookings SET deposit_status = 'refunded', updated_at = NOW() WHERE id = $1`,
-                  [bk.id]
-                );
-                console.log(`[STRIPE WH] Internal refund echo for already-cancelled booking ${bk.id}`);
-                continue;
+            // BUG-CHARGEREF-FOR-UPDATE fix: SELECT FOR UPDATE (dans une tx dédiée au echo/partial path)
+            // pour éviter race avec cron pendant le switch (a)/(b)/(c). Chaque bk est traité
+            // avec son propre lock row-level.
+            const _echoTxClient = await pool.connect();
+            let bookings;
+            try {
+              await _echoTxClient.query('BEGIN');
+              bookings = await _echoTxClient.query(
+                `SELECT id, business_id, group_id, client_id, status, deposit_status
+                 FROM bookings
+                 WHERE deposit_payment_intent_id IN ($1, $2)
+                   AND deposit_status = 'paid'
+                 FOR UPDATE`,
+                [pi, sessionId]
+              );
+              for (const bk of bookings.rows) {
+                // (a) Echo: we already cancelled it, just sync deposit_status
+                if (bk.status === 'cancelled') {
+                  await _echoTxClient.query(
+                    `UPDATE bookings SET deposit_status = 'refunded', updated_at = NOW() WHERE id = $1 AND status = 'cancelled'`,
+                    [bk.id]
+                  );
+                  console.log(`[STRIPE WH] Internal refund echo for already-cancelled booking ${bk.id}`);
+                }
               }
+              await _echoTxClient.query('COMMIT');
+            } catch (_echoErr) {
+              await _echoTxClient.query('ROLLBACK').catch(() => {});
+              throw _echoErr;
+            } finally {
+              _echoTxClient.release();
+            }
+            for (const bk of bookings.rows) {
+              // (a) already handled above (echo)
+              if (bk.status === 'cancelled') continue;
 
-              // (c) PARTIAL refund Dashboard — pas de cascade, juste alerte pro
+              // (c) PARTIAL refund Dashboard — pas de cascade, juste alerte pro + email client
               if (isPartialRefund) {
                 console.warn(`[STRIPE WH] PARTIAL refund detected for booking ${bk.id}: ${charge.amount_refunded}/${charge.amount}c. Booking NOT cancelled — pro must act manually.`);
                 try {
@@ -968,6 +990,32 @@ async function handleStripeWebhook(req, res) {
                     })]
                   );
                 } catch (_) { /* audit non-critique */ }
+                // BUG-CHARGEREF-PARTIAL-CLIENT fix: notifier aussi le client du remboursement partiel.
+                // Sans ça, le client voit juste le virement Stripe sans explication côté Bookt.
+                try {
+                  const _partialBk = await query(
+                    `SELECT b.public_token,
+                            CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS service_name,
+                            b.start_at, c.full_name AS client_name, c.email AS client_email,
+                            biz.name AS biz_name, biz.email AS biz_email, biz.phone AS biz_phone, biz.address AS biz_address, biz.theme AS biz_theme, biz.slug AS biz_slug
+                       FROM bookings b
+                       LEFT JOIN clients c ON c.id = b.client_id
+                       LEFT JOIN services s ON s.id = b.service_id
+                       LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+                       JOIN businesses biz ON biz.id = b.business_id
+                      WHERE b.id = $1`, [bk.id]
+                  );
+                  if (_partialBk.rows[0]?.client_email) {
+                    const pr = _partialBk.rows[0];
+                    const { sendPartialRefundEmail } = require('../../services/email');
+                    sendPartialRefundEmail({
+                      booking: { client_name: pr.client_name, client_email: pr.client_email, service_name: pr.service_name, start_at: pr.start_at, public_token: pr.public_token },
+                      business: { name: pr.biz_name, email: pr.biz_email, phone: pr.biz_phone, address: pr.biz_address, theme: pr.biz_theme, slug: pr.biz_slug },
+                      refundAmountCents: charge.amount_refunded,
+                      totalAmountCents: charge.amount
+                    }).catch(e => console.warn('[STRIPE WH] Partial refund email error:', e.message));
+                  }
+                } catch (e) { console.warn('[STRIPE WH] Partial refund email fetch error:', e.message); }
                 continue;
               }
 

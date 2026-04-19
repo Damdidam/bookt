@@ -271,40 +271,60 @@ router.post('/:id/offer', async (req, res, next) => {
     if (offerStart >= offerEnd) {
       return res.status(400).json({ error: 'La date de début doit être avant la date de fin' });
     }
-    if (offerStart.getTime() < Date.now() + 3600000) {
-      return res.status(400).json({ error: 'Le créneau doit être au moins 1h dans le futur' });
+    // BUG-WL-MIN-NOTICE fix: seuil configurable via business settings au lieu de 1h hardcoded.
+    // Certains salons (urgence, last-minute) veulent offrir des slots à < 1h du RDV.
+    // Utilise parseInt+isFinite pour traiter la valeur 0 explicite (zero notice = urgence)
+    // correctement — le pattern `||` aurait écrasé 0 en falsy.
+    const bizSet = await queryWithRLS(bid, `SELECT settings FROM businesses WHERE id = $1`, [bid]);
+    const _wlSettings = bizSet.rows[0]?.settings || {};
+    const _rawMinNotice = parseInt(_wlSettings.waitlist_min_notice_minutes);
+    const _rawMinNoticeHours = parseInt(_wlSettings.min_notice_hours);
+    const _minNoticeMinutes = Number.isFinite(_rawMinNotice) ? _rawMinNotice
+                             : (Number.isFinite(_rawMinNoticeHours) ? _rawMinNoticeHours * 60 : 60);
+    if (offerStart.getTime() < Date.now() + _minNoticeMinutes * 60000) {
+      return res.status(400).json({ error: `Le créneau doit être au moins ${Math.round(_minNoticeMinutes / 60 * 10) / 10}h dans le futur` });
     }
 
-    // Check slot availability (read-only, no advisory lock needed)
+    // BUG-WL-ADVISORY-LOCK fix: the conflict check + UPDATE pattern had a race window —
+    // two staff offering the same slot simultaneously could both pass the check. Wrap the
+    // check+UPDATE in a transaction with pg_advisory_xact_lock on (practitioner, start_at)
+    // to serialize concurrent offers on the same slot.
     const wlPracId = entry.rows[0].practitioner_id;
     const { getMaxConcurrent } = require('./bookings-helpers');
     const maxConc = await getMaxConcurrent(bid, wlPracId);
-    const conflictCheck = await queryWithRLS(bid,
-      `SELECT COUNT(*)::int AS cnt FROM bookings
-       WHERE business_id = $1 AND practitioner_id = $2
-         AND status NOT IN ('cancelled', 'no_show')
-         AND start_at < $4 AND end_at > $3`,
-      [bid, wlPracId, start_at, end_at]
-    );
-    if (conflictCheck.rows[0].cnt >= maxConc) {
-      return res.status(409).json({ error: 'Conflit : un rendez-vous existe déjà sur ce créneau' });
-    }
-
     const token = require('crypto').randomBytes(20).toString('hex');
     const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2h
-
-    await queryWithRLS(bid,
-      `UPDATE waitlist_entries SET
-        status = 'offered',
-        offer_token = $1,
-        offer_booking_start = $2,
-        offer_booking_end = $3,
-        offer_sent_at = NOW(),
-        offer_expires_at = $4,
-        updated_at = NOW()
-       WHERE id = $5 AND business_id = $6`,
-      [token, start_at, end_at, expiresAt.toISOString(), id, bid]
-    );
+    const { transactionWithRLS } = require('../../services/db');
+    try {
+      await transactionWithRLS(bid, async (txClient) => {
+        await txClient.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [`${wlPracId}_${start_at}`]);
+        const conflictCheck = await txClient.query(
+          `SELECT COUNT(*)::int AS cnt FROM bookings
+           WHERE business_id = $1 AND practitioner_id = $2
+             AND status NOT IN ('cancelled', 'no_show')
+             AND start_at < $4 AND end_at > $3`,
+          [bid, wlPracId, start_at, end_at]
+        );
+        if (conflictCheck.rows[0].cnt >= maxConc) {
+          throw Object.assign(new Error('Conflit : un rendez-vous existe déjà sur ce créneau'), { type: 'conflict', status: 409 });
+        }
+        await txClient.query(
+          `UPDATE waitlist_entries SET
+            status = 'offered',
+            offer_token = $1,
+            offer_booking_start = $2,
+            offer_booking_end = $3,
+            offer_sent_at = NOW(),
+            offer_expires_at = $4,
+            updated_at = NOW()
+           WHERE id = $5 AND business_id = $6`,
+          [token, start_at, end_at, expiresAt.toISOString(), id, bid]
+        );
+      });
+    } catch (err) {
+      if (err.status === 409) return res.status(409).json({ error: err.message });
+      throw err;
+    }
 
     const offerUrl = `${process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be'}/waitlist/${token}`;
     const wEntry = entry.rows[0];

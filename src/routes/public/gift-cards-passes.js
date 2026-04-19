@@ -382,9 +382,16 @@ router.post('/deposit/:token/check-passes', depositLimiter, async (req, res, nex
     );
     if (bkRes.rows.length === 0 || !bkRes.rows[0].email) return res.json({ passes: [] });
     const { business_id, service_id, service_variant_id, email } = bkRes.rows[0];
+    // BUG-CHECK-PASSES-TEMPLATE fix: verify pass_template is still active.
+    // If a pro deactivates a pass template, passes déjà achetés restent utilisables (legal
+    // constraint — client a payé), MAIS on ne doit pas les proposer à l'auto-debit sur d'autres
+    // bookings car le template indique que le pro ne veut plus vendre ce pass.
+    // LEFT JOIN tolère les passes sans template (legacy) — on filtre seulement si template existe.
     let passSql = `SELECT p.code, p.sessions_remaining, p.sessions_total, p.expires_at, p.name, s.name AS service_name
        FROM passes p JOIN services s ON s.id = p.service_id
+       LEFT JOIN pass_templates pt ON pt.id = p.pass_template_id
        WHERE p.business_id = $1 AND p.status = 'active' AND p.sessions_remaining > 0 AND p.service_id = $2
+         AND (pt.id IS NULL OR pt.is_active = true)
          AND LOWER(p.buyer_email) = LOWER($3) AND (p.expires_at IS NULL OR p.expires_at > NOW())`;
     const passParams = [business_id, service_id, email];
     // Filter by variant if the pass has a specific variant_id (null = all variants accepted)

@@ -37,10 +37,13 @@ async function refundPassForBooking(bookingId, dbClient) {
     }
     refundCounts[debit.pass_id] = (refundCounts[debit.pass_id] || 0) + 1;
     // Credit sessions back (don't reactivate if naturally expired past expires_at — guard déjà ci-dessus)
+    // BUG-PASS-REFUND-GUARD fix: 'used' → 'active' only si sessions_remaining + crédit > 0 strict.
+    // Sinon pass reste 'used' (crédit 0 signifie pas de nouvelles séances dispo).
     await q(
       `UPDATE passes SET sessions_remaining = sessions_remaining + ABS($1),
        status = CASE
-         WHEN status IN ('used', 'expired') AND (expires_at IS NULL OR expires_at > NOW()) THEN 'active'
+         WHEN status IN ('used', 'expired') AND (expires_at IS NULL OR expires_at > NOW())
+              AND (sessions_remaining + ABS($1)) > 0 THEN 'active'
          ELSE status
        END,
        updated_at = NOW() WHERE id = $2`,

@@ -723,4 +723,60 @@ async function sendDepositRefundProEmail({ booking, business }) {
   });
 }
 
-module.exports = { sendDepositRequestEmail, sendDepositReminderEmail, sendDepositPaidEmail, sendDepositRefundEmail, sendDepositPaidProEmail, sendDepositRefundProEmail };
+/**
+ * Send partial-refund notification to the client after a Stripe Dashboard partial refund.
+ * Without this email, the client sees a partial Stripe deposit in their bank but no
+ * explanation from the salon — risk of dispute / RGPD complaint.
+ */
+async function sendPartialRefundEmail({ booking, business, refundAmountCents, totalAmountCents }) {
+  if (!booking.client_email) return { success: false, error: 'no_client_email' };
+  const color = safeColor(business.theme?.primary_color);
+  const safeClientName = escHtml(booking.client_name || 'Client');
+  const refundStr = ((refundAmountCents || 0) / 100).toFixed(2).replace('.', ',');
+  const totalStr = ((totalAmountCents || 0) / 100).toFixed(2).replace('.', ',');
+  const safeBizName = escHtml(business.name || 'le salon');
+  const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+  const manageUrl = booking.public_token ? `${baseUrl}/booking/${booking.public_token}` : null;
+
+  let dateLine = '';
+  if (booking.start_at) {
+    const d = new Date(booking.start_at);
+    const dateStr = d.toLocaleDateString('fr-BE', { timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    const timeStr = d.toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' });
+    dateLine = `<div style="font-size:13px;color:#3D3832">${escHtml(dateStr)} \u00e0 ${escHtml(timeStr)}</div>`;
+  }
+  const svcLine = booking.service_name
+    ? `<div style="font-size:14px;color:#3D3832;margin-bottom:2px">${escHtml(booking.service_name)}</div>`
+    : '';
+
+  const bodyHTML = `
+    <p>Bonjour <strong>${safeClientName}</strong>,</p>
+    <p><strong>${safeBizName}</strong> vous a accord\u00e9 un remboursement partiel sur votre rendez-vous.</p>
+    <div style="background:#F0FDF4;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #22C55E">
+      <div style="font-size:15px;font-weight:600;color:#15803D;margin-bottom:4px">Remboursement : ${refundStr} \u20ac${totalAmountCents ? ' <span style="font-size:13px;font-weight:400;opacity:.75">(sur ${totalStr} \u20ac vers\u00e9s)</span>' : ''}</div>
+      ${svcLine}${dateLine}
+    </div>
+    <p style="font-size:13px;color:#6B6560">Le remboursement apparaîtra sur votre relevé bancaire sous 5 à 10 jours ouvrables. Votre rendez-vous est maintenu. Pour toute question, contactez directement ${safeBizName}${business.phone ? ' au ' + escHtml(business.phone) : ''}${business.email ? ' (<a href="mailto:' + escHtml(business.email) + '" style="color:' + color + ';text-decoration:none">' + escHtml(business.email) + '</a>)' : ''}.</p>`;
+
+  const html = buildEmailHTML({
+    title: 'Remboursement partiel',
+    preheader: `Remboursement de ${refundStr} € crédité sur votre compte`,
+    bodyHTML,
+    ctaText: manageUrl ? 'Voir mon rendez-vous' : null,
+    ctaUrl: manageUrl,
+    businessName: business.name,
+    primaryColor: color,
+    footerText: `${business.name}${business.address ? ' \u00b7 ' + business.address : ''} \u00b7 Via Genda.be`
+  });
+
+  return sendEmail({
+    to: booking.client_email,
+    toName: booking.client_name,
+    subject: `Remboursement partiel \u2014 ${business.name}`,
+    html,
+    fromName: business.name,
+    replyTo: business.email
+  });
+}
+
+module.exports = { sendDepositRequestEmail, sendDepositReminderEmail, sendDepositPaidEmail, sendDepositRefundEmail, sendDepositPaidProEmail, sendDepositRefundProEmail, sendPartialRefundEmail };

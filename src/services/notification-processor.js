@@ -85,11 +85,16 @@ function buildServiceDetailHTML(bk, groupServices) {
 
   if (isMulti) {
     let html = '';
+    // BUG-PRO-LM fix: track if any member has LM discount, for the total-line strikethrough
+    let _hasLmMulti = false;
+    let _totalRawPrice = 0;
     groupServices.forEach(s => {
       // Apply last-minute discount per member
       const adjMemberPrice = s.discount_pct && s.price_cents ? Math.round(s.price_cents * (100 - s.discount_pct) / 100) : (s.price_cents || 0);
       const price = fmtPrice(adjMemberPrice);
       const pracSuffix = s.practitioner_name ? ' \u00b7 ' + escHtml(s.practitioner_name) : '';
+      if (s.discount_pct && s.price_cents) _hasLmMulti = true;
+      _totalRawPrice += (s.price_cents || 0);
       html += `<div style="font-size:13px;color:#3D3832;padding:2px 0">\u2022 ${escHtml(s.name)} \u2014 ${s.duration_min} min${price ? ' \u00b7 ' + price : ''}${pracSuffix}</div>`;
     });
     const totalMin = groupServices.reduce((sum, s) => sum + (s.duration_min || 0), 0);
@@ -101,9 +106,12 @@ function buildServiceDetailHTML(bk, groupServices) {
     const finalPrice = totalPrice - promoDisc;
     const durStr = totalMin >= 60 ? Math.floor(totalMin / 60) + 'h' + (totalMin % 60 > 0 ? String(totalMin % 60).padStart(2, '0') : '') : totalMin + ' min';
     if (totalPrice > 0) {
-      if (promoDisc > 0 && bk.promotion_label) {
-        html += `<div style="font-size:14px;color:#3D3832;margin-top:6px;font-weight:700">Total : ${durStr} \u00b7 <s style="opacity:.6">${fmtPrice(totalPrice)}</s> ${fmtPrice(finalPrice)}</div>`;
-        html += `<div style="font-size:12px;color:#6B6560;opacity:.8">${escHtml(bk.promotion_label)} : -${fmtPrice(promoDisc)}</div>`;
+      // BUG-PRO-LM fix: when any member has LM discount, show raw-vs-final strikethrough with LM line
+      if (_hasLmMulti || (promoDisc > 0 && bk.promotion_label)) {
+        const displayBase = _hasLmMulti ? _totalRawPrice : totalPrice;
+        html += `<div style="font-size:14px;color:#3D3832;margin-top:6px;font-weight:700">Total : ${durStr} \u00b7 <s style="opacity:.6">${fmtPrice(displayBase)}</s> ${fmtPrice(finalPrice)}</div>`;
+        if (_hasLmMulti) html += `<div style="font-size:12px;color:#6B6560;opacity:.8">Last Minute : -${fmtPrice(_totalRawPrice - totalPrice)}</div>`;
+        if (promoDisc > 0 && bk.promotion_label) html += `<div style="font-size:12px;color:#6B6560;opacity:.8">${escHtml(bk.promotion_label)} : -${fmtPrice(promoDisc)}</div>`;
       } else {
         html += `<div style="font-size:14px;color:#3D3832;margin-top:6px;font-weight:700">Total : ${durStr} \u00b7 ${fmtPrice(totalPrice)}</div>`;
       }
@@ -116,13 +124,17 @@ function buildServiceDetailHTML(bk, groupServices) {
   let html = `<div style="font-size:14px;color:#3D3832;font-weight:600">${serviceName}</div>`;
   const _rawPriceCents = bk.service_price_cents || 0;
   const priceCents = bk.booked_price_cents || (bk.discount_pct ? Math.round(_rawPriceCents * (100 - bk.discount_pct) / 100) : _rawPriceCents);
+  // BUG-PRO-LM fix: show strikethrough raw price when LM applied (hasLm = discount_pct > 0 AND rawPrice > priceCents)
+  const _hasLm = bk.discount_pct && _rawPriceCents > priceCents;
   if (priceCents > 0) {
     const dur = bk.duration_min ? bk.duration_min + ' min \u00b7 ' : '';
     const promoDisc = bk.promotion_discount_cents || 0;
-    if (promoDisc > 0 && bk.promotion_label) {
-      const finalPrice = priceCents - promoDisc;
-      html += `<div style="font-size:13px;color:#6B6560;margin-top:4px">${dur}<s style="opacity:.6">${fmtPrice(priceCents)}</s> ${fmtPrice(finalPrice)}</div>`;
-      html += `<div style="font-size:12px;color:#6B6560;opacity:.8">${escHtml(bk.promotion_label)} : -${fmtPrice(promoDisc)}</div>`;
+    const finalPrice = priceCents - promoDisc;
+    if (_hasLm || (promoDisc > 0 && bk.promotion_label)) {
+      const displayBase = _hasLm ? _rawPriceCents : priceCents;
+      html += `<div style="font-size:13px;color:#6B6560;margin-top:4px">${dur}<s style="opacity:.6">${fmtPrice(displayBase)}</s> ${fmtPrice(finalPrice)}</div>`;
+      if (_hasLm) html += `<div style="font-size:12px;color:#6B6560;opacity:.8">Last Minute -${bk.discount_pct}%</div>`;
+      if (promoDisc > 0 && bk.promotion_label) html += `<div style="font-size:12px;color:#6B6560;opacity:.8">${escHtml(bk.promotion_label)} : -${fmtPrice(promoDisc)}</div>`;
     } else {
       html += `<div style="font-size:13px;color:#6B6560;margin-top:4px">${dur}${fmtPrice(priceCents)}</div>`;
     }

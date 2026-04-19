@@ -774,6 +774,24 @@ app.listen(PORT, async () => {
       calibrationRunning = false;
     }
   }, calibrationInterval);
+
+  // ===== STRIPE WEBHOOK EVENTS CLEANUP — delete rows older than 30 days daily =====
+  // BUG-STRIPE-SWE-CLEANUP fix: Stripe retry window is max 3 days, donc 30j couvre largement.
+  // Sans cleanup, la table croît indéfiniment (10-50k rows/an sur prod moyenne).
+  const stripeWebhookCleanupInterval = 24 * 60 * 60 * 1000; // 24h
+  let stripeWebhookCleanupRunning = false;
+  setInterval(async () => {
+    if (stripeWebhookCleanupRunning) return;
+    stripeWebhookCleanupRunning = true;
+    try {
+      const r = await pool.query(`DELETE FROM stripe_webhook_events WHERE processed_at < NOW() - INTERVAL '30 days'`);
+      if (r.rowCount > 0) console.log(`[SWE CLEANUP] Deleted ${r.rowCount} old webhook event(s)`);
+    } catch (e) {
+      console.error('[SWE CLEANUP] Error:', e.message); Sentry.captureException(e);
+    } finally {
+      stripeWebhookCleanupRunning = false;
+    }
+  }, stripeWebhookCleanupInterval);
 });
 
 module.exports = app;

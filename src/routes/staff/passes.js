@@ -340,9 +340,10 @@ router.post('/', async (req, res, next) => {
           sessions_total, sessions_remaining, price_cents, buyer_name, buyer_email,
           expires_at, created_by)
          VALUES ($1, $2, $3, $4, $5, $6, $6, $7, $8, $9, $10, $11) RETURNING *`,
+        // BUG-PASS-EMAIL-LOWER fix: normalize buyer_email (parité stripe webhook + gift-cards.js).
         [bid, pass_template_id || null, resolvedServiceId, code, resolvedName,
          resolvedSessionsTotal, resolvedPriceCents,
-         buyer_name || null, buyer_email || null,
+         buyer_name || null, buyer_email ? String(buyer_email).toLowerCase() : null,
          expires_at, req.user.id]
       );
 

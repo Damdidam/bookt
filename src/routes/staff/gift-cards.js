@@ -109,8 +109,9 @@ router.post('/', async (req, res, next) => {
         `INSERT INTO gift_cards (business_id, code, amount_cents, balance_cents, buyer_name, buyer_email,
          recipient_name, recipient_email, message, expires_at, created_by)
          VALUES ($1, $2, $3, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
-        [bid, code, amount_cents, buyer_name || null, buyer_email || null,
-         recipient_name || null, recipient_email || null, message || null,
+        // BUG-GC-EMAIL-LOWER fix: normalize emails pour consistance lookup auto-debit.
+        [bid, code, amount_cents, buyer_name || null, buyer_email ? String(buyer_email).toLowerCase() : null,
+         recipient_name || null, recipient_email ? String(recipient_email).toLowerCase() : null, message || null,
          expires_at, req.user.id]
       );
 

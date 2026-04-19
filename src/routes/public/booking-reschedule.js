@@ -261,6 +261,25 @@ router.post(['/manage/:token/reschedule', '/booking/:token/reschedule'], booking
         const sp = slotPractitioners[i];
         if (!sp) continue;
 
+        // BUG-SPLIT-RESCH-VALIDATION fix: check (a) service_id match (client peut pas
+        // réaffecter un service à un autre member) et (b) le practitioner fait réellement
+        // ce service (practitioner_services). Sans ça, client malveillant peut assigner
+        // pract A à un service que A ne pratique pas.
+        if (sp.service_id && String(sp.service_id) !== String(m.service_id)) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ error: 'Incohérence dans l\'assignation service/praticien du groupe.' });
+        }
+        const pracSvcCheck = await client.query(
+          `SELECT 1 FROM practitioner_services
+            WHERE practitioner_id = $1 AND service_id = $2 AND business_id = $3
+            LIMIT 1`,
+          [sp.practitioner_id, m.service_id, bk.business_id]
+        );
+        if (pracSvcCheck.rows.length === 0) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ error: 'Ce praticien ne pratique pas cette prestation.' });
+        }
+
         // Conflict check per member (exclude self)
         const conflicts = await checkBookingConflicts(client, {
           bid: bk.business_id,

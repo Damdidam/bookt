@@ -104,6 +104,34 @@ async function sendEmail(opts) {
   if (!EMAIL_RE.test(opts.to)) return { success: false, error: 'Invalid recipient email' };
   if (opts.replyTo && !EMAIL_RE.test(opts.replyTo)) delete opts.replyTo;
 
+  // BUG-SUPPRESSION-LIST fix: skip emails to recipients that Brevo already marked as
+  // bounced/blocked/invalid (detected via our Brevo webhook → notifications.error column).
+  // Without this check we hammer Brevo with emails that will bounce, costing rate-limit
+  // quota + risking account reputation damage. Opt-out is handled separately (unsubscribe).
+  // Patterns alignés sur webhooks/brevo.js:80 qui écrit `brevo_<event>: <reason>`.
+  // Events terminaux: hard_bounce, blocked, spam, complaint, invalid_email, unsubscribed.
+  // soft_bounce est exclu (transient, on retry).
+  try {
+    const { query } = require('./db');
+    const suppressCheck = await query(
+      `SELECT 1 FROM notifications
+         WHERE LOWER(recipient_email) = LOWER($1)
+           AND type LIKE 'email_%'
+           AND (error ILIKE '%hard_bounce%'
+                OR error ILIKE '%brevo_blocked%'
+                OR error ILIKE '%brevo_spam%'
+                OR error ILIKE '%brevo_complaint%'
+                OR error ILIKE '%invalid_email%'
+                OR error ILIKE '%unsubscribed%')
+           AND created_at > NOW() - INTERVAL '90 days'
+         LIMIT 1`, [opts.to]
+    );
+    if (suppressCheck.rows.length > 0) {
+      console.warn(`[EMAIL] Suppression-list hit for ${opts.to} (bounced/blocked in last 90d) — skipping send.`);
+      return { success: false, error: 'suppression_list', skipped: true };
+    }
+  } catch (_) { /* DB unavailable — proceed with send (fail-open for transient issues) */ }
+
   // E2E mock : intercept avant appel Brevo
   if (process.env.SKIP_EMAIL === '1') {
     try {
