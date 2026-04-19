@@ -122,7 +122,8 @@ async function sendEmail(opts) {
                 OR error ILIKE '%brevo_spam%'
                 OR error ILIKE '%brevo_complaint%'
                 OR error ILIKE '%invalid_email%'
-                OR error ILIKE '%unsubscribed%')
+                OR error ILIKE '%unsubscribed%'
+                OR error ILIKE '%brevo_error%')
            AND created_at > NOW() - INTERVAL '90 days'
          LIMIT 1`, [opts.to]
     );

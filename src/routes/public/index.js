@@ -179,8 +179,10 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
     }
     if (pass_code) {
       const passValidCheck = await query(
-        `SELECT status, sessions_remaining, expires_at FROM passes
-         WHERE business_id = $1 AND code = $2 LIMIT 1`,
+        `SELECT p.status, p.sessions_remaining, p.expires_at, pt.is_active AS template_active
+           FROM passes p
+           LEFT JOIN pass_templates pt ON pt.id = p.pass_template_id
+          WHERE p.business_id = $1 AND p.code = $2 LIMIT 1`,
         [businessId, pass_code.toUpperCase().trim()]
       );
       if (passValidCheck.rows.length === 0) {
@@ -189,6 +191,9 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       const pass = passValidCheck.rows[0];
       if (pass.status !== 'active') {
         return res.status(400).json({ error: `Abonnement ${pass.status === 'expired' ? 'expiré' : pass.status === 'used' ? 'épuisé' : pass.status === 'cancelled' ? 'annulé' : 'inutilisable'}` });
+      }
+      if (pass.template_active === false) {
+        return res.status(400).json({ error: 'Abonnement temporairement indisponible' });
       }
       if (pass.sessions_remaining <= 0) {
         return res.status(400).json({ error: 'Aucune séance restante sur cet abonnement' });
@@ -550,21 +555,25 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
             let passCheckRes;
             if (pass_code) {
               passCheckRes = await client.query(
-                `SELECT id, service_id, service_variant_id FROM passes
-                 WHERE business_id = $1 AND code = $2 AND status = 'active' AND sessions_remaining > 0
-                   AND (expires_at IS NULL OR expires_at > NOW())
+                `SELECT p.id, p.service_id, p.service_variant_id FROM passes p
+                  LEFT JOIN pass_templates pt ON pt.id = p.pass_template_id
+                 WHERE p.business_id = $1 AND p.code = $2 AND p.status = 'active' AND p.sessions_remaining > 0
+                   AND (p.expires_at IS NULL OR p.expires_at > NOW())
+                   AND (pt.id IS NULL OR pt.is_active = true)
                  LIMIT 1`,
                 [businessId, pass_code.toUpperCase().trim()]
               );
             } else if (client_email) {
               passCheckRes = await client.query(
-                `SELECT id, service_id, service_variant_id FROM passes
-                 WHERE business_id = $1 AND status = 'active' AND sessions_remaining > 0
-                   AND LOWER(buyer_email) = LOWER($2)
-                   AND service_id = ANY($3)
-                   AND (service_variant_id IS NULL OR service_variant_id = ANY($4))
-                   AND (expires_at IS NULL OR expires_at > NOW())
-                 ORDER BY service_variant_id DESC NULLS LAST, sessions_remaining ASC LIMIT 1`,
+                `SELECT p.id, p.service_id, p.service_variant_id FROM passes p
+                  LEFT JOIN pass_templates pt ON pt.id = p.pass_template_id
+                 WHERE p.business_id = $1 AND p.status = 'active' AND p.sessions_remaining > 0
+                   AND LOWER(p.buyer_email) = LOWER($2)
+                   AND p.service_id = ANY($3)
+                   AND (p.service_variant_id IS NULL OR p.service_variant_id = ANY($4))
+                   AND (p.expires_at IS NULL OR p.expires_at > NOW())
+                   AND (pt.id IS NULL OR pt.is_active = true)
+                 ORDER BY p.service_variant_id DESC NULLS LAST, p.sessions_remaining ASC LIMIT 1`,
                 [businessId, client_email, serviceIds, variantIds.filter(Boolean)]
               );
             }
@@ -711,21 +720,25 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                 let passRes;
                 if (pass_code) {
                   passRes = await client.query(
-                    `SELECT id, code, sessions_remaining, service_id, service_variant_id FROM passes
-                     WHERE business_id = $1 AND code = $2 AND status = 'active' AND sessions_remaining > 0
-                       AND (expires_at IS NULL OR expires_at > NOW())
-                     LIMIT 1 FOR UPDATE`,
+                    `SELECT p.id, p.code, p.sessions_remaining, p.service_id, p.service_variant_id FROM passes p
+                      LEFT JOIN pass_templates pt ON pt.id = p.pass_template_id
+                     WHERE p.business_id = $1 AND p.code = $2 AND p.status = 'active' AND p.sessions_remaining > 0
+                       AND (p.expires_at IS NULL OR p.expires_at > NOW())
+                       AND (pt.id IS NULL OR pt.is_active = true)
+                     LIMIT 1 FOR UPDATE OF p`,
                     [businessId, pass_code.toUpperCase().trim()]
                   );
                 } else if (client_email) {
                   passRes = await client.query(
-                    `SELECT id, code, sessions_remaining, service_id, service_variant_id FROM passes
-                     WHERE business_id = $1 AND status = 'active' AND sessions_remaining > 0
-                       AND LOWER(buyer_email) = LOWER($2)
-                       AND service_id = ANY($3)
-                       AND (service_variant_id IS NULL OR service_variant_id = ANY($4))
-                       AND (expires_at IS NULL OR expires_at > NOW())
-                     ORDER BY service_variant_id DESC NULLS LAST, sessions_remaining ASC LIMIT 1 FOR UPDATE`,
+                    `SELECT p.id, p.code, p.sessions_remaining, p.service_id, p.service_variant_id FROM passes p
+                      LEFT JOIN pass_templates pt ON pt.id = p.pass_template_id
+                     WHERE p.business_id = $1 AND p.status = 'active' AND p.sessions_remaining > 0
+                       AND LOWER(p.buyer_email) = LOWER($2)
+                       AND p.service_id = ANY($3)
+                       AND (p.service_variant_id IS NULL OR p.service_variant_id = ANY($4))
+                       AND (p.expires_at IS NULL OR p.expires_at > NOW())
+                       AND (pt.id IS NULL OR pt.is_active = true)
+                     ORDER BY p.service_variant_id DESC NULLS LAST, p.sessions_remaining ASC LIMIT 1 FOR UPDATE OF p`,
                     [businessId, client_email, serviceIds, variantIds.filter(Boolean)]
                   );
                 }
@@ -1179,21 +1192,25 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           let passCheckRes;
           if (pass_code) {
             passCheckRes = await client.query(
-              `SELECT id, service_id, service_variant_id FROM passes
-               WHERE business_id = $1 AND code = $2 AND status = 'active' AND sessions_remaining > 0
-                 AND (expires_at IS NULL OR expires_at > NOW())
+              `SELECT p.id, p.service_id, p.service_variant_id FROM passes p
+                LEFT JOIN pass_templates pt ON pt.id = p.pass_template_id
+               WHERE p.business_id = $1 AND p.code = $2 AND p.status = 'active' AND p.sessions_remaining > 0
+                 AND (p.expires_at IS NULL OR p.expires_at > NOW())
+                 AND (pt.id IS NULL OR pt.is_active = true)
                LIMIT 1`,
               [businessId, pass_code.toUpperCase().trim()]
             );
           } else if (client_email) {
             passCheckRes = await client.query(
-              `SELECT id, service_id, service_variant_id FROM passes
-               WHERE business_id = $1 AND status = 'active' AND sessions_remaining > 0
-                 AND LOWER(buyer_email) = LOWER($2)
-                 AND service_id = $3
-                 AND (service_variant_id IS NULL OR service_variant_id = $4)
-                 AND (expires_at IS NULL OR expires_at > NOW())
-               ORDER BY service_variant_id DESC NULLS LAST, sessions_remaining ASC LIMIT 1`,
+              `SELECT p.id, p.service_id, p.service_variant_id FROM passes p
+                LEFT JOIN pass_templates pt ON pt.id = p.pass_template_id
+               WHERE p.business_id = $1 AND p.status = 'active' AND p.sessions_remaining > 0
+                 AND LOWER(p.buyer_email) = LOWER($2)
+                 AND p.service_id = $3
+                 AND (p.service_variant_id IS NULL OR p.service_variant_id = $4)
+                 AND (p.expires_at IS NULL OR p.expires_at > NOW())
+                 AND (pt.id IS NULL OR pt.is_active = true)
+               ORDER BY p.service_variant_id DESC NULLS LAST, p.sessions_remaining ASC LIMIT 1`,
               [businessId, client_email, effectiveServiceId, effectiveVariantId]
             );
           }
@@ -1316,21 +1333,25 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
               let passRes;
               if (pass_code) {
                 passRes = await client.query(
-                  `SELECT id, code, sessions_remaining, service_id, service_variant_id FROM passes
-                   WHERE business_id = $1 AND code = $2 AND status = 'active' AND sessions_remaining > 0
-                     AND (expires_at IS NULL OR expires_at > NOW())
-                   LIMIT 1 FOR UPDATE`,
+                  `SELECT p.id, p.code, p.sessions_remaining, p.service_id, p.service_variant_id FROM passes p
+                    LEFT JOIN pass_templates pt ON pt.id = p.pass_template_id
+                   WHERE p.business_id = $1 AND p.code = $2 AND p.status = 'active' AND p.sessions_remaining > 0
+                     AND (p.expires_at IS NULL OR p.expires_at > NOW())
+                     AND (pt.id IS NULL OR pt.is_active = true)
+                   LIMIT 1 FOR UPDATE OF p`,
                   [businessId, pass_code.toUpperCase().trim()]
                 );
               } else if (client_email) {
                 passRes = await client.query(
-                  `SELECT id, code, sessions_remaining, service_id, service_variant_id FROM passes
-                   WHERE business_id = $1 AND status = 'active' AND sessions_remaining > 0
-                     AND LOWER(buyer_email) = LOWER($2)
-                     AND service_id = $3
-                     AND (service_variant_id IS NULL OR service_variant_id = $4)
-                     AND (expires_at IS NULL OR expires_at > NOW())
-                   ORDER BY service_variant_id DESC NULLS LAST, sessions_remaining ASC LIMIT 1 FOR UPDATE`,
+                  `SELECT p.id, p.code, p.sessions_remaining, p.service_id, p.service_variant_id FROM passes p
+                    LEFT JOIN pass_templates pt ON pt.id = p.pass_template_id
+                   WHERE p.business_id = $1 AND p.status = 'active' AND p.sessions_remaining > 0
+                     AND LOWER(p.buyer_email) = LOWER($2)
+                     AND p.service_id = $3
+                     AND (p.service_variant_id IS NULL OR p.service_variant_id = $4)
+                     AND (p.expires_at IS NULL OR p.expires_at > NOW())
+                     AND (pt.id IS NULL OR pt.is_active = true)
+                   ORDER BY p.service_variant_id DESC NULLS LAST, p.sessions_remaining ASC LIMIT 1 FOR UPDATE OF p`,
                   [businessId, client_email, effectiveServiceId, effectiveVariantId]
                 );
               }

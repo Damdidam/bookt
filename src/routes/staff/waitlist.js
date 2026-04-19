@@ -86,7 +86,7 @@ router.get('/', async (req, res, next) => {
 router.post('/', async (req, res, next) => {
   try {
     const bid = req.businessId;
-    const { practitioner_id, service_id, client_name, client_email,
+    const { practitioner_id, service_id, service_variant_id, client_name, client_email,
             client_phone, preferred_days, preferred_time, note } = req.body;
 
     if (!practitioner_id || !service_id || !client_name || !client_email) {
@@ -112,6 +112,21 @@ router.post('/', async (req, res, next) => {
     );
     if (svcCheck.rows.length === 0) {
       return res.status(400).json({ error: 'Prestation invalide pour ce salon' });
+    }
+
+    // Optional variant — verify it belongs to this service + business (BUG-WL-VARIANT-STAFF fix)
+    let finalVariantId = null;
+    if (service_variant_id) {
+      const varCheck = await queryWithRLS(bid,
+        `SELECT sv.id FROM service_variants sv
+           JOIN services s ON s.id = sv.service_id
+          WHERE sv.id = $1 AND sv.service_id = $2 AND s.business_id = $3`,
+        [service_variant_id, service_id, bid]
+      );
+      if (varCheck.rows.length === 0) {
+        return res.status(400).json({ error: 'Variante de prestation invalide' });
+      }
+      finalVariantId = service_variant_id;
     }
 
     // Duplicate check: same email already waiting for this practitioner+service
@@ -145,11 +160,11 @@ router.post('/', async (req, res, next) => {
 
     const result = await queryWithRLS(bid,
       `INSERT INTO waitlist_entries
-        (business_id, practitioner_id, service_id, client_name, client_email,
+        (business_id, practitioner_id, service_id, service_variant_id, client_name, client_email,
          client_phone, preferred_days, preferred_time, note, priority)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        RETURNING *`,
-      [bid, finalPracId, service_id, client_name, client_email,
+      [bid, finalPracId, service_id, finalVariantId, client_name, client_email,
        client_phone || null,
        JSON.stringify(validatedDays),
        preferred_time || 'any',
@@ -297,7 +312,7 @@ router.post('/:id/offer', async (req, res, next) => {
     const { transactionWithRLS } = require('../../services/db');
     try {
       await transactionWithRLS(bid, async (txClient) => {
-        await txClient.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [`${wlPracId}_${start_at}`]);
+        await txClient.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [`${wlPracId}_${offerStart.toISOString()}`]);
         const conflictCheck = await txClient.query(
           `SELECT COUNT(*)::int AS cnt FROM bookings
            WHERE business_id = $1 AND practitioner_id = $2

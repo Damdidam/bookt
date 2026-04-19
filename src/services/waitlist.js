@@ -116,38 +116,61 @@ async function processWaitlistForCancellation(bookingId, businessId, overrideSlo
     const slotTime = new Date(bk.start_at).getTime();
     if (slotTime < Date.now() + 2 * 60 * 60 * 1000) return { processed: false, reason: 'slot_too_soon' };
 
-    // Verify the slot is still free (no conflicting active bookings)
-    const conflict = await queryWithRLS(businessId,
-      `SELECT id FROM bookings
-       WHERE practitioner_id = $1 AND business_id = $2
-         AND status IN ('confirmed', 'pending', 'pending_deposit', 'modified_pending')
-         AND start_at < $4 AND end_at > $3
-       LIMIT 1`,
-      [bk.practitioner_id, bk.business_id, bk.start_at, bk.end_at]
-    );
-    if (conflict.rows.length > 0) return { processed: false, reason: 'slot_taken' };
+    // BUG-WL-AUTO-RACE fix: advisory lock per (practitioner, slot_start) to prevent race
+    // with staff manual waitlist offer (same lock key pattern) + concurrent booking inserts
+    // on the same freshly-freed slot. Runs in a dedicated transaction so the lock persists.
+    const lockKey = `${bk.practitioner_id}_${new Date(bk.start_at).toISOString()}`;
+    const txClient = await pool.connect();
+    let entry, token, expiresAt;
+    try {
+      await txClient.query('BEGIN');
+      await txClient.query(`SELECT set_config('app.current_business_id', $1, true)`, [bk.business_id]);
+      await txClient.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [lockKey]);
 
-    // FIFO: offer to the first matching entry
-    const entry = matches.rows[0];
-    const token = crypto.randomBytes(20).toString('hex');
-    const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2h timer
+      // Verify the slot is still free (no conflicting active bookings)
+      const conflict = await txClient.query(
+        `SELECT id FROM bookings
+         WHERE practitioner_id = $1 AND business_id = $2
+           AND status IN ('confirmed', 'pending', 'pending_deposit', 'modified_pending')
+           AND start_at < $4 AND end_at > $3
+         LIMIT 1`,
+        [bk.practitioner_id, bk.business_id, bk.start_at, bk.end_at]
+      );
+      if (conflict.rows.length > 0) {
+        await txClient.query('ROLLBACK');
+        return { processed: false, reason: 'slot_taken' };
+      }
 
-    const offerResult = await queryWithRLS(businessId,
-      `UPDATE waitlist_entries SET
-        status = 'offered',
-        offer_token = $1,
-        offer_booking_start = $2,
-        offer_booking_end = $3,
-        offer_sent_at = NOW(),
-        offer_expires_at = $4,
-        updated_at = NOW()
-       WHERE id = $5 AND business_id = $6 AND status = 'waiting'
-       RETURNING id`,
-      [token, bk.start_at, bk.end_at, expiresAt.toISOString(), entry.id, bk.business_id]
-    );
+      // FIFO: offer to the first matching entry
+      entry = matches.rows[0];
+      token = crypto.randomBytes(20).toString('hex');
+      expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2h timer
 
-    if (offerResult.rows.length === 0) {
-      return { processed: false, reason: 'entry_no_longer_waiting' };
+      const offerResult = await txClient.query(
+        `UPDATE waitlist_entries SET
+          status = 'offered',
+          offer_token = $1,
+          offer_booking_start = $2,
+          offer_booking_end = $3,
+          offer_sent_at = NOW(),
+          offer_expires_at = $4,
+          updated_at = NOW()
+         WHERE id = $5 AND business_id = $6 AND status = 'waiting'
+         RETURNING id`,
+        [token, bk.start_at, bk.end_at, expiresAt.toISOString(), entry.id, bk.business_id]
+      );
+
+      if (offerResult.rows.length === 0) {
+        await txClient.query('ROLLBACK');
+        return { processed: false, reason: 'entry_no_longer_waiting' };
+      }
+
+      await txClient.query('COMMIT');
+    } catch (err) {
+      await txClient.query('ROLLBACK').catch(() => {});
+      throw err;
+    } finally {
+      txClient.release();
     }
 
     // Send waitlist offer email
@@ -293,6 +316,13 @@ async function processExpiredOffers() {
         if (next.rows.length > 0) {
           // Skip if the slot is less than 2 hours away — too late to offer (matches initial offer threshold)
           if (new Date(entry.offer_booking_start) < new Date(Date.now() + 2 * 60 * 60 * 1000)) continue;
+
+          // BUG-WL-CASCADE-RACE fix: advisory lock per (practitioner, slot_start) — same key pattern
+          // as processWaitlistForCancellation + staff manual offer. try_lock: if busy, skip this
+          // entry (another concurrent tx is handling it) to avoid lock accumulation across the batch.
+          const cascadeLockKey = `${entry.practitioner_id}_${new Date(entry.offer_booking_start).toISOString()}`;
+          const lockAcquired = await client.query(`SELECT pg_try_advisory_xact_lock(hashtext($1)) AS ok`, [cascadeLockKey]);
+          if (!lockAcquired.rows[0].ok) continue;
 
           // Verify the slot is still free (no conflicting active bookings)
           const slotConflict = await client.query(

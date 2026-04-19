@@ -270,8 +270,9 @@ router.post(['/manage/:token/reschedule', '/booking/:token/reschedule'], booking
           return res.status(400).json({ error: 'Incohérence dans l\'assignation service/praticien du groupe.' });
         }
         const pracSvcCheck = await client.query(
-          `SELECT 1 FROM practitioner_services
-            WHERE practitioner_id = $1 AND service_id = $2 AND business_id = $3
+          `SELECT 1 FROM practitioner_services ps
+            JOIN services s ON s.id = ps.service_id
+            WHERE ps.practitioner_id = $1 AND ps.service_id = $2 AND s.business_id = $3
             LIMIT 1`,
           [sp.practitioner_id, m.service_id, bk.business_id]
         );
