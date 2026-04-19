@@ -23,7 +23,7 @@ async function processWaitlistForCancellation(bookingId, businessId, overrideSlo
   // 1. Get booking + practitioner details
   // Bug H7 fix: Add business_id filter for tenant isolation
   const bkResult = await queryWithRLS(businessId,
-    `SELECT b.id, b.business_id, b.practitioner_id, b.service_id,
+    `SELECT b.id, b.business_id, b.practitioner_id, b.service_id, b.service_variant_id,
             b.start_at, b.end_at,
             p.waitlist_mode, p.display_name AS practitioner_name,
             s.name AS service_name, s.duration_min, s.price_cents
@@ -64,6 +64,9 @@ async function processWaitlistForCancellation(bookingId, businessId, overrideSlo
   const brusselsHour = parseInt(brusselsTimeParts[0], 10);
   const timeOfDay = brusselsHour < 12 ? 'morning' : 'afternoon';
 
+  // BUG-WL-VARIANT-MATCH fix: respect service_variant_id when matching.
+  // Entry variant NULL = accepts any variant. Entry variant X = only match slot with variant X.
+  // Slot (booking) variant NULL = no variant attached; entries demanding a specific variant excluded.
   const matches = await queryWithRLS(businessId,
     `SELECT we.* FROM waitlist_entries we
      JOIN services s ON s.id = we.service_id AND s.is_active = true
@@ -71,11 +74,12 @@ async function processWaitlistForCancellation(bookingId, businessId, overrideSlo
        AND we.service_id = $2
        AND we.business_id = $3
        AND we.status = 'waiting'
+       AND (we.service_variant_id IS NULL OR we.service_variant_id = $6)
        AND (we.preferred_days @> $4::jsonb OR we.preferred_days IS NULL OR jsonb_array_length(we.preferred_days) = 0)
        AND (we.preferred_time = 'any' OR we.preferred_time = $5)
      ORDER BY we.priority ASC, we.created_at ASC`,
     [bk.practitioner_id, bk.service_id, bk.business_id,
-     JSON.stringify([weekday]), timeOfDay]
+     JSON.stringify([weekday]), timeOfDay, bk.service_variant_id]
   );
 
   if (matches.rows.length === 0) {
@@ -299,18 +303,22 @@ async function processExpiredOffers() {
         const bHour = parseInt(bTimeParts[0], 10);
         const timeOfDay = bHour < 12 ? 'morning' : 'afternoon';
 
+        // Variant filter: expired entry.variant acts as proxy for slot variant.
+        // If expired entry demanded X, slot was X → next accepts NULL or X.
+        // If expired entry was NULL, slot variant unknown → next must be NULL (conservative).
         const next = await client.query(
           `SELECT * FROM waitlist_entries
            WHERE practitioner_id = $1
              AND service_id = $2
              AND business_id = $3
              AND status = 'waiting'
+             AND (service_variant_id IS NULL OR service_variant_id = $6)
              AND (preferred_days @> $4::jsonb OR preferred_days IS NULL OR jsonb_array_length(preferred_days) = 0)
              AND (preferred_time = 'any' OR preferred_time = $5)
            ORDER BY priority ASC, created_at ASC
            LIMIT 1`,
           [entry.practitioner_id, entry.service_id, entry.business_id,
-           JSON.stringify([weekday]), timeOfDay]
+           JSON.stringify([weekday]), timeOfDay, entry.service_variant_id]
         );
 
         if (next.rows.length > 0) {
