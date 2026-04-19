@@ -272,7 +272,7 @@ router.post(['/manage/:token/reschedule', '/booking/:token/reschedule'], booking
         if (conflicts.length > 0) { await client.query('ROLLBACK'); return res.status(409).json({ error: 'Ce créneau n\'est plus disponible.' }); }
 
         await client.query(
-          `UPDATE bookings SET start_at = $1, end_at = $2, practitioner_id = $3, ${i === 0 ? 'reschedule_count = reschedule_count + 1, ' : ''}reminder_24h_sent_at = NULL, reminder_2h_sent_at = NULL, updated_at = NOW()
+          `UPDATE bookings SET start_at = $1, end_at = $2, practitioner_id = $3, ${i === 0 ? 'reschedule_count = reschedule_count + 1, ' : ''}reminder_24h_sent_at = NULL, reminder_2h_sent_at = NULL, status = CASE WHEN status = 'modified_pending' THEN 'confirmed' ELSE status END, updated_at = NOW()
            WHERE id = $4`,
           [sp.start_at, sp.end_at, sp.practitioner_id, m.id]
         );
@@ -303,7 +303,7 @@ router.post(['/manage/:token/reschedule', '/booking/:token/reschedule'], booking
         const mNewStart = new Date(new Date(m.start_at).getTime() + delta);
         const mNewEnd = new Date(new Date(m.end_at).getTime() + delta);
         await client.query(
-          `UPDATE bookings SET start_at = $1, end_at = $2, ${gi === 0 ? 'reschedule_count = reschedule_count + 1, ' : ''}reminder_24h_sent_at = NULL, reminder_2h_sent_at = NULL, updated_at = NOW()
+          `UPDATE bookings SET start_at = $1, end_at = $2, ${gi === 0 ? 'reschedule_count = reschedule_count + 1, ' : ''}reminder_24h_sent_at = NULL, reminder_2h_sent_at = NULL, status = CASE WHEN status = 'modified_pending' THEN 'confirmed' ELSE status END, updated_at = NOW()
            WHERE id = $3`,
           [mNewStart.toISOString(), mNewEnd.toISOString(), m.id]
         );
@@ -323,7 +323,7 @@ router.post(['/manage/:token/reschedule', '/booking/:token/reschedule'], booking
       if (conflicts.length > 0) { await client.query('ROLLBACK'); return res.status(409).json({ error: 'Ce créneau n\'est plus disponible.' }); }
 
       await client.query(
-        `UPDATE bookings SET start_at = $1, end_at = $2, reschedule_count = reschedule_count + 1, reminder_24h_sent_at = NULL, reminder_2h_sent_at = NULL, updated_at = NOW()
+        `UPDATE bookings SET start_at = $1, end_at = $2, reschedule_count = reschedule_count + 1, reminder_24h_sent_at = NULL, reminder_2h_sent_at = NULL, status = CASE WHEN status = 'modified_pending' THEN 'confirmed' ELSE status END, updated_at = NOW()
          WHERE id = $3`,
         [start_at, end_at, bk.id]
       );

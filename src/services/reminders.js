@@ -523,8 +523,14 @@ async function process2hReminders(stats) {
           }
           return '';
         })();
+        // BUG-REMINDER-2H-PRAC fix: multi-service mono-practitioner nulls out per-line
+        // practitioner_name (L394) to avoid repetition; the global practitioner line was
+        // missing from the 2h multi template → client rappelled 2h before saw no praticien
+        // name anywhere. Inject a global "Avec X" line when mono-prac.
+        const _is2hMonoPrac = isMulti && groupServices.every(s => !s.practitioner_name) && bk.practitioner_name;
+        const _multiPracLine2h = _is2hMonoPrac ? `<p style="font-size:14px;margin:8px 0">Avec <strong>${escHtml(bk.practitioner_name)}</strong></p>` : '';
         const bodyHTML = isMulti
-          ? `<p>Bonjour ${escHtml(bk.client_name)},</p><p>Vos rendez-vous approchent, le <strong>${dateStr2h}</strong> \u00e0 <strong>${timeShort}${endTimeSuffix2h}</strong> :</p><div style="margin:12px 0">${serviceHTML}</div>${depositBlock2h}${addressHTML}${contactBlock2h}<p>\u00c0 bient\u00f4t !</p>`
+          ? `<p>Bonjour ${escHtml(bk.client_name)},</p><p>Vos rendez-vous approchent, le <strong>${dateStr2h}</strong> \u00e0 <strong>${timeShort}${endTimeSuffix2h}</strong> :</p><div style="margin:12px 0">${serviceHTML}</div>${_multiPracLine2h}${depositBlock2h}${addressHTML}${contactBlock2h}<p>\u00c0 bient\u00f4t !</p>`
           : `<p>Bonjour ${escHtml(bk.client_name)},</p><p>Votre rendez-vous avec <strong>${escHtml(bk.practitioner_name)}</strong> est dans 2 heures, le <strong>${dateStr2h}</strong> \u00e0 <strong>${timeShort}${endTimeSuffix2h}</strong>.</p><p style="font-size:14px;margin:8px 0"><strong>${escHtml(bk.service_name)}</strong> (${bk.duration_min} min${singlePriceBody2h})</p>${promoLine2h}${depositBlock2h}${addressHTML}${contactBlock2h}<p>\u00c0 bient\u00f4t !</p>`;
 
         const result = await sendEmail({

@@ -106,9 +106,19 @@ async function sendReviewRequestEmail({ booking, business }) {
     return `<a href="${reviewUrl}?r=${n}" style="display:inline-block;padding:8px 12px;margin:0 4px;background:${n >= 4 ? color : '#F5F4F1'};color:${n >= 4 ? '#fff' : '#6B5E54'};text-decoration:none;border-radius:8px;font-size:16px">${stars}</a>`;
   }).join('');
 
+  // BUG-REVIEW-NET fix: subtract promotion_discount_cents so the client sees what they
+  // actually paid (not the pre-promo catalogue price, which looked like a false billing).
+  const _reviewGrossCents = booking.booked_price_cents ?? booking.service_price_cents;
+  const _reviewNetCents = _reviewGrossCents != null
+    ? Math.max(0, _reviewGrossCents - (booking.promotion_discount_cents || 0))
+    : null;
+  const _reviewPriceStr = _reviewNetCents != null
+    ? ' (' + (_reviewNetCents / 100).toFixed(2).replace('.', ',') + '\u00a0\u20ac)'
+    : '';
+
   const bodyHTML = `
     <p>Bonjour ${firstName},</p>
-    <p>Merci d'avoir choisi <strong>${safeBizName}</strong> pour ${serviceName}${rdvDateStr}${practitioner}${(booking.booked_price_cents ?? booking.service_price_cents) ? ' (' + ((booking.booked_price_cents ?? booking.service_price_cents) / 100).toFixed(2).replace('.', ',') + '\u00a0\u20ac)' : ''}. Nous espérons que vous avez pass\u00e9 un agr\u00e9able moment !</p>
+    <p>Merci d'avoir choisi <strong>${safeBizName}</strong> pour ${serviceName}${rdvDateStr}${practitioner}${_reviewPriceStr}. Nous espérons que vous avez pass\u00e9 un agr\u00e9able moment !</p>
     <p style="margin:20px 0 8px;font-weight:600">Comment évalueriez-vous votre expérience ?</p>
     <div style="text-align:center;margin:16px 0">${starsHTML}</div>
     <p style="color:#9C958E;font-size:13px;text-align:center">Cliquez sur les étoiles ou sur le bouton ci-dessous pour donner votre avis.</p>
@@ -354,6 +364,7 @@ async function sendBookingLookupEmail({ email, bookings, business }) {
   const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
   const safeBizName = escHtml(business.name);
 
+  // BUG-LOOKUP-EMAIL fix: show full context — duration, deposit status/deadline, address.
   const bookingRows = bookings.map(bk => {
     const dateStr = new Date(bk.start_at).toLocaleDateString('fr-BE', {
       timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long'
@@ -364,17 +375,35 @@ async function sendBookingLookupEmail({ email, bookings, business }) {
     const svcLabel = escHtml(bk.service_category ? bk.service_category + ' — ' + (bk.service_name || 'RDV') : (bk.service_name || 'Rendez-vous'));
     const pracLabel = bk.practitioner_name ? ' · ' + escHtml(bk.practitioner_name) : '';
     const endTimeStr = bk.end_at ? new Date(bk.end_at).toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' }) : null;
+    // Compute duration in minutes from start/end for display
+    const durationMin = bk.end_at ? Math.max(0, Math.round((new Date(bk.end_at) - new Date(bk.start_at)) / 60000)) : null;
+    const durationStr = durationMin ? ' · ' + durationMin + ' min' : '';
     // M7 fix: subtract promo so client sees what they actually pay (not the pre-promo total)
     const finalCents = Math.max((bk.price_cents || 0) - (bk.promo_discount_cents || 0), 0);
     const priceStr = finalCents ? (finalCents / 100).toFixed(2).replace('.', ',') + ' €' : '';
     const manageUrl = `${baseUrl}/booking/${bk.public_token}`;
+    // Deposit flag — pending amount with optional deadline
+    let depositBlock = '';
+    if (bk.deposit_required && bk.deposit_status === 'pending' && bk.deposit_amount_cents) {
+      const depAmt = (bk.deposit_amount_cents / 100).toFixed(2).replace('.', ',');
+      const dl = bk.deposit_deadline ? new Date(bk.deposit_deadline) : null;
+      const dlStr = dl ? ` (avant le ${dl.toLocaleDateString('fr-BE', { timeZone: 'Europe/Brussels', weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })})` : '';
+      depositBlock = `<div style="background:#FEF3C7;border-radius:6px;padding:8px 10px;margin:6px 0 10px;font-size:12px;color:#92400E"><strong>⚠ Acompte ${depAmt} € à régler${dlStr}</strong></div>`;
+    } else if (bk.deposit_required && bk.deposit_status === 'paid' && bk.deposit_amount_cents) {
+      const depAmt = (bk.deposit_amount_cents / 100).toFixed(2).replace('.', ',');
+      depositBlock = `<div style="background:#F0FDF4;border-radius:6px;padding:8px 10px;margin:6px 0 10px;font-size:12px;color:#15803D">Acompte ${depAmt} € payé ✓</div>`;
+    }
     return `
       <div style="background:#FAFAF9;border:1px solid #E8E4DF;border-radius:8px;padding:14px 16px;margin-bottom:10px">
         <div style="font-size:14px;font-weight:600;color:#3D3832;margin-bottom:4px">${svcLabel}${pracLabel}</div>
-        <div style="font-size:13px;color:#6B6560;margin-bottom:10px">${escHtml(dateStr)} · ${escHtml(timeStr)}${endTimeStr ? ' – ' + endTimeStr : ''}${priceStr ? ' · ' + priceStr : ''}</div>
+        <div style="font-size:13px;color:#6B6560;margin-bottom:10px">${escHtml(dateStr)} · ${escHtml(timeStr)}${endTimeStr ? ' – ' + endTimeStr : ''}${durationStr}${priceStr ? ' · ' + priceStr : ''}</div>
+        ${depositBlock}
         <a href="${manageUrl}" style="display:inline-block;padding:8px 18px;background:${color};color:#fff;text-decoration:none;border-radius:6px;font-size:13px;font-weight:600">Gérer ce rendez-vous</a>
       </div>`;
   }).join('');
+
+  // Business address block (shared context — shown once above the bookings list)
+  const addressLine = business.address ? `<p style="font-size:13px;color:#6B6560;margin:6px 0"><strong>Adresse</strong> : ${escHtml(business.address)}${business.phone ? ' · <a href="tel:' + escHtml(business.phone) + '" style="color:' + color + ';text-decoration:none">' + escHtml(business.phone) + '</a>' : ''}</p>` : '';
 
   const html = buildEmailHTML({
     title: 'Vos rendez-vous',
@@ -382,6 +411,7 @@ async function sendBookingLookupEmail({ email, bookings, business }) {
     preheader: `Vous avez ${bookings.length} rendez-vous à venir chez ${business.name || 'nous'}`,
     bodyHTML: `
       <p>Voici vos rendez-vous à venir chez <strong>${safeBizName}</strong> :</p>
+      ${addressLine}
       ${bookingRows}
       <p style="font-size:13px;color:#6B6560;margin-top:16px">Cliquez sur "Gérer ce rendez-vous" pour voir les détails, annuler ou modifier.</p>`,
     businessName: business.name,

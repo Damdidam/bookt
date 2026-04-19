@@ -232,8 +232,12 @@ router.post('/deposit/:token/check-gift-cards', depositLimiter, async (req, res,
     );
     if (bkRes.rows.length === 0 || !bkRes.rows[0].email) return res.json({ cards: [] });
     const { business_id, email } = bkRes.rows[0];
+    // BUG-GC-LOWER fix: emails stored in gift_cards can have mixed case (INSERT keeps
+    // user input). Auto-debit at booking creation (index.js:1399) uses LOWER(), so this
+    // check endpoint must match — otherwise client doesn't see their own GC if casing
+    // differs between purchase and current profile email.
     const gcRes = await query(
-      `SELECT code, balance_cents, expires_at FROM gift_cards WHERE business_id = $1 AND status = 'active' AND balance_cents > 0 AND (recipient_email = $2 OR buyer_email = $2) AND (expires_at IS NULL OR expires_at > NOW()) ORDER BY balance_cents DESC`,
+      `SELECT code, balance_cents, expires_at FROM gift_cards WHERE business_id = $1 AND status = 'active' AND balance_cents > 0 AND (LOWER(recipient_email) = LOWER($2) OR LOWER(buyer_email) = LOWER($2)) AND (expires_at IS NULL OR expires_at > NOW()) ORDER BY balance_cents DESC`,
       [business_id, email]
     );
     res.json({ cards: gcRes.rows });

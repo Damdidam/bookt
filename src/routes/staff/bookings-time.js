@@ -926,6 +926,9 @@ router.patch('/:id/move', async (req, res, next) => {
     }
 
     broadcast(bid, 'booking_update', { action: 'moved' });
+    // BUG-MOVE-CACHE fix: parity with /move group (L599), /resize (L1370), /modify (L1662) —
+    // single-booking move also frees a slot; minisite cache must be invalidated.
+    try { invalidateMinisiteCache(bid); } catch (_) {}
     calSyncPush(bid, id).catch(() => {});
 
     // Notify waitlist for the freed OLD slot (non-blocking)
@@ -1489,8 +1492,12 @@ router.patch('/:id/modify', async (req, res, next) => {
         }
 
         const r = await client.query(
+          // BUG-MODIFY-REMINDER fix: reset reminder_*_sent_at so the new slot gets its
+          // 24h/2h rappels. Parity with /move (L644/L269) which already reset them.
           `UPDATE bookings SET
-            start_at = $1, end_at = $2, status = $3, updated_at = NOW()
+            start_at = $1, end_at = $2, status = $3,
+            reminder_24h_sent_at = NULL, reminder_2h_sent_at = NULL,
+            updated_at = NOW()
            WHERE id = $4 AND business_id = $5 AND status NOT IN ('cancelled', 'completed', 'no_show')
            RETURNING *`,
           [start_at, end_at, newStatus, id, bid]
@@ -1571,6 +1578,21 @@ router.patch('/:id/modify', async (req, res, next) => {
 
     const result = modifyResult;
 
+    // BUG-MODIFY-STALE fix: refetch booking AFTER tx — the tx does LM recalc + booked_price
+    // update (L1544-1557) that aren't reflected in oldBooking (pre-tx snapshot). Without
+    // this refetch, sendModificationEmail showed the OLD price even when the new slot
+    // dropped out of LM window (e.g. 80€ LM → 100€ hors fenêtre → email still said 80€).
+    let freshBk = null;
+    try {
+      const freshRes = await queryWithRLS(bid,
+        `SELECT booked_price_cents, discount_pct, promotion_discount_cents, promotion_discount_pct, promotion_label,
+                deposit_status, deposit_amount_cents, deposit_paid_at
+           FROM bookings WHERE id = $1 AND business_id = $2`,
+        [id, bid]
+      );
+      freshBk = freshRes.rows[0] || null;
+    } catch (_) { /* fall back to oldBooking if fetch fails */ }
+
     // If notification requested, send it
     let notificationResult = null;
     if (shouldNotify && (effectiveChannel === 'email' || effectiveChannel === 'both')) {
@@ -1608,16 +1630,18 @@ router.patch('/:id/modify', async (req, res, next) => {
             service_category: oldBooking.service_category,
             practitioner_name: oldBooking.practitioner_name,
             // H11 fix: pass raw + booked + discount_pct séparés pour que le template affiche LM barré
+            // BUG-MODIFY-STALE fix: use freshBk (post-tx values) for booked_price, discount_pct,
+            // promo and deposit — oldBooking is pre-tx and misses LM recalc changes.
             service_price_cents: oldBooking.service_price_cents,
-            booked_price_cents: oldBooking.booked_price_cents,
-            discount_pct: oldBooking.discount_pct,
+            booked_price_cents: (freshBk?.booked_price_cents ?? oldBooking.booked_price_cents),
+            discount_pct: (freshBk?.discount_pct ?? oldBooking.discount_pct),
             duration_min: oldBooking.duration_min,
-            promotion_label: oldBooking.promotion_label,
-            promotion_discount_cents: oldBooking.promotion_discount_cents,
-            promotion_discount_pct: oldBooking.promotion_discount_pct,
-            deposit_status: oldBooking.deposit_status,
-            deposit_amount_cents: oldBooking.deposit_amount_cents,
-            deposit_paid_at: oldBooking.deposit_paid_at,
+            promotion_label: (freshBk?.promotion_label ?? oldBooking.promotion_label),
+            promotion_discount_cents: (freshBk?.promotion_discount_cents ?? oldBooking.promotion_discount_cents),
+            promotion_discount_pct: (freshBk?.promotion_discount_pct ?? oldBooking.promotion_discount_pct),
+            deposit_status: (freshBk?.deposit_status ?? oldBooking.deposit_status),
+            deposit_amount_cents: (freshBk?.deposit_amount_cents ?? oldBooking.deposit_amount_cents),
+            deposit_paid_at: (freshBk?.deposit_paid_at ?? oldBooking.deposit_paid_at),
             old_start_at: oldBooking.start_at,
             old_end_at: oldBooking.end_at,
             new_start_at: start_at,

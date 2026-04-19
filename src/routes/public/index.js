@@ -1418,10 +1418,13 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
 
                     if (gcDebit >= depResult.depCents) {
                       // Fully covered by GC
+                      // BUG-GC-LOCK fix: parity with /api/public/deposit/:token/gift-card
+                      // which sets locked=true. Deposit fully paid → slot shouldn't be
+                      // reschedulable until explicit cancel (same lock semantics as Stripe-paid).
                       await client.query(
                         `UPDATE bookings SET deposit_required = true, deposit_amount_cents = $1,
                           deposit_status = 'paid', deposit_paid_at = NOW(),
-                          deposit_payment_intent_id = $2
+                          deposit_payment_intent_id = $2, locked = true
                          WHERE id = $3 AND business_id = $4`,
                         [depResult.depCents, `gc_${gc.code}`, booking.rows[0].id, businessId]
                       );
@@ -1429,6 +1432,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                       booking.rows[0].deposit_amount_cents = depResult.depCents;
                       booking.rows[0].deposit_status = 'paid';
                       booking.rows[0].deposit_payment_intent_id = `gc_${gc.code}`;
+                      booking.rows[0].locked = true;
                       gcAutoPaid = true;
                       console.log(`[DEPOSIT] Fully auto-paid via gift card ${gc.code} (${gcDebit}c), balance: ${newBal}c`);
                     } else {

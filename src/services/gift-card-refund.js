@@ -47,8 +47,11 @@ async function refundGiftCardForBooking(bookingId, dbClient) {
     // Credit back to gift card. If the card was expired, reactivate it AND extend
     // expires_at by 30 days so the client can actually use the refunded balance —
     // otherwise the money is locked on a card that booking validation refuses.
+    // BUG-GC-CAP fix: LEAST(amount_cents, balance + $1) so balance never exceeds
+    // the original purchase amount (protects against double-crédit si staff refund
+    // manuel PUIS auto-refund cancel se chevauchent).
     await q(
-      `UPDATE gift_cards SET balance_cents = balance_cents + $1,
+      `UPDATE gift_cards SET balance_cents = LEAST(amount_cents, balance_cents + $1),
        status = CASE WHEN status IN ('used', 'expired') THEN 'active' ELSE status END,
        expires_at = CASE
          WHEN status = 'expired' OR (expires_at IS NOT NULL AND expires_at <= NOW())

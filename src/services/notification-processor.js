@@ -157,7 +157,10 @@ async function sendReviewEmail(bk, metadata) {
       practitioner_name: bk.practitioner_name,
       review_token: reviewToken,
       start_at: bk.start_at,
-      service_price_cents: bk.booked_price_cents || bk.service_price_cents || 0
+      // BUG-REVIEW-NET fix: forward the NET paid amount (booked − promo), not the gross
+      // — else the email shows the pre-promo price which looks like a scam to the client.
+      service_price_cents: bk.booked_price_cents || bk.service_price_cents || 0,
+      promotion_discount_cents: bk.promotion_discount_cents || 0
     },
     business: {
       name: bk.biz_name,

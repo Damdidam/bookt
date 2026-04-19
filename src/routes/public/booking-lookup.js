@@ -385,7 +385,8 @@ router.post('/:slug/lookup-my-bookings', lookupLimiter, async (req, res, next) =
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail) || cleanEmail.length > 320) return res.json(genericResponse);
 
     const bizRes = await query(
-      `SELECT id, name, slug, email, theme FROM businesses WHERE slug = $1 AND is_active = true LIMIT 1`,
+      // BUG-LOOKUP-EMAIL fix: include address + phone so lookup email shows full contact info
+      `SELECT id, name, slug, email, phone, address, theme FROM businesses WHERE slug = $1 AND is_active = true LIMIT 1`,
       [slug]
     );
     if (bizRes.rows.length === 0) return res.json(genericResponse);
@@ -395,7 +396,10 @@ router.post('/:slug/lookup-my-bookings', lookupLimiter, async (req, res, next) =
     // For grouped (multi-service) bookings, aggregate all sibling services
     // into a single label so the lookup email shows the complete prestation list.
     const bkRes = await query(
+      // BUG-LOOKUP-EMAIL fix: include deposit fields so lookup email flags bookings
+      // with pending acompte (else client might miss the deadline).
       `SELECT b.id, b.public_token, b.start_at, b.end_at,
+              b.deposit_required, b.deposit_status, b.deposit_amount_cents, b.deposit_deadline,
               s.category AS service_category,
               -- M7 fix: SUM across group siblings for multi-service totals (not just primary's price)
               COALESCE(

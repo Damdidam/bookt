@@ -152,11 +152,21 @@ async function processExpiredDeposits() {
     await client.query('COMMIT');
 
     // Post-commit side effects: SSE + waitlist (must be AFTER commit for data consistency)
+    // BUG-CRON-CACHE fix: invalidate minisite cache per-business so freed slots
+    // appear immediately on public pages (parity with staff cancel + public cancel).
+    const _invalidatedBizIds = new Set();
     for (const cancelled of cancelledBookingIds) {
       broadcast(cancelled.business_id, 'booking_update', {
         action: 'deposit_expired',
         bookingId: cancelled.id
       });
+      if (!_invalidatedBizIds.has(cancelled.business_id)) {
+        _invalidatedBizIds.add(cancelled.business_id);
+        try {
+          const { invalidateMinisiteCache } = require('../routes/public/helpers');
+          invalidateMinisiteCache(cancelled.business_id);
+        } catch (_) { /* best-effort */ }
+      }
       try {
         const { processWaitlistForCancellation } = require('./waitlist');
         await processWaitlistForCancellation(cancelled.id, cancelled.business_id);

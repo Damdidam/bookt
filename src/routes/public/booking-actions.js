@@ -710,6 +710,22 @@ router.post('/booking/:token/reject', async (req, res, next) => {
 
     broadcast(rejBk.business_id, 'booking_update', { action: 'rejected', source: 'public' });
 
+    // BUG-REJECT-CACHE fix: parity with /cancel (L358) and /cancel-booking (L1295) —
+    // rejecting a proposed modification frees the slot, minisite cache must be invalidated.
+    try { invalidateMinisiteCache(rejBk.business_id); } catch (_) {}
+
+    // BUG-REJECT-AUDIT fix: 5 sibling cancel paths insert audit_logs entries, reject didn't —
+    // staff "Historique" tab couldn't see that the client rejected the modification proposal.
+    try {
+      await query(
+        `INSERT INTO audit_logs (business_id, entity_type, entity_id, action, old_data, new_data)
+         VALUES ($1, 'booking', $2, 'client_reject_modification', $3, $4)`,
+        [rejBk.business_id, rejBk.id,
+         JSON.stringify({ status: 'modified_pending' }),
+         JSON.stringify({ status: 'cancelled', cancel_reason: 'Nouveau créneau proposé refusé par le client' })]
+      );
+    } catch (_) { /* non-critical */ }
+
     // Send cancellation confirmation email to client (non-blocking)
     (async () => {
       try {
