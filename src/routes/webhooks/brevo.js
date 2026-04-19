@@ -20,7 +20,6 @@ const { query, pool } = require('../../services/db');
 function validateBrevoSecret(req, res, next) {
   const expected = process.env.BREVO_WEBHOOK_SECRET;
   if (!expected) {
-    // Si pas de secret configuré, on accepte mais on log — utile en dev.
     if (process.env.NODE_ENV === 'production') {
       console.error('[BREVO WH] BREVO_WEBHOOK_SECRET manquant en prod — refus');
       return res.status(503).json({ error: 'Service misconfigured' });
@@ -30,6 +29,24 @@ function validateBrevoSecret(req, res, next) {
   const provided = req.get('x-brevo-secret') || req.query.secret || req.params.secret;
   if (provided !== expected) {
     console.warn('[BREVO WH] Invalid secret');
+    // DEBUG TEMP : logger les headers reçus pour identifier comment Brevo envoie son token.
+    // À retirer une fois le bon header identifié. Utilise test_mock_log (table déjà existante).
+    (async () => {
+      try {
+        await query(
+          `INSERT INTO test_mock_log (type, kind, recipient, payload)
+           VALUES ('brevo-debug', 'rejected', $1, $2)`,
+          [req.ip || 'unknown', JSON.stringify({
+            path: req.originalUrl,
+            method: req.method,
+            headers: req.headers,
+            query: req.query,
+            params: req.params,
+            bodyPreview: JSON.stringify(req.body).substring(0, 2000)
+          })]
+        );
+      } catch (_) { /* debug-only, don't crash */ }
+    })();
     return res.status(403).json({ error: 'Forbidden' });
   }
   next();
