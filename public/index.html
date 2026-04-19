@@ -70,6 +70,77 @@ a { color: inherit; text-decoration: none; }
 button { font: inherit; cursor: pointer; border: 0; background: transparent; }
 h1, h2, h3, h4 { font-family: var(--font-heading); font-weight: 700; line-height: 1.05; letter-spacing: -0.02em; color: var(--ink); }
 
+/* ========== NAV ========== */
+.nav {
+  position: sticky; top: 0; z-index: 50;
+  background: rgba(253, 242, 248, 0.85);
+  backdrop-filter: saturate(140%) blur(12px);
+  -webkit-backdrop-filter: saturate(140%) blur(12px);
+  border-bottom: 1.5px solid rgba(26, 26, 26, 0.08);
+}
+.nav-inner {
+  max-width: var(--container-max);
+  margin: 0 auto;
+  padding: 12px 20px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+}
+.nav-logo {
+  font-family: var(--font-heading); font-weight: 700; font-size: 22px;
+  color: var(--text); letter-spacing: -0.02em;
+}
+.nav-links {
+  display: none;
+  gap: 24px; align-items: center;
+  font-size: 14px; font-weight: 500; color: var(--text-2);
+}
+.nav-links a { transition: color 150ms ease; }
+.nav-links a:hover { color: var(--violet); }
+.nav-cta {
+  background: var(--violet); color: var(--white);
+  padding: 10px 18px; border-radius: var(--radius-pill);
+  font-family: var(--font-heading); font-weight: 600; font-size: 13px;
+  border: 2px solid var(--ink);
+  box-shadow: 3px 3px 0 var(--yellow);
+  transition: transform 150ms ease, box-shadow 150ms ease;
+  min-height: 44px; display: inline-flex; align-items: center; justify-content: center;
+}
+.nav-cta:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--yellow); }
+.nav-burger {
+  display: inline-flex; width: 44px; height: 44px;
+  align-items: center; justify-content: center;
+  color: var(--ink);
+}
+.nav-burger svg { width: 26px; height: 26px; }
+
+/* Mobile menu overlay */
+.nav-menu {
+  display: none;
+  position: fixed; inset: 0; z-index: 60;
+  background: var(--bg);
+  padding: 72px 24px 24px;
+}
+.nav-menu.open { display: block; }
+.nav-menu-close {
+  position: absolute; top: 12px; right: 16px;
+  width: 44px; height: 44px;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.nav-menu-close svg { width: 24px; height: 24px; color: var(--ink); }
+.nav-menu ul { list-style: none; display: flex; flex-direction: column; gap: 18px; }
+.nav-menu a { font-family: var(--font-heading); font-size: 22px; font-weight: 600; color: var(--ink); }
+.nav-menu .nav-menu-cta {
+  margin-top: 24px; display: inline-flex;
+  background: var(--violet); color: var(--white);
+  padding: 14px 24px; border-radius: var(--radius-pill);
+  font-weight: 600; font-size: 16px; border: 2.5px solid var(--ink);
+  box-shadow: 4px 4px 0 var(--yellow);
+}
+
+@media (min-width: 768px) {
+  .nav-links { display: flex; }
+  .nav-burger { display: none; }
+}
+
 /* ========== UTILITIES ========== */
 .container { max-width: var(--container-max); margin: 0 auto; padding: 0 20px; }
 .section { padding: 48px 0; }
@@ -96,7 +167,39 @@ a:focus-visible, button:focus-visible, summary:focus-visible {
 </head>
 <body>
 
-<!-- SECTIONS À VENIR DANS LES PROCHAINES TASKS -->
+<!-- NAV -->
+<nav class="nav" aria-label="Navigation principale">
+  <div class="nav-inner">
+    <a href="#" class="nav-logo">genda</a>
+    <div class="nav-links">
+      <a href="#features">Fonctionnalités</a>
+      <a href="#pricing">Tarifs</a>
+      <a href="/login">Connexion</a>
+      <a href="/signup.html" class="nav-cta">Essai gratuit</a>
+    </div>
+    <button class="nav-burger" aria-label="Ouvrir le menu" aria-expanded="false" aria-controls="nav-menu" onclick="document.getElementById('nav-menu').classList.add('open'); this.setAttribute('aria-expanded','true');">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+    </button>
+  </div>
+</nav>
+
+<!-- Mobile menu overlay -->
+<div class="nav-menu" id="nav-menu" role="dialog" aria-label="Menu mobile">
+  <button class="nav-menu-close" aria-label="Fermer le menu" onclick="document.getElementById('nav-menu').classList.remove('open'); document.querySelector('.nav-burger').setAttribute('aria-expanded','false');">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="6" y1="18" x2="18" y2="6"/></svg>
+  </button>
+  <ul>
+    <li><a href="#features" onclick="document.getElementById('nav-menu').classList.remove('open')">Fonctionnalités</a></li>
+    <li><a href="#pricing" onclick="document.getElementById('nav-menu').classList.remove('open')">Tarifs</a></li>
+    <li><a href="/login">Connexion</a></li>
+    <li><a href="/signup.html" class="nav-menu-cta">Essai gratuit</a></li>
+  </ul>
+</div>
+
+<!-- MAIN CONTENT TO COME -->
+<main id="main"></main>
+
+<!-- FOOTER TO COME -->
 
 </body>
 </html>
