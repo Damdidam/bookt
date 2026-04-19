@@ -547,6 +547,51 @@ h1, h2, h3, h4 { font-family: var(--font-heading); font-weight: 700; line-height
   .pricing h2 { font-size: 48px; }
 }
 
+/* ========== FAQ ========== */
+.faq { background: var(--bg); }
+.faq h2 {
+  text-align: center; color: var(--text);
+  font-size: 32px; margin-bottom: 32px;
+}
+.faq-list {
+  max-width: 720px; margin: 0 auto;
+}
+.faq-item {
+  border-top: 1.5px solid rgba(26, 26, 26, 0.15);
+  padding: 0;
+}
+.faq-item:last-child { border-bottom: 1.5px solid rgba(26, 26, 26, 0.15); }
+.faq-item summary {
+  list-style: none;
+  padding: 20px 0;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px;
+  cursor: pointer;
+  font-family: var(--font-heading); font-weight: 600;
+  font-size: 16px; color: var(--ink);
+}
+.faq-item summary::-webkit-details-marker { display: none; }
+.faq-item summary::after {
+  content: '+';
+  font-family: var(--font-heading); font-weight: 400;
+  font-size: 28px; color: var(--violet);
+  line-height: 1;
+  transition: transform 200ms ease;
+}
+.faq-item[open] summary::after { transform: rotate(45deg); }
+.faq-item .faq-a {
+  padding: 0 0 20px;
+  font-size: 14.5px; color: var(--text-2);
+  line-height: 1.65;
+}
+
+@media (min-width: 768px) {
+  .faq h2 { font-size: 40px; }
+  .faq-item summary { font-size: 18px; padding: 22px 0; }
+  .faq-item .faq-a { font-size: 15px; }
+}
+@media (min-width: 1024px) { .faq h2 { font-size: 48px; } }
+
 /* ========== UTILITIES ========== */
 .container { max-width: var(--container-max); margin: 0 auto; padding: 0 20px; }
 .section { padding: 48px 0; }
@@ -865,6 +910,39 @@ a:focus-visible, button:focus-visible, summary:focus-visible {
           </ul>
           <a href="/signup.html" class="plan-cta primary">Démarrer l'essai 14 jours</a>
         </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="faq section" aria-labelledby="faq-title">
+    <div class="container">
+      <h2 id="faq-title">Les questions qu'on nous pose.</h2>
+      <div class="faq-list">
+        <details class="faq-item">
+          <summary>Je peux annuler à tout moment ?</summary>
+          <p class="faq-a">Oui. Sans engagement. Votre minisite reste actif en mode gratuit. Vos données restent exportables tant que votre compte existe.</p>
+        </details>
+        <details class="faq-item">
+          <summary>Mes données m'appartiennent ?</summary>
+          <p class="faq-a">À 100 %. Export CSV et JSON disponibles à tout moment (clients, RDV, factures). Nous ne revendons jamais vos données. Nous ne les partageons avec aucun autre salon.</p>
+        </details>
+        <details class="faq-item">
+          <summary>Je peux migrer depuis Planity, Booksy ou Timify ?</summary>
+          <p class="faq-a">Oui pour les clients : import CSV depuis votre export. Les RDV futurs sont généralement ressaisis à la main (les plateformes n'autorisent pas l'export). On vous aide si besoin.</p>
+        </details>
+        <details class="faq-item">
+          <summary>Comment mes clients reçoivent les rappels ?</summary>
+          <p class="faq-a">Automatiquement : email à J-1, SMS à H-2 (plan Pro). Le client confirme en un clic. Taux d'ouverture SMS &gt; 98 %, les no-shows chutent typiquement de 60 à 80 %.</p>
+        </details>
+        <details class="faq-item">
+          <summary>C'est compatible avec mon Google ou Apple Calendar ?</summary>
+          <p class="faq-a">Oui. Synchronisation bi-directionnelle via iCal (Google, Apple, Outlook). Les RDV Genda apparaissent dans votre calendrier personnel, et vos blocages persos apparaissent dans Genda.</p>
+        </details>
+        <details class="faq-item">
+          <summary>Je dois avoir une TVA pour m'inscrire ?</summary>
+          <p class="faq-a">Non. Les indépendants complémentaires (sans TVA) peuvent utiliser Genda. Les factures s'adaptent automatiquement à votre statut (avec ou sans TVA, mention "franchise PME" si applicable).</p>
+        </details>
       </div>
     </div>
   </section>
