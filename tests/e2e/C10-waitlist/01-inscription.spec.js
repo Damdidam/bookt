@@ -27,9 +27,9 @@ test.describe('C10 — waitlist : inscription publique', () => {
   // explicite ::text. Les 3 tests ci-dessous documentent ce bug en attendant fix.
   // Fix attendu: ajouter ::text dans la query ou utiliser 2 paramètres séparés.
 
-  test('1. Inscription publique → documente 500 bug (param $5 type inference)', async () => {
+  test('1. Inscription publique waitlist → 201 après fix bug #2 (casts ::text/::uuid sur INSERT...SELECT)', async () => {
     const email = `e2e-wl-1-${Date.now()}@genda-test.be`;
-    const { status } = await publicFetch('/api/public/test-demo-salon/waitlist', {
+    const { status, body } = await publicFetch('/api/public/test-demo-salon/waitlist', {
       method: 'POST',
       body: {
         practitioner_id: IDS.PRAC_ALICE,
@@ -41,8 +41,10 @@ test.describe('C10 — waitlist : inscription publique', () => {
         preferred_time: 'afternoon',
       },
     });
-    // Accept current buggy 500 ou fix futur 201
-    expect([201, 500]).toContain(status);
+    // Bug #2 fixé (commit 3f26a5a) : params forcés ::uuid/::text/::jsonb → plus de 500 type inference.
+    expect(status, `body=${JSON.stringify(body)}`).toBe(201);
+    expect(body.waitlisted).toBe(true);
+    expect(typeof body.position).toBe('number');
   });
 
   test('2. Staff-side waitlist insert direct → OK (contourne bug public)', async () => {

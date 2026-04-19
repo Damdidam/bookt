@@ -43,7 +43,7 @@ test.describe('C15 — iCal feed + disconnect', () => {
     await cleanupTestConnections();
   });
 
-  test('1. POST /api/calendar/ical/generate then GET /api/calendar/ical/:token', async ({}, testInfo) => {
+  test('1. POST /api/calendar/ical/generate then GET /api/calendar/ical/:token', async () => {
     // Generate feed for all practitioners
     const gen = await staffFetch('/api/calendar/ical/generate', {
       method: 'POST',
@@ -57,26 +57,19 @@ test.describe('C15 — iCal feed + disconnect', () => {
 
     // Fetch the feed (no auth on the public :token route)
     const feedRes = await fetch(BASE_URL + '/api/calendar/ical/' + gen.body.token);
-    // Content-Type is set early → always text/calendar even on error. Body may be
-    // either a full iCal payload (200) or the string "Calendar feed error" (500)
-    // when the business name contains a char invalid in Content-Disposition
-    // (e.g. em-dash "—" in "TEST — Demo Salon Genda" — see calendar.js:493 bug).
-    expect([200, 500]).toContain(feedRes.status);
+    // Bug #7 fixé (commit 3f26a5a) : Content-Disposition encode filename RFC 5987
+    // (ASCII fallback + filename*=UTF-8''…) → plus de ERR_INVALID_CHAR même si le
+    // nom du business contient em-dash / accents.
+    expect(feedRes.status, `feed status for business with em-dash in name`).toBe(200);
     expect(feedRes.headers.get('content-type') || '').toMatch(/text\/calendar/);
+    const disposition = feedRes.headers.get('content-disposition') || '';
+    // Header doit contenir à la fois le fallback ASCII et la variante UTF-8 encodée
+    expect(disposition).toMatch(/filename=".+\.ics"/);
+    expect(disposition).toMatch(/filename\*=UTF-8''/);
     const body = await feedRes.text();
-    if (feedRes.status === 200) {
-      expect(body).toMatch(/^BEGIN:VCALENDAR/);
-      expect(body).toMatch(/END:VCALENDAR/);
-      expect(body).toMatch(/X-WR-CALNAME:/);
-    } else {
-      // Known bug: ERR_INVALID_CHAR on Content-Disposition when bizName contains
-      // characters outside latin1 printable range. Filed as C15-bug-ical-header.
-      testInfo.annotations.push({
-        type: 'known-bug',
-        description: 'iCal feed returns 500 when business_name contains non-ASCII chars (em-dash in seed) — setHeader Content-Disposition ERR_INVALID_CHAR'
-      });
-      expect(body).toMatch(/Calendar feed error/);
-    }
+    expect(body).toMatch(/^BEGIN:VCALENDAR/);
+    expect(body).toMatch(/END:VCALENDAR/);
+    expect(body).toMatch(/X-WR-CALNAME:/);
   });
 
   test('2. DELETE /api/calendar/connections/:id — disconnect removes row', async () => {

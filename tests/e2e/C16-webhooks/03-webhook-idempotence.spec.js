@@ -51,8 +51,64 @@ test.describe('C16 — webhook idempotence', () => {
     expect(res1.status).toBe(res2.status);
   });
 
-  test('2. Brevo bounce webhook — endpoint non-implémenté, skip', async () => {
-    // grep confirmed no /webhooks/brevo route exists in src/routes/.
-    test.skip(true, 'Brevo bounce webhook not implemented in src/routes/');
+  test('2. Brevo webhook — hard_bounce met à jour notifications.status=failed', async () => {
+    // Bug #10 fixé (commit 3f26a5a) : endpoint POST /webhooks/brevo implémenté
+    // (src/routes/webhooks/brevo.js) avec secret validation, matching par messageId
+    // + fallback email, 14 événements mappés vers sent/failed/queued.
+    // Ce test nécessite BREVO_WEBHOOK_SECRET en env pour passer la validation.
+    const secret = process.env.BREVO_WEBHOOK_SECRET;
+    if (!secret) {
+      test.skip(true, 'BREVO_WEBHOOK_SECRET non setté — impossible de tester la validation');
+      return;
+    }
+
+    // Crée une notification "queued" à matcher via email fallback
+    const fakeEmail = `brevo-wh-test-${Date.now()}@genda-test.be`;
+    const nRes = await pool.query(
+      `INSERT INTO notifications (business_id, type, recipient_email, status, provider, created_at)
+       VALUES ($1, 'email_confirmation', $2, 'queued', 'brevo', NOW())
+       RETURNING id`,
+      [IDS.BUSINESS, fakeEmail]
+    );
+    const notifId = nRes.rows[0].id;
+    try {
+      const res = await fetch(`${process.env.APP_BASE_URL || 'http://localhost:3000'}/webhooks/brevo`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-brevo-secret': secret },
+        body: JSON.stringify([{
+          event: 'hard_bounce',
+          email: fakeEmail,
+          'message-id': '<test-' + Date.now() + '@brevo.com>',
+          reason: 'invalid recipient',
+          ts: Math.floor(Date.now() / 1000)
+        }])
+      });
+      expect(res.status, 'Brevo webhook accepté avec bon secret').toBe(200);
+      const body = await res.json();
+      expect(body.ok).toBe(true);
+      expect(body.processed).toBeGreaterThanOrEqual(1);
+
+      // Vérifier que la notification est passée à failed
+      const after = await pool.query(`SELECT status, error, metadata FROM notifications WHERE id = $1`, [notifId]);
+      expect(after.rows[0].status).toBe('failed');
+      expect(after.rows[0].error).toMatch(/brevo_hard_bounce/);
+      expect(after.rows[0].metadata?.brevo_event).toBe('hard_bounce');
+    } finally {
+      await pool.query(`DELETE FROM notifications WHERE id = $1`, [notifId]);
+    }
+  });
+
+  test('3. Brevo webhook — mauvais secret → 403', async () => {
+    // Vérifie que le secret est vraiment gate (sinon n'importe qui peut polluer notifications).
+    if (!process.env.BREVO_WEBHOOK_SECRET) {
+      test.skip(true, 'BREVO_WEBHOOK_SECRET non setté — skip test sécurité');
+      return;
+    }
+    const res = await fetch(`${process.env.APP_BASE_URL || 'http://localhost:3000'}/webhooks/brevo`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-brevo-secret': 'wrong-secret' },
+      body: JSON.stringify([{ event: 'hard_bounce', email: 'x@x.com' }])
+    });
+    expect(res.status, 'secret invalide doit renvoyer 403').toBe(403);
   });
 });

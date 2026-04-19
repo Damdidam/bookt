@@ -38,18 +38,21 @@ test.describe('C08 — staff ops : booking CRUD', () => {
     await resetMutables();
   });
 
-  test('1. Create booking owner, NEW client payload → 201 + client auto-created', async () => {
-    // BUG FOUND: POST /api/clients with phone OR email returns 500 due to
-    // `$2 IS NOT NULL` type-inference issue in pg driver (see clients.js:149).
-    // Workaround: insert the new client directly via SQL, then use its id for
-    // the booking.
+  test('1. Create booking owner, NEW client via POST /api/clients → 201 + client créé', async () => {
+    // Bug #1 fixé (commit 3f26a5a) : casts $2::text/$3::text sur clients.js:149 →
+    // POST /api/clients avec phone+email ne crash plus en 500.
     const uniq = Date.now();
-    const r = await pool.query(
-      `INSERT INTO clients (business_id, full_name, email)
-       VALUES ($1, $2, $3) RETURNING id`,
-      [IDS.BUSINESS, `Test New Client ${uniq}`, `newclient-${uniq}@genda-test.be`]
-    );
-    const newClientId = r.rows[0].id;
+    const clientRes = await staffFetch('/api/clients', {
+      method: 'POST',
+      body: {
+        full_name: `Test New Client ${uniq}`,
+        email: `newclient-${uniq}@genda-test.be`,
+        phone: `+324911${String(uniq).slice(-5)}`
+      }
+    });
+    expect(clientRes.status, `client create: ${JSON.stringify(clientRes.body)}`).toBe(201);
+    expect(clientRes.body.client).toBeTruthy();
+    const newClientId = clientRes.body.client.id;
 
     const start = futureStart(3, 10);
     const res = await staffFetch('/api/bookings/manual', {

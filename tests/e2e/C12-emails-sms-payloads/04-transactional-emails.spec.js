@@ -184,17 +184,11 @@ test.describe('C12 — transactional emails', () => {
     }
   });
 
-  test('6. Email invoice sent — PATCH status="sent" (DOC/BUG : pas d\'email auto)', async () => {
-    // Contract: PATCH /api/invoices/:id/status ne déclenche PAS d'email. Vérifier qu'aucun
-    // email n'est loggé, et documenter ce gap. Si un jour l'email est implémenté, ce test
-    // devra être étendu.
-    test.info().annotations.push({
-      type: 'doc',
-      description: 'PATCH /api/invoices/:id/status n\'envoie pas d\'email (feature manquante)'
-    });
-    // Minimal sanity check: the route exists and accepts status transitions
+  test('6. Email invoice sent — PATCH status="sent" déclenche sendInvoiceEmail avec PDF', async () => {
+    // Bug #5 fixé (commit 3f26a5a) : PATCH /api/invoices/:id/status transition draft→sent
+    // déclenche maintenant sendInvoiceEmail (non-bloquant, async après l'update).
+    // L'email inclut le PDF en attachment Brevo (base64).
     const { staffFetch } = require('../fixtures/api-client');
-    // Create an invoice row to patch — simplest: use the builder endpoint
     const r = await pool.query(
       `INSERT INTO invoices (business_id, invoice_number, type, issue_date, status,
          subtotal_cents, total_cents, client_name, client_email, business_name)
@@ -210,9 +204,16 @@ test.describe('C12 — transactional emails', () => {
       });
       expect(resp.status).toBe(200);
 
-      // No email should be fired for the invoice — status change is a DB-only op today.
-      const emails = await waitForMockLog('email', 'c12-inv@genda-test.be', sinceTs, 2000, 1);
-      expect(emails.length, `Unexpected invoice email — spec needs update. got=${emails.map(e => e.payload.subject).join(' | ')}`).toBe(0);
+      // Email invoice envoyé au client (async post-update). Polling jusqu'à 5s.
+      const emails = await waitForMockLog('email', 'c12-inv@genda-test.be', sinceTs, 5000, 1);
+      expect(emails.length, `Invoice email attendu au passage draft→sent`).toBeGreaterThanOrEqual(1);
+      // Subject doit contenir le numéro de facture
+      const invEmail = emails.find(e => (e.payload.subject || '').includes('Facture'));
+      expect(invEmail, `Subject attendu contient "Facture". got=${emails.map(e => e.payload.subject).join(' | ')}`).toBeTruthy();
+      // PDF attaché (Brevo format = base64 content)
+      const attach = invEmail.payload.attachments;
+      expect(Array.isArray(attach) && attach.length > 0, 'PDF attaché attendu').toBeTruthy();
+      expect(attach[0].name).toMatch(/\.pdf$/);
     } finally {
       await pool.query(`DELETE FROM invoices WHERE id = $1`, [invId]);
     }
