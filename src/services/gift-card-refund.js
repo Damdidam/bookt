@@ -50,6 +50,9 @@ async function refundGiftCardForBooking(bookingId, dbClient) {
     // BUG-GC-CAP fix: LEAST(amount_cents, balance + $1) so balance never exceeds
     // the original purchase amount (protects against double-crédit si staff refund
     // manuel PUIS auto-refund cancel se chevauchent).
+    // CAUTION: if a GC topup/reload feature is added later, this LEAST will INCORRECTLY
+    // cap the topped-up balance back to the original amount. At that point, the cap should
+    // become a per-booking limit instead (e.g. check existing refund for this booking_id).
     await q(
       `UPDATE gift_cards SET balance_cents = LEAST(amount_cents, balance_cents + $1),
        status = CASE WHEN status IN ('used', 'expired') THEN 'active' ELSE status END,

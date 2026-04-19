@@ -23,6 +23,11 @@ router.get('/booking/:token', bookingActionLimiter, async (req, res, next) => {
               -- BUG-LM fix: return RAW catalog price (not booked_price_cents post-LM),
               -- so frontend can apply discount_pct once. booked_price_cents was creating
               -- double-LM application on manage-booking.html rendering.
+              -- TRADE-OFF: if the salon updates the catalog price AFTER the booking was made,
+              -- the client's /manage page will display the NEW catalog × discount_pct, NOT
+              -- the historical price they actually reserved. Rare in practice (salons seldom
+              -- change prices between booking + consultation). The invoice + emails still use
+              -- the stored booked_price_cents (authoritative for money flows).
               COALESCE(sv.price_cents, s.price_cents) AS price_cents,
               s.quote_only AS service_quote_only, s.color AS service_color,
               p.display_name AS practitioner_name, p.title AS practitioner_title,
