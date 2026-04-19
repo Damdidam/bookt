@@ -26,27 +26,16 @@ function validateBrevoSecret(req, res, next) {
     }
     return next();
   }
-  const provided = req.get('x-brevo-secret') || req.query.secret || req.params.secret;
+  // Brevo envoie son "custom header" comme `Authorization: Bearer <token>`.
+  // On supporte aussi `x-brevo-secret` (futur / tests manuels) + secret dans URL path/query.
+  const authHeader = req.get('authorization') || '';
+  const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
+  const provided = bearerMatch?.[1]?.trim()
+    || req.get('x-brevo-secret')
+    || req.query.secret
+    || req.params.secret;
   if (provided !== expected) {
     console.warn('[BREVO WH] Invalid secret');
-    // DEBUG TEMP : logger les headers reçus pour identifier comment Brevo envoie son token.
-    // À retirer une fois le bon header identifié. Utilise test_mock_log (table déjà existante).
-    (async () => {
-      try {
-        await query(
-          `INSERT INTO test_mock_log (type, kind, recipient, payload)
-           VALUES ('brevo-debug', 'rejected', $1, $2)`,
-          [req.ip || 'unknown', JSON.stringify({
-            path: req.originalUrl,
-            method: req.method,
-            headers: req.headers,
-            query: req.query,
-            params: req.params,
-            bodyPreview: JSON.stringify(req.body).substring(0, 2000)
-          })]
-        );
-      } catch (_) { /* debug-only, don't crash */ }
-    })();
     return res.status(403).json({ error: 'Forbidden' });
   }
   next();
