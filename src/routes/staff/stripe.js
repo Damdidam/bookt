@@ -225,6 +225,7 @@ async function handleStripeWebhook(req, res) {
   // replayed/retried webhooks (Stripe retries on any non-2xx, and dashboard
   // replay button). Required especially for charge.refunded which currently
   // cascades cancel + emails + refund GC/pass on every delivery.
+  let _idemClaimed = false;
   try {
     const idemRes = await query(
       `INSERT INTO stripe_webhook_events (event_id, event_type) VALUES ($1, $2)
@@ -235,6 +236,7 @@ async function handleStripeWebhook(req, res) {
       console.log(`[STRIPE WH] Duplicate event ${event.id} (${event.type}) — already processed, returning 200`);
       return res.json({ received: true, duplicate: true });
     }
+    _idemClaimed = true;
   } catch (idemErr) {
     // If the table is missing (pre-v72 deploy) or DB blip, log and proceed —
     // fall back to the per-handler duplicate detection already in place.
@@ -1166,6 +1168,14 @@ async function handleStripeWebhook(req, res) {
     }
   } catch (err) {
     console.error('[STRIPE WH] Processing error:', err);
+    // BUG-G fix: release the idempotence row so Stripe retries this event.
+    // Without this, the event is marked processed forever even though it threw.
+    if (_idemClaimed) {
+      try {
+        await query(`DELETE FROM stripe_webhook_events WHERE event_id = $1`, [event.id]);
+      } catch (_) { /* best-effort */ }
+    }
+    return res.status(500).send('Webhook processing error — will be retried');
   }
 
   res.json({ received: true });
