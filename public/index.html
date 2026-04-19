@@ -260,6 +260,58 @@ h1, h2, h3, h4 { font-family: var(--font-heading); font-weight: 700; line-height
   .hero h1 { font-size: 56px; }
 }
 
+/* ========== PAIN ========== */
+.pain {
+  background: var(--bg);
+}
+.pain h2 {
+  text-align: center;
+  font-size: 32px; color: var(--text);
+  margin-bottom: 10px;
+}
+.pain .lead {
+  text-align: center;
+  font-size: 15px; color: var(--text-2);
+  max-width: 520px; margin: 0 auto 36px;
+}
+.pain-grid {
+  display: grid; gap: 16px;
+  grid-template-columns: 1fr;
+}
+.pain-card {
+  background: var(--white);
+  border: var(--border-w) solid var(--ink);
+  border-radius: var(--radius-md);
+  padding: 22px 20px;
+  box-shadow: 4px 4px 0 var(--magenta);
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+.pain-card:hover { transform: translate(-1px, -1px); box-shadow: 5px 5px 0 var(--magenta); }
+.pain-icon {
+  width: 48px; height: 48px;
+  background: var(--yellow);
+  border: var(--border-w) solid var(--ink);
+  border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  margin-bottom: 14px;
+}
+.pain-icon svg { width: 22px; height: 22px; color: var(--ink); }
+.pain-card h3 {
+  font-size: 18px; color: var(--ink);
+  margin-bottom: 8px;
+  line-height: 1.2;
+}
+.pain-card p {
+  font-size: 14px; color: var(--text-2);
+  line-height: 1.55;
+}
+
+@media (min-width: 768px) { .pain h2 { font-size: 40px; } }
+@media (min-width: 1024px) {
+  .pain h2 { font-size: 48px; }
+  .pain-grid { grid-template-columns: repeat(3, 1fr); gap: 20px; }
+}
+
 /* ========== UTILITIES ========== */
 .container { max-width: var(--container-max); margin: 0 auto; padding: 0 20px; }
 .section { padding: 48px 0; }
@@ -343,6 +395,37 @@ a:focus-visible, button:focus-visible, summary:focus-visible {
       <span>BE · FR · LU</span>
       <span class="sep">·</span>
       <span>Essai gratuit, sans carte bancaire</span>
+    </div>
+  </section>
+
+  <!-- PAIN -->
+  <section class="pain section" aria-labelledby="pain-title">
+    <div class="container">
+      <h2 id="pain-title">Ça vous rappelle quelqu'un ?</h2>
+      <p class="lead">Les 3 galères qu'on entend le plus souvent chez les salons indépendants.</p>
+      <div class="pain-grid">
+        <article class="pain-card">
+          <span class="pain-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+          </span>
+          <h3>Vos clients appellent pendant que vous coupez</h3>
+          <p>Le téléphone sonne. Vous interrompez la coupe. Vous perdez 2 minutes, et parfois le client à qui vous tournez le dos. Vous ne pouvez pas tout faire en même temps.</p>
+        </article>
+        <article class="pain-card">
+          <span class="pain-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          </span>
+          <h3>Les trous de 11h sont des heures perdues</h3>
+          <p>Une annulation, un créneau vide, personne pour le combler avant 14h. Votre journée se troue. Vos revenus aussi.</p>
+        </article>
+        <article class="pain-card">
+          <span class="pain-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          </span>
+          <h3>Les no-shows vous coûtent 300€ par mois</h3>
+          <p>RDV réservés, clients absents, aucun acompte. Vous encaissez le trou. Multipliez par 12 mois, c'est 3 600€ qui s'évaporent.</p>
+        </article>
+      </div>
     </div>
   </section>
 </main>
