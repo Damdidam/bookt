@@ -628,26 +628,32 @@ router.post('/waitlist/:token/decline', bookingLimiter, async (req, res, next) =
         const offerToken = crypto.randomBytes(20).toString('hex');
         const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000);
 
+        // BUG-WL-DECLINE-VARIANT fix (parité avec processExpiredOffers cascade) :
+        // - filtre service_variant_id (proxy via entry.service_variant_id — si X, slot était X)
+        // - exclut entries dont le variant est désactivé (sv.is_active=false)
         const offerResult = await query(
           `UPDATE waitlist_entries SET
             status = 'offered', offer_token = $1,
             offer_booking_start = $2, offer_booking_end = $3,
             offer_sent_at = NOW(), offer_expires_at = $4, updated_at = NOW()
            WHERE id = (
-             SELECT id FROM waitlist_entries
-             WHERE practitioner_id = $5 AND service_id = $6 AND business_id = $7
-               AND status = 'waiting'
-               AND (preferred_days @> $8::jsonb OR preferred_days IS NULL OR jsonb_array_length(preferred_days) = 0)
-               AND (preferred_time = 'any' OR preferred_time = $9)
-             ORDER BY priority ASC, created_at ASC
+             SELECT we.id FROM waitlist_entries we
+               LEFT JOIN service_variants sv ON sv.id = we.service_variant_id
+             WHERE we.practitioner_id = $5 AND we.service_id = $6 AND we.business_id = $7
+               AND we.status = 'waiting'
+               AND (we.service_variant_id IS NULL OR we.service_variant_id = $10)
+               AND (we.service_variant_id IS NULL OR sv.is_active = true)
+               AND (we.preferred_days @> $8::jsonb OR we.preferred_days IS NULL OR jsonb_array_length(we.preferred_days) = 0)
+               AND (we.preferred_time = 'any' OR we.preferred_time = $9)
+             ORDER BY we.priority ASC, we.created_at ASC
              LIMIT 1
-             FOR UPDATE SKIP LOCKED
+             FOR UPDATE OF we SKIP LOCKED
            ) AND status = 'waiting'
            RETURNING id, client_email, client_name`,
           [offerToken, entry.offer_booking_start, entry.offer_booking_end,
            expiresAt.toISOString(),
            entry.practitioner_id, entry.service_id, entry.business_id,
-           JSON.stringify([weekday]), timeOfDay]
+           JSON.stringify([weekday]), timeOfDay, entry.service_variant_id]
         );
 
         // Send offer email inline to next client (notification processor does not handle this type)
