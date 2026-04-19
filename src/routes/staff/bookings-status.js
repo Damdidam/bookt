@@ -1174,9 +1174,11 @@ router.patch('/:id/deposit-refund', blockIfImpersonated, async (req, res, next) 
     // All deposit-refund operations in a single transaction for atomicity
     const txResult = await transactionWithRLS(bid, async (client) => {
       const bk = await client.query(
+        // BUG-FOR-UPDATE-OF fix: explicit OF b (both tables would be locked otherwise).
+        // Parity with other SELECT+join+FOR UPDATE patterns in this file.
         `SELECT b.deposit_required, b.deposit_status, b.deposit_amount_cents, b.deposit_payment_intent_id, b.status, b.practitioner_id, b.group_id, biz.settings AS biz_settings
            FROM bookings b JOIN businesses biz ON biz.id = b.business_id
-          WHERE b.id = $1 AND b.business_id = $2 FOR UPDATE`,
+          WHERE b.id = $1 AND b.business_id = $2 FOR UPDATE OF b`,
         [id, bid]
       );
       if (bk.rows.length === 0) return { error: 404, message: 'RDV introuvable' };
@@ -1323,6 +1325,15 @@ router.patch('/:id/deposit-refund', blockIfImpersonated, async (req, res, next) 
     // H-07 fix: invalidate minisite cache (slot libéré par deposit-refund = cancel)
     try { invalidateMinisiteCache(bid); } catch (_) {}
     calSyncDelete(bid, id).catch(e => console.warn('[CAL_SYNC] Delete error:', e.message));
+    // BUG-DEPREFUND-PRO fix: queue email_cancellation_pro (parity with 4 other cancel paths).
+    // The direct sendDepositRefundProEmail below covers the "refund" angle, but the pro misses
+    // the structured "cancellation" notification (with full RDV context) that /cancel paths queue.
+    try {
+      await queryWithRLS(bid,
+        `INSERT INTO notifications (business_id, booking_id, type, status) VALUES ($1, $2, 'email_cancellation_pro', 'queued')`,
+        [bid, id]
+      );
+    } catch (_) { /* non-critical */ }
     // STS-11: calSyncDelete + SSE broadcast for affected siblings
     if (txResult.affectedSiblingIds && txResult.affectedSiblingIds.length > 0) {
       for (const sibId of txResult.affectedSiblingIds) {

@@ -278,6 +278,8 @@ async function sendPassPurchaseEmail({ pass, business }) {
       Lors de votre prochaine réservation, indiquez votre code <strong>${escHtml(pass.code)}</strong> ou votre adresse email. Une séance sera automatiquement débitée de votre pass.
     </div>
 
+    ${business.address ? `<div style="background:#F5F4F1;border-radius:8px;padding:12px 14px;margin:16px 0;font-size:13px;color:#3D3832"><strong>Où utiliser votre pass :</strong><br>${escHtml(business.address)}${business.phone ? ' · <a href="tel:' + escHtml(business.phone) + '" style="color:' + color + ';text-decoration:none">' + escHtml(business.phone) + '</a>' : ''}</div>` : ''}
+
     <p style="font-size:13px;color:#9C958E">Conservez cet email comme preuve d'achat. Pour toute question, contactez directement ${escHtml(business.name)}${business.phone ? ' au ' + escHtml(business.phone) : ''}${business.email ? ' (' + escHtml(business.email) + ')' : ''}.</p>`;
 
   const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';

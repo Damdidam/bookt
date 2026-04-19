@@ -244,16 +244,51 @@ async function processExpiredPendingBookings() {
       try {
         const { processWaitlistForCancellation } = require('./waitlist');
         await processWaitlistForCancellation(cancelled.id, cancelled.business_id);
+        // BUG-CRON-SIB fix: notify waitlist for sibling slots freed by this group cancel.
+        if (cancelled.group_id) {
+          const sibsWl = await query(
+            `SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2 AND id != $3 AND status = 'cancelled'`,
+            [cancelled.group_id, cancelled.business_id, cancelled.id]
+          );
+          for (const sib of sibsWl.rows) {
+            try { await processWaitlistForCancellation(sib.id, cancelled.business_id); } catch (_) {}
+          }
+        }
       } catch (wlErr) {
         console.warn('[CONFIRM CRON] Waitlist processing error for booking', cancelled.id, ':', wlErr.message);
       }
     }
 
-    // H3 fix: Delete external calendar events for cancelled bookings
-    // calSyncDelete + pro notif queueing in parallel — independent rows
-    await Promise.all(cancelledBookingIds.map(cancelled =>
-      calSyncDelete(cancelled.business_id, cancelled.id).catch(() => {})
-    ));
+    // BUG-CRON-SESSIONS-EXPIRE fix: parité avec deposit-expiry.js:182-189 — expire any
+    // open Stripe checkout session so a client can't pay after the booking was auto-cancelled.
+    // (Rare edge case: booking was 'pending' with a deposit session, expired before client paid.)
+    const _stripeKeyConf = process.env.STRIPE_SECRET_KEY;
+    if (_stripeKeyConf) {
+      const _stripeConf = require('stripe')(_stripeKeyConf);
+      for (const cancelled of cancelledBookingIds) {
+        if (cancelled._stripeSessionId && cancelled._stripeSessionId.startsWith('cs_')) {
+          try { await _stripeConf.checkout.sessions.expire(cancelled._stripeSessionId); } catch (_) {}
+        }
+      }
+    }
+
+    // H3 fix: Delete external calendar events for cancelled bookings (primary + siblings)
+    // BUG-CRON-SIB fix: external calendar events for sibling bookings were orphaned —
+    // Google/Outlook still displayed them even after DB cancel.
+    await Promise.all(cancelledBookingIds.map(async cancelled => {
+      try { await calSyncDelete(cancelled.business_id, cancelled.id); } catch (_) {}
+      if (cancelled.group_id) {
+        try {
+          const sibsCs = await query(
+            `SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2 AND id != $3 AND status = 'cancelled'`,
+            [cancelled.group_id, cancelled.business_id, cancelled.id]
+          );
+          for (const sib of sibsCs.rows) {
+            try { await calSyncDelete(cancelled.business_id, sib.id); } catch (_) {}
+          }
+        } catch (_) {}
+      }
+    }));
     await Promise.all(cancelledBookingIds.map(cancelled =>
       query(`INSERT INTO notifications (business_id, booking_id, type, status) VALUES ($1, $2, 'email_cancellation_pro', 'queued')`, [cancelled.business_id, cancelled.id])
         .catch(e => console.warn('[CONFIRM CRON] Pro notification queue error:', e.message))

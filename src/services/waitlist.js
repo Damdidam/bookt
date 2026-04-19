@@ -155,11 +155,16 @@ async function processWaitlistForCancellation(bookingId, businessId, overrideSlo
     const slotDateFmt = new Date(bk.start_at).toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Brussels' });
     const slotTimeFmt = new Date(bk.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
 
-    // Fetch business info for branding
+    // Fetch business info for branding + settings (pour flag deposit)
     const bizRow = await queryWithRLS(businessId,
-      `SELECT name, theme, address, phone, email FROM businesses WHERE id = $1`, [businessId]
+      `SELECT name, theme, address, phone, email, settings FROM businesses WHERE id = $1`, [businessId]
     );
     const biz = bizRow.rows[0] || { name: 'Genda' };
+    // BUG-WL-DEPOSIT-HINT fix: if business has deposit_enabled, warn the client now
+    // so they aren't surprised when /accept redirects them to a payment page.
+    const _wlDepHint = biz.settings?.deposit_enabled
+      ? `<p style="margin:12px 0 0;font-size:13px;color:#92400E;background:#FEF3C7;padding:8px 12px;border-radius:6px">\u26A0 Selon la politique du cabinet, un acompte pourra vous \u00eatre demand\u00e9 lors de la r\u00e9servation.</p>`
+      : '';
 
     const slotEndTimeFmt = (bk.end_at ? new Date(bk.end_at) : new Date(new Date(bk.start_at).getTime() + (bk.duration_min || 0) * 60000))
       .toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
@@ -179,7 +184,7 @@ async function processWaitlistForCancellation(bookingId, businessId, overrideSlo
           <p style="margin:0 0 4px;font-size:14px;color:#3D3832">Avec ${escHtml(bk.practitioner_name)}</p>
           <p style="margin:0;font-size:14px;color:#3D3832">${escHtml(slotDateFmt)} \u00e0 ${escHtml(slotTimeFmt)} \u2013 ${slotEndTimeFmt}</p>
           ${biz.address ? `<p style="margin:4px 0 0;font-size:14px;color:#3D3832">\ud83d\udccd <a href="https://maps.google.com/?q=${encodeURIComponent(biz.address)}" style="color:#3D3832">${escHtml(biz.address)}</a></p>` : ''}
-        </div>${contactLine}
+        </div>${contactLine}${_wlDepHint}
         <p style="font-weight:600;color:#D97706">\u23f1 Vous avez 2 heures pour r\u00e9server ce cr\u00e9neau avant qu'il ne soit propos\u00e9 \u00e0 quelqu'un d'autre.</p>`,
       ctaText: 'R\u00e9server maintenant',
       ctaUrl: offerUrl,
@@ -325,9 +330,13 @@ async function processExpiredOffers() {
           const cascadeTimeFmt = new Date(entry.offer_booking_start).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
 
           const cascadeBiz = await client.query(
-            `SELECT name, theme, address, phone, email FROM businesses WHERE id = $1`, [entry.business_id]
+            `SELECT name, theme, address, phone, email, settings FROM businesses WHERE id = $1`, [entry.business_id]
           );
           const cbiz = cascadeBiz.rows[0] || { name: 'Genda' };
+          // BUG-WL-DEPOSIT-HINT fix (cascade): same warning as primary offer.
+          const _cascadeDepHint = cbiz.settings?.deposit_enabled
+            ? `<p style="margin:12px 0 0;font-size:13px;color:#92400E;background:#FEF3C7;padding:8px 12px;border-radius:6px">\u26A0 Selon la politique du cabinet, un acompte pourra vous \u00eatre demand\u00e9 lors de la r\u00e9servation.</p>`
+            : '';
 
           const cascadeEndTimeFmt = (entry.offer_booking_end ? new Date(entry.offer_booking_end) : new Date(new Date(entry.offer_booking_start).getTime() + (entry.duration_min || 0) * 60000))
             .toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
@@ -347,7 +356,7 @@ async function processExpiredOffers() {
                 <p style="margin:0 0 4px;font-size:14px;color:#3D3832">Avec ${escHtml(entry.practitioner_name)}</p>
                 <p style="margin:0;font-size:14px;color:#3D3832">${escHtml(cascadeDateFmt)} \u00e0 ${escHtml(cascadeTimeFmt)} \u2013 ${cascadeEndTimeFmt}</p>
                 ${cbiz.address ? `<p style="margin:4px 0 0;font-size:14px;color:#3D3832">\ud83d\udccd <a href="https://maps.google.com/?q=${encodeURIComponent(cbiz.address)}" style="color:#3D3832">${escHtml(cbiz.address)}</a></p>` : ''}
-              </div>${cContactLine}
+              </div>${cContactLine}${_cascadeDepHint}
               <p style="font-weight:600;color:#D97706">\u23f1 Vous avez 2 heures pour r\u00e9server ce cr\u00e9neau avant qu'il ne soit propos\u00e9 \u00e0 quelqu'un d'autre.</p>`,
             ctaText: 'R\u00e9server maintenant',
             ctaUrl: cascadeUrl,

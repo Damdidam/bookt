@@ -175,6 +175,11 @@ async function sendCancellationEmail({ booking, business, groupServices }) {
     bodyHTML += contactHTML;
   }
 
+  // BUG-CANCEL-COMMENT fix: show the client's original comment so they see what they had asked.
+  if (booking.comment && String(booking.comment).trim()) {
+    bodyHTML += `<div style="background:#F5F4F1;border-radius:8px;padding:12px 14px;margin:14px 0;font-size:13px;color:#3D3832"><strong>Votre remarque :</strong><br>${escHtml(booking.comment)}</div>`;
+  }
+
   const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
   const bookingUrl = business.slug ? `${baseUrl}/${business.slug}/book` : null;
 
@@ -343,6 +348,11 @@ async function sendRescheduleConfirmationEmail({ booking, business, oldStartAt, 
     <div style="background:#FFF3E0;border-radius:8px;padding:12px 16px;margin:16px 0;border-left:3px solid #FB8C00">
       <div style="font-size:14px;color:#E65100;font-weight:600">\u23f3 Votre acompte de ${depAmtPending}\u00a0\u20ac est toujours attendu pour confirmer ce rendez-vous.${deadlineNote}</div>
     </div>`;
+  }
+
+  // BUG-RESCH-COMMENT fix: show the client's comment so they see what they had asked.
+  if (booking.comment && String(booking.comment).trim()) {
+    bodyHTML += `<div style="background:#F5F4F1;border-radius:8px;padding:12px 14px;margin:14px 0;font-size:13px;color:#3D3832"><strong>Votre remarque :</strong><br>${escHtml(booking.comment)}</div>`;
   }
 
   // Footer: address, contact, payment methods, calendar links

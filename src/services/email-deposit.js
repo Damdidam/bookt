@@ -631,6 +631,10 @@ async function sendDepositPaidProEmail({ booking, business }) {
     timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long'
   });
   const timeStr = fmtTimeBrussels(booking.start_at);
+  // BUG-DEPPRO-INFO fix: end time + total prix + contact client pour contexte complet.
+  const endTimeStr = booking.end_at ? fmtTimeBrussels(booking.end_at) : null;
+  const totalCents = booking.booked_price_cents || booking.service_price_cents || 0;
+  const totalStr = totalCents ? (totalCents / 100).toFixed(2).replace('.', ',') + ' €' : null;
   const amtStr = ((booking.deposit_amount_cents || 0) / 100).toFixed(2).replace('.', ',');
   const clientNameRaw = booking.client_name || 'Client';
   const clientName = escHtml(clientNameRaw);
@@ -643,11 +647,11 @@ async function sendDepositPaidProEmail({ booking, business }) {
     bodyHTML: `
       <p><strong>${clientName}</strong> a réglé son acompte.</p>
       <div style="background:#F0FDF4;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #22C55E">
-        <div style="font-size:15px;font-weight:600;color:#15803D;margin-bottom:4px">Acompte de ${amtStr} € reçu</div>
+        <div style="font-size:15px;font-weight:600;color:#15803D;margin-bottom:4px">Acompte de ${amtStr} € reçu${totalStr ? ' · Total ' + totalStr : ''}</div>
         ${booking.service_name ? `<div style="font-size:14px;color:#3D3832;margin-bottom:2px">${escHtml(booking.service_name)}</div>` : ''}
         ${booking.practitioner_name ? `<div style="font-size:13px;color:#6B6560">${escHtml(booking.practitioner_name)}</div>` : ''}
-        <div style="font-size:14px;color:#3D3832">${dateStr} à ${timeStr}</div>
-        ${booking.client_email ? `<div style="font-size:13px;color:#6B6560;margin-top:4px">${escHtml(booking.client_email)}</div>` : ''}
+        <div style="font-size:14px;color:#3D3832">${dateStr} à ${timeStr}${endTimeStr ? ' – ' + endTimeStr : ''}</div>
+        ${booking.client_email ? `<div style="font-size:13px;color:#6B6560;margin-top:4px"><a href="mailto:${escHtml(booking.client_email)}" style="color:#3D3832;text-decoration:none">${escHtml(booking.client_email)}</a>${booking.client_phone ? ' · <a href="tel:' + escHtml(booking.client_phone) + '" style="color:#3D3832;text-decoration:none">' + escHtml(booking.client_phone) + '</a>' : ''}</div>` : ''}
       </div>`,
     ctaText: 'Voir dans le dashboard',
     ctaUrl: `${baseUrl}/dashboard`,
@@ -673,6 +677,11 @@ async function sendDepositRefundProEmail({ booking, business }) {
   const dateStr = new Date(booking.start_at).toLocaleDateString('fr-BE', {
     timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long'
   });
+  // BUG-DEPPRO-INFO fix: add time + end time + total + practitioner + clickable contact.
+  const timeStr = fmtTimeBrussels(booking.start_at);
+  const endTimeStr = booking.end_at ? fmtTimeBrussels(booking.end_at) : null;
+  const totalCents = booking.booked_price_cents || booking.service_price_cents || 0;
+  const totalStr = totalCents ? (totalCents / 100).toFixed(2).replace('.', ',') + ' €' : null;
   const amtStr = ((booking.deposit_amount_cents || 0) / 100).toFixed(2).replace('.', ',');
   const clientNameRaw = booking.client_name || 'Client';
   const clientName = escHtml(clientNameRaw);
@@ -685,10 +694,11 @@ async function sendDepositRefundProEmail({ booking, business }) {
     bodyHTML: `
       <p>L'acompte de <strong>${clientName}</strong> a été remboursé.</p>
       <div style="background:#FEF2F2;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #EF4444">
-        <div style="font-size:15px;font-weight:600;color:#DC2626;margin-bottom:4px">Acompte de ${amtStr} € remboursé</div>
+        <div style="font-size:15px;font-weight:600;color:#DC2626;margin-bottom:4px">Acompte de ${amtStr} € remboursé${totalStr ? ' · Total initial ' + totalStr : ''}</div>
         ${booking.service_name ? `<div style="font-size:14px;color:#3D3832;margin-bottom:2px">${escHtml(booking.service_name)}</div>` : ''}
-        <div style="font-size:14px;color:#3D3832">${dateStr}</div>
-        ${booking.client_email ? `<div style="font-size:13px;color:#6B6560;margin-top:4px">${escHtml(booking.client_email)}</div>` : ''}
+        ${booking.practitioner_name ? `<div style="font-size:13px;color:#6B6560">${escHtml(booking.practitioner_name)}</div>` : ''}
+        <div style="font-size:14px;color:#3D3832">${dateStr} à ${timeStr}${endTimeStr ? ' – ' + endTimeStr : ''}</div>
+        ${booking.client_email ? `<div style="font-size:13px;color:#6B6560;margin-top:4px"><a href="mailto:${escHtml(booking.client_email)}" style="color:#3D3832;text-decoration:none">${escHtml(booking.client_email)}</a>${booking.client_phone ? ' · <a href="tel:' + escHtml(booking.client_phone) + '" style="color:#3D3832;text-decoration:none">' + escHtml(booking.client_phone) + '</a>' : ''}</div>` : ''}
       </div>`,
     ctaText: 'Voir dans le dashboard',
     ctaUrl: `${baseUrl}/dashboard`,

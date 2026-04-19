@@ -266,7 +266,11 @@ router.patch('/:id/move', async (req, res, next) => {
           }
 
           for (const u of updates) {
-            let sql = `UPDATE bookings SET start_at = $1, end_at = $2, reminder_24h_sent_at = NULL, reminder_2h_sent_at = NULL, updated_at = NOW()`;
+            // BUG-MOVE-CONFEXP fix: if the booking was 'pending' (awaiting client confirmation),
+// the original confirmation_expires_at was set at creation — moving to a far-future
+// date leaves the deadline in place, so the cron would auto-cancel shortly after.
+// Reset to NULL so the cron only acts on start_at.
+let sql = `UPDATE bookings SET start_at = $1, end_at = $2, reminder_24h_sent_at = NULL, reminder_2h_sent_at = NULL, confirmation_expires_at = CASE WHEN status = 'pending' THEN NULL ELSE confirmation_expires_at END, updated_at = NOW()`;
             const params = [u.start_at, u.end_at];
             let idx = 3;
             // Only reassign practitioner if NOT a split group (split = each member keeps its own practitioner)
@@ -641,7 +645,11 @@ router.patch('/:id/move', async (req, res, next) => {
           }
         }
 
-        let sql = `UPDATE bookings SET start_at = $1, end_at = $2, reminder_24h_sent_at = NULL, reminder_2h_sent_at = NULL, updated_at = NOW()`;
+        // BUG-MOVE-CONFEXP fix: if the booking was 'pending' (awaiting client confirmation),
+// the original confirmation_expires_at was set at creation — moving to a far-future
+// date leaves the deadline in place, so the cron would auto-cancel shortly after.
+// Reset to NULL so the cron only acts on start_at.
+let sql = `UPDATE bookings SET start_at = $1, end_at = $2, reminder_24h_sent_at = NULL, reminder_2h_sent_at = NULL, confirmation_expires_at = CASE WHEN status = 'pending' THEN NULL ELSE confirmation_expires_at END, updated_at = NOW()`;
         const params = [newStart.toISOString(), newEnd.toISOString()];
         let idx = 3;
 

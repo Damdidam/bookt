@@ -24,12 +24,14 @@ async function processExpiredDeposits() {
     await client.query('BEGIN');
 
     // Find pending_deposit bookings whose deposit deadline has passed
+    // BUG-DEP-NULL fix: include deposit_status IS NULL so zombie bookings with
+    // uninitialized status (pre-migration or data corruption) get cleaned up.
     const expired = await client.query(
       `SELECT id, business_id, service_id, practitioner_id, start_at, end_at,
               group_id, client_id, deposit_amount_cents, deposit_payment_intent_id
        FROM bookings
        WHERE status = 'pending_deposit'
-         AND deposit_status = 'pending'
+         AND (deposit_status = 'pending' OR deposit_status IS NULL)
          AND deposit_deadline IS NOT NULL
          AND deposit_deadline < NOW()
        FOR UPDATE SKIP LOCKED`
@@ -170,6 +172,17 @@ async function processExpiredDeposits() {
       try {
         const { processWaitlistForCancellation } = require('./waitlist');
         await processWaitlistForCancellation(cancelled.id, cancelled.business_id);
+        // BUG-CRON-SIB fix: also notify waitlist for sibling slots freed by this cancel
+        // (group members had their own start_at / practitioner, waitlist may have matches).
+        if (cancelled.group_id) {
+          const sibsWl = await query(
+            `SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2 AND id != $3 AND status = 'cancelled'`,
+            [cancelled.group_id, cancelled.business_id, cancelled.id]
+          );
+          for (const sib of sibsWl.rows) {
+            try { await processWaitlistForCancellation(sib.id, cancelled.business_id); } catch (_) {}
+          }
+        }
       } catch (wlErr) {
         console.warn('[DEPOSIT CRON] Waitlist processing error for booking', cancelled.id, ':', wlErr.message);
       }
@@ -186,9 +199,22 @@ async function processExpiredDeposits() {
       }
     }
 
-    // Delete external calendar events for cancelled bookings
+    // Delete external calendar events for cancelled bookings (primary + siblings)
+    // BUG-CRON-SIB fix: external calendar events for sibling bookings were orphaned —
+    // Google/Outlook still displayed them as active even after DB cancel.
     for (const cancelled of cancelledBookingIds) {
       try { await calSyncDelete(cancelled.business_id, cancelled.id); } catch (_) {}
+      if (cancelled.group_id) {
+        try {
+          const sibsCs = await query(
+            `SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2 AND id != $3 AND status = 'cancelled'`,
+            [cancelled.group_id, cancelled.business_id, cancelled.id]
+          );
+          for (const sib of sibsCs.rows) {
+            try { await calSyncDelete(cancelled.business_id, sib.id); } catch (_) {}
+          }
+        } catch (_) {}
+      }
     }
 
     // M3 fix: Queue pro notifications in parallel — each row independent

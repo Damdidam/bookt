@@ -565,19 +565,25 @@ async function handleStripeWebhook(req, res) {
             const days = biz?.settings?.giftcard_expiry_days || 365;
             const expiresAt = new Date(Date.now() + days * 86400000);
 
-            // NOTE: No UNIQUE constraint on gift_cards.stripe_payment_intent_id —
-            // ON CONFLICT cannot be used here. Idempotency relies on the SELECT guard above.
-            // If a unique index is added later, replace with INSERT ... ON CONFLICT (stripe_payment_intent_id) DO NOTHING.
+            // BUG-IDEMPOTENCE fix: UNIQUE partial index uq_gc_stripe_pi (schema-v73) protects
+            // against duplicate INSERT on concurrent webhook deliveries. ON CONFLICT DO NOTHING
+            // makes the 2nd call a silent no-op (RETURNING returns 0 rows → we skip).
             const gc = await query(
               `INSERT INTO gift_cards (business_id, code, amount_cents, balance_cents,
                buyer_name, buyer_email, recipient_name, recipient_email, message,
                stripe_payment_intent_id, expires_at)
-               VALUES ($1, $2, $3, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+               VALUES ($1, $2, $3, $3, $4, $5, $6, $7, $8, $9, $10)
+               ON CONFLICT (stripe_payment_intent_id) WHERE stripe_payment_intent_id IS NOT NULL DO NOTHING
+               RETURNING *`,
               [bizId, code, amountCents,
                session.metadata.buyer_name || null, session.metadata.buyer_email || null,
                session.metadata.recipient_name || null, session.metadata.recipient_email || null,
                session.metadata.message || null, piId, expiresAt]
             );
+            if (gc.rows.length === 0) {
+              console.log(`[STRIPE WH] GC INSERT conflict for PI ${piId} (race with concurrent webhook), skipping.`);
+              break;
+            }
 
             await query(
               `INSERT INTO gift_card_transactions (gift_card_id, business_id, amount_cents, type, note)
@@ -692,12 +698,19 @@ async function handleStripeWebhook(req, res) {
             const expiresAt = new Date(Date.now() + (tpl.validity_days || 365) * 86400000);
 
             // Create pass
+            // BUG-IDEMPOTENCE fix: UNIQUE partial index uq_passes_stripe_pi (schema-v73)
+            // protects against duplicate INSERT on concurrent Stripe webhook deliveries.
             const passRes = await query(
               `INSERT INTO passes (business_id, pass_template_id, service_id, service_variant_id, code, name, sessions_total, sessions_remaining, price_cents, buyer_name, buyer_email, stripe_payment_intent_id, expires_at)
                VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8, $9, $10, $11, $12)
+               ON CONFLICT (stripe_payment_intent_id) WHERE stripe_payment_intent_id IS NOT NULL DO NOTHING
                RETURNING *`,
               [business_id, pass_template_id, tpl.service_id, tpl.service_variant_id || null, code, tpl.name, tpl.sessions_count, tpl.price_cents, buyer_name, buyer_email, session.payment_intent, expiresAt.toISOString()]
             );
+            if (passRes.rows.length === 0) {
+              console.log(`[STRIPE WH] Pass INSERT conflict for PI ${session.payment_intent} (race with concurrent webhook), skipping.`);
+              break;
+            }
             const pass = passRes.rows[0];
 
             // Create purchase transaction

@@ -181,8 +181,17 @@ router.patch('/:id', async (req, res, next) => {
       idx++;
     }
     if (status) {
-      const valid = ['waiting', 'offered', 'booked', 'expired', 'cancelled', 'declined'];
-      if (!valid.includes(status)) return res.status(400).json({ error: 'Statut invalide' });
+      // BUG-WL-PATCH-STATUS fix: forbid staff-manual 'booked' — requires offer_booking_id
+      // which only the accept flow can set. Allowing 'booked' via PATCH yields stats with
+      // no linked booking (dashboard KPI broken). 'waiting'→'cancelled'/'declined' OK.
+      const valid = ['waiting', 'offered', 'expired', 'cancelled', 'declined'];
+      if (!valid.includes(status)) {
+        return res.status(400).json({
+          error: status === 'booked'
+            ? 'Statut "booked" ne peut pas être défini manuellement — utilisez l\'acceptation d\'offre'
+            : 'Statut invalide'
+        });
+      }
       sets.push(`status = $${idx}`);
       params.push(status);
       idx++;

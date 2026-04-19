@@ -107,12 +107,23 @@ async function sendModificationEmail({ booking, business, groupServices }) {
       ${serviceDetailNew}
     </div>`;
 
-  // Deposit info for modification email
+  // Deposit info for modification email — show both paid AND pending states
+  // BUG-MODIF-DEPOSIT-PENDING fix: pending deposit was silently omitted from modification
+  // email, client thought no payment was required for the new slot → missed deadline.
   if (booking.deposit_status === 'paid' && booking.deposit_amount_cents > 0) {
     const depAmtMod = (booking.deposit_amount_cents / 100).toFixed(2).replace('.', ',');
     bodyHTML += `
     <div style="background:#FFF8E1;border-radius:8px;padding:12px 16px;margin:16px 0;border-left:3px solid #F9A825">
       <div style="font-size:14px;color:#5D4037;font-weight:600">\u2705 Votre acompte de ${depAmtMod}\u00a0\u20ac reste valable pour ce nouveau cr\u00e9neau.</div>
+    </div>`;
+  } else if (booking.deposit_status === 'pending' && booking.deposit_amount_cents > 0) {
+    const depAmtPend = (booking.deposit_amount_cents / 100).toFixed(2).replace('.', ',');
+    const depDeadline = booking.deposit_deadline
+      ? new Date(booking.deposit_deadline).toLocaleDateString('fr-BE', { timeZone: 'Europe/Brussels', weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+      : '';
+    bodyHTML += `
+    <div style="background:#FEF3C7;border-radius:8px;padding:12px 16px;margin:16px 0;border-left:3px solid #E6A817">
+      <div style="font-size:14px;color:#92400E;font-weight:600">\u26A0 Acompte de ${depAmtPend}\u00a0\u20ac \u00e0 r\u00e9gler${depDeadline ? ' avant le ' + depDeadline : ''}.</div>
     </div>`;
   }
 

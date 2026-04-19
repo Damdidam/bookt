@@ -52,7 +52,7 @@ async function loadWaitlist(){
     if(pracs.length>1){
       h+=`<select onchange="viewState.wlPracFilter=this.value;loadWaitlist()" style="padding:6px 12px;border-radius:7px;border:1.5px solid var(--border);font-size:.75rem;font-family:var(--sans);background:var(--white);color:var(--text-2)">`;
       h+=`<option value="" ${!viewState.wlPracFilter?'selected':''}>Tous les praticiens</option>`;
-      pracs.forEach(p=>{h+=`<option value="${p.id}" ${viewState.wlPracFilter===p.id?'selected':''}>${p.display_name}</option>`;});
+      pracs.forEach(p=>{h+=`<option value="${esc(p.id)}" ${viewState.wlPracFilter===p.id?'selected':''}>${esc(p.display_name)}</option>`;});
       h+=`</select>`;
     }
     h+=`<button class="btn-primary btn-sm" onclick="wlOpenAdd()" style="margin-left:auto">+ Ajouter</button>`;
@@ -108,10 +108,10 @@ function wlOpenAdd(){
     m+=`<div><label class="m-field-label">Email *</label><input class="m-input" id="wla_email" type="email" placeholder="email@exemple.be"></div>`;
     m+=`<div><label class="m-field-label">T\u00e9l\u00e9phone</label><input class="m-input" id="wla_phone" placeholder="+32 / +33..."></div>`;
     m+=`<div><label class="m-field-label">Praticien *</label><select class="m-input" id="wla_prac">`;
-    pracs.forEach(p=>{m+=`<option value="${p.id}">${p.display_name}</option>`;});
+    pracs.forEach(p=>{m+=`<option value="${esc(p.id)}">${esc(p.display_name)}</option>`;});
     m+=`</select></div>`;
     m+=`<div><label class="m-field-label">Prestation *</label><select class="m-input" id="wla_svc">`;
-    services.forEach(s=>{m+=`<option value="${s.id}">${s.name} (${s.duration_min} min)</option>`;});
+    services.forEach(s=>{m+=`<option value="${esc(s.id)}">${esc(s.name)} (${s.duration_min} min)</option>`;});
     m+=`</select></div>`;
     m+=`<div><label class="m-field-label">Jours pr\u00e9f\u00e9r\u00e9s</label><div style="display:flex;gap:4px;flex-wrap:wrap" id="wla_days">`;
     for(let i=0;i<7;i++){

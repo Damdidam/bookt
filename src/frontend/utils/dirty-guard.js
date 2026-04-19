@@ -85,8 +85,11 @@ export function guardModal(overlayEl, opts = {}) {
 
   // Backdrop click → close via guard (only for dynamic modals that use .remove())
   // Static modals (calDetailModal, calCreateModal) must NOT use this — they toggle .open class
+  // BUG-DIRTY-GUARD fix: default is NOW "no backdrop close" (Hakim's modal rule: modals only
+  // close via explicit button or ESC). Opt-in via { allowBackdropClose: true } for rare cases.
+  // Legacy `noBackdropClose: true` is still accepted (explicit opt-out) for backwards compat.
   let _backdrop = null;
-  if (!opts.noBackdropClose) {
+  if (opts.allowBackdropClose && !opts.noBackdropClose) {
     _backdrop = function (e) { if (e.target === overlayEl) closeModal(overlayEl.id); };
     overlayEl.addEventListener('click', _backdrop);
   }

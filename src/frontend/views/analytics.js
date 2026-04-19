@@ -67,7 +67,7 @@ function renderAnalytics(d){
     h+=`<div class="top-svc-list">`;
     d.top_services.forEach(s=>{
       const pct=Math.round(s.count/maxCount*100);
-      h+=`<div class="top-svc-row"><span class="sname">${s.name}</span><div class="bar-wrap"><div class="bar" style="width:${pct}%;background:${s.color||'var(--primary)'}">${s.count}</div></div><span class="scount">${(s.revenue/100).toFixed(2).replace('.',',')}€</span></div>`;
+      h+=`<div class="top-svc-row"><span class="sname">${esc(s.name)}</span><div class="bar-wrap"><div class="bar" style="width:${pct}%;background:${s.color||'var(--primary)'}">${s.count}</div></div><span class="scount">${(s.revenue/100).toFixed(2).replace('.',',')}€</span></div>`;
     });
     h+=`</div>`;
   }

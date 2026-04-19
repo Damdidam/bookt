@@ -100,7 +100,11 @@ router.post('/sms/inbound', async (req, res) => {
       return res.type('text/xml').send('<Response/>');
     }
     if (CONFIRM_RE.test(normalized)) {
-      // Find most recent pending booking for this phone
+      // Find pending bookings for this phone — CAUTION: same phone may exist in multiple
+      // businesses (same individual uses several salons). We fetch ALL candidates then
+      // decide: 0 → nothing to confirm; 1 → confirm it; 2+ → ambiguous, refuse.
+      // BUG-TWILIO-TENANT fix: previously LIMIT 1 ORDER BY created_at DESC → confirmed
+      // the MOST RECENT pending regardless of business → could be the wrong salon.
       const pending = await query(
         `SELECT b.id, b.public_token, b.business_id, b.group_id, b.client_id,
                 b.service_id, b.practitioner_id, b.start_at, b.end_at
@@ -108,12 +112,20 @@ router.post('/sms/inbound', async (req, res) => {
          JOIN clients c ON c.id = b.client_id
          WHERE c.phone = $1 AND b.status = 'pending'
            AND b.confirmation_expires_at > NOW()
-         ORDER BY b.created_at DESC LIMIT 1`,
+         ORDER BY b.created_at DESC LIMIT 5`,
         [from]
       );
 
       if (pending.rows.length === 0) {
         return res.type('text/xml').send(twiml('<Message>Aucun rendez-vous en attente de confirmation.</Message>'));
+      }
+
+      // If bookings span multiple businesses, we cannot know which one the client means —
+      // refuse rather than risk confirming the wrong salon.
+      const _distinctBiz = new Set(pending.rows.map(r => r.business_id));
+      if (_distinctBiz.size > 1) {
+        console.warn(`[SMS INBOUND] Ambiguous CONFIRM from ***${from.slice(-4)} — ${_distinctBiz.size} businesses have pending bookings; refused.`);
+        return res.type('text/xml').send(twiml('<Message>Plusieurs rendez-vous en attente. Confirmez depuis l\'email reçu.</Message>'));
       }
 
       const bk = pending.rows[0];

@@ -614,10 +614,20 @@ async function processNotifications() {
             break;
           case 'email_dispute_alert': {
             // Send dispute alert email to merchant
+            // BUG-DISPUTE-CTX fix: include client name, booking date, service so the pro can
+            // cross-reference without opening Stripe dashboard + Genda side-by-side.
             const meta = notif.metadata || {};
             const { sendEmail, buildEmailHTML, escHtml, safeColor } = require('./email-utils');
             const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
             const amtStr = meta.amount ? ((meta.amount / 100).toFixed(2).replace('.', ',') + ' €') : '?';
+            const _disputeCtx = [];
+            if (bk.client_name) _disputeCtx.push(`<strong>${escHtml(bk.client_name)}</strong>`);
+            if (bk.service_name) _disputeCtx.push(escHtml(bk.service_name));
+            if (bk.start_at) {
+              const _d = new Date(bk.start_at).toLocaleDateString('fr-BE', { timeZone: 'Europe/Brussels', weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+              _disputeCtx.push(_d);
+            }
+            const _ctxLine = _disputeCtx.length > 0 ? `<div style="font-size:14px;color:#3D3832;margin-top:6px">${_disputeCtx.join(' · ')}</div>` : '';
             await sendEmail({
               to: bk.biz_email, toName: bk.biz_name,
               subject: `⚠ Litige Stripe — ${amtStr} — action requise`,
@@ -627,6 +637,8 @@ async function processNotifications() {
                   <div style="background:#FEF2F2;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #EF4444">
                     <div style="font-size:15px;font-weight:600;color:#DC2626">Litige de ${amtStr}</div>
                     <div style="font-size:14px;color:#3D3832;margin-top:4px">Motif : ${escHtml(meta.reason || 'Non spécifié')}</div>
+                    ${_ctxLine}
+                    ${bk.id ? `<div style="font-size:11px;color:#9C958E;margin-top:6px">Booking ID : ${escHtml(bk.id)}</div>` : ''}
                   </div>
                   <p style="font-size:13px;color:#6B6560">Connectez-vous à votre dashboard Stripe pour répondre au litige dans les délais.</p>`,
                 ctaText: 'Voir dans le dashboard', ctaUrl: `${baseUrl}/dashboard`,
@@ -638,16 +650,31 @@ async function processNotifications() {
             break;
           }
           case 'email_deposit_orphan': {
-            const { sendEmail: _sendOrphan, buildEmailHTML: _buildOrphan, safeColor: _scOrphan } = require('./email-utils');
+            // BUG-ORPHAN-CTX fix: include client name + booking date + amount so pro can trace.
+            const metaOrp = notif.metadata || {};
+            const { sendEmail: _sendOrphan, buildEmailHTML: _buildOrphan, safeColor: _scOrphan, escHtml: _escOrphan } = require('./email-utils');
             const _baseOrphan = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+            const _orphanCtx = [];
+            if (bk.client_name) _orphanCtx.push(`<strong>${_escOrphan(bk.client_name)}</strong>`);
+            if (bk.service_name) _orphanCtx.push(_escOrphan(bk.service_name));
+            if (bk.start_at) {
+              const _d = new Date(bk.start_at).toLocaleDateString('fr-BE', { timeZone: 'Europe/Brussels', weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+              _orphanCtx.push(_d);
+            }
+            const _orphanCtxLine = _orphanCtx.length > 0 ? `<div style="font-size:14px;color:#3D3832;margin-bottom:6px">${_orphanCtx.join(' · ')}</div>` : '';
+            const _orphanPi = metaOrp.payment_intent ? `<div style="font-size:11px;color:#9C958E;margin-top:4px">PI : ${_escOrphan(metaOrp.payment_intent)}</div>` : '';
+            const _orphanRefunded = metaOrp.auto_refunded ? ' (remboursement auto effectué)' : ' (remboursement auto tenté — à vérifier)';
             await _sendOrphan({
               to: bk.biz_email, toName: bk.biz_name,
               subject: `Paiement orphelin détecté — vérification requise`,
               html: _buildOrphan({
                 title: 'Paiement orphelin', preheader: 'Un paiement a été reçu pour un RDV annulé',
-                bodyHTML: `<p>Un paiement Stripe a été reçu pour un rendez-vous qui a été annulé ou n'existe plus.</p>
+                bodyHTML: `<p>Un paiement Stripe a été reçu pour un rendez-vous qui a été annulé ou n'existe plus${_orphanRefunded}.</p>
                   <div style="background:#FEF9C3;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #F59E0B">
-                    <div style="font-size:14px;color:#3D3832">Un remboursement automatique a été tenté. Vérifiez votre dashboard Stripe.</div>
+                    ${_orphanCtxLine}
+                    <div style="font-size:14px;color:#3D3832">Vérifiez votre dashboard Stripe pour confirmer le remboursement.</div>
+                    ${_orphanPi}
+                    ${bk.id ? `<div style="font-size:11px;color:#9C958E;margin-top:2px">Booking ID : ${_escOrphan(bk.id)}</div>` : ''}
                   </div>`,
                 ctaText: 'Voir dans le dashboard', ctaUrl: `${_baseOrphan}/dashboard`,
                 businessName: bk.biz_name, primaryColor: _scOrphan(bk.biz_theme?.primary_color),

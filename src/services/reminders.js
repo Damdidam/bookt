@@ -119,7 +119,7 @@ async function process24hReminders(stats) {
         timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit'
       }) : null;
 
-      const manageUrl = `${process.env.APP_BASE_URL || 'https://genda.be'}/booking/${bk.public_token}`;
+      const manageUrl = `${process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be'}/booking/${bk.public_token}`;
       const primaryColor = bk.theme?.primary_color || '#0D7377';
 
       // Fetch group services if multi-service booking
@@ -198,7 +198,7 @@ async function process24hReminders(stats) {
 
       // EMAIL 24h
       if (reminderEmailEnabled && bk.client_email) {
-        const baseUrl = process.env.APP_BASE_URL || 'https://genda.be';
+        const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
         const manageUrl24 = `${baseUrl}/booking/${bk.public_token}`;
         const html = buildEmailHTML({
           title: 'Rappel de votre rendez-vous',
@@ -416,7 +416,7 @@ async function process2hReminders(stats) {
       const adjPriceCents2h = bk.booked_price_cents || (bk.discount_pct && bk.price_cents ? Math.round(bk.price_cents * (100 - bk.discount_pct) / 100) : bk.price_cents);
 
       // SMS 2h — keep under 160 chars
-      const manageUrl2hSms = `${process.env.APP_BASE_URL || 'https://genda.be'}/booking/${bk.public_token}`;
+      const manageUrl2hSms = `${process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be'}/booking/${bk.public_token}`;
       if (smsEnabled && bk.client_phone && bk.consent_sms) {
         const _biz2h = bk.business_name.length > 20 ? bk.business_name.slice(0, 18) + '..' : bk.business_name;
         const _prac2h = (bk.practitioner_name || '').length > 20 ? bk.practitioner_name.slice(0, 18) + '..' : (bk.practitioner_name || '');
@@ -449,7 +449,7 @@ async function process2hReminders(stats) {
 
       // Email 2h (optional)
       if (emailEnabled && bk.client_email) {
-        const baseUrl2h = process.env.APP_BASE_URL || 'https://genda.be';
+        const baseUrl2h = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
         const manageUrl2h = `${baseUrl2h}/booking/${bk.public_token}`;
         const primaryColor = bk.theme?.primary_color || '#0D7377';
 
