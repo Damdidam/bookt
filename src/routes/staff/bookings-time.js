@@ -1502,9 +1502,14 @@ router.patch('/:id/modify', async (req, res, next) => {
         const r = await client.query(
           // BUG-MODIFY-REMINDER fix: reset reminder_*_sent_at so the new slot gets its
           // 24h/2h rappels. Parity with /move (L644/L269) which already reset them.
+          // BUG-MODIFY-CONFEXP fix: parity with /move — reset confirmation_expires_at
+          // if booking was 'pending' (shouldNotify=false case). Without this, a /modify
+          // without notify on a pending booking left the initial deadline (24h from creation)
+          // in place → cron processExpiredPendingBookings would auto-cancel the new slot.
           `UPDATE bookings SET
             start_at = $1, end_at = $2, status = $3,
             reminder_24h_sent_at = NULL, reminder_2h_sent_at = NULL,
+            confirmation_expires_at = CASE WHEN status = 'pending' THEN NULL ELSE confirmation_expires_at END,
             updated_at = NOW()
            WHERE id = $4 AND business_id = $5 AND status NOT IN ('cancelled', 'completed', 'no_show')
            RETURNING *`,
@@ -1594,7 +1599,7 @@ router.patch('/:id/modify', async (req, res, next) => {
     try {
       const freshRes = await queryWithRLS(bid,
         `SELECT booked_price_cents, discount_pct, promotion_discount_cents, promotion_discount_pct, promotion_label,
-                deposit_status, deposit_amount_cents, deposit_paid_at
+                deposit_status, deposit_amount_cents, deposit_paid_at, deposit_deadline
            FROM bookings WHERE id = $1 AND business_id = $2`,
         [id, bid]
       );
@@ -1652,6 +1657,7 @@ router.patch('/:id/modify', async (req, res, next) => {
             deposit_status: (freshBk ? freshBk.deposit_status : oldBooking.deposit_status),
             deposit_amount_cents: (freshBk ? freshBk.deposit_amount_cents : oldBooking.deposit_amount_cents),
             deposit_paid_at: (freshBk ? freshBk.deposit_paid_at : oldBooking.deposit_paid_at),
+            deposit_deadline: (freshBk ? freshBk.deposit_deadline : oldBooking.deposit_deadline),
             old_start_at: oldBooking.start_at,
             old_end_at: oldBooking.end_at,
             new_start_at: start_at,

@@ -112,7 +112,7 @@ router.post('/sms/inbound', async (req, res) => {
          JOIN clients c ON c.id = b.client_id
          WHERE c.phone = $1 AND b.status = 'pending'
            AND b.confirmation_expires_at > NOW()
-         ORDER BY b.created_at DESC LIMIT 5`,
+         ORDER BY b.created_at DESC LIMIT 20`,
         [from]
       );
 

@@ -648,8 +648,10 @@ async function handleStripeWebhook(req, res) {
           try {
             const { business_id, pass_template_id, buyer_name, buyer_email } = session.metadata;
 
-            // Idempotency guard — Stripe may deliver the same event multiple times
-            const passPi = session.payment_intent;
+            // Idempotency guard — Stripe may deliver the same event multiple times.
+            // BUG-IDEMPOTENCE fix: fallback to session.id if payment_intent is null
+            // (async Bancontact). Align with the INSERT below which uses the same fallback.
+            const passPi = session.payment_intent || session.id;
             if (passPi) {
               const existingPass = await query('SELECT id FROM passes WHERE stripe_payment_intent_id = $1', [passPi]);
               if (existingPass.rows.length > 0) {
@@ -698,14 +700,17 @@ async function handleStripeWebhook(req, res) {
             const expiresAt = new Date(Date.now() + (tpl.validity_days || 365) * 86400000);
 
             // Create pass
-            // BUG-IDEMPOTENCE fix: UNIQUE partial index uq_passes_stripe_pi (schema-v73)
-            // protects against duplicate INSERT on concurrent Stripe webhook deliveries.
+            // BUG-IDEMPOTENCE fix: UNIQUE partial index idx_passes_stripe_pi protects
+            // against duplicate INSERT on concurrent Stripe webhook deliveries.
+            // PI fallback to session.id so NULL payment_intent (async Bancontact) still
+            // benefits from the UNIQUE guard — symmetric with the GC branch above.
+            const _passStripeId = session.payment_intent || session.id;
             const passRes = await query(
               `INSERT INTO passes (business_id, pass_template_id, service_id, service_variant_id, code, name, sessions_total, sessions_remaining, price_cents, buyer_name, buyer_email, stripe_payment_intent_id, expires_at)
                VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8, $9, $10, $11, $12)
                ON CONFLICT (stripe_payment_intent_id) WHERE stripe_payment_intent_id IS NOT NULL DO NOTHING
                RETURNING *`,
-              [business_id, pass_template_id, tpl.service_id, tpl.service_variant_id || null, code, tpl.name, tpl.sessions_count, tpl.price_cents, buyer_name, buyer_email, session.payment_intent, expiresAt.toISOString()]
+              [business_id, pass_template_id, tpl.service_id, tpl.service_variant_id || null, code, tpl.name, tpl.sessions_count, tpl.price_cents, buyer_name, buyer_email, _passStripeId, expiresAt.toISOString()]
             );
             if (passRes.rows.length === 0) {
               console.log(`[STRIPE WH] Pass INSERT conflict for PI ${session.payment_intent} (race with concurrent webhook), skipping.`);

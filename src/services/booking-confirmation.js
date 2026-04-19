@@ -216,7 +216,10 @@ async function processExpiredPendingBookings() {
       }
 
       processed++;
-      cancelledBookingIds.push({ id: bk.id, business_id: bk.business_id, group_id: bk.group_id, client_id: bk.client_id, _gcRefunded: gcRefundConf.refunded || 0, _passRefunded: (passRefundConf.refunded || 0) !== 0, _netRefund: _netRefundForEmail, _retentionReason });
+      // BUG-SESSIONS-EXPIRE fix: store _stripeSessionId (cs_*) so the post-commit
+      // stripe.checkout.sessions.expire() loop (parity with deposit-expiry) actually has
+      // a target. Previous push omitted this field → the loop was a silent no-op.
+      cancelledBookingIds.push({ id: bk.id, business_id: bk.business_id, group_id: bk.group_id, client_id: bk.client_id, _gcRefunded: gcRefundConf.refunded || 0, _passRefunded: (passRefundConf.refunded || 0) !== 0, _netRefund: _netRefundForEmail, _retentionReason, _stripeSessionId: bk.deposit_payment_intent_id });
       } catch (spErr) {
         await client.query(`ROLLBACK TO sp_${i}`);
         console.error('[CONFIRM CRON] Failed to process booking', bk.id, spErr.message);
