@@ -1377,6 +1377,10 @@ router.post('/connect/onboard', requireAuth, requireOwner, blockIfImpersonated, 
 
     // Create Express account if none exists
     if (!connectId) {
+      // P1-stripe-idem : clé STABLE par business_id (pas bucket) — 1 seul
+      // compte Connect par biz, donc retry doit retourner le MÊME compte.
+      // Sans ça, double-clic ou race crash → 2 comptes Express orphelins
+      // (lourd à nettoyer chez Stripe, un biz ne peut avoir qu'un Connect).
       const account = await stripe.accounts.create({
         type: 'express',
         country: 'BE',
@@ -1388,7 +1392,7 @@ router.post('/connect/onboard', requireAuth, requireOwner, blockIfImpersonated, 
           transfers: { requested: true },
           bancontact_payments: { requested: true }
         }
-      });
+      }, { idempotencyKey: `connect-account-${bid}` });
       connectId = account.id;
 
       await query(

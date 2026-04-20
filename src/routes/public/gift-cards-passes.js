@@ -85,10 +85,13 @@ router.post('/:slug/gift-card/checkout', depositLimiter, async (req, res, next) 
       application_fee_amount: computeApplicationFeeCents(amount_cents),
       transfer_data: { destination: biz.stripe_connect_id }
     };
-    // P1-stripe-idem : bucket 30s par buyer_email + biz pour dedupe double-clic.
+    // P1-stripe-idem : bucket 30s par buyer_email HASHÉ + biz pour dedupe double-clic.
     // Pas de GC id en amont (créée seulement après paiement), donc clé basée
-    // sur input user (email + biz + amount) + bucket temps court.
-    const _idemGc = `gc-checkout-${biz.id}-${(buyer_email || '').toLowerCase()}-${amount_cents}-${Math.floor(Date.now() / 30000)}`;
+    // sur input user (email hash + biz + amount) + bucket temps court.
+    // Hash 16 chars : buyer_email RFC peut aller jusqu'à 320 chars → clé
+    // > 255 chars = Stripe 400 idempotency_key_invalid. Hash force 16 chars.
+    const _idemGcEmailHash = require('crypto').createHash('sha1').update((buyer_email || '').toLowerCase()).digest('hex').slice(0, 16);
+    const _idemGc = `gc-checkout-${biz.id}-${_idemGcEmailHash}-${amount_cents}-${Math.floor(Date.now() / 30000)}`;
     const session = await stripe.checkout.sessions.create(sessionOpts, { idempotencyKey: _idemGc });
     res.json({ url: session.url, session_id: session.id });
   } catch (err) { console.error('[GIFT-CARD CHECKOUT] Error:', err); next(err); }
@@ -366,8 +369,10 @@ router.post('/:slug/pass/checkout', depositLimiter, async (req, res, next) => {
       application_fee_amount: computeApplicationFeeCents(tpl.price_cents),
       transfer_data: { destination: biz.stripe_connect_id }
     };
-    // P1-stripe-idem : bucket 30s par buyer_email + tpl + biz.
-    const _idemPass = `pass-checkout-${biz.id}-${tpl.id}-${(buyer_email || '').toLowerCase()}-${Math.floor(Date.now() / 30000)}`;
+    // P1-stripe-idem : bucket 30s par buyer_email HASHÉ + tpl + biz (email
+    // hashé pour respecter limite Stripe 255 chars — cf. gift-card ci-dessus).
+    const _idemPassEmailHash = require('crypto').createHash('sha1').update((buyer_email || '').toLowerCase()).digest('hex').slice(0, 16);
+    const _idemPass = `pass-checkout-${biz.id}-${tpl.id}-${_idemPassEmailHash}-${Math.floor(Date.now() / 30000)}`;
     const session = await stripe.checkout.sessions.create(passSessionOpts, { idempotencyKey: _idemPass });
     res.json({ url: session.url, session_id: session.id });
   } catch (err) { next(err); }
