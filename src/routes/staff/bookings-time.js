@@ -2041,7 +2041,7 @@ router.post('/:id/send-reminder', async (req, res, next) => {
           cancelText: 'Gérer mon rendez-vous', cancelUrl: manageUrl,
           footerText: `${b.business_name}${b.address ? ' \u00b7 ' + b.address : ''} \u00b7 Via Genda.be`
         });
-        await sendEmail({ to: b.client_email, subject: `Rappel : votre RDV du ${dateStr} à ${timeStr} — ${b.business_name}`, html, fromName: b.business_name, replyTo: b.business_email || null });
+        await sendEmail({ to: b.client_email, subject: `Rappel : votre RDV du ${dateStr} à ${timeStr} — ${b.business_name}`, html, fromName: b.business_name, replyTo: b.business_email || null, businessId: bid });
         result.email = 'sent';
       } catch (e) {
         console.warn('[REMINDER] Email error:', e.message);

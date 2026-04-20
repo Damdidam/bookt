@@ -58,7 +58,8 @@ async function processExpiredPasses() {
         subject: `Votre pass "${pass.name || 'Pass'}" a expir\u00e9 \u2014 ${biz_name}`,
         html,
         fromName: biz_name,
-        replyTo: biz_email || undefined
+        replyTo: biz_email || undefined,
+        businessId: pass.business_id
       });
     } catch (e) {
       console.warn('[PASS EXPIRY] Email error for pass', pass.id, ':', e.message);
@@ -136,7 +137,8 @@ async function processPassExpiryWarnings() {
         subject: `Votre pass expire le ${expDate} \u2014 ${biz_name}`,
         html,
         fromName: biz_name,
-        replyTo: biz_email || undefined
+        replyTo: biz_email || undefined,
+        businessId: pass.business_id
       });
 
       // Post flag AFTER successful send — retry on next tick if Brevo fails

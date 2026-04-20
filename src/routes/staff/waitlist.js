@@ -419,7 +419,8 @@ router.post('/:id/offer', async (req, res, next) => {
         subject: `Cr\u00e9neau disponible \u2014 ${details.service_name} le ${slotDateFmt}`,
         html: offerHtml,
         fromName: details.business_name,
-        replyTo: details.business_email || undefined
+        replyTo: details.business_email || undefined,
+        businessId: bid
       }).catch(e => console.warn('[WAITLIST] Manual offer email error:', e.message));
     }
 

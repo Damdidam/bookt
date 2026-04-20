@@ -714,7 +714,8 @@ router.post('/:id/refund-full', blockIfImpersonated, async (req, res, next) => {
             subject: netStr ? `Pass remboursé \u2014 ${bizRow.name || 'Genda'}` : `Pass annulé \u2014 ${bizRow.name || 'Genda'}`,
             html,
             fromName: bizRow.name || 'Genda',
-            replyTo: bizRow.email || undefined
+            replyTo: bizRow.email || undefined,
+            businessId: bid
           });
         } catch (e) {
           console.warn('[PASS REFUND-FULL] Email error:', e.message);

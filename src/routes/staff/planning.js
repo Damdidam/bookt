@@ -721,7 +721,8 @@ router.post('/absences/:id/notify', requireOwner, async (req, res, next) => {
       subject: `Confirmation ${typeLabel.toLowerCase()} — ${business.name}`,
       html,
       fromName: business.name,
-      replyTo: business.email
+      replyTo: business.email,
+      businessId: bid
     });
 
     await logAbsence(bid, abs.id, 'email_sent', {
@@ -1090,7 +1091,8 @@ router.post('/notify-impacted', requireOwner, async (req, res, next) => {
             subject: `Rendez-vous annul\u00e9 \u2014 ${business.name}`,
             html,
             fromName: business.name,
-            replyTo: business.email
+            replyTo: business.email,
+            businessId: bid
           });
           if (emailResult.success) sentEmail++;
           else errors++;
@@ -1179,7 +1181,8 @@ router.post('/notify-impacted', requireOwner, async (req, res, next) => {
             subject: `Changement de RDV du ${dateShort} à ${timeShort} — ${business.name}`,
             html,
             fromName: business.name,
-            replyTo: business.email
+            replyTo: business.email,
+            businessId: bid
           });
 
           if (emailResult.success) sentEmail++;
@@ -1413,7 +1416,8 @@ router.post('/reassign', requireOwner, async (req, res, next) => {
           subject: `Votre RDV du ${dateShort} — nouveau praticien — ${business.name}`,
           html,
           fromName: business.name,
-          replyTo: business.email
+          replyTo: business.email,
+          businessId: bid
         });
       } catch (e) {
         console.error('[REASSIGN] Email error:', e.message);
@@ -1659,7 +1663,8 @@ router.post('/send-planning', requireOwner, async (req, res, next) => {
       subject: `Planning ${monthName} — ${business.name}`,
       html,
       fromName: business.name,
-      replyTo: business.email
+      replyTo: business.email,
+      businessId: bid
     });
 
     if (emailResult.success) {

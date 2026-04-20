@@ -176,7 +176,8 @@ router.post('/:slug/quote-request', bookingLimiter, async (req, res, next) => {
         toName: biz.name,
         subject: `Demande de devis — ${svc.name} — ${client_name}`,
         html: ownerHtml,
-        replyTo: client_email
+        replyTo: client_email,
+        businessId: biz.id
       });
     }
 
@@ -222,7 +223,8 @@ router.post('/:slug/quote-request', bookingLimiter, async (req, res, next) => {
       to: client_email,
       toName: client_name,
       subject: `Votre demande de devis — ${biz.name}`,
-      html: clientHtml
+      html: clientHtml,
+      businessId: biz.id
     });
 
     // ── Response ──

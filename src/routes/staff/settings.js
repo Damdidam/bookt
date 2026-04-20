@@ -990,7 +990,8 @@ router.post('/close', requireOwner, blockIfImpersonated, async (req, res, next) 
           to: person.email,
           toName: person.name || '',
           subject: `${biz.name} \u2014 Fermeture`,
-          html
+          html,
+          businessId: bid
         });
         emailsSent++;
       } catch (emailErr) {

@@ -237,7 +237,8 @@ async function processWaitlistForCancellation(bookingId, businessId, overrideSlo
       subject: `Cr\u00e9neau disponible \u2014 ${bk.service_name} le ${slotDateFmt}`,
       html: offerHtml,
       fromName: biz.name,
-      replyTo: biz.email || undefined
+      replyTo: biz.email || undefined,
+      businessId: bk.business_id
     }).catch(e => console.warn('[WAITLIST] Offer email error:', e.message));
 
     broadcast(bk.business_id, 'waitlist_match', {
@@ -416,7 +417,7 @@ async function processExpiredOffers() {
             footerText: `${cbiz.name}${cbiz.address ? ' \u00b7 ' + cbiz.address : ''} \u00b7 Via Genda.be`
           });
 
-          pendingEmails.push({ to: next.rows[0].client_email, toName: next.rows[0].client_name, subject: `Créneau disponible — ${entry.service_name} le ${cascadeDateFmt}`, html: cascadeHtml, fromName: cbiz.name, replyTo: cbiz.email || undefined });
+          pendingEmails.push({ to: next.rows[0].client_email, toName: next.rows[0].client_name, subject: `Créneau disponible — ${entry.service_name} le ${cascadeDateFmt}`, html: cascadeHtml, fromName: cbiz.name, replyTo: cbiz.email || undefined, businessId: entry.business_id });
 
 
 

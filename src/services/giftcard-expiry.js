@@ -66,7 +66,8 @@ async function processExpiredGiftCards() {
         subject: `Votre carte cadeau a expir\u00e9 \u2014 ${biz_name}`,
         html,
         fromName: biz_name,
-        replyTo: biz_email || undefined
+        replyTo: biz_email || undefined,
+        businessId: gc.business_id
       });
 
       // Also notify the buyer if different from primary recipient
@@ -77,7 +78,8 @@ async function processExpiredGiftCards() {
           subject: `Carte cadeau expir\u00e9e \u2014 ${biz_name}`,
           html,
           fromName: biz_name,
-          replyTo: biz_email || undefined
+          replyTo: biz_email || undefined,
+          businessId: gc.business_id
         });
       }
     } catch (e) {
@@ -164,7 +166,8 @@ async function processGiftCardExpiryWarnings() {
         subject: `Votre carte cadeau expire le ${expDate} \u2014 ${biz_name}`,
         html,
         fromName: biz_name,
-        replyTo: biz_email || undefined
+        replyTo: biz_email || undefined,
+        businessId: gc.business_id
       });
 
       if (gc.buyer_email && gc.buyer_email !== primaryEmail) {
@@ -174,7 +177,8 @@ async function processGiftCardExpiryWarnings() {
           subject: `Carte cadeau bient\u00f4t expir\u00e9e \u2014 ${biz_name}`,
           html,
           fromName: biz_name,
-          replyTo: biz_email || undefined
+          replyTo: biz_email || undefined,
+          businessId: gc.business_id
         });
       }
 

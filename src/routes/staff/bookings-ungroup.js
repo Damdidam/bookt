@@ -699,7 +699,8 @@ router.delete('/:id/group-remove', blockIfImpersonated, async (req, res, next) =
           subject: `Modification de votre RDV \u2014 ${biz.name}`,
           html,
           fromName: biz.name,
-          replyTo: biz.email
+          replyTo: biz.email,
+          businessId: bid
         });
       } catch (emailErr) {
         console.error('[EMAIL] group-remove notification error:', emailErr.message);
