@@ -64,8 +64,12 @@ router.get('/', async (req, res, next) => {
     }
 
     sql += ` GROUP BY c.id ORDER BY last_visit DESC NULLS LAST`;
+    // Bornes alignées sur invoices/gift-cards/passes/reviews/waitlist :
+    // limit ∈ [1, 200] default 50, offset ≥ 0. Empêche DoS / exfil par `?limit=99999`.
+    const limitVal = Math.min(Math.max(parseInt(limit) || 50, 1), 200);
+    const offsetVal = Math.max(parseInt(offset) || 0, 0);
     sql += ` LIMIT $${idx} OFFSET $${idx + 1}`;
-    params.push(parseInt(limit) || 50, parseInt(offset) || 0);
+    params.push(limitVal, offsetVal);
 
     const result = await queryWithRLS(bid, sql, params);
 
@@ -116,8 +120,7 @@ router.get('/', async (req, res, next) => {
     );
 
     const total_count = parseInt(countResult.rows[0].count) || 0;
-    const limitVal = parseInt(limit) || 50;
-    const offsetVal = parseInt(offset) || 0;
+    // limitVal/offsetVal déjà validés ci-dessus (bornés)
     res.json({
       clients: result.rows.map(c => ({
         ...c,

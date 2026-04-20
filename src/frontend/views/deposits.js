@@ -8,8 +8,12 @@ import { IC } from '../utils/icons.js';
 import { guardModal } from '../utils/dirty-guard.js';
 import { isPro, showProGate } from '../utils/plan-gate.js';
 import { formatEur as fmtEur } from '../utils/format.js';
+import { renderPagination } from '../utils/pagination.js';
 
 let depositFilter='all',depositFrom='',depositTo='';
+let depositOffset=0;
+const DEPOSIT_PAGE_SIZE=50;
+let _lastDepPag={total_count:0,limit:DEPOSIT_PAGE_SIZE,offset:0};
 let _lastDeps=[];
 
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
@@ -23,23 +27,26 @@ async function loadDeposits(){
     if(depositFilter!=='all')params.set('status',depositFilter);
     if(depositFrom)params.set('from',depositFrom);
     if(depositTo)params.set('to',depositTo);
+    params.set('limit', String(DEPOSIT_PAGE_SIZE));
+    params.set('offset', String(depositOffset));
     const data=await api.get(`/api/deposits?${params}`);
     const deps=data.deposits||[];
     _lastDeps=deps;
+    _lastDepPag=data.pagination||{total_count:deps.length,limit:DEPOSIT_PAGE_SIZE,offset:depositOffset};
     const st=data.stats||{};
     let h='';
 
     // ── KPI CARDS ──
     h+=`<div class="stats" style="grid-template-columns:repeat(4,1fr)">
-      <div class="stat-card" style="cursor:pointer" onclick="depositFilter='pending';loadDeposits()"><div class="label">En attente</div><div class="val" style="color:var(--gold)">${fmtEur(parseInt(st.pending_cents||0))}</div><div class="sub">${st.pending_count||0} acomptes</div></div>
-      <div class="stat-card" style="cursor:pointer" onclick="depositFilter='paid';loadDeposits()"><div class="label">Encaiss\u00e9s</div><div class="val" style="color:var(--green)">${fmtEur(parseInt(st.paid_cents||0))}</div><div class="sub">${st.paid_count||0} acomptes</div></div>
-      <div class="stat-card" style="cursor:pointer" onclick="depositFilter='refunded';loadDeposits()"><div class="label">Rembours\u00e9s</div><div class="val" style="color:var(--red)">${fmtEur(parseInt(st.refunded_cents||0))}</div><div class="sub">${st.refunded_count||0} acomptes</div></div>
-      <div class="stat-card" style="cursor:pointer" onclick="depositFilter='cancelled';loadDeposits()"><div class="label">Conserv\u00e9s</div><div class="val" style="color:var(--primary)">${fmtEur(parseInt(st.kept_cents||0))}</div><div class="sub">${st.kept_count||0} acomptes</div></div>
+      <div class="stat-card" style="cursor:pointer" onclick="depositFilter='pending';depositOffset=0;loadDeposits()"><div class="label">En attente</div><div class="val" style="color:var(--gold)">${fmtEur(parseInt(st.pending_cents||0))}</div><div class="sub">${st.pending_count||0} acomptes</div></div>
+      <div class="stat-card" style="cursor:pointer" onclick="depositFilter='paid';depositOffset=0;loadDeposits()"><div class="label">Encaiss\u00e9s</div><div class="val" style="color:var(--green)">${fmtEur(parseInt(st.paid_cents||0))}</div><div class="sub">${st.paid_count||0} acomptes</div></div>
+      <div class="stat-card" style="cursor:pointer" onclick="depositFilter='refunded';depositOffset=0;loadDeposits()"><div class="label">Rembours\u00e9s</div><div class="val" style="color:var(--red)">${fmtEur(parseInt(st.refunded_cents||0))}</div><div class="sub">${st.refunded_count||0} acomptes</div></div>
+      <div class="stat-card" style="cursor:pointer" onclick="depositFilter='cancelled';depositOffset=0;loadDeposits()"><div class="label">Conserv\u00e9s</div><div class="val" style="color:var(--primary)">${fmtEur(parseInt(st.kept_cents||0))}</div><div class="sub">${st.kept_count||0} acomptes</div></div>
     </div>`;
 
     // ── FILTER BAR ──
     h+=`<div class="card" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 16px">
-      <select onchange="depositFilter=this.value;loadDeposits()" style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.78rem">
+      <select onchange="depositFilter=this.value;depositOffset=0;loadDeposits()" style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.78rem">
         <option value="all" ${depositFilter==='all'?'selected':''}>Tous statuts</option>
         <option value="pending" ${depositFilter==='pending'?'selected':''}>En attente</option>
         <option value="paid" ${depositFilter==='paid'?'selected':''}>Pay\u00e9s</option>
@@ -47,9 +54,9 @@ async function loadDeposits(){
         <option value="cancelled" ${depositFilter==='cancelled'?'selected':''}>Conserv\u00e9s</option>
         <option value="waived" ${depositFilter==='waived'?'selected':''}>Dispens\u00e9s</option>
       </select>
-      <input type="date" value="${esc(depositFrom)}" onchange="depositFrom=this.value;loadDeposits()" style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.78rem" title="Date d\u00e9but">
-      <input type="date" value="${esc(depositTo)}" onchange="depositTo=this.value;loadDeposits()" style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.78rem" title="Date fin">
-      ${(depositFilter!=='all'||depositFrom||depositTo)?`<button onclick="depositFilter='all';depositFrom='';depositTo='';loadDeposits()" class="btn-outline btn-sm">Effacer filtres</button>`:''}
+      <input type="date" value="${esc(depositFrom)}" onchange="depositFrom=this.value;depositOffset=0;loadDeposits()" style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.78rem" title="Date d\u00e9but">
+      <input type="date" value="${esc(depositTo)}" onchange="depositTo=this.value;depositOffset=0;loadDeposits()" style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.78rem" title="Date fin">
+      ${(depositFilter!=='all'||depositFrom||depositTo)?`<button onclick="depositFilter='all';depositFrom='';depositTo='';depositOffset=0;loadDeposits()" class="btn-outline btn-sm">Effacer filtres</button>`:''}
       <div style="flex:1"></div>
       <button onclick="exportDepositsCSV()" class="btn-outline btn-sm"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px;margin-right:4px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export CSV</button>
     </div>`;
@@ -95,6 +102,7 @@ async function loadDeposits(){
         </tr>`;
       });
       h+=`</tbody></table></div>`;
+      h+=renderPagination({ total: _lastDepPag.total_count, limit: _lastDepPag.limit, offset: _lastDepPag.offset, onPage: 'depositsGoToPage', label: 'acomptes' });
     }
 
     // ── INFO CARD ──
@@ -169,6 +177,8 @@ Object.defineProperty(window,'depositFilter',{get(){return depositFilter;},set(v
 Object.defineProperty(window,'depositFrom',{get(){return depositFrom;},set(v){depositFrom=v;},configurable:true});
 Object.defineProperty(window,'depositTo',{get(){return depositTo;},set(v){depositTo=v;},configurable:true});
 
-bridge({loadDeposits,showDepositAudit,exportDepositsCSV});
+function depositsGoToPage(newOffset){ depositOffset = Math.max(0, parseInt(newOffset) || 0); loadDeposits(); }
+
+bridge({loadDeposits,showDepositAudit,exportDepositsCSV,depositsGoToPage});
 
 export {loadDeposits,showDepositAudit,exportDepositsCSV};

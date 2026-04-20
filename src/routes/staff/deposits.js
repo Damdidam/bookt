@@ -13,7 +13,7 @@ router.use(requireOwner);
 router.get('/', async (req, res, next) => {
   try {
     const bid = req.businessId;
-    const { status, from, to } = req.query;
+    const { status, from, to, limit, offset } = req.query;
 
     let sql = `
       SELECT b.id, b.start_at, b.end_at, b.status AS booking_status,
@@ -54,9 +54,25 @@ router.get('/', async (req, res, next) => {
       idx++;
     }
 
-    sql += ` ORDER BY b.created_at DESC LIMIT 200`;
+    const limitVal = Math.min(Math.max(parseInt(limit) || 50, 1), 200);
+    const offsetVal = Math.max(parseInt(offset) || 0, 0);
+    sql += ` ORDER BY b.created_at DESC LIMIT $${idx} OFFSET $${idx + 1}`;
+    params.push(limitVal, offsetVal);
 
     const result = await queryWithRLS(bid, sql, params);
+
+    // Total count (same WHERE)
+    let countSql = `SELECT COUNT(*) FROM bookings WHERE business_id = $1 AND deposit_required = true`;
+    const countParams = [bid];
+    let cIdx = 2;
+    if (status && status !== 'all') { countSql += ` AND deposit_status = $${cIdx}`; countParams.push(status); cIdx++; }
+    if (from) { countSql += ` AND created_at >= $${cIdx}`; countParams.push(from); cIdx++; }
+    if (to) {
+      const toDate = new Date(to + 'T23:59:59Z');
+      countSql += ` AND created_at <= $${cIdx}`; countParams.push(toDate.toISOString()); cIdx++;
+    }
+    const countRes = await queryWithRLS(bid, countSql, countParams);
+    const total_count = parseInt(countRes.rows[0]?.count) || 0;
 
     // Summary stats
     const stats = await queryWithRLS(bid, `
@@ -101,7 +117,11 @@ router.get('/', async (req, res, next) => {
       audit_trail: auditMap[row.id] || []
     }));
 
-    res.json({ deposits, stats: stats.rows[0] });
+    res.json({
+      deposits,
+      stats: stats.rows[0],
+      pagination: { total_count, limit: limitVal, offset: offsetVal }
+    });
   } catch (err) { next(err); }
 });
 
