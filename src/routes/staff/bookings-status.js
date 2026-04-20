@@ -803,6 +803,44 @@ router.patch('/:id/status', blockIfImpersonated, async (req, res, next) => {
             business: { name: d.biz_name, slug: d.slug, email: d.biz_email, phone: d.biz_phone, address: d.address, theme: d.theme, settings: d.biz_settings },
             groupServices
           }).catch(e => console.warn('[EMAIL] Cancellation email error:', e.message));
+
+          // B#4 fix (staff cancel) : siblings multi-clients (parité routes publiques + crons)
+          if (d.group_id) {
+            try {
+              const _sibsMcS = await queryWithRLS(bid,
+                `SELECT b.id, b.start_at, b.end_at,
+                        COALESCE(sv.price_cents, s.price_cents, 0) AS service_price_cents,
+                        COALESCE(sv.duration_min, s.duration_min, 0) AS duration_min,
+                        b.booked_price_cents, b.discount_pct,
+                        b.promotion_label, b.promotion_discount_cents, b.promotion_discount_pct,
+                        b.custom_label, b.comment_client, b.cancel_reason,
+                        b.deposit_required, b.deposit_status, b.deposit_amount_cents,
+                        b.deposit_paid_at, b.deposit_payment_intent_id,
+                        c.full_name AS client_name, c.email AS client_email,
+                        CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS service_name,
+                        s.category AS service_category,
+                        p.display_name AS practitioner_name
+                   FROM bookings b
+                   LEFT JOIN clients c ON c.id = b.client_id
+                   LEFT JOIN services s ON s.id = b.service_id
+                   LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+                   LEFT JOIN practitioners p ON p.id = b.practitioner_id
+                  WHERE b.group_id = $1 AND b.business_id = $2 AND b.id != $3
+                    AND c.email IS NOT NULL AND LOWER(c.email) != LOWER($4)`,
+                [d.group_id, bid, id, d.client_email || '']
+              );
+              for (const _sibS of _sibsMcS.rows) {
+                try {
+                  const _sibGcS = await getGcPaidCents(_sibS.id);
+                  sendCancellationEmail({
+                    booking: { start_at: _sibS.start_at, end_at: _sibS.end_at, client_name: _sibS.client_name, client_email: _sibS.client_email, service_name: _sibS.service_name, service_category: _sibS.service_category, custom_label: _sibS.custom_label, comment_client: _sibS.comment_client, practitioner_name: _sibS.practitioner_name, deposit_required: _sibS.deposit_required, deposit_status: _sibS.deposit_status, deposit_amount_cents: _sibS.deposit_amount_cents, deposit_paid_at: _sibS.deposit_paid_at, deposit_payment_intent_id: _sibS.deposit_payment_intent_id, gc_paid_cents: _sibGcS, service_price_cents: _sibS.service_price_cents, booked_price_cents: _sibS.booked_price_cents, discount_pct: _sibS.discount_pct, duration_min: _sibS.duration_min, promotion_label: _sibS.promotion_label, promotion_discount_cents: _sibS.promotion_discount_cents, promotion_discount_pct: _sibS.promotion_discount_pct, cancel_reason: _sibS.cancel_reason || 'Annulé par le salon' },
+                    business: { name: d.biz_name, slug: d.slug, email: d.biz_email, phone: d.biz_phone, address: d.address, theme: d.theme, settings: d.biz_settings },
+                    groupServices
+                  }).catch(e => console.warn('[EMAIL] Multi-client staff cancel sibling email error:', e.message));
+                } catch (_sibErrS) { console.warn('[EMAIL] Multi-client staff cancel sibling error:', _sibErrS.message); }
+              }
+            } catch (_sibQueryErrS) { console.warn('[EMAIL] Multi-client staff cancel siblings query error:', _sibQueryErrS.message); }
+          }
         }
       } catch (e) { console.warn('[EMAIL] Cancellation email fetch error:', e.message); }
     }

@@ -336,23 +336,28 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
 
           // B#4 fix: siblings multi-clients — si le groupe contient des bookings
           // avec des client_email DIFFÉRENTS du primary, il faut aussi les notifier.
-          // Avant : seul le primary recevait l'email → client B (sibling) ne savait
-          // pas que son RDV était annulé. Les 2 crons (confirm + deposit) bouclent
-          // déjà sur siblings, la parité manquait seulement côté routes publiques.
+          // Pattern SELECT COPIÉ sur deposit-expiry.js:336-345 (crons ground truth):
+          // bookings n'a PAS de colonnes service_price_cents/duration_min — elles
+          // sont COALESCE depuis sv/s via LEFT JOIN service_variants + services.
           if (bk.group_id) {
             try {
               const _sibsMc = await query(
-                `SELECT b.id, b.start_at, b.end_at, b.service_price_cents, b.booked_price_cents,
-                        b.discount_pct, b.promotion_label, b.promotion_discount_cents, b.promotion_discount_pct,
-                        b.duration_min, b.custom_label, b.comment_client, b.cancel_reason,
-                        b.deposit_required, b.deposit_status, b.deposit_amount_cents, b.deposit_paid_at,
-                        b.deposit_payment_intent_id,
+                `SELECT b.id, b.start_at, b.end_at,
+                        COALESCE(sv.price_cents, s.price_cents, 0) AS service_price_cents,
+                        COALESCE(sv.duration_min, s.duration_min, 0) AS duration_min,
+                        b.booked_price_cents, b.discount_pct,
+                        b.promotion_label, b.promotion_discount_cents, b.promotion_discount_pct,
+                        b.custom_label, b.comment_client, b.cancel_reason,
+                        b.deposit_required, b.deposit_status, b.deposit_amount_cents,
+                        b.deposit_paid_at, b.deposit_payment_intent_id,
                         c.full_name AS client_name, c.email AS client_email,
-                        s.name AS service_name, s.category AS service_category,
+                        CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS service_name,
+                        s.category AS service_category,
                         p.display_name AS practitioner_name
                    FROM bookings b
                    LEFT JOIN clients c ON c.id = b.client_id
                    LEFT JOIN services s ON s.id = b.service_id
+                   LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
                    LEFT JOIN practitioners p ON p.id = b.practitioner_id
                   WHERE b.group_id = $1 AND b.business_id = $2 AND b.id != $3
                     AND c.email IS NOT NULL AND LOWER(c.email) != LOWER($4)`,
@@ -1406,6 +1411,44 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
             business: { name: row.biz_name, email: row.biz_email, phone: row.biz_phone, address: row.biz_address, theme: row.biz_theme, slug: row.biz_slug, settings: row.biz_settings },
             groupServices
           });
+
+          // B#4 fix (2e route publique) : siblings multi-clients pour /cancel-booking
+          if (bk.group_id) {
+            try {
+              const _sibsMc2 = await query(
+                `SELECT b.id, b.start_at, b.end_at,
+                        COALESCE(sv.price_cents, s.price_cents, 0) AS service_price_cents,
+                        COALESCE(sv.duration_min, s.duration_min, 0) AS duration_min,
+                        b.booked_price_cents, b.discount_pct,
+                        b.promotion_label, b.promotion_discount_cents, b.promotion_discount_pct,
+                        b.custom_label, b.comment_client, b.cancel_reason,
+                        b.deposit_required, b.deposit_status, b.deposit_amount_cents,
+                        b.deposit_paid_at, b.deposit_payment_intent_id,
+                        c.full_name AS client_name, c.email AS client_email,
+                        CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS service_name,
+                        s.category AS service_category,
+                        p.display_name AS practitioner_name
+                   FROM bookings b
+                   LEFT JOIN clients c ON c.id = b.client_id
+                   LEFT JOIN services s ON s.id = b.service_id
+                   LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+                   LEFT JOIN practitioners p ON p.id = b.practitioner_id
+                  WHERE b.group_id = $1 AND b.business_id = $2 AND b.id != $3
+                    AND c.email IS NOT NULL AND LOWER(c.email) != LOWER($4)`,
+                [bk.group_id, bk.business_id, bk.id, row.client_email || '']
+              );
+              for (const _sib2 of _sibsMc2.rows) {
+                try {
+                  const _sibGc2 = await getGcPaidCents(_sib2.id);
+                  await sendCancellationEmail({
+                    booking: { start_at: _sib2.start_at, end_at: _sib2.end_at, client_name: _sib2.client_name, client_email: _sib2.client_email, service_name: _sib2.service_name, service_category: _sib2.service_category, custom_label: _sib2.custom_label, comment_client: _sib2.comment_client, practitioner_name: _sib2.practitioner_name, deposit_required: _sib2.deposit_required, deposit_status: _sib2.deposit_status, deposit_amount_cents: _sib2.deposit_amount_cents, deposit_paid_at: _sib2.deposit_paid_at, deposit_payment_intent_id: _sib2.deposit_payment_intent_id, gc_paid_cents: _sibGc2, service_price_cents: _sib2.service_price_cents, booked_price_cents: _sib2.booked_price_cents, discount_pct: _sib2.discount_pct, duration_min: _sib2.duration_min, promotion_label: _sib2.promotion_label, promotion_discount_cents: _sib2.promotion_discount_cents, promotion_discount_pct: _sib2.promotion_discount_pct, cancel_reason: _sib2.cancel_reason || 'Annulé par le client' },
+                    business: { name: row.biz_name, email: row.biz_email, phone: row.biz_phone, address: row.biz_address, theme: row.biz_theme, slug: row.biz_slug, settings: row.biz_settings },
+                    groupServices
+                  });
+                } catch (_sibErr2) { console.warn('[EMAIL] Multi-client cancel-booking sibling email error:', _sibErr2.message); }
+              }
+            } catch (_sibQueryErr2) { console.warn('[EMAIL] Multi-client cancel-booking siblings query error:', _sibQueryErr2.message); }
+          }
         }
       } catch (e) { console.warn('[EMAIL] Cancel-booking email error:', e.message); }
       try { const { calSyncDelete } = require('../staff/bookings-helpers'); calSyncDelete(bk.business_id, bk.id); } catch (_) {}
