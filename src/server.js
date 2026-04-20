@@ -688,18 +688,22 @@ app.listen(PORT, async () => {
   console.log(`  Public booking: http://localhost:${PORT}/api/public/:slug\n`);
 
   // ===== WAITLIST CRON — check expired offers every 5 min =====
-  // SVC-V11-11: Interval could be made configurable via WAITLIST_CRON_INTERVAL_MS env var
+  // P1-02: withCronLock empêche double-exécution sur Render horizontal scaling
+  // (2 workers qui firent le cron simultanément → doubles SMS/emails).
+  const { withCronLock } = require('./services/cron-lock');
   const waitlistInterval = parseInt(process.env.WAITLIST_CRON_INTERVAL_MS, 10) || 5 * 60 * 1000;
   let waitlistRunning = false;
   setInterval(async () => {
     if (waitlistRunning) return;
     waitlistRunning = true;
     try {
-      const { processExpiredOffers } = require('./services/waitlist');
-      const result = await processExpiredOffers();
-      if (result.processed > 0) {
-        console.log(`[WAITLIST CRON] ${result.processed} expired offer(s) processed`);
-      }
+      await withCronLock('waitlist_cron', async () => {
+        const { processExpiredOffers } = require('./services/waitlist');
+        const result = await processExpiredOffers();
+        if (result.processed > 0) {
+          console.log(`[WAITLIST CRON] ${result.processed} expired offer(s) processed`);
+        }
+      });
     } catch (e) {
       console.error('[WAITLIST CRON] Error:', e.message); Sentry.captureException(e);
     } finally {
@@ -708,19 +712,23 @@ app.listen(PORT, async () => {
   }, waitlistInterval);
 
   // ===== REMINDERS CRON — send patient reminders every 10 min =====
-  // SVC-V11-11: Interval could be made configurable via REMINDER_CRON_INTERVAL_MS env var
+  // P1-02: withCronLock — reminders.js a déjà son lock interne (reminder_cron)
+  // mais ajouter withCronLock ici pour cohérence avec les autres crons +
+  // protection supplémentaire contre les race multi-worker.
   const reminderInterval = parseInt(process.env.REMINDER_CRON_INTERVAL_MS, 10) || 10 * 60 * 1000;
   let reminderRunning = false;
   setInterval(async () => {
     if (reminderRunning) return;
     reminderRunning = true;
     try {
-      const { processReminders } = require('./services/reminders');
-      const stats = await processReminders();
-      const total = stats.email_24h + stats.sms_24h + stats.email_2h + stats.sms_2h;
-      if (total > 0) {
-        console.log(`[REMINDERS CRON] ${stats.email_24h} email 24h, ${stats.sms_24h} SMS 24h, ${stats.email_2h} email 2h, ${stats.sms_2h} SMS 2h, ${stats.errors} errors`);
-      }
+      await withCronLock('reminders_cron_outer', async () => {
+        const { processReminders } = require('./services/reminders');
+        const stats = await processReminders();
+        const total = stats.email_24h + stats.sms_24h + stats.email_2h + stats.sms_2h;
+        if (total > 0) {
+          console.log(`[REMINDERS CRON] ${stats.email_24h} email 24h, ${stats.sms_24h} SMS 24h, ${stats.email_2h} email 2h, ${stats.sms_2h} SMS 2h, ${stats.errors} errors`);
+        }
+      });
     } catch (e) {
       console.error('[REMINDERS CRON] Error:', e.message); Sentry.captureException(e);
     } finally {
@@ -732,7 +740,7 @@ app.listen(PORT, async () => {
   // Previously only a `let xRunning = false` in-process flag protected these, which
   // means scaling to 2+ Node workers (cluster, replicas, deploy overlap) fired them
   // in parallel → double Stripe refunds, double emails, double SMS.
-  const { withCronLock } = require('./services/cron-lock');
+  // Note: withCronLock importé plus haut (ligne ~690) pour les crons waitlist + reminders.
 
   // ===== BOOKING CONFIRMATION CRON — auto-cancel unconfirmed bookings every 2 min =====
   const confirmInterval = parseInt(process.env.BOOKING_CONFIRM_CRON_INTERVAL_MS, 10) || 2 * 60 * 1000;
