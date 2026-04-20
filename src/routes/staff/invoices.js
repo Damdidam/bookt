@@ -28,10 +28,24 @@ router.get('/', async (req, res, next) => {
     if (to) { sql += ` AND i.issue_date <= $${idx}`; params.push(to); idx++; }
 
     sql += ` ORDER BY i.issue_date DESC, i.created_at DESC`;
+    const limitVal = Math.min(Math.max(parseInt(limit) || 50, 1), 200);
+    const offsetVal = Math.max(parseInt(offset) || 0, 0);
     sql += ` LIMIT $${idx} OFFSET $${idx + 1}`;
-    params.push(parseInt(limit) || 50, parseInt(offset) || 0);
+    params.push(limitVal, offsetVal);
 
     const result = await queryWithRLS(bid, sql, params);
+
+    // Total count (for pagination) — build same WHERE as main query
+    let countSql = `SELECT COUNT(*) FROM invoices WHERE business_id = $1`;
+    const countParams = [bid];
+    let cIdx = 2;
+    if (status) { countSql += ` AND status = $${cIdx}`; countParams.push(status); cIdx++; }
+    if (type) { countSql += ` AND type = $${cIdx}`; countParams.push(type); cIdx++; }
+    if (client_id) { countSql += ` AND client_id = $${cIdx}`; countParams.push(client_id); cIdx++; }
+    if (from) { countSql += ` AND issue_date >= $${cIdx}`; countParams.push(from); cIdx++; }
+    if (to) { countSql += ` AND issue_date <= $${cIdx}`; countParams.push(to); cIdx++; }
+    const countRes = await queryWithRLS(bid, countSql, countParams);
+    const total_count = parseInt(countRes.rows[0]?.count) || 0;
 
     // Summary stats
     const stats = await queryWithRLS(bid,
@@ -48,7 +62,8 @@ router.get('/', async (req, res, next) => {
 
     res.json({
       invoices: result.rows,
-      stats: stats.rows[0]
+      stats: stats.rows[0],
+      pagination: { total_count, limit: limitVal, offset: offsetVal }
     });
   } catch (err) { next(err); }
 });

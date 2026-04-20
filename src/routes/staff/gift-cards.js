@@ -29,7 +29,7 @@ function generateCode() {
 router.get('/', async (req, res, next) => {
   try {
     const bid = req.businessId;
-    const { status, search } = req.query;
+    const { status, search, limit, offset } = req.query;
 
     let sql = `
       SELECT gc.*,
@@ -54,8 +54,20 @@ router.get('/', async (req, res, next) => {
       idx++;
     }
 
-    sql += ` ORDER BY gc.created_at DESC LIMIT 200`;
+    const limitVal = Math.min(Math.max(parseInt(limit) || 50, 1), 200);
+    const offsetVal = Math.max(parseInt(offset) || 0, 0);
+    sql += ` ORDER BY gc.created_at DESC LIMIT $${idx} OFFSET $${idx + 1}`;
+    params.push(limitVal, offsetVal);
     const result = await queryWithRLS(bid, sql, params);
+
+    // Total count (same WHERE, no joins)
+    let countSql = `SELECT COUNT(*) FROM gift_cards WHERE business_id = $1`;
+    const countParams = [bid];
+    let cIdx = 2;
+    if (status && status !== 'all') { countSql += ` AND status = $${cIdx}`; countParams.push(status); cIdx++; }
+    if (search) { countSql += ` AND (code ILIKE $${cIdx} OR recipient_name ILIKE $${cIdx} OR recipient_email ILIKE $${cIdx} OR buyer_name ILIKE $${cIdx})`; countParams.push(`%${search}%`); cIdx++; }
+    const countRes = await queryWithRLS(bid, countSql, countParams);
+    const total_count = parseInt(countRes.rows[0]?.count) || 0;
 
     // Stats
     const stats = await queryWithRLS(bid, `
@@ -71,7 +83,12 @@ router.get('/', async (req, res, next) => {
     `, [bid]);
 
     const feature_enabled = await isGiftCardFeatureEnabled(bid);
-    res.json({ gift_cards: result.rows, stats: stats.rows[0], feature_enabled });
+    res.json({
+      gift_cards: result.rows,
+      stats: stats.rows[0],
+      feature_enabled,
+      pagination: { total_count, limit: limitVal, offset: offsetVal }
+    });
   } catch (err) { next(err); }
 });
 

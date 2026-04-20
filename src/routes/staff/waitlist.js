@@ -16,7 +16,7 @@ router.use(resolvePractitionerScope);
 router.get('/', async (req, res, next) => {
   try {
     const bid = req.businessId;
-    const { practitioner_id, service_id, status } = req.query;
+    const { practitioner_id, service_id, status, limit, offset } = req.query;
 
     // Validate UUID query params
     if (practitioner_id && !UUID_RE.test(practitioner_id)) return res.status(400).json({ error: 'practitioner_id invalide' });
@@ -50,6 +50,9 @@ router.get('/', async (req, res, next) => {
       where += ` AND w.status IN ('waiting', 'offered')`;
     }
 
+    const limitVal = Math.min(Math.max(parseInt(limit) || 50, 1), 200);
+    const offsetVal = Math.max(parseInt(offset) || 0, 0);
+    const selectParams = [...params, limitVal, offsetVal];
     const result = await queryWithRLS(bid,
       `SELECT w.*,
         p.display_name AS practitioner_name,
@@ -58,9 +61,17 @@ router.get('/', async (req, res, next) => {
        JOIN practitioners p ON p.id = w.practitioner_id
        JOIN services s ON s.id = w.service_id
        WHERE ${where}
-       ORDER BY w.priority ASC, w.created_at ASC`,
+       ORDER BY w.priority ASC, w.created_at ASC
+       LIMIT $${idx} OFFSET $${idx + 1}`,
+      selectParams
+    );
+
+    // Total count
+    const countRes = await queryWithRLS(bid,
+      `SELECT COUNT(*) FROM waitlist_entries w WHERE ${where}`,
       params
     );
+    const total_count = parseInt(countRes.rows[0]?.count) || 0;
 
     // Stats
     const stats = await queryWithRLS(bid,
@@ -75,7 +86,8 @@ router.get('/', async (req, res, next) => {
 
     res.json({
       entries: result.rows,
-      stats: stats.rows[0]
+      stats: stats.rows[0],
+      pagination: { total_count, limit: limitVal, offset: offsetVal }
     });
   } catch (err) { next(err); }
 });

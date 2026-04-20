@@ -56,6 +56,10 @@ router.get('/stats', async (req, res, next) => {
 // ============================================================
 router.get('/', async (req, res, next) => {
   try {
+    const { limit, offset } = req.query;
+    const limitVal = Math.min(Math.max(parseInt(limit) || 50, 1), 200);
+    const offsetVal = Math.max(parseInt(offset) || 0, 0);
+
     const result = await queryWithRLS(req.businessId,
       `SELECT r.*, c.full_name as client_name, c.email, c.phone,
         p.display_name as practitioner_name,
@@ -66,11 +70,21 @@ router.get('/', async (req, res, next) => {
        LEFT JOIN bookings b ON b.id = r.booking_id
        LEFT JOIN services s ON s.id = b.service_id
        WHERE r.business_id = $1
-       ORDER BY r.created_at DESC`,
-      [req.businessId]
+       ORDER BY r.created_at DESC
+       LIMIT $2 OFFSET $3`,
+      [req.businessId, limitVal, offsetVal]
     );
 
-    res.json({ reviews: result.rows });
+    const countRes = await queryWithRLS(req.businessId,
+      `SELECT COUNT(*) FROM reviews WHERE business_id = $1`,
+      [req.businessId]
+    );
+    const total_count = parseInt(countRes.rows[0]?.count) || 0;
+
+    res.json({
+      reviews: result.rows,
+      pagination: { total_count, limit: limitVal, offset: offsetVal }
+    });
   } catch (err) { next(err); }
 });
 
