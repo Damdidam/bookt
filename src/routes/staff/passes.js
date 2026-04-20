@@ -617,7 +617,10 @@ router.post('/:id/refund-full', blockIfImpersonated, async (req, res, next) => {
           // B-05 fix: D-12 pattern parity — Stripe min = 50c. net<50 → no refund + reset = 0
           // (avant: > 0 → Stripe rejette "Amount too small" → throw 502, pass pas cancelled)
           if (netRefundCents >= 50) {
-            await stripe.refunds.create({ payment_intent: piId, amount: netRefundCents });
+            await stripe.refunds.create(
+              { payment_intent: piId, amount: netRefundCents },
+              { idempotencyKey: `staff-pass-refund-${id}` }
+            );
             console.log(`[PASS REFUND-FULL] Stripe refund ${netRefundCents}c (gross ${unusedRefundCents}c, fees ${stripeFeesCents}c, used ${usedSessions}/${pass.sessions_total}) for PI ${piId}`);
           } else {
             console.warn(`[PASS REFUND-FULL] netRefund=${netRefundCents}c <50c Stripe min (fees ${stripeFeesCents}c, refundable ${unusedRefundCents}c) — pass cancelled, no Stripe refund`);

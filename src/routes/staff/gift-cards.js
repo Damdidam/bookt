@@ -319,7 +319,10 @@ router.post('/:id/refund', blockIfImpersonated, async (req, res, next) => {
           }
           // D-12 parity: Stripe min = 50c. <50 → no Stripe refund but balance still restored internally.
           if (stripeRefundCents >= 50) {
-            await stripe.refunds.create({ payment_intent: piId, amount: stripeRefundCents });
+            await stripe.refunds.create(
+              { payment_intent: piId, amount: stripeRefundCents },
+              { idempotencyKey: `staff-gc-refund-${id}` }
+            );
             console.log(`[GC REFUND] Stripe refund ${stripeRefundCents}c (gross ${amount_cents}c, fees ${stripeFeesCents}c, policy ${refundPolicy}) for PI ${piId}`);
           } else {
             console.warn(`[GC REFUND] netRefund=${stripeRefundCents}c <50c Stripe min — balance restored but no Stripe refund`);

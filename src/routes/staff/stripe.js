@@ -473,7 +473,10 @@ async function handleStripeWebhook(req, res) {
                 console.warn(`[STRIPE WH] PARALLEL PAYMENT for booking ${bookingId}: already paid via ${storedPi}, incoming PI ${piId} — auto-refunding the duplicate`);
                 try {
                   if (piId && piId.startsWith('pi_')) {
-                    await stripe.refunds.create({ payment_intent: piId });
+                    await stripe.refunds.create(
+                      { payment_intent: piId },
+                      { idempotencyKey: `wh-parallel-refund-${piId}` }
+                    );
                     console.log(`[STRIPE WH] Parallel-payment auto-refund successful for PI ${piId}`);
                   }
                   try {
@@ -496,7 +499,10 @@ async function handleStripeWebhook(req, res) {
               console.warn(`[STRIPE WH] Deposit payment for cancelled booking ${bookingId} — initiating auto-refund`);
               try {
                 if (piId && piId.startsWith('pi_')) {
-                  await stripe.refunds.create({ payment_intent: piId });
+                  await stripe.refunds.create(
+                    { payment_intent: piId },
+                    { idempotencyKey: `wh-orphan-refund-${piId}` }
+                  );
                   console.log(`[STRIPE WH] Auto-refund successful for orphaned payment PI ${piId}`);
                 }
                 try {
@@ -551,7 +557,10 @@ async function handleStripeWebhook(req, res) {
               console.error('[STRIPE WH] Failed to generate unique gift card code after 10 attempts — initiating refund');
               if (piId && piId.startsWith('pi_')) {
                 try {
-                  await stripe.refunds.create({ payment_intent: piId });
+                  await stripe.refunds.create(
+                    { payment_intent: piId },
+                    { idempotencyKey: `wh-gc-gen-refund-${piId}` }
+                  );
                   console.log(`[STRIPE WH] Auto-refunded PI ${piId} for failed gift card code generation`);
                 } catch (refundErr) {
                   console.error(`[STRIPE WH] Auto-refund failed for PI ${piId}:`, refundErr.message);
@@ -693,7 +702,10 @@ async function handleStripeWebhook(req, res) {
               const passPiId = session.payment_intent;
               if (passPiId && passPiId.startsWith('pi_')) {
                 try {
-                  await stripe.refunds.create({ payment_intent: passPiId });
+                  await stripe.refunds.create(
+                    { payment_intent: passPiId },
+                    { idempotencyKey: `wh-pass-gen-refund-${passPiId}` }
+                  );
                   console.log(`[STRIPE WH] Auto-refunded PI ${passPiId} for failed pass code generation`);
                 } catch (refundErr) {
                   console.error(`[STRIPE WH] Auto-refund failed for PI ${passPiId}:`, refundErr.message);

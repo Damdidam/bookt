@@ -865,7 +865,7 @@ router.post('/close', requireOwner, blockIfImpersonated, async (req, res, next) 
 
     // B-06 post-TX: exécuter les refunds Stripe hors transaction (API externe, volume possible).
     // Si Stripe fail sur un item: log + notif support (manuelle requise). DB non mise à jour pour cet item.
-    const _refundStripe = async (stripe, piRaw, amount, label) => {
+    const _refundStripe = async (stripe, piRaw, amount, label, idemKey) => {
       try {
         let piId = piRaw;
         if (piId.startsWith('cs_')) {
@@ -874,7 +874,12 @@ router.post('/close', requireOwner, blockIfImpersonated, async (req, res, next) 
         }
         if (!piId || !piId.startsWith('pi_')) return { ok: false, reason: 'invalid_pi' };
         if (amount < 50) return { ok: false, reason: 'below_stripe_min' };
-        await stripe.refunds.create({ payment_intent: piId, amount });
+        // P0-02: idempotencyKey empêche double-refund sur retry (network failure,
+        // close_account rejoué après crash pod entre refund et UPDATE DB).
+        await stripe.refunds.create(
+          { payment_intent: piId, amount },
+          idemKey ? { idempotencyKey: idemKey } : undefined
+        );
         console.log(`[CLOSE REFUND ${label}] ${amount}c OK pour PI ${piId}`);
         return { ok: true };
       } catch (e) {
@@ -893,7 +898,7 @@ router.post('/close', requireOwner, blockIfImpersonated, async (req, res, next) 
       for (const dep of txResult.depositsToRefund) {
         const amt = dep.deposit_amount_cents || 0;
         if (amt <= 0) continue;
-        const res = await _refundStripe(stripeClose, dep.deposit_payment_intent_id, amt, 'deposit');
+        const res = await _refundStripe(stripeClose, dep.deposit_payment_intent_id, amt, 'deposit', `close-refund-dep-${dep.id}`);
         if (res.ok) {
           refundStats.deposits_refunded++;
           await queryWithRLS(bid,
@@ -909,7 +914,7 @@ router.post('/close', requireOwner, blockIfImpersonated, async (req, res, next) 
       for (const gc of txResult.gcToRefund) {
         const amt = gc.balance_cents || 0;
         if (amt <= 0) continue;
-        const res = await _refundStripe(stripeClose, gc.stripe_payment_intent_id, amt, 'gift_card');
+        const res = await _refundStripe(stripeClose, gc.stripe_payment_intent_id, amt, 'gift_card', `close-refund-gc-${gc.id}`);
         if (res.ok) {
           refundStats.gc_refunded++;
           await queryWithRLS(bid,
@@ -928,7 +933,7 @@ router.post('/close', requireOwner, blockIfImpersonated, async (req, res, next) 
           ? p.price_cents  // full unused = full price (no rounding drift)
           : p.sessions_remaining * Math.round(p.price_cents / p.sessions_total);
         if (unusedCents <= 0) continue;
-        const res = await _refundStripe(stripeClose, p.stripe_payment_intent_id, unusedCents, 'pass');
+        const res = await _refundStripe(stripeClose, p.stripe_payment_intent_id, unusedCents, 'pass', `close-refund-pass-${p.id}`);
         if (res.ok) {
           refundStats.pass_refunded++;
           await queryWithRLS(bid,
