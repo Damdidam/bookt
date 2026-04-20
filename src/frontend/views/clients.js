@@ -7,9 +7,12 @@ import { esc, sanitizeRichText } from '../utils/dom.js';
 import { bridge } from '../utils/window-bridge.js';
 import { IC } from '../utils/icons.js';
 import { guardModal, showConfirmDialog } from '../utils/dirty-guard.js';
+import { renderPagination } from '../utils/pagination.js';
 
 let clientSearch='';
 let clientFilter='';
+let clientOffset=0;
+const CLIENT_PAGE_SIZE=50;
 let clientSearchTimer=null;
 let clientSearchSeq=0;
 
@@ -20,12 +23,15 @@ async function loadClients(){
     const params=new URLSearchParams();
     if(clientSearch)params.set('search',clientSearch);
     if(clientFilter)params.set('filter',clientFilter);
-    const q=params.toString()?'?'+params.toString():'';
+    params.set('limit', String(CLIENT_PAGE_SIZE));
+    params.set('offset', String(clientOffset));
+    const q='?'+params.toString();
     const r=await fetch(`/api/clients${q}`,{headers:{'Authorization':'Bearer '+api.getToken()}});
     if(!r.ok){ const err=await r.json().catch(()=>({})); throw new Error(err.error||'Erreur chargement clients'); }
     const d=await r.json();
     const clients=d.clients||[];
     const stats=d.stats||{};
+    const pag = d.pagination || {total_count: d.total || clients.length, limit: CLIENT_PAGE_SIZE, offset: clientOffset};
     const clLabel=categoryLabels.clients.toLowerCase();
     let h=`<div class="kpis"><div class="kpi" onclick="clientFilter='';loadClients()" style="cursor:pointer"><div class="kpi-val">${stats.total||0}</div><div class="kpi-label">Total ${clLabel}</div></div><div class="kpi" onclick="clientFilter='blocked';loadClients()" style="cursor:pointer"><div class="kpi-val" style="color:var(--red)">${stats.blocked||0}</div><div class="kpi-label"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg> Bloqués</div></div><div class="kpi" onclick="clientFilter='flagged';loadClients()" style="cursor:pointer"><div class="kpi-val" style="color:var(--amber-dark)">${stats.flagged||0}</div><div class="kpi-label"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> No-shows</div></div><div class="kpi" onclick="clientFilter='fantome';loadClients()" style="cursor:pointer"><div class="kpi-val" style="color:var(--purple)">${stats.fantome||0}</div><div class="kpi-label"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="var(--purple)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg> Fantômes</div></div><div class="kpi" onclick="clientFilter='vip';loadClients()" style="cursor:pointer"><div class="kpi-val" style="color:var(--gold)">${stats.vip||0}</div><div class="kpi-label"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> VIP</div></div><div class="kpi" onclick="clientFilter='birthday_week';loadClients()" style="cursor:pointer"><div class="kpi-val" style="color:var(--pink)">${stats.birthday_week||0}</div><div class="kpi-label">${IC.gift} Anniversaires</div></div><div class="kpi"><div class="kpi-val" style="color:var(--primary)">${stats.clean||0}</div><div class="kpi-label"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> OK</div></div></div>`;
     h+=`<div class="search-bar" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><div style="position:relative;flex:1;min-width:200px"><input type="text" placeholder="Rechercher par nom, email ou téléphone..." value="${clientSearch}" id="clientSearchInput" oninput="clientLiveSearch(this.value)" onkeydown="if(event.key==='Enter'){document.getElementById('clientAcDrop').style.display='none';clientSearch=this.value;clientFilter='';loadClients()}" onfocus="if(this.value.length>=3)clientLiveSearch(this.value)" onblur="setTimeout(()=>{const d=document.getElementById('clientAcDrop');if(d)d.style.display='none'},200)" style="width:100%" autocomplete="off"><div id="clientAcDrop" class="ac-results" style="display:none"></div></div><button class="btn-primary btn-sm" onclick="document.getElementById('clientAcDrop').style.display='none';clientSearch=document.getElementById('clientSearchInput').value;clientFilter='';loadClients()">Rechercher</button><button class="btn-primary btn-sm" onclick="openNewClientModal()" title="Ajouter un client"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button><button class="btn-outline btn-sm" onclick="openCsvImportModal()" title="Importer CSV"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></button>${clientSearch||clientFilter?`<button class="btn-outline btn-sm" onclick="clientSearch='';clientFilter='';loadClients()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Reset</button>`:''}</div>`;
@@ -47,9 +53,12 @@ async function loadClients(){
       h+=`</tbody></table></div>`;
     }
     h+=`</div>`;
+    h+=renderPagination({ total: pag.total_count, limit: pag.limit, offset: pag.offset, onPage: 'clientsGoToPage', label: 'clients' });
     c.innerHTML=h;
   }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${esc(e.message)}</div>`;}
 }
+
+function clientsGoToPage(newOffset){ clientOffset = Math.max(0, parseInt(newOffset) || 0); loadClients(); }
 
 // ── Live autocomplete for client search (3+ chars) ──
 function clientLiveSearch(q) {
@@ -494,7 +503,7 @@ async function csvDoImport(){
 }
 
 // Expose to global scope for onclick handlers in dynamic HTML
-bridge({ loadClients, openClientDetail, openNewClientModal, createClient, openCsvImportModal, csvHandleFile, csvDoImport, saveClient, blockClient, unblockClient, resetNoShow, resetExpired, clientLiveSearch, get clientSearch(){ return clientSearch; }, set clientSearch(v){ clientSearch=v; }, get clientFilter(){ return clientFilter; }, set clientFilter(v){ clientFilter=v; } });
+bridge({ loadClients, openClientDetail, openNewClientModal, createClient, openCsvImportModal, csvHandleFile, csvDoImport, saveClient, blockClient, unblockClient, resetNoShow, resetExpired, clientLiveSearch, clientsGoToPage, get clientSearch(){ return clientSearch; }, set clientSearch(v){ if(clientSearch!==v){clientOffset=0;} clientSearch=v; }, get clientFilter(){ return clientFilter; }, set clientFilter(v){ if(clientFilter!==v){clientOffset=0;} clientFilter=v; } });
 // Also expose the mutable variables directly on window for inline onclick handlers
 Object.defineProperty(window, 'clientSearch', { get(){ return clientSearch; }, set(v){ clientSearch=v; }, configurable: true });
 Object.defineProperty(window, 'clientFilter', { get(){ return clientFilter; }, set(v){ clientFilter=v; }, configurable: true });

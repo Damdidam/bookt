@@ -7,8 +7,11 @@ import { guardModal, showConfirmDialog, closeModal } from '../utils/dirty-guard.
 import { isPro, showProGate } from '../utils/plan-gate.js';
 import { trapFocus, releaseFocus } from '../utils/focus-trap.js';
 import { formatEur as fmtEur } from '../utils/format.js';
+import { renderPagination } from '../utils/pagination.js';
 
 let invoiceFilter='all',invoiceType='all';
+let invoiceOffset=0;
+const INVOICE_PAGE_SIZE=50;
 let _unbilledBookings=[];
 
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
@@ -21,9 +24,12 @@ async function loadInvoices(){
     const params=new URLSearchParams();
     if(invoiceFilter!=='all')params.set('status',invoiceFilter);
     if(invoiceType!=='all')params.set('type',invoiceType);
+    params.set('limit', String(INVOICE_PAGE_SIZE));
+    params.set('offset', String(invoiceOffset));
     const data=await api.get(`/api/invoices?${params}`);
     const inv=data.invoices||[];
     const st=data.stats||{};
+    const pag=data.pagination||{total_count: inv.length, limit: INVOICE_PAGE_SIZE, offset: invoiceOffset};
     let h='';
 
     // KPIs
@@ -93,6 +99,7 @@ async function loadInvoices(){
         </tr>`;
       });
       h+=`</tbody></table></div>`;
+      h+=renderPagination({ total: pag.total_count, limit: pag.limit, offset: pag.offset, onPage: 'invoicesGoToPage', label: 'factures' });
     }
 
     // IBAN/BIC reminder
@@ -470,9 +477,11 @@ function _addInvoiceLineFromBooking(bookingId,desc,qty,priceEur){
 }
 
 // Expose invoiceFilter and invoiceType for inline onchange handlers
-Object.defineProperty(window, 'invoiceFilter', { get(){return invoiceFilter;}, set(v){invoiceFilter=v;} });
-Object.defineProperty(window, 'invoiceType', { get(){return invoiceType;}, set(v){invoiceType=v;} });
+Object.defineProperty(window, 'invoiceFilter', { get(){return invoiceFilter;}, set(v){ if(invoiceFilter!==v){invoiceOffset=0;} invoiceFilter=v; } });
+Object.defineProperty(window, 'invoiceType', { get(){return invoiceType;}, set(v){ if(invoiceType!==v){invoiceOffset=0;} invoiceType=v; } });
 
-bridge({ loadInvoices, openInvoiceModal, addInvoiceLine, updateInvTotals, saveInvoice, changeInvoiceStatus, deleteInvoice, downloadInvoicePDF, createInvoiceFromBooking, invClientChanged, invToggleUnbilled, issueCreditNote, submitCreditNote });
+function invoicesGoToPage(newOffset){ invoiceOffset = Math.max(0, parseInt(newOffset) || 0); loadInvoices(); }
+
+bridge({ loadInvoices, openInvoiceModal, addInvoiceLine, updateInvTotals, saveInvoice, changeInvoiceStatus, deleteInvoice, downloadInvoicePDF, createInvoiceFromBooking, invClientChanged, invToggleUnbilled, issueCreditNote, submitCreditNote, invoicesGoToPage });
 
 export { loadInvoices, openInvoiceModal, addInvoiceLine, updateInvTotals, saveInvoice, changeInvoiceStatus, deleteInvoice, downloadInvoicePDF, createInvoiceFromBooking };

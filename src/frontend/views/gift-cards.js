@@ -7,8 +7,12 @@ import { bridge } from '../utils/window-bridge.js';
 import { guardModal, closeModal, showConfirmDialog } from '../utils/dirty-guard.js';
 import { isPro, showProGate } from '../utils/plan-gate.js';
 import { formatEur as fmtEur } from '../utils/format.js';
+import { renderPagination } from '../utils/pagination.js';
 
 let gcFilter='all',gcSearch='';
+let gcOffset=0;
+const GC_PAGE_SIZE=50;
+let _lastGcPag={total_count:0,limit:GC_PAGE_SIZE,offset:0};
 let _lastCards=[];
 // Recipient autocomplete state (create gift card modal)
 let _gcClientSearchTimer=null;
@@ -27,10 +31,13 @@ async function loadGiftCards(){
     const params=new URLSearchParams();
     if(gcFilter!=='all')params.set('status',gcFilter);
     if(gcSearch.trim())params.set('search',gcSearch.trim());
+    params.set('limit', String(GC_PAGE_SIZE));
+    params.set('offset', String(gcOffset));
     const data=await api.get(`/api/gift-cards?${params}`);
     const cards=data.gift_cards||[];
     _lastCards=cards;
     _gcFeatureEnabled=data.feature_enabled !== false;
+    _lastGcPag = data.pagination || {total_count: cards.length, limit: GC_PAGE_SIZE, offset: gcOffset};
     const st=data.stats||{};
     renderGiftCards(c,cards,st);
   }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${esc(e.message)}</div>`;}
@@ -131,6 +138,7 @@ function renderGiftCards(c,cards,st){
       </tr>`;
     });
     h+=`</tbody></table></div>`;
+    h+=renderPagination({ total: _lastGcPag.total_count, limit: _lastGcPag.limit, offset: _lastGcPag.offset, onPage: 'gcGoToPage', label: 'cartes' });
   }
 
   c.innerHTML=h;
@@ -430,9 +438,11 @@ async function cancelGiftCard(id){
 }
 
 // Expose for inline handlers
-Object.defineProperty(window,'gcFilter',{get(){return gcFilter;},set(v){gcFilter=v;},configurable:true});
-Object.defineProperty(window,'gcSearch',{get(){return gcSearch;},set(v){gcSearch=v;},configurable:true});
+Object.defineProperty(window,'gcFilter',{get(){return gcFilter;},set(v){if(gcFilter!==v){gcOffset=0;}gcFilter=v;},configurable:true});
+Object.defineProperty(window,'gcSearch',{get(){return gcSearch;},set(v){if(gcSearch!==v){gcOffset=0;}gcSearch=v;},configurable:true});
 
-bridge({loadGiftCards,openCreateGiftCardModal,selectGcAmount,submitCreateGiftCard,openDebitGiftCard,submitDebitGiftCard,refundGiftCard,submitRefundGiftCard,cancelGiftCard,gcClientLiveSearch,gcPickClient});
+function gcGoToPage(newOffset){ gcOffset = Math.max(0, parseInt(newOffset) || 0); loadGiftCards(); }
+
+bridge({loadGiftCards,openCreateGiftCardModal,selectGcAmount,submitCreateGiftCard,openDebitGiftCard,submitDebitGiftCard,refundGiftCard,submitRefundGiftCard,cancelGiftCard,gcClientLiveSearch,gcPickClient,gcGoToPage});
 
 export {loadGiftCards,renderGiftCards};

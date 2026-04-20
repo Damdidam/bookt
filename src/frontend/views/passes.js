@@ -7,8 +7,12 @@ import { guardModal, closeModal, showConfirmDialog } from '../utils/dirty-guard.
 import { isPro, showProGate } from '../utils/plan-gate.js';
 import { trapFocus, releaseFocus } from '../utils/focus-trap.js';
 import { formatEur as fmtEur } from '../utils/format.js';
+import { renderPagination } from '../utils/pagination.js';
 
 let passFilter='all', passSearch='';
+let passOffset=0;
+const PASS_PAGE_SIZE=50;
+let _lastPag = {total_count:0, limit:PASS_PAGE_SIZE, offset:0};
 let _lastPasses=[];
 
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
@@ -23,10 +27,13 @@ export async function loadPasses(){
     const params=new URLSearchParams();
     if(passFilter!=='all')params.set('status',passFilter);
     if(passSearch.trim())params.set('search',passSearch.trim());
+    params.set('limit', String(PASS_PAGE_SIZE));
+    params.set('offset', String(passOffset));
     const data=await api.get(`/api/passes?${params}`);
     const passes=data.passes||[];
     _lastPasses=passes;
     _passFeatureEnabled=data.feature_enabled !== false;
+    _lastPag = data.pagination || {total_count: passes.length, limit: PASS_PAGE_SIZE, offset: passOffset};
     const st=data.stats||{};
     renderPasses(c,passes,st);
   }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${esc(e.message)}</div>`;}
@@ -129,6 +136,7 @@ function renderPasses(c,passes,st){
       </tr>`;
     });
     h+=`</tbody></table></div>`;
+    h+=renderPagination({ total: _lastPag.total_count, limit: _lastPag.limit, offset: _lastPag.offset, onPage: 'passesGoToPage', label: 'pass' });
   }
 
   c.innerHTML=h;
@@ -455,13 +463,15 @@ async function deletePass(id,code){
   }catch(e){GendaUI.toast(e.message||'Erreur lors de la suppression','error');}
 }
 
-function setPassFilter(v){passFilter=v;}
-function passSearchInput(v){passSearch=v;}
+function setPassFilter(v){if(passFilter!==v){passOffset=0;}passFilter=v;}
+function passSearchInput(v){if(passSearch!==v){passOffset=0;}passSearch=v;}
 
 // Expose filter/search state for inline handlers
-Object.defineProperty(window,'passFilter',{get(){return passFilter;},set(v){passFilter=v;},configurable:true});
-Object.defineProperty(window,'passSearch',{get(){return passSearch;},set(v){passSearch=v;},configurable:true});
+Object.defineProperty(window,'passFilter',{get(){return passFilter;},set(v){if(passFilter!==v){passOffset=0;}passFilter=v;},configurable:true});
+Object.defineProperty(window,'passSearch',{get(){return passSearch;},set(v){if(passSearch!==v){passOffset=0;}passSearch=v;},configurable:true});
 
-bridge({loadPasses,openCreatePass,submitCreatePass,passServiceChanged,openDebitPass,debitPass,refundPass,submitRefundPass,fullRefundPass,submitFullRefundPass,cancelPass,deletePass,setPassFilter,passSearchInput});
+function passesGoToPage(newOffset){ passOffset = Math.max(0, parseInt(newOffset) || 0); loadPasses(); }
+
+bridge({loadPasses,openCreatePass,submitCreatePass,passServiceChanged,openDebitPass,debitPass,refundPass,submitRefundPass,fullRefundPass,submitFullRefundPass,cancelPass,deletePass,setPassFilter,passSearchInput,passesGoToPage});
 
 export {renderPasses};

@@ -6,6 +6,9 @@ import { esc } from '../utils/dom.js';
 import { bridge } from '../utils/window-bridge.js';
 import { IC } from '../utils/icons.js';
 import { showConfirmDialog } from '../utils/dirty-guard.js';
+import { renderPagination } from '../utils/pagination.js';
+
+const REVIEWS_PAGE_SIZE = 50;
 
 /** Relative time in French */
 function timeAgo(dateStr) {
@@ -48,12 +51,15 @@ function clientDisplayName(r) {
 async function loadReviews() {
   const c = document.getElementById('contentArea');
   c.innerHTML = `<div class="loading"><div class="spinner"></div></div>`;
+  if (viewState.reviewsOffset === undefined) viewState.reviewsOffset = 0;
   try {
+    const qs = `?limit=${REVIEWS_PAGE_SIZE}&offset=${viewState.reviewsOffset}`;
     const [rData, sData] = await Promise.all([
-      api.get('/api/reviews'),
+      api.get('/api/reviews' + qs),
       api.get('/api/reviews/stats')
     ]);
     const reviews = rData.reviews || [];
+    const pag = rData.pagination || {total_count: reviews.length, limit: REVIEWS_PAGE_SIZE, offset: viewState.reviewsOffset};
     const stats = sData.stats || { total: 0, average: 0, distribution: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 } };
     const dist = stats.distribution || {};
 
@@ -143,6 +149,7 @@ async function loadReviews() {
       h += `</div>`;
     });
 
+    h += renderPagination({ total: pag.total_count, limit: pag.limit, offset: pag.offset, onPage: 'reviewsGoToPage', label: 'avis' });
     c.innerHTML = h;
   } catch (e) {
     c.innerHTML = `<div class="empty">Erreur : ${esc(e.message)}</div>`;
@@ -194,6 +201,8 @@ async function reviewAction(action, id, extra) {
   }
 }
 
-bridge({ loadReviews, reviewAction });
+function reviewsGoToPage(newOffset){ viewState.reviewsOffset = Math.max(0, parseInt(newOffset) || 0); loadReviews(); }
+
+bridge({ loadReviews, reviewAction, reviewsGoToPage });
 
 export { loadReviews, reviewAction };

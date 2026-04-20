@@ -8,16 +8,22 @@ import { bridge } from '../utils/window-bridge.js';
 import { IC } from '../utils/icons.js';
 import { closeModal, guardModal, showConfirmDialog } from '../utils/dirty-guard.js';
 import { isPro, showProGate } from '../utils/plan-gate.js';
+import { renderPagination } from '../utils/pagination.js';
+
+const WL_PAGE_SIZE=50;
 
 async function loadWaitlist(){
   if (!isPro()) { showProGate(document.getElementById('contentArea'), "Liste d'attente"); return; }
   if(viewState.wlFilter===undefined)viewState.wlFilter='';
+  if(viewState.wlOffset===undefined)viewState.wlOffset=0;
   const c=document.getElementById('contentArea');
   c.innerHTML=`<div class="loading"><div class="spinner"></div></div>`;
   try{
     const qs=new URLSearchParams();
     if(viewState.wlFilter)qs.set('status',viewState.wlFilter);
     if(viewState.wlPracFilter)qs.set('practitioner_id',viewState.wlPracFilter);
+    qs.set('limit', String(WL_PAGE_SIZE));
+    qs.set('offset', String(viewState.wlOffset||0));
     const [wData,pData,sData]=await Promise.all([
       api.get('/api/waitlist?'+qs),
       api.get('/api/practitioners'),
@@ -25,6 +31,7 @@ async function loadWaitlist(){
     ]);
     const entries=wData.entries||[];
     const stats=wData.stats||{};
+    const pag = wData.pagination || {total_count: entries.length, limit: WL_PAGE_SIZE, offset: viewState.wlOffset||0};
     const pracs=(pData.practitioners||pData||[]).filter(p=>p.is_active!==false);
     const services=(sData.services||sData||[]).filter(s=>s.is_active!==false);
 
@@ -37,21 +44,21 @@ async function loadWaitlist(){
 
     // KPIs
     h+=`<div class="kpis">`;
-    h+=`<div class="kpi" onclick="viewState.wlFilter='waiting';loadWaitlist()" style="cursor:pointer"><div class="kpi-val" style="color:var(--purple)">${stats.waiting||0}</div><div class="kpi-label">${IC.hourglass} En attente</div></div>`;
-    h+=`<div class="kpi" onclick="viewState.wlFilter='offered';loadWaitlist()" style="cursor:pointer"><div class="kpi-val" style="color:var(--amber-dark)">${stats.offered||0}</div><div class="kpi-label">${IC.mail} Offre envoyée</div></div>`;
-    h+=`<div class="kpi" onclick="viewState.wlFilter='booked';loadWaitlist()" style="cursor:pointer"><div class="kpi-val" style="color:var(--green)">${stats.booked||0}</div><div class="kpi-label">${IC.check} Réservé</div></div>`;
-    h+=`<div class="kpi" onclick="viewState.wlFilter='expired';loadWaitlist()" style="cursor:pointer"><div class="kpi-val" style="color:var(--text-4)">${stats.expired||0}</div><div class="kpi-label">${IC.hourglass} Expiré</div></div>`;
+    h+=`<div class="kpi" onclick="viewState.wlFilter='waiting';viewState.wlOffset=0;loadWaitlist()" style="cursor:pointer"><div class="kpi-val" style="color:var(--purple)">${stats.waiting||0}</div><div class="kpi-label">${IC.hourglass} En attente</div></div>`;
+    h+=`<div class="kpi" onclick="viewState.wlFilter='offered';viewState.wlOffset=0;loadWaitlist()" style="cursor:pointer"><div class="kpi-val" style="color:var(--amber-dark)">${stats.offered||0}</div><div class="kpi-label">${IC.mail} Offre envoyée</div></div>`;
+    h+=`<div class="kpi" onclick="viewState.wlFilter='booked';viewState.wlOffset=0;loadWaitlist()" style="cursor:pointer"><div class="kpi-val" style="color:var(--green)">${stats.booked||0}</div><div class="kpi-label">${IC.check} Réservé</div></div>`;
+    h+=`<div class="kpi" onclick="viewState.wlFilter='expired';viewState.wlOffset=0;loadWaitlist()" style="cursor:pointer"><div class="kpi-val" style="color:var(--text-4)">${stats.expired||0}</div><div class="kpi-label">${IC.hourglass} Expiré</div></div>`;
     h+=`</div>`;
 
     // Filter bar
     h+=`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px">`;
     h+=`<div style="display:flex;gap:4px">`;
-    h+=`<button class="btn-sm ${viewState.wlFilter==='waiting'?'active':''}" onclick="viewState.wlFilter='waiting';loadWaitlist()">En attente</button>`;
-    h+=`<button class="btn-sm ${viewState.wlFilter==='offered'?'active':''}" onclick="viewState.wlFilter='offered';loadWaitlist()">Offre envoyée</button>`;
-    h+=`<button class="btn-sm ${viewState.wlFilter===''?'active':''}" onclick="viewState.wlFilter='';loadWaitlist()">Tous</button>`;
+    h+=`<button class="btn-sm ${viewState.wlFilter==='waiting'?'active':''}" onclick="viewState.wlFilter='waiting';viewState.wlOffset=0;loadWaitlist()">En attente</button>`;
+    h+=`<button class="btn-sm ${viewState.wlFilter==='offered'?'active':''}" onclick="viewState.wlFilter='offered';viewState.wlOffset=0;loadWaitlist()">Offre envoyée</button>`;
+    h+=`<button class="btn-sm ${viewState.wlFilter===''?'active':''}" onclick="viewState.wlFilter='';viewState.wlOffset=0;loadWaitlist()">Tous</button>`;
     h+=`</div>`;
     if(pracs.length>1){
-      h+=`<select onchange="viewState.wlPracFilter=this.value;loadWaitlist()" style="padding:6px 12px;border-radius:7px;border:1.5px solid var(--border);font-size:.75rem;font-family:var(--sans);background:var(--white);color:var(--text-2)">`;
+      h+=`<select onchange="viewState.wlPracFilter=this.value;viewState.wlOffset=0;loadWaitlist()" style="padding:6px 12px;border-radius:7px;border:1.5px solid var(--border);font-size:.75rem;font-family:var(--sans);background:var(--white);color:var(--text-2)">`;
       h+=`<option value="" ${!viewState.wlPracFilter?'selected':''}>Tous les praticiens</option>`;
       pracs.forEach(p=>{h+=`<option value="${esc(p.id)}" ${viewState.wlPracFilter===p.id?'selected':''}>${esc(p.display_name)}</option>`;});
       h+=`</select>`;
@@ -91,9 +98,12 @@ async function loadWaitlist(){
       });
     }
     h+=`</div>`;
+    h+=renderPagination({ total: pag.total_count, limit: pag.limit, offset: pag.offset, onPage: 'waitlistGoToPage', label: 'entrées' });
     c.innerHTML=h;
   }catch(e){c.innerHTML=`<div class="empty">Erreur: ${esc(e.message)}</div>`;}
 }
+
+function waitlistGoToPage(newOffset){ viewState.wlOffset = Math.max(0, parseInt(newOffset) || 0); loadWaitlist(); }
 
 // -- Add to waitlist modal --
 function wlOpenAdd(){
@@ -320,7 +330,7 @@ async function wlChangeStatus(entryId,status){
 // Expose viewState to window for inline onclick handlers
 Object.defineProperty(window, 'viewState', { get(){return viewState;}, configurable: true });
 
-bridge({ loadWaitlist, wlOpenAdd, wlOnSvcChange, wlSaveAdd, wlOffer, wlSendOffer, wlContact, wlRemove, wlDetail, wlSaveNotes, wlChangeStatus });
+bridge({ loadWaitlist, wlOpenAdd, wlOnSvcChange, wlSaveAdd, wlOffer, wlSendOffer, wlContact, wlRemove, wlDetail, wlSaveNotes, wlChangeStatus, waitlistGoToPage });
 
 // Debounced auto-reload on SSE booking_update / waitlist_match si l'utilisateur est sur la page waitlist.
 let _wlReloadTimer = null;
