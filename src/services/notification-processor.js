@@ -38,6 +38,7 @@ async function fetchBookingData(bookingId) {
             COALESCE(sv.duration_min, s.duration_min, 0) AS duration_min,
             p.display_name AS practitioner_name,
             c.full_name AS client_name, c.email AS client_email, c.phone AS client_phone,
+            c.consent_marketing AS client_consent_marketing,
             biz.name AS biz_name, biz.email AS biz_email, biz.phone AS biz_phone,
             biz.address AS biz_address, biz.theme AS biz_theme, biz.slug AS biz_slug,
             biz.settings AS biz_settings
@@ -151,9 +152,18 @@ function buildServiceDetailHTML(bk, groupServices) {
 
 /**
  * email_post_rdv — Send review request email (deferred via delay_until)
+ *
+ * RGPD : la demande de review est une communication d'engagement (marketing
+ * selon CNIL/APD Belgian). Si `clients.consent_marketing` est false, skip.
+ * Sans ça, chaque RDV passé envoyait un email à un client qui a explicitement
+ * décoché "accepter les communications marketing" lors du booking → plainte
+ * RGPD possible + amende. DEFAULT=false dans le schéma donc conservateur.
  */
 async function sendReviewEmail(bk, metadata) {
   if (!bk.client_email) return { success: false, error: 'no_client_email' };
+  if (bk.client_consent_marketing !== true) {
+    return { success: true, skipped: true, reason: 'consent_marketing_denied' };
+  }
   const reviewToken = metadata?.review_token;
   if (!reviewToken) return { success: false, error: 'no_review_token' };
 
