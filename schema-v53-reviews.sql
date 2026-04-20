@@ -31,7 +31,10 @@ CREATE TABLE IF NOT EXISTS reviews (
   status          VARCHAR(20) NOT NULL DEFAULT 'published' CHECK (status IN ('published', 'flagged', 'hidden')),
 
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  -- One review per booking — évite race SELECT-puis-INSERT (misc.js:83-95)
+  CONSTRAINT uq_reviews_booking UNIQUE (booking_id)
 );
 
 -- Indexes

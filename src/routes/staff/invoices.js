@@ -462,12 +462,15 @@ router.post('/:id/credit-note', requireOwner, blockIfImpersonated, async (req, r
         if (!cnId) {
           throw new Error('Cannot cancel original without a credit note — internal invariant violated');
         }
-        if (!['paid', 'sent'].includes(inv.status)) {
+        // E#11 v2 fix: cohérent avec L404 qui accepte {sent,paid,overdue} pour créer
+        // une NC. TRANSITIONS L512 inclut 'overdue: [..., cancelled]'. Ajout de overdue
+        // au guard pour éviter la régression "facture overdue + NC + mark_cancelled → throw".
+        if (!['paid', 'sent', 'overdue'].includes(inv.status)) {
           throw new Error(`Cannot mark original cancelled from status=${inv.status}`);
         }
         await txClient.query(
           `UPDATE invoices SET status = 'cancelled', updated_at = NOW()
-            WHERE id = $1 AND status IN ('paid', 'sent')`,
+            WHERE id = $1 AND status IN ('paid', 'sent', 'overdue')`,
           [inv.id]
         );
       }
