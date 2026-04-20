@@ -20,15 +20,19 @@ router.get('/booking/:token', bookingActionLimiter, async (req, res, next) => {
               CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
                   s.category AS service_category,
               COALESCE(sv.duration_min, s.duration_min) AS duration_min,
-              -- BUG-LM fix: return RAW catalog price (not booked_price_cents post-LM),
-              -- so frontend can apply discount_pct once. booked_price_cents was creating
-              -- double-LM application on manage-booking.html rendering.
-              -- TRADE-OFF: if the salon updates the catalog price AFTER the booking was made,
-              -- the client's /manage page will display the NEW catalog × discount_pct, NOT
-              -- the historical price they actually reserved. Rare in practice (salons seldom
-              -- change prices between booking + consultation). The invoice + emails still use
-              -- the stored booked_price_cents (authoritative for money flows).
-              COALESCE(sv.price_cents, s.price_cents) AS price_cents,
+              -- BUG-LM + bombe #2 fix: return HISTORICAL raw price reconstructed depuis
+              -- booked_price_cents (authoritative) pour que frontend applique discount_pct
+              -- une seule fois ET retombe sur la valeur réelle. Avant : on renvoyait le
+              -- catalog COURANT, qui drift si le salon change son prix entre booking et RDV.
+              -- Raw reconstructed = booked_price_cents × 100 / (100 - discount_pct).
+              -- Legacy fallback (booked_price_cents NULL) : catalog courant (rare).
+              CASE
+                WHEN b.booked_price_cents IS NOT NULL AND b.discount_pct IS NOT NULL AND b.discount_pct > 0 AND b.discount_pct < 100
+                  THEN ROUND(b.booked_price_cents::numeric * 100 / (100 - b.discount_pct))::int
+                WHEN b.booked_price_cents IS NOT NULL
+                  THEN b.booked_price_cents
+                ELSE COALESCE(sv.price_cents, s.price_cents)
+              END AS price_cents,
               s.quote_only AS service_quote_only, s.color AS service_color,
               p.display_name AS practitioner_name, p.title AS practitioner_title,
               c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email,
@@ -67,8 +71,14 @@ router.get('/booking/:token', bookingActionLimiter, async (req, res, next) => {
       const grp = await query(
         `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' \u2014 ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
                 COALESCE(sv.duration_min, s.duration_min) AS duration_min,
-                -- BUG-LM fix: RAW catalog price only (see comment above).
-                COALESCE(sv.price_cents, s.price_cents) AS price_cents, s.color, b.end_at,
+                -- BUG-LM + bombe #2 fix: HISTORICAL raw price reconstructed (voir commentaire plus haut).
+                CASE
+                  WHEN b.booked_price_cents IS NOT NULL AND b.discount_pct IS NOT NULL AND b.discount_pct > 0 AND b.discount_pct < 100
+                    THEN ROUND(b.booked_price_cents::numeric * 100 / (100 - b.discount_pct))::int
+                  WHEN b.booked_price_cents IS NOT NULL
+                    THEN b.booked_price_cents
+                  ELSE COALESCE(sv.price_cents, s.price_cents)
+                END AS price_cents, s.color, b.end_at,
                 b.practitioner_id, p.display_name AS practitioner_name, b.start_at AS svc_start_at,
                 b.promotion_discount_cents, b.promotion_discount_pct, b.promotion_label,
                 b.discount_pct
@@ -183,8 +193,14 @@ router.get('/manage/:token', bookingActionLimiter, async (req, res, next) => {
               CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
               s.category AS service_category,
               COALESCE(sv.duration_min, s.duration_min) AS duration_min,
-              -- BUG-LM fix: RAW catalog price only — frontend applies LM discount_pct once.
-              COALESCE(sv.price_cents, s.price_cents) AS price_cents,
+              -- BUG-LM + bombe #2 fix: HISTORICAL raw price reconstructed (voir commentaire plus haut).
+              CASE
+                WHEN b.booked_price_cents IS NOT NULL AND b.discount_pct IS NOT NULL AND b.discount_pct > 0 AND b.discount_pct < 100
+                  THEN ROUND(b.booked_price_cents::numeric * 100 / (100 - b.discount_pct))::int
+                WHEN b.booked_price_cents IS NOT NULL
+                  THEN b.booked_price_cents
+                ELSE COALESCE(sv.price_cents, s.price_cents)
+              END AS price_cents,
               s.quote_only AS service_quote_only, s.color AS service_color,
               p.display_name AS practitioner_name, p.title AS practitioner_title,
               c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email,

@@ -661,14 +661,15 @@ let sql = `UPDATE bookings SET start_at = $1, end_at = $2, reminder_24h_sent_at 
           idx++;
         }
 
-        sql += ` WHERE id = $${idx} AND business_id = $${idx + 1} AND status NOT IN ('cancelled', 'completed', 'no_show') RETURNING id, start_at, end_at, practitioner_id, deposit_required, deposit_deadline`;
+        sql += ` WHERE id = $${idx} AND business_id = $${idx + 1} AND status NOT IN ('cancelled', 'completed', 'no_show') RETURNING id, start_at, end_at, practitioner_id, deposit_required, deposit_deadline, deposit_status`;
         params.push(id, bid);
 
         const r = await client.query(sql, params);
 
         // Recalculate deposit deadline using fresh calculation (matches group move pattern)
+        // Skip if already paid — no sense pushing the deadline of a paid deposit.
         const moved = r.rows[0];
-        if (moved && moved.deposit_required && moved.deposit_deadline) {
+        if (moved && moved.deposit_required && moved.deposit_deadline && moved.deposit_status === 'pending') {
           const { computeDepositDeadline } = require('../../routes/public/helpers');
           const _depBizSingle = await client.query(`SELECT settings FROM businesses WHERE id = $1`, [bid]);
           const newDeadline = computeDepositDeadline(new Date(moved.start_at), _depBizSingle.rows[0]?.settings || {}, moved.deposit_deadline);
@@ -1567,16 +1568,16 @@ router.patch('/:id/modify', async (req, res, next) => {
           [start_at, end_at, newStatus, id, bid]
         );
 
-        // Recalculate deposit deadline if booking has pending deposit
-        // Bug M11 fix: Ensure deadline doesn't shift to the past
+        // BUG-DEADLINE-PARITY fix (bombe #3) : utiliser computeDepositDeadline (parité
+        // avec /move) au lieu de time-delta shift. Delta diverge si le salon a changé
+        // deposit_deadline_hours entre le booking initial et ce /modify, OU si la
+        // deadline initiale était au floor (20 min / 2h avant RDV). computeDepositDeadline
+        // recalcule proprement à partir du nouveau start_at + settings actuels.
         const modified = r.rows[0];
-        if (modified && modified.deposit_required && modified.deposit_deadline) {
-          const timeDelta = new Date(start_at).getTime() - new Date(oldBooking.start_at).getTime();
-          let newDeadline = new Date(new Date(modified.deposit_deadline).getTime() + timeDelta);
-          const minDeadline = new Date(Date.now() + 60 * 60000);
-          if (newDeadline < minDeadline) {
-            newDeadline = minDeadline;
-          }
+        if (modified && modified.deposit_required && modified.deposit_deadline && modified.deposit_status === 'pending') {
+          const { computeDepositDeadline } = require('../../routes/public/helpers');
+          const _depBizModif = await client.query(`SELECT settings FROM businesses WHERE id = $1`, [bid]);
+          const newDeadline = computeDepositDeadline(new Date(start_at), _depBizModif.rows[0]?.settings || {}, modified.deposit_deadline);
           await client.query(
             `UPDATE bookings SET deposit_deadline = $1 WHERE id = $2 AND business_id = $3`,
             [newDeadline.toISOString(), id, bid]

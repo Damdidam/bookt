@@ -30,31 +30,45 @@ async function refundGiftCardForBooking(bookingId, dbClient) {
   let totalRefunded = 0;
   const cards = [];
 
-  // Count existing refunds per GC to handle cancel→restore→cancel correctly
-  const refundCounts = {};
-  const existingRefunds = await q(
-    `SELECT gift_card_id, COUNT(*) AS cnt FROM gift_card_transactions WHERE booking_id = $1 AND type = 'refund' GROUP BY gift_card_id`, [bookingId]
+  // BUG-GC-CAP fix (bombe #1) : remplacer le cap `LEAST(amount_cents, balance+refund)`
+  // par un guard per-booking amount-based. Raison : le cap cassait dès qu'une feature
+  // topup/reload serait ajoutée (balance > amount_cents légitime après topup). Le guard
+  // amount-based (total_refund >= total_debit par booking+GC) empêche le double-refund
+  // sans dépendre de `amount_cents` comme plafond. Topup-safe.
+  // Stronger que le précédent count-based : handle aussi les staff manual partial refunds.
+  const perBookingTotals = {};
+  const totalsRes = await q(
+    `SELECT gift_card_id,
+            COALESCE(SUM(CASE WHEN type = 'debit' THEN amount_cents ELSE 0 END), 0) AS debited,
+            COALESCE(SUM(CASE WHEN type = 'refund' THEN amount_cents ELSE 0 END), 0) AS refunded
+       FROM gift_card_transactions WHERE booking_id = $1 GROUP BY gift_card_id`,
+    [bookingId]
   );
-  for (const r of existingRefunds.rows) refundCounts[r.gift_card_id] = parseInt(r.cnt) || 0;
-  const debitCounts = {};
-  for (const d of debits.rows) debitCounts[d.gift_card_id] = (debitCounts[d.gift_card_id] || 0) + 1;
+  for (const r of totalsRes.rows) {
+    perBookingTotals[r.gift_card_id] = {
+      debited: parseInt(r.debited) || 0,
+      refunded: parseInt(r.refunded) || 0
+    };
+  }
 
   for (const debit of debits.rows) {
-    // Skip if this GC already has as many refunds as debits for this booking
-    if ((refundCounts[debit.gift_card_id] || 0) >= (debitCounts[debit.gift_card_id] || 0)) continue;
-    refundCounts[debit.gift_card_id] = (refundCounts[debit.gift_card_id] || 0) + 1;
+    const t = perBookingTotals[debit.gift_card_id] || { debited: 0, refunded: 0 };
+    // Skip if total refunded already covers total debited for this booking+GC.
+    if (t.refunded >= t.debited) continue;
+
+    // Only refund up to the gap (debit - already-refunded) to handle partial prior refunds.
+    const remaining = t.debited - t.refunded;
+    const refundAmount = Math.min(debit.amount_cents, remaining);
+    if (refundAmount <= 0) continue;
+    t.refunded += refundAmount; // track in-loop increment
 
     // Credit back to gift card. If the card was expired, reactivate it AND extend
     // expires_at by 30 days so the client can actually use the refunded balance —
     // otherwise the money is locked on a card that booking validation refuses.
-    // BUG-GC-CAP fix: LEAST(amount_cents, balance + $1) so balance never exceeds
-    // the original purchase amount (protects against double-crédit si staff refund
-    // manuel PUIS auto-refund cancel se chevauchent).
-    // CAUTION: if a GC topup/reload feature is added later, this LEAST will INCORRECTLY
-    // cap the topped-up balance back to the original amount. At that point, the cap should
-    // become a per-booking limit instead (e.g. check existing refund for this booking_id).
+    // No LEAST cap — the per-booking guard above prevents double-refund, and removing
+    // the cap allows future GC topups (balance legitimately > amount_cents).
     await q(
-      `UPDATE gift_cards SET balance_cents = LEAST(amount_cents, balance_cents + $1),
+      `UPDATE gift_cards SET balance_cents = balance_cents + $1,
        status = CASE WHEN status IN ('used', 'expired') THEN 'active' ELSE status END,
        expires_at = CASE
          WHEN status = 'expired' OR (expires_at IS NOT NULL AND expires_at <= NOW())
@@ -63,19 +77,19 @@ async function refundGiftCardForBooking(bookingId, dbClient) {
        END,
        updated_at = NOW()
        WHERE id = $2`,
-      [debit.amount_cents, debit.gift_card_id]
+      [refundAmount, debit.gift_card_id]
     );
 
     // Create refund transaction
     await q(
       `INSERT INTO gift_card_transactions (id, gift_card_id, business_id, booking_id, amount_cents, type, note)
        VALUES (gen_random_uuid(), $1, $2, $3, $4, 'refund', $5)`,
-      [debit.gift_card_id, debit.business_id, bookingId, debit.amount_cents,
+      [debit.gift_card_id, debit.business_id, bookingId, refundAmount,
        `Remboursement — annulation RDV`]
     );
 
-    totalRefunded += debit.amount_cents;
-    cards.push({ code: debit.code, amount: debit.amount_cents });
+    totalRefunded += refundAmount;
+    cards.push({ code: debit.code, amount: refundAmount });
   }
 
   if (totalRefunded > 0) {
