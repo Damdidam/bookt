@@ -141,7 +141,8 @@ test.describe('C12 — retention & SMS', () => {
 
     try {
       // POST /webhooks/twilio/sms/inbound with STOP body
-      const resp = await fetch(`${process.env.APP_BASE_URL}/webhooks/twilio/sms/inbound`, {
+      const baseUrl = process.env.APP_BASE_URL || 'http://localhost:3000';
+      const resp = await fetch(`${baseUrl}/webhooks/twilio/sms/inbound`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({ From: phone, Body: 'STOP' }).toString(),

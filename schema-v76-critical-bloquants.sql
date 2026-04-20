@@ -22,9 +22,11 @@
 ALTER TABLE bookings
   ADD COLUMN IF NOT EXISTS confirmation_expires_at TIMESTAMPTZ;
 
+-- Partial index matches the existing prod definition (status='pending' + NOT NULL).
+-- The cron SELECT filters both clauses, so the predicate stays selective.
 CREATE INDEX IF NOT EXISTS idx_bookings_confirmation_expires
   ON bookings(confirmation_expires_at)
-  WHERE confirmation_expires_at IS NOT NULL;
+  WHERE status = 'pending' AND confirmation_expires_at IS NOT NULL;
 
 -- ============================================================
 -- I#6: users.role VARCHAR(20)

@@ -320,9 +320,12 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
           [e.client_name, e.client_email, _wlPhone, clientId]
         );
       } else {
+        // created_from must match CHECK constraint ('booking'|'manual'|'call').
+        // 'waitlist' is not in the CHECK — using 'booking' (the client ends up with
+        // a real booking anyway). Changing the CHECK would need a separate migration.
         const nc = await client.query(
           `INSERT INTO clients (business_id, full_name, email, phone, created_from)
-           VALUES ($1, $2, $3, $4, 'waitlist') RETURNING id`,
+           VALUES ($1, $2, $3, $4, 'booking') RETURNING id`,
           [e.business_id, e.client_name, e.client_email, _wlPhone]
         );
         clientId = nc.rows[0].id;

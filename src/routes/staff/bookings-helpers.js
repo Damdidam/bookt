@@ -179,21 +179,23 @@ async function checkPracAvailability(bid, pracId, startAt, endAt) {
   // The slot-engine already filters these at display time, but a curl direct to
   // POST /api/public/:slug/bookings would bypass — same rationale as the Q11 fix
   // on min_booking_notice_hours. We gate once, reused by every caller.
+  // Schema: business_holidays(date) = single date ; business_closures(date_from, date_to) = range.
+  // No .catch swallowing — if the query blows up we want to know, not silently let bookings through.
+  const endDateStr = end.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
   const holRes = await queryWithRLS(bid,
     `SELECT 1 FROM business_holidays
-      WHERE business_id = $1
-        AND $2::date BETWEEN date_from AND COALESCE(date_to, date_from)
+      WHERE business_id = $1 AND date IN ($2::date, $3::date)
       LIMIT 1`,
-    [bid, dateStr]
-  ).catch(() => ({ rows: [] }));
+    [bid, dateStr, endDateStr]
+  );
   if (holRes.rows.length > 0) return { ok: false, reason: 'Salon fermé ce jour (jour férié / congé)' };
   const clsRes = await queryWithRLS(bid,
     `SELECT 1 FROM business_closures
       WHERE business_id = $1
-        AND $2::date BETWEEN date_from AND COALESCE(date_to, date_from)
+        AND ($2::date BETWEEN date_from AND date_to OR $3::date BETWEEN date_from AND date_to)
       LIMIT 1`,
-    [bid, dateStr]
-  ).catch(() => ({ rows: [] }));
+    [bid, dateStr, endDateStr]
+  );
   if (clsRes.rows.length > 0) return { ok: false, reason: 'Salon fermé ce jour (fermeture exceptionnelle)' };
 
   // 0b. Check staff absences (congés, maladie, formation…)
@@ -250,8 +252,8 @@ async function checkPracAvailability(bid, pracId, startAt, endAt) {
     // No custom_hours and no closed: fall through to weekly schedule check
   }
 
-  // BK-V13-007: Check end date for cross-day bookings (start date may be open but end date closed)
-  const endDateStr = end.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+  // BK-V13-007: Check end date for cross-day bookings (start date may be open but end date closed).
+  // endDateStr was already computed above for the holidays/closures check.
   if (endDateStr !== dateStr) {
     const excEnd = await queryWithRLS(bid,
       `SELECT type FROM availability_exceptions WHERE business_id = $1 AND practitioner_id = $2 AND date = $3`,
