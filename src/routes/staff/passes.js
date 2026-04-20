@@ -558,7 +558,7 @@ router.post('/:id/refund-full', blockIfImpersonated, async (req, res, next) => {
     const result = await transactionWithRLS(bid, async (client) => {
       const p = await client.query(
         `SELECT id, code, name, status, sessions_total, sessions_remaining, price_cents,
-                stripe_payment_intent_id, buyer_email, buyer_name, expires_at, service_id
+                stripe_payment_intent_id, buyer_email, buyer_name, expires_at, service_id, disputed_at
            FROM passes WHERE id = $1 AND business_id = $2 FOR UPDATE`,
         [id, bid]
       );
@@ -570,6 +570,10 @@ router.post('/:id/refund-full', blockIfImpersonated, async (req, res, next) => {
       }
       if (pass.status === 'expired') {
         throw Object.assign(new Error('Pass expiré — remboursement non autorisé'), { status: 409 });
+      }
+      // P1-07 v82 : bloquer refund si dispute Stripe en cours — évite double-loss.
+      if (pass.disputed_at) {
+        throw Object.assign(new Error('Litige Stripe en cours sur ce pass. Attendez la résolution (dashboard Stripe) avant de rembourser.'), { status: 409 });
       }
       // Batch 12 regression fix: guard against corrupted sessions_total=0 (division by zero downstream)
       if (!pass.sessions_total || pass.sessions_total <= 0) {

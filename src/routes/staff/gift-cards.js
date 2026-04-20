@@ -288,6 +288,12 @@ router.post('/:id/refund', blockIfImpersonated, async (req, res, next) => {
       if (gc.rows.length === 0) throw Object.assign(new Error('Carte introuvable'), { status: 404 });
       const card = gc.rows[0];
 
+      // P1-07 v82 : bloquer refund si dispute Stripe en cours sur la GC — évite
+      // double-loss (refund + dispute perdue).
+      if (card.disputed_at) {
+        throw Object.assign(new Error('Litige Stripe en cours sur cette carte cadeau. Attendez la résolution (dashboard Stripe) avant de rembourser.'), { status: 409 });
+      }
+
       const newBalance = card.balance_cents + amount_cents;
       if (newBalance > card.amount_cents) throw Object.assign(new Error('Le remboursement dépasse le montant initial'), { status: 400 });
 

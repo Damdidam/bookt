@@ -1270,6 +1270,31 @@ async function handleStripeWebhook(req, res) {
               ).catch(e => console.warn('[STRIPE WH] Dispute notification queue error:', e.message));
               console.log(`[STRIPE WH] Dispute created for booking ${bk.id}, amount: ${dispute.amount}, reason: ${dispute.reason}`);
             }
+
+            // P1-07 v82 : chercher aussi dans passes + gift_cards — ces achats
+            // ont leur propre stripe_payment_intent_id, indépendant des bookings.
+            const passes = await query(
+              `SELECT id, business_id FROM passes WHERE stripe_payment_intent_id IN ($1, $2)`,
+              [pi, sessionId]
+            );
+            for (const p of passes.rows) {
+              await query(
+                `UPDATE passes SET disputed_at = COALESCE(disputed_at, NOW()), updated_at = NOW() WHERE id = $1`,
+                [p.id]
+              ).catch(e => console.warn('[STRIPE WH] Pass dispute flag update error:', e.message));
+              console.log(`[STRIPE WH] Dispute flagged on pass ${p.id}`);
+            }
+            const gcs = await query(
+              `SELECT id, business_id FROM gift_cards WHERE stripe_payment_intent_id IN ($1, $2)`,
+              [pi, sessionId]
+            );
+            for (const g of gcs.rows) {
+              await query(
+                `UPDATE gift_cards SET disputed_at = COALESCE(disputed_at, NOW()), updated_at = NOW() WHERE id = $1`,
+                [g.id]
+              ).catch(e => console.warn('[STRIPE WH] GC dispute flag update error:', e.message));
+              console.log(`[STRIPE WH] Dispute flagged on gift card ${g.id}`);
+            }
           }
         } catch (dispErr) {
           console.warn('[STRIPE WH] charge.dispute.created processing error:', dispErr.message);
@@ -1297,7 +1322,18 @@ async function handleStripeWebhook(req, res) {
                RETURNING id`,
               [pi, sessionId]
             );
-            console.log(`[STRIPE WH] Dispute closed for ${r.rowCount} booking(s) (status: ${dispute.status}, PI: ${pi})`);
+            // P1-07 v82 : clear disputed_at sur passes + gift_cards aussi.
+            const rPass = await query(
+              `UPDATE passes SET disputed_at = NULL, updated_at = NOW()
+               WHERE stripe_payment_intent_id IN ($1, $2) RETURNING id`,
+              [pi, sessionId]
+            );
+            const rGc = await query(
+              `UPDATE gift_cards SET disputed_at = NULL, updated_at = NOW()
+               WHERE stripe_payment_intent_id IN ($1, $2) RETURNING id`,
+              [pi, sessionId]
+            );
+            console.log(`[STRIPE WH] Dispute closed for ${r.rowCount} booking(s), ${rPass.rowCount} pass(es), ${rGc.rowCount} GC(s) (status: ${dispute.status}, PI: ${pi})`);
           }
         } catch (dispErr) {
           console.warn('[STRIPE WH] charge.dispute.closed processing error:', dispErr.message);
