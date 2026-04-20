@@ -192,16 +192,20 @@ async function generateInvoicePDF(invoice, items, opts = {}) {
     // VAT ventilation — BE compliance (Code TVA art.5 §1) requires per-rate breakdown
     // when the invoice mixes rates (e.g. 6% service + 21% product). We group items by
     // their actual vat_rate instead of trusting the header (A#2/A#3 avoid stale header).
+    // Nullish-safe header fallback — parseFloat(0)=0 (exempt), so `|| 21` would
+    // wrongly promote an exemption back to 21% for legacy items with vat_rate NULL.
+    const _hParsed = parseFloat(invoice.vat_rate);
+    const _headerRate = isNaN(_hParsed) ? 21 : _hParsed;
     const vatByRate = new Map(); // rate → cents (vat amount)
     (items || []).forEach(it => {
       const _p = parseFloat(it.vat_rate);
-      const r = isNaN(_p) ? (parseFloat(invoice.vat_rate) || 21) : _p;
+      const r = isNaN(_p) ? _headerRate : _p;
       const lineVat = Math.round((it.total_cents || 0) * r / (100 + r));
       vatByRate.set(r, (vatByRate.get(r) || 0) + lineVat);
     });
     if (vatByRate.size <= 1) {
       // Single-rate (or empty items) — keep the compact single line.
-      const [singleRate] = vatByRate.size === 1 ? [...vatByRate.keys()] : [parseFloat(invoice.vat_rate) || 21];
+      const singleRate = vatByRate.size === 1 ? [...vatByRate.keys()][0] : _headerRate;
       doc.text(`TVA (${singleRate}%)`, totX, y); doc.text(formatMoney(invoice.vat_amount_cents), totX, y, { width: totW, align: 'right' }); y += 18;
     } else {
       // Multi-rate — one line per rate, descending for readability.
