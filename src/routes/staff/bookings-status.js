@@ -89,15 +89,31 @@ async function applySiblingNoShowStrikes(client, { affectedIds, bid, excludeClie
 
     const count = updated.rows[0]?.no_show_count || 0;
     if (threshold > 0 && count >= threshold && blockAction === 'block') {
-      await client.query(
+      const reason = `Bloqué automatiquement : ${count} no-show(s)`;
+      const updBlock = await client.query(
         `UPDATE clients SET
           is_blocked = true,
           blocked_at = NOW(),
           blocked_reason = $1,
           updated_at = NOW()
-         WHERE id = $2 AND business_id = $3`,
-        [`Bloqué automatiquement : ${count} no-show(s)`, sib.client_id, bid]
+         WHERE id = $2 AND business_id = $3 AND is_blocked = false
+         RETURNING id`,
+        [reason, sib.client_id, bid]
       );
+      // P1-04 RGPD art.22 : décision automatisée (blocage auto sur no-show
+      // threshold) — doit être auditée. Sinon un client blocké ne peut pas
+      // savoir que c'était une décision automatisée vs manuelle, ni contester.
+      if (updBlock.rowCount > 0) {
+        try {
+          await client.query(
+            `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
+             VALUES ($1, NULL, 'client', $2, 'client_auto_block_noshow', $3, $4)`,
+            [bid, sib.client_id,
+             JSON.stringify({ is_blocked: false, no_show_count_before: count - 1 }),
+             JSON.stringify({ is_blocked: true, blocked_reason: reason, no_show_count: count, threshold, source: 'auto_noshow_trigger' })]
+          );
+        } catch (e) { console.error('[AUDIT] auto-block no-show audit insert failed:', e.message); }
+      }
     }
   }
 }

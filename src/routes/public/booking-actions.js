@@ -281,12 +281,26 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
         const bizS = await query(`SELECT settings FROM businesses WHERE id = $1`, [bk.business_id]);
         const sett = bizS.rows[0]?.settings || {};
         if (sett.cancel_abuse_enabled && cancelCount >= (sett.cancel_abuse_max || 5)) {
-          await query(
+          const reason = `Bloqué automatiquement : ${cancelCount} annulation(s) consécutive(s)`;
+          const updBlock = await query(
             `UPDATE clients SET is_blocked = true, blocked_at = NOW(), blocked_reason = $3, updated_at = NOW()
-             WHERE id = $1 AND business_id = $2 AND is_blocked = false`,
-            [bk.client_id, bk.business_id, `Bloqué automatiquement : ${cancelCount} annulation(s) consécutive(s)`]
+             WHERE id = $1 AND business_id = $2 AND is_blocked = false
+             RETURNING id`,
+            [bk.client_id, bk.business_id, reason]
           );
           console.log(`[CANCEL ABUSE] Client ${bk.client_id} blocked after ${cancelCount} cancellations`);
+          // P1-04 RGPD art.22 : audit décision automatisée.
+          if (updBlock.rowCount > 0) {
+            try {
+              await query(
+                `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
+                 VALUES ($1, NULL, 'client', $2, 'client_auto_block_cancel', $3, $4)`,
+                [bk.business_id, bk.client_id,
+                 JSON.stringify({ is_blocked: false, cancel_count_before: cancelCount - 1 }),
+                 JSON.stringify({ is_blocked: true, blocked_reason: reason, cancel_count: cancelCount, threshold: sett.cancel_abuse_max || 5, source: 'auto_cancel_threshold' })]
+              );
+            } catch (e) { console.error('[AUDIT] auto-block cancel audit insert failed:', e.message); }
+          }
         }
       } catch (e) { console.error('[CANCEL COUNT] Error:', e.message); }
     }
@@ -1376,12 +1390,26 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
         const bizS = await query(`SELECT settings FROM businesses WHERE id = $1`, [bk.business_id]);
         const sett = bizS.rows[0]?.settings || {};
         if (sett.cancel_abuse_enabled && cancelCount >= (sett.cancel_abuse_max || 5)) {
-          await query(
+          const reason = `Bloqué automatiquement : ${cancelCount} annulation(s) consécutive(s)`;
+          const updBlock = await query(
             `UPDATE clients SET is_blocked = true, blocked_at = NOW(), blocked_reason = $3, updated_at = NOW()
-             WHERE id = $1 AND business_id = $2 AND is_blocked = false`,
-            [bk.client_id, bk.business_id, `Bloqué automatiquement : ${cancelCount} annulation(s) consécutive(s)`]
+             WHERE id = $1 AND business_id = $2 AND is_blocked = false
+             RETURNING id`,
+            [bk.client_id, bk.business_id, reason]
           );
           console.log(`[CANCEL ABUSE] Client ${bk.client_id} blocked after ${cancelCount} cancellations`);
+          // P1-04 RGPD art.22 : audit décision automatisée.
+          if (updBlock.rowCount > 0) {
+            try {
+              await query(
+                `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
+                 VALUES ($1, NULL, 'client', $2, 'client_auto_block_cancel', $3, $4)`,
+                [bk.business_id, bk.client_id,
+                 JSON.stringify({ is_blocked: false, cancel_count_before: cancelCount - 1 }),
+                 JSON.stringify({ is_blocked: true, blocked_reason: reason, cancel_count: cancelCount, threshold: sett.cancel_abuse_max || 5, source: 'auto_cancel_threshold' })]
+              );
+            } catch (e) { console.error('[AUDIT] auto-block cancel audit insert failed:', e.message); }
+          }
         }
       } catch (e) { console.error('[CANCEL COUNT] Error:', e.message); }
     }
