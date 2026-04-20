@@ -6,7 +6,7 @@ const router = require('express').Router();
 const fs = require('fs');
 const path = require('path');
 const { queryWithRLS, transactionWithRLS } = require('../../services/db');
-const { requireAuth, requireOwner } = require('../../middleware/auth');
+const { requireAuth, requireOwner, blockIfImpersonated } = require('../../middleware/auth');
 const { checkQuota, getBusinessUsage, QUOTA_BYTES, formatBytes } = require('../../services/storage-quota');
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -34,7 +34,7 @@ router.get('/', requireAuth, async (req, res, next) => {
 });
 
 // Create gallery image
-router.post('/', requireAuth, requireOwner, async (req, res, next) => {
+router.post('/', requireAuth, requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     const { title, caption, image_url } = req.body;
     if (!image_url) return res.status(400).json({ error: 'image_url required' });
@@ -55,7 +55,7 @@ router.post('/', requireAuth, requireOwner, async (req, res, next) => {
 });
 
 // Update gallery image
-router.put('/:id', requireAuth, requireOwner, async (req, res, next) => {
+router.put('/:id', requireAuth, requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'ID invalide' });
     const { title, caption, image_url, sort_order, is_active } = req.body;
@@ -75,7 +75,7 @@ router.put('/:id', requireAuth, requireOwner, async (req, res, next) => {
 });
 
 // Upload gallery image (Base64 → disk)
-router.post('/upload', requireAuth, requireOwner, async (req, res, next) => {
+router.post('/upload', requireAuth, requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     const { photo, title, caption } = req.body;
     if (!photo) return res.status(400).json({ error: 'Photo requise' });
@@ -130,7 +130,7 @@ router.post('/upload', requireAuth, requireOwner, async (req, res, next) => {
 });
 
 // Delete gallery image
-router.delete('/:id', requireAuth, requireOwner, async (req, res, next) => {
+router.delete('/:id', requireAuth, requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'ID invalide' });
 
@@ -157,7 +157,7 @@ router.delete('/:id', requireAuth, requireOwner, async (req, res, next) => {
 });
 
 // Reorder gallery images
-router.post('/reorder', requireAuth, requireOwner, async (req, res, next) => {
+router.post('/reorder', requireAuth, requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     const { order } = req.body; // [{id, sort_order}]
     if (!Array.isArray(order)) return res.status(400).json({ error: 'order array required' });

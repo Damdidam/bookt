@@ -730,7 +730,7 @@ router.delete('/:id/group-remove', blockIfImpersonated, async (req, res, next) =
 // Creates a new booking chained after the last group member.
 // UI: Calendar → detail modal → Group section → ➕ button
 // ============================================================
-router.post('/:id/group-add', async (req, res, next) => {
+router.post('/:id/group-add', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;

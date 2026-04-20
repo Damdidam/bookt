@@ -34,7 +34,7 @@ router.get('/testimonials', async (req, res, next) => {
 });
 
 // POST /api/site/testimonials
-router.post('/testimonials', async (req, res, next) => {
+router.post('/testimonials', blockIfImpersonated, async (req, res, next) => {
   try {
     const { author_name, author_role, content, rating, practitioner_id, is_featured } = req.body;
     if (!author_name || !content) {
@@ -65,7 +65,7 @@ router.post('/testimonials', async (req, res, next) => {
 });
 
 // PATCH /api/site/testimonials/:id
-router.patch('/testimonials/:id', async (req, res, next) => {
+router.patch('/testimonials/:id', blockIfImpersonated, async (req, res, next) => {
   try {
     const { author_name, author_role, content, rating, practitioner_id,
             is_featured, is_active, sort_order } = req.body;
@@ -93,7 +93,7 @@ router.patch('/testimonials/:id', async (req, res, next) => {
 });
 
 // DELETE /api/site/testimonials/:id
-router.delete('/testimonials/:id', async (req, res, next) => {
+router.delete('/testimonials/:id', blockIfImpersonated, async (req, res, next) => {
   try {
     await queryWithRLS(req.businessId,
       `DELETE FROM testimonials WHERE id = $1 AND business_id = $2`,
@@ -126,7 +126,7 @@ router.get('/specializations', async (req, res, next) => {
 });
 
 // POST /api/site/specializations
-router.post('/specializations', async (req, res, next) => {
+router.post('/specializations', blockIfImpersonated, async (req, res, next) => {
   try {
     const { name, description, icon, practitioner_ids } = req.body;
     if (!name) return res.status(400).json({ error: 'name requis' });
@@ -161,7 +161,7 @@ router.post('/specializations', async (req, res, next) => {
 });
 
 // PATCH /api/site/specializations/:id
-router.patch('/specializations/:id', async (req, res, next) => {
+router.patch('/specializations/:id', blockIfImpersonated, async (req, res, next) => {
   try {
     const { name, description, icon, is_active, sort_order, practitioner_ids } = req.body;
 
@@ -205,7 +205,7 @@ router.patch('/specializations/:id', async (req, res, next) => {
 });
 
 // DELETE /api/site/specializations/:id
-router.delete('/specializations/:id', async (req, res, next) => {
+router.delete('/specializations/:id', blockIfImpersonated, async (req, res, next) => {
   try {
     await queryWithRLS(req.businessId,
       `DELETE FROM practitioner_specializations WHERE specialization_id = $1
@@ -237,7 +237,7 @@ router.get('/values', async (req, res, next) => {
 });
 
 // POST /api/site/values
-router.post('/values', async (req, res, next) => {
+router.post('/values', blockIfImpersonated, async (req, res, next) => {
   try {
     const { title, description, icon, icon_style } = req.body;
     if (!title) return res.status(400).json({ error: 'title requis' });
@@ -258,7 +258,7 @@ router.post('/values', async (req, res, next) => {
 });
 
 // PATCH /api/site/values/:id
-router.patch('/values/:id', async (req, res, next) => {
+router.patch('/values/:id', blockIfImpersonated, async (req, res, next) => {
   try {
     const { title, description, icon, icon_style, is_active, sort_order } = req.body;
 
@@ -277,7 +277,7 @@ router.patch('/values/:id', async (req, res, next) => {
 });
 
 // DELETE /api/site/values/:id
-router.delete('/values/:id', async (req, res, next) => {
+router.delete('/values/:id', blockIfImpersonated, async (req, res, next) => {
   try {
     await queryWithRLS(req.businessId,
       `DELETE FROM value_propositions WHERE id = $1 AND business_id = $2`,
@@ -303,7 +303,7 @@ router.get('/sections', async (req, res, next) => {
 });
 
 // PATCH /api/site/sections
-router.patch('/sections', requireOwner, async (req, res, next) => {
+router.patch('/sections', requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     const { sections } = req.body;
     const result = await queryWithRLS(req.businessId,
@@ -445,7 +445,7 @@ router.delete('/domain', requireOwner, blockIfImpersonated, async (req, res, nex
 // ============================================================
 
 // PATCH /api/site/practitioners/:id
-router.patch('/practitioners/:id', async (req, res, next) => {
+router.patch('/practitioners/:id', blockIfImpersonated, async (req, res, next) => {
   try {
     const { display_name, title, bio, photo_url, color,
             years_experience, email, phone, linkedin_url } = req.body;
@@ -500,7 +500,7 @@ router.get('/onboarding', async (req, res, next) => {
 });
 
 // PATCH /api/site/onboarding — mark a step as complete
-router.patch('/onboarding', async (req, res, next) => {
+router.patch('/onboarding', blockIfImpersonated, async (req, res, next) => {
   try {
     const { step, completed } = req.body;
 

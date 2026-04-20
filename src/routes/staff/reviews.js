@@ -4,7 +4,7 @@
  */
 const router = require('express').Router();
 const { queryWithRLS } = require('../../services/db');
-const { requireAuth, requireOwner } = require('../../middleware/auth');
+const { requireAuth, requireOwner, blockIfImpersonated } = require('../../middleware/auth');
 
 router.use(requireAuth);
 

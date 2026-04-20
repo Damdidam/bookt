@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const { queryWithRLS, transactionWithRLS } = require('../../services/db');
-const { requireAuth } = require('../../middleware/auth');
+const { requireAuth, blockIfImpersonated } = require('../../middleware/auth');
 
 router.use(requireAuth);
 
@@ -44,7 +44,7 @@ router.get('/', async (req, res, next) => {
 
 // PUT /api/featured-slots — replace featured slots for a practitioner + week
 // Body: { practitioner_id, week_start, slots: [{date, start_time}] }
-router.put('/', async (req, res, next) => {
+router.put('/', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { practitioner_id, week_start, slots } = req.body;
@@ -103,7 +103,7 @@ router.put('/', async (req, res, next) => {
 
 // DELETE /api/featured-slots — remove all featured slots for a practitioner + week
 // Query: ?practitioner_id=X&week_start=2026-03-02
-router.delete('/', async (req, res, next) => {
+router.delete('/', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { practitioner_id, week_start } = req.query;
@@ -159,7 +159,7 @@ router.get('/lock', async (req, res, next) => {
 
 // PUT /api/featured-slots/lock — lock a week
 // Body: { practitioner_id, week_start }
-router.put('/lock', async (req, res, next) => {
+router.put('/lock', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { practitioner_id, week_start } = req.body;
@@ -203,7 +203,7 @@ router.put('/lock', async (req, res, next) => {
 
 // DELETE /api/featured-slots/lock — unlock a week
 // Query: ?practitioner_id=X&week_start=2026-03-02
-router.delete('/lock', async (req, res, next) => {
+router.delete('/lock', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { practitioner_id, week_start } = req.query;

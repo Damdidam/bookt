@@ -4,6 +4,7 @@
  */
 const router = require('express').Router();
 const { queryWithRLS, transactionWithRLS } = require('../../services/db');
+const { blockIfImpersonated } = require('../../middleware/auth');
 
 // GET /api/business-hours — salon schedule + closures
 router.get('/', async (req, res, next) => {
@@ -43,7 +44,7 @@ router.get('/', async (req, res, next) => {
 });
 
 // PUT /api/business-hours — save salon weekly schedule (atomic replace)
-router.put('/', async (req, res, next) => {
+router.put('/', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { schedule } = req.body;
@@ -96,7 +97,7 @@ router.put('/', async (req, res, next) => {
 // ===== CLOSURES =====
 
 // POST /api/business-hours/closures — add an exceptional closure
-router.post('/closures', async (req, res, next) => {
+router.post('/closures', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { date_from, date_to, reason } = req.body;
@@ -130,7 +131,7 @@ router.post('/closures', async (req, res, next) => {
 });
 
 // DELETE /api/business-hours/closures/:id — remove a closure
-router.delete('/closures/:id', async (req, res, next) => {
+router.delete('/closures/:id', blockIfImpersonated, async (req, res, next) => {
   try {
     if (req.user.role === 'practitioner') {
       return res.status(403).json({ error: 'Seul un administrateur peut supprimer une fermeture' });

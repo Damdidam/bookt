@@ -86,7 +86,7 @@ router.get('/', async (req, res, next) => {
 // ============================================================
 // POST /api/tasks — create task (single or multi-practitioner)
 // ============================================================
-router.post('/', async (req, res, next) => {
+router.post('/', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { title, start_at, end_at, practitioner_id, practitioner_ids, color, note } = req.body;
@@ -257,7 +257,7 @@ async function _syncGroupPractitioners(bid, taskId, currentGroupId, newPracIds, 
 // ============================================================
 // PATCH /api/tasks/:id — edit task fields (propagates to group)
 // ============================================================
-router.patch('/:id', async (req, res, next) => {
+router.patch('/:id', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const id = req.params.id;
@@ -365,7 +365,7 @@ router.patch('/:id', async (req, res, next) => {
 // ============================================================
 // PATCH /api/tasks/:id/move — drag & drop (propagates to group)
 // ============================================================
-router.patch('/:id/move', async (req, res, next) => {
+router.patch('/:id/move', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const id = req.params.id;

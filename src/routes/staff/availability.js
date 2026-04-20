@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const { queryWithRLS, transactionWithRLS } = require('../../services/db');
-const { requireAuth, requireOwner } = require('../../middleware/auth');
+const { requireAuth, requireOwner, blockIfImpersonated } = require('../../middleware/auth');
 
 router.use(requireAuth);
 
@@ -56,7 +56,7 @@ router.get('/', async (req, res, next) => {
 
 // PUT /api/availabilities — replace full schedule for a practitioner
 // UI: Disponibilités grid → "Enregistrer"
-router.put('/', async (req, res, next) => {
+router.put('/', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { practitioner_id, schedule } = req.body;
@@ -143,7 +143,7 @@ router.get('/exceptions', async (req, res, next) => {
 });
 
 // POST /api/availability-exceptions
-router.post('/exceptions', async (req, res, next) => {
+router.post('/exceptions', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { practitioner_id, date, type, start_time, end_time, note } = req.body;
@@ -182,7 +182,7 @@ router.post('/exceptions', async (req, res, next) => {
 });
 
 // DELETE /api/availability-exceptions/:id
-router.delete('/exceptions/:id', async (req, res, next) => {
+router.delete('/exceptions/:id', blockIfImpersonated, async (req, res, next) => {
   try {
     // V13-015: Add practitioner ownership check for practitioner role
     let sql = `DELETE FROM availability_exceptions WHERE id = $1 AND business_id = $2`;
@@ -262,7 +262,7 @@ router.get('/holidays', async (req, res, next) => {
 });
 
 // POST /api/availabilities/holidays — add a single holiday (owner only)
-router.post('/holidays', requireOwner, async (req, res, next) => {
+router.post('/holidays', requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { date, name } = req.body;
@@ -280,7 +280,7 @@ router.post('/holidays', requireOwner, async (req, res, next) => {
 });
 
 // DELETE /api/availabilities/holidays/:id (owner only)
-router.delete('/holidays/:id', requireOwner, async (req, res, next) => {
+router.delete('/holidays/:id', requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     await queryWithRLS(req.businessId,
       `DELETE FROM business_holidays WHERE id = $1 AND business_id = $2`,
@@ -291,7 +291,7 @@ router.delete('/holidays/:id', requireOwner, async (req, res, next) => {
 });
 
 // POST /api/availabilities/holidays/prefill — prefill Belgian legal holidays (owner only)
-router.post('/holidays/prefill', requireOwner, async (req, res, next) => {
+router.post('/holidays/prefill', requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const year = parseInt(req.body.year) || new Date().getFullYear();
