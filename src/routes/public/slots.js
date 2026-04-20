@@ -267,8 +267,15 @@ router.get('/:slug/multi-slots', slotsLimiter, async (req, res, next) => {
       const allEligible = ids.every(id => svcMap[id]?.promo_eligible !== false);
 
       if (allEligible) {
-        // Compute total catalog price with variant overrides
+        // Compute total catalog price with variant overrides + collect per-service prices
+        // DECISION PRODUIT 3b (20 avril 2026) — sémantique per-service :
+        // LM s'applique au groupe uniquement si CHAQUE ligne dépasse minPriceCents.
+        // Avant : on comparait `total >= minPriceCents` (sémantique "cart"), ce qui
+        // permettait LM sur un panier 5+5+30=40€ avec min=30. Incohérent avec les
+        // 10+ autres sites (public/index.js, bookings-time.js, etc.) qui utilisent
+        // per-service. Alignement : all-or-nothing per-service.
         let totalCatalogCents = 0;
+        let anyBelowMin = false;
         for (let i = 0; i < ids.length; i++) {
           let priceCents = svcMap[ids[i]]?.price_cents || 0;
           const vid = vids[i];
@@ -280,9 +287,10 @@ router.get('/:slug/multi-slots', slotsLimiter, async (req, res, next) => {
             if (varRes.rows[0]?.price_cents != null) priceCents = varRes.rows[0].price_cents;
           }
           totalCatalogCents += priceCents;
+          if (priceCents > 0 && priceCents < minPriceCents) anyBelowMin = true;
         }
 
-        if (totalCatalogCents > 0 && totalCatalogCents >= minPriceCents) {
+        if (totalCatalogCents > 0 && !anyBelowMin) {
           const discountedCents = Math.round(totalCatalogCents * (100 - discountPct) / 100);
           for (const slot of slots) {
             if (isWithinLastMinuteWindow(slot.date, brusselsToday, deadline)) {

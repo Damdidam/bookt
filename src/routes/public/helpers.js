@@ -41,6 +41,15 @@ function shouldRequireDeposit(bizSettings, totalPriceCents, totalDurationMin, no
   if (!thresholdTrigger && !noShowTrigger) return { required: false };
 
   // Calculate deposit amount
+  // DECISION PRODUIT 3a (20 avril 2026) — Gel du deposit après paiement :
+  // si un booking a déjà payé son acompte et que le prix du service est ensuite
+  // modifié (salon baisse son tarif p.ex.), on NE recalcule PAS le deposit
+  // (pas de refund automatique de l'excédent). L'acompte est une garantie
+  // contractuelle fixe, pas un pourcentage glissant.
+  // Enforcement : les UPDATE deposit_amount_cents dans booking-reschedule.js:580,
+  // bookings-time.js:455+806 ont le guard `WHERE deposit_status = 'pending'`.
+  // Le client bénéficie naturellement de la baisse via une charge réduite sur place
+  // (total - acompte figé). Pour refund explicite, le pro utilise le dashboard.
   let depCents = 0;
   if (bizSettings.deposit_type === 'fixed') {
     depCents = bizSettings.deposit_fixed_cents || 2500;
