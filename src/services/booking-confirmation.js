@@ -183,7 +183,15 @@ async function processExpiredPendingBookings() {
                 const _stripeFees = await resolveStripeFeeCents(stripe, _piId, _actualStripeCharge);
                 const _netRefund = Math.max(_actualStripeCharge - _stripeFees, 0);
                 if (_netRefund >= 50) {
-                  await stripe.refunds.create({ payment_intent: _piId, amount: _netRefund });
+                  // A#9 fix: idempotency key pour éviter double-refund si Stripe call
+                  // réussit mais COMMIT DB plante → cron retry → charge_already_refunded
+                  // est catché plus bas, mais avec idempotency_key Stripe renvoie le
+                  // MÊME refund sans le dupliquer côté Stripe (safer que relying sur
+                  // charge_already_refunded qui dépend du message Stripe).
+                  await stripe.refunds.create(
+                    { payment_intent: _piId, amount: _netRefund },
+                    { idempotencyKey: `cron-confirm-refund-${bk.id}` }
+                  );
                   console.log(`[CONFIRM CRON] Net refund: ${_netRefund}c (fees ${_stripeFees}c, gc ${_gcPaidCents}c) for PI ${_piId}`);
                   _netRefundForEmail = _netRefund;
                 } else {
@@ -193,7 +201,11 @@ async function processExpiredPendingBookings() {
                   _retentionReason = 'fees_exceed_charge';
                 }
               } else {
-                await stripe.refunds.create({ payment_intent: _piId });
+                // A#9 fix: idempotency key (full refund path)
+                await stripe.refunds.create(
+                  { payment_intent: _piId },
+                  { idempotencyKey: `cron-confirm-refund-full-${bk.id}` }
+                );
               }
               await client.query(`UPDATE bookings SET deposit_status = $2 WHERE id = $1`, [bk.id, _finalDepStatus]);
               if (bk.group_id) {
@@ -248,7 +260,11 @@ async function processExpiredPendingBookings() {
                       const _sibFees = await resolveStripeFeeCents(stripe, _sibPi, _sibCharge);
                       const _sibNet = Math.max(_sibCharge - _sibFees, 0);
                       if (_sibNet >= 50) {
-                        await stripe.refunds.create({ payment_intent: _sibPi, amount: _sibNet });
+                        // A#9 fix: idempotency key par sibling
+                        await stripe.refunds.create(
+                          { payment_intent: _sibPi, amount: _sibNet },
+                          { idempotencyKey: `cron-confirm-sib-refund-${_sib.id}` }
+                        );
                         await client.query(`UPDATE bookings SET deposit_status = 'refunded' WHERE id = $1`, [_sib.id]);
                         console.log(`[CONFIRM CRON] Sibling ${_sib.id} net refund: ${_sibNet}c for PI ${_sibPi}`);
                       } else {
@@ -256,7 +272,11 @@ async function processExpiredPendingBookings() {
                         console.warn(`[CONFIRM CRON] Sibling ${_sib.id} netRefund=${_sibNet}c <50c — deposit retenu`);
                       }
                     } else {
-                      await stripe.refunds.create({ payment_intent: _sibPi });
+                      // A#9 fix: idempotency key (full sibling refund)
+                      await stripe.refunds.create(
+                        { payment_intent: _sibPi },
+                        { idempotencyKey: `cron-confirm-sib-refund-full-${_sib.id}` }
+                      );
                       await client.query(`UPDATE bookings SET deposit_status = 'refunded' WHERE id = $1`, [_sib.id]);
                       console.log(`[CONFIRM CRON] Sibling ${_sib.id} full refund for PI ${_sibPi}`);
                     }

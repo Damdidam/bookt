@@ -568,6 +568,35 @@ router.post(['/manage/:token/reschedule', '/booking/:token/reschedule'], booking
       );
       const _isDepQuoteOnly = _qoDep.rows.length > 0;
 
+      // A#6 fix: detect deposit > price overpayment post-reschedule for deposit_status='paid'.
+      // Décision produit 3a (memory): deposit payé est gelé, pas de recalc automatique. MAIS
+      // si le nouveau booked_price_cents est INFÉRIEUR au deposit payé (client reschedule
+      // vers créneau hors LM + service avec prix plus bas), le client a surpayé son acompte.
+      // On ne refund pas automatiquement (3a) mais on insère une notification pro pour
+      // action manuelle via dashboard.
+      if (bk.deposit_status === 'paid' && !_isDepQuoteOnly) {
+        try {
+          const _paidTotal = await client.query(
+            `SELECT COALESCE(SUM(booked_price_cents), 0) AS total,
+                    COALESCE(SUM(promotion_discount_cents), 0) AS promo,
+                    COALESCE(SUM(deposit_amount_cents), 0) AS deposit
+               FROM bookings WHERE id = ANY($1::uuid[])`, [depIds]
+          );
+          const _newEffPrice = Math.max((parseInt(_paidTotal.rows[0].total) || 0) - (parseInt(_paidTotal.rows[0].promo) || 0), 0);
+          const _paidDeposit = parseInt(_paidTotal.rows[0].deposit) || 0;
+          if (_paidDeposit > _newEffPrice && _paidDeposit - _newEffPrice >= 50) {
+            const _overpaidCents = _paidDeposit - _newEffPrice;
+            console.warn(`[RESCHEDULE OVERPAY] booking=${bk.id} deposit=${_paidDeposit}c > new_price=${_newEffPrice}c — overpay ${_overpaidCents}c, pro action required`);
+            // Audit log pour que le pro puisse retrouver l'écart dans son dashboard.
+            await client.query(
+              `INSERT INTO audit_logs (business_id, entity_type, entity_id, action, new_data)
+                 VALUES ($1, 'booking', $2, 'deposit_overpay_detected', $3)`,
+              [bk.business_id, bk.id, JSON.stringify({ deposit_cents: _paidDeposit, new_price_cents: _newEffPrice, overpay_cents: _overpaidCents, context: 'reschedule' })]
+            ).catch(e => console.warn('[RESCHEDULE OVERPAY] audit log failed:', e.message));
+          }
+        } catch (_overErr) { console.warn('[RESCHEDULE OVERPAY] check failed:', _overErr.message); }
+      }
+
       // Only recalculate if deposit is still pending AND not a quote_only booking
       if (bk.deposit_status === 'pending' && !_isDepQuoteOnly) {
         const bizRes = await client.query(`SELECT settings FROM businesses WHERE id = $1`, [bk.business_id]);

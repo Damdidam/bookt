@@ -304,10 +304,13 @@ router.post('/', requireOwner, blockIfImpersonated, async (req, res, next) => {
     });
     const total = subtotal;
 
-    // Due date
+    // Due date — E#10 fix: `due_days || 30` forçait 30j si user saisissait 0
+    // (paiement comptant, cas fréquent en coiffure/esthétique). Nullish OK 0.
     const issueDate = new Date();
     const dueDate = new Date(issueDate);
-    dueDate.setDate(dueDate.getDate() + (due_days || 30));
+    const _parsedDueDays = parseInt(due_days);
+    const _effectiveDueDays = Number.isFinite(_parsedDueDays) ? Math.max(0, _parsedDueDays) : 30;
+    dueDate.setDate(dueDate.getDate() + _effectiveDueDays);
 
     // Atomic: generate invoice number + create invoice + insert items in one transaction
     const invoice = await transactionWithRLS(bid, async (txClient) => {
@@ -449,9 +452,22 @@ router.post('/:id/credit-note', requireOwner, blockIfImpersonated, async (req, r
       }
 
       // Optional: mark the original 'cancelled' AFTER credit note exists (now legally permitted)
+      // E#11 fix: bypass de la state machine TRANSITIONS (L496) — justifié car l'émission
+      // d'une note de crédit permet LÉGALEMENT d'annuler une facture payée (AR n°1 art.14
+      // BE). Mais pour compliance, on vérifie explicitement (1) qu'une credit note vient
+      // d'être créée dans cette même tx, et (2) que le status courant est bien 'paid' ou
+      // 'sent' (pas 'cancelled' qui serait double-cancel). `cnId` est le credit note créé
+      // ci-dessus, garant par construction d'une NC valide.
       if (mark_original_cancelled === true) {
+        if (!cnId) {
+          throw new Error('Cannot cancel original without a credit note — internal invariant violated');
+        }
+        if (!['paid', 'sent'].includes(inv.status)) {
+          throw new Error(`Cannot mark original cancelled from status=${inv.status}`);
+        }
         await txClient.query(
-          `UPDATE invoices SET status = 'cancelled', updated_at = NOW() WHERE id = $1`,
+          `UPDATE invoices SET status = 'cancelled', updated_at = NOW()
+            WHERE id = $1 AND status IN ('paid', 'sent')`,
           [inv.id]
         );
       }
