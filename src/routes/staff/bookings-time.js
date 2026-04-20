@@ -8,6 +8,7 @@ const { sendModificationEmail } = require('../../services/email');
 const { sendSMS } = require('../../services/sms');
 const { calSyncPush, businessAllowsOverlap, checkPracAvailability, getMaxConcurrent, checkBookingConflicts, syncDraftInvoicesForBookings } = require('./bookings-helpers');
 const { isWithinLastMinuteWindow, invalidateMinisiteCache } = require('../public/helpers');
+const { blockIfImpersonated } = require('../../middleware/auth');
 
 // STS-V12-007: UUID validation regex (reused across all endpoints)
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -96,7 +97,7 @@ router.get('/:id/check-slot', async (req, res, next) => {
 // PATCH /api/bookings/:id/move — Drag & drop
 // UI: Calendar → drag event to new time/date/practitioner
 // ============================================================
-router.patch('/:id/move', async (req, res, next) => {
+router.patch('/:id/move', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
@@ -973,7 +974,7 @@ let sql = `UPDATE bookings SET start_at = $1, end_at = $2, reminder_24h_sent_at 
 // PATCH /api/bookings/:id/edit — Edit booking fields (unified modal)
 // UI: Calendar → detail modal → Enregistrer
 // ============================================================
-router.patch('/:id/edit', async (req, res, next) => {
+router.patch('/:id/edit', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
@@ -1339,7 +1340,7 @@ router.patch('/:id/edit', async (req, res, next) => {
 // PATCH /api/bookings/:id/resize — Resize duration
 // UI: Calendar → drag event bottom edge
 // ============================================================
-router.patch('/:id/resize', async (req, res, next) => {
+router.patch('/:id/resize', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
@@ -1455,7 +1456,7 @@ router.patch('/:id/resize', async (req, res, next) => {
 // Handles: date, time, duration changes + optional client notification
 // UI: Calendar → event detail → "Modifier horaire" section
 // ============================================================
-router.patch('/:id/modify', async (req, res, next) => {
+router.patch('/:id/modify', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
@@ -1798,7 +1799,7 @@ router.patch('/:id/modify', async (req, res, next) => {
 // PATCH /api/bookings/:id/reorder-group — Reorder services within a group
 // UI: Booking detail modal → ↑/↓ buttons on group members
 // ============================================================
-router.patch('/:id/reorder-group', async (req, res, next) => {
+router.patch('/:id/reorder-group', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
@@ -1894,7 +1895,7 @@ router.patch('/:id/reorder-group', async (req, res, next) => {
 // POST /api/bookings/:id/send-reminder — Manual reminder (SMS/email/both)
 // UI: Booking detail modal → "Envoyer un rappel" button
 // ============================================================
-router.post('/:id/send-reminder', async (req, res, next) => {
+router.post('/:id/send-reminder', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
