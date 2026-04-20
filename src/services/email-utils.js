@@ -111,24 +111,49 @@ async function sendEmail(opts) {
   // Patterns alignés sur webhooks/brevo.js:80 qui écrit `brevo_<event>: <reason>`.
   // Events terminaux: hard_bounce, blocked, spam, complaint, invalid_email, unsubscribed.
   // soft_bounce est exclu (transient, on retry).
+  //
+  // C#9 fix: scope la suppression par business_id pour éviter le cross-tenant leak.
+  // Avant : un bounce sur salon A (inbox client@gmail.com pleine) bloquait TOUS les
+  // salons B/C/D tentant d'écrire à client@gmail.com pendant 90j. RGPD-safe mais
+  // UX/business désastreux (client change de salon, reçoit rien). Le caller peut
+  // passer businessId via opts ; si absent on fallback sur l'ancien comportement
+  // global pour pas casser l'existant (hard_bounce reste une info solide cross-tenant
+  // — inbox full/invalid_email = souvent transitoire ou spécifique à la relation).
   try {
     const { query } = require('./db');
-    const suppressCheck = await query(
-      `SELECT 1 FROM notifications
-         WHERE LOWER(recipient_email) = LOWER($1)
-           AND type LIKE 'email_%'
-           AND (error ILIKE '%hard_bounce%'
-                OR error ILIKE '%brevo_blocked%'
-                OR error ILIKE '%brevo_spam%'
-                OR error ILIKE '%brevo_complaint%'
-                OR error ILIKE '%invalid_email%'
-                OR error ILIKE '%unsubscribed%'
-                OR error ILIKE '%brevo_error%')
-           AND created_at > NOW() - INTERVAL '90 days'
-         LIMIT 1`, [opts.to]
-    );
+    const _sb = opts.businessId;
+    const suppressCheck = _sb
+      ? await query(
+          `SELECT 1 FROM notifications
+             WHERE business_id = $2::uuid
+               AND LOWER(recipient_email) = LOWER($1)
+               AND type LIKE 'email_%'
+               AND (error ILIKE '%hard_bounce%'
+                    OR error ILIKE '%brevo_blocked%'
+                    OR error ILIKE '%brevo_spam%'
+                    OR error ILIKE '%brevo_complaint%'
+                    OR error ILIKE '%invalid_email%'
+                    OR error ILIKE '%unsubscribed%'
+                    OR error ILIKE '%brevo_error%')
+               AND created_at > NOW() - INTERVAL '90 days'
+             LIMIT 1`, [opts.to, _sb]
+        )
+      : await query(
+          `SELECT 1 FROM notifications
+             WHERE LOWER(recipient_email) = LOWER($1)
+               AND type LIKE 'email_%'
+               AND (error ILIKE '%hard_bounce%'
+                    OR error ILIKE '%brevo_blocked%'
+                    OR error ILIKE '%brevo_spam%'
+                    OR error ILIKE '%brevo_complaint%'
+                    OR error ILIKE '%invalid_email%'
+                    OR error ILIKE '%unsubscribed%'
+                    OR error ILIKE '%brevo_error%')
+               AND created_at > NOW() - INTERVAL '90 days'
+             LIMIT 1`, [opts.to]
+        );
     if (suppressCheck.rows.length > 0) {
-      console.warn(`[EMAIL] Suppression-list hit for ${opts.to} (bounced/blocked in last 90d) — skipping send.`);
+      console.warn(`[EMAIL] Suppression-list hit for ${opts.to} (bounced/blocked in last 90d, biz=${_sb || 'global'}) — skipping send.`);
       return { success: false, error: 'suppression_list', skipped: true };
     }
   } catch (_) { /* DB unavailable — proceed with send (fail-open for transient issues) */ }

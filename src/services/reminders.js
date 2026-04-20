@@ -291,10 +291,14 @@ async function process24hReminders(stats) {
         let smsBody = `Rappel ${_biz24}: RDV "${_svc24}" le ${dateShort} à ${timeShort}${_prac24 ? ' avec ' + _prac24 : ''}. Modifier: ${manageUrl}`;
         if (smsBody.length > 160) smsBody = `Rappel: RDV "${_svc24}" le ${dateShort} à ${timeShort}. Modifier: ${manageUrl}`;
 
+        // C#10 / H#12 fix: pass clientId so sendSMS auto-checks consent_sms in DB
+        // (defense in depth — the gate upstream filtered by consent_sms but a race
+        // between SELECT and send could miss a STOP received in between).
         const result = await sendSMS({
           to: bk.client_phone,
           body: smsBody,
-          businessId: bk.business_id
+          businessId: bk.business_id,
+          clientId: bk.client_id
         });
 
         if (result.success) {
@@ -447,10 +451,14 @@ async function process2hReminders(stats) {
         }
         if (smsBody.length > 160) smsBody = `Rappel: RDV dans 2h (${timeShort}). Détails : ${manageUrl2hSms}`;
 
+        // C#10 / H#12 fix: pass clientId so sendSMS auto-checks consent_sms in DB
+        // (defense in depth — the gate upstream filtered by consent_sms but a race
+        // between SELECT and send could miss a STOP received in between).
         const result = await sendSMS({
           to: bk.client_phone,
           body: smsBody,
-          businessId: bk.business_id
+          businessId: bk.business_id,
+          clientId: bk.client_id
         });
 
         if (result.success) {

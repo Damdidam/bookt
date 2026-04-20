@@ -933,7 +933,7 @@ router.post('/notify-impacted', requireOwner, async (req, res, next) => {
     // Fetch impacted bookings (same logic as GET /impact)
     const bookings = await queryWithRLS(bid,
       `SELECT b.id, b.start_at, b.end_at, b.status, b.public_token, b.group_id,
-              b.appointment_mode,
+              b.appointment_mode, b.client_id,
               c.full_name AS client_name, c.phone AS client_phone,
               c.email AS client_email, c.consent_sms,
               CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
@@ -1199,10 +1199,12 @@ router.post('/notify-impacted', requireOwner, async (req, res, next) => {
             ? `${business.name}: Votre RDV "${bk.service_name || 'prestation'}" du ${dateShort} à ${timeShort} est impacté par une absence de votre praticien. Détails : ${_manageUrl}`
             : `${business.name}: Votre RDV du ${dateShort} à ${timeShort} (${bk.service_name || 'prestation'}) est impacté par une absence de votre praticien. Nous vous recontacterons.`;
 
+          // H#12 fix: pass clientId for defense-in-depth consent_sms auto-check.
           const smsResult = await sendSMS({
             to: bk.client_phone,
             body: smsBody,
-            businessId: bid
+            businessId: bid,
+            clientId: bk.client_id
           });
 
           if (smsResult.success) sentSms++;
