@@ -167,6 +167,19 @@ router.post('/login', authLimiter, async (req, res, next) => {
 // Verify a magic link token and return JWT
 // ============================================================
 router.post('/verify', authLimiter, async (req, res, next) => {
+  // H#16 v5: bounded() pour aligner les 3 branches timing (L186 token invalide ~5ms,
+  // L199 token valide + compte désactivé ~20ms, L224 succès ~30-50ms). Un attaquant
+  // qui a intercepté un magic link expiré peut distinguer "token déjà utilisé" de
+  // "compte désactivé" via timing. Fenêtre 150-250ms absorbe les 3 cas.
+  const tStart = Date.now();
+  const minVerifyMs = 150 + Math.floor(Math.random() * 100); // 150-250ms
+  const bounded = async (status, payload) => {
+    const elapsed = Date.now() - tStart;
+    if (elapsed < minVerifyMs) {
+      await new Promise((r) => setTimeout(r, minVerifyMs - elapsed));
+    }
+    return res.status(status).json(payload);
+  };
   try {
     const { token: magicToken } = req.body;
 
@@ -183,7 +196,7 @@ router.post('/verify', authLimiter, async (req, res, next) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(400).json({ error: 'Lien invalide, expiré ou déjà utilisé' });
+      return bounded(400, { error: 'Lien invalide, expiré ou déjà utilisé' });
     }
 
     const { user_id } = result.rows[0];
@@ -196,7 +209,7 @@ router.post('/verify', authLimiter, async (req, res, next) => {
       [user_id]
     );
     if (userResult.rows.length === 0) {
-      return res.status(400).json({ error: 'Compte désactivé ou introuvable' });
+      return bounded(400, { error: 'Lien invalide, expiré ou déjà utilisé' });
     }
 
     const ml = userResult.rows[0];
@@ -221,7 +234,7 @@ router.post('/verify', authLimiter, async (req, res, next) => {
     );
     const extra = extraResult.rows[0] || {};
 
-    res.json({
+    return bounded(200, {
       token: jwtToken,
       user: {
         id: user_id,
@@ -388,6 +401,19 @@ router.post('/forgot-password', authLimiter, async (req, res, next) => {
 // UI: /reset-password.html
 // ============================================================
 router.post('/reset-password', authLimiter, async (req, res, next) => {
+  // H#16 v5: bounded() pour aligner timing 400 (token invalide ~5ms) et 200
+  // (succès avec bcrypt.hash + tx ~500-700ms). Token est 256-bit random donc
+  // brute-force impraticable, mais énumération de tokens valides devient
+  // impossible en timing. Cohérence avec /login /forgot /verify /signup.
+  const tStart = Date.now();
+  const minResetPwMs = 500 + Math.floor(Math.random() * 200); // 500-700ms (bcrypt 12 rounds ~300ms)
+  const bounded = async (status, payload) => {
+    const elapsed = Date.now() - tStart;
+    if (elapsed < minResetPwMs) {
+      await new Promise((r) => setTimeout(r, minResetPwMs - elapsed));
+    }
+    return res.status(status).json(payload);
+  };
   try {
     const { token, new_password } = req.body;
     if (!token || !new_password) {
@@ -413,7 +439,7 @@ router.post('/reset-password', authLimiter, async (req, res, next) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(400).json({ error: 'Lien invalide, expiré ou déjà utilisé' });
+      return bounded(400, { error: 'Lien invalide, expiré ou déjà utilisé' });
     }
 
     const rt = result.rows[0];
@@ -448,7 +474,7 @@ router.post('/reset-password', authLimiter, async (req, res, next) => {
     const email = userResult.rows[0]?.email || 'unknown';
     console.log(`[AUTH] Password reset successful for ${email}`);
 
-    res.json({ success: true, message: 'Mot de passe modifié avec succès' });
+    return bounded(200, { success: true, message: 'Mot de passe modifié avec succès' });
   } catch (err) { next(err); }
 });
 

@@ -16,6 +16,20 @@ const { sendEmail, buildEmailHTML, escHtml } = require('../../services/email-uti
 //          + onboarding_progress
 // ============================================================
 router.post('/signup', authLimiter, async (req, res, next) => {
+  // H#16 v5: bounded() pour aligner timing 409 (email existe, ~5-10ms) et 201
+  // (création complète, ~400-600ms bcrypt+10 INSERTs). Sans ça, un attaquant peut
+  // énumérer des emails enregistrés simplement en mesurant la latence du POST.
+  // Fenêtre cible 500-700ms couvre le worst-case création (bcrypt 12 rounds + tx
+  // atomique). Les 400 validation restent immédiats (avant DB, pas de leak).
+  const tStart = Date.now();
+  const minSignupMs = 500 + Math.floor(Math.random() * 200); // 500-700ms
+  const bounded = async (status, payload) => {
+    const elapsed = Date.now() - tStart;
+    if (elapsed < minSignupMs) {
+      await new Promise((r) => setTimeout(r, minSignupMs - elapsed));
+    }
+    return res.status(status).json(payload);
+  };
   try {
     const {
       // Owner info
@@ -76,7 +90,7 @@ router.post('/signup', authLimiter, async (req, res, next) => {
       `SELECT id FROM users WHERE LOWER(email) = $1`, [rawLower]
     );
     if (existingUser.rows.length > 0) {
-      return res.status(409).json({ error: 'Un compte existe déjà avec cet email' });
+      return bounded(409, { error: 'Un compte existe déjà avec cet email' });
     }
     // H#6 fix: if the raw email already equals its canonical form (no +tag, not
     // gmail/googlemail dots-mattering), the check above is sufficient. Otherwise
@@ -96,7 +110,7 @@ router.post('/signup', authLimiter, async (req, res, next) => {
         [domainsToScan]
       );
       if (sameDomainUsers.rows.some(u => normalizeEmail(u.email) === normalizedEmail)) {
-        return res.status(409).json({ error: 'Un compte existe déjà avec cet email (alias détecté)' });
+        return bounded(409, { error: 'Un compte existe déjà avec cet email (alias détecté)' });
       }
     }
 
@@ -308,7 +322,7 @@ router.post('/signup', authLimiter, async (req, res, next) => {
         }
       }).catch(() => {});
 
-      res.status(201).json({
+      return bounded(201, {
         token,
         user: { id: userId, email, role: 'owner', business_name },
         business: {
