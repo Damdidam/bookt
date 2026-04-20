@@ -925,11 +925,20 @@ async function handleStripeWebhook(req, res) {
       case 'invoice.paid': {
         const invoice = event.data.object;
         const subId = invoice.subscription;
-        // M6: Don't overwrite 'trialing' on $0 trial invoices
+        // P1-10 fix: le filtre `AND subscription_status != 'trialing'` bloquait
+        // la transition trialing → active quand la PREMIÈRE vraie facture arrivait
+        // (billing_reason='subscription_cycle' à la fin du trial). Résultat :
+        // businesses restaient 'trialing' indéfiniment alors que Stripe facturait
+        // déjà → UI "en essai" + gates Pro mal appliqués.
+        //
+        // La guard `billing_reason !== 'subscription_create'` suffit à exclure
+        // la $0 trial start invoice (celle-là seule a billing_reason=subscription_create).
+        // Toutes les autres (cycle, manual, subscription_update, ...) sont des
+        // vrais paiements → active.
         if (subId && invoice.billing_reason !== 'subscription_create') {
           await query(
             `UPDATE businesses SET subscription_status = 'active', updated_at = NOW()
-             WHERE stripe_subscription_id = $1 AND subscription_status != 'trialing'`,
+             WHERE stripe_subscription_id = $1`,
             [subId]
           );
           console.log(`[STRIPE WH] Payment received for subscription ${subId}`);

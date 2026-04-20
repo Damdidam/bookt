@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { query, pool } = require('../../services/db');
-const { bookingLimiter } = require('../../middleware/rate-limiter');
+const { bookingLimiter, bookingActionLimiter } = require('../../middleware/rate-limiter');
 const { UUID_RE, shouldRequireDeposit, computeDepositDeadline, BASE_URL, isDisposableEmail } = require('./helpers');
 const { broadcast } = require('../../services/sse');
 const { checkBookingConflicts } = require('../staff/bookings-helpers');
@@ -152,7 +152,10 @@ router.post('/:slug/waitlist', bookingLimiter, async (req, res, next) => {
 });
 
 // GET /api/public/waitlist/:token — get offer details
-router.get('/waitlist/:token', async (req, res, next) => {
+// P1-05: bookingActionLimiter (20 req/min/IP) — protège contre scrape/DoS
+// aveugle. Token 128-bit random impraticable à brute-force, mais cohérence
+// avec les autres GET publics (booking lookup, ics, etc.).
+router.get('/waitlist/:token', bookingActionLimiter, async (req, res, next) => {
   try {
     const result = await query(
       `SELECT w.id, w.status, w.client_name, w.offer_booking_start, w.offer_booking_end,
