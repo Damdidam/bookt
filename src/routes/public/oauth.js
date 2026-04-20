@@ -132,8 +132,9 @@ router.get('/pickup-cookie', async (req, res) => {
       `DELETE FROM oauth_states WHERE state_key = $1 AND expires_at > NOW() RETURNING data`,
       [cookieKey]
     );
-    // Clear cookie immediately (one-shot consumption even on error)
-    res.clearCookie('oauth_pickup', { path: `/${(req.query.slug || '').replace(/[^a-zA-Z0-9_-]/g, '')}` });
+    // Clear cookie immediately (one-shot consumption even on error).
+    // Path doit matcher celui du Set-Cookie — maintenant `/` (v2 regression fix).
+    res.clearCookie('oauth_pickup', { path: '/' });
     if (r.rows.length === 0) {
       return res.status(404).json({ error: 'Lien expiré ou déjà utilisé' });
     }
@@ -296,12 +297,17 @@ async function handleCallback(provider, params, appleUserObj, req, res) {
     // éventuellement), history navigateur. Passer par un cookie httpOnly scopé
     // au chemin du minisite élimine cette fuite. La clé reste one-shot + 5 min
     // TTL, le frontend lit le cookie au load puis appelle /api/public/auth/pickup.
+    // H#18 v2 regression fix: path doit être `/` (pas `/${slug}`) sinon le cookie
+    // n'est PAS envoyé sur les requêtes vers `/api/public/auth/pickup-cookie`.
+    // La sécurité du pickupKey vient de : (a) aléatoire 32 hex chars, (b) one-shot
+    // DELETE RETURNING, (c) TTL 5 min, (d) cookie httpOnly + sameSite=lax + Secure.
+    // Le path scope n'apporte pas de protection supplémentaire ici.
     res.cookie('oauth_pickup', pickupKey, {
       maxAge: 5 * 60 * 1000,
       httpOnly: true,
       sameSite: 'lax',
       secure: process.env.NODE_ENV === 'production',
-      path: `/${slug}`
+      path: '/'
     });
     // H#18 v2 fix: la clé pickupKey N'EST PLUS dans l'URL (retirée du query param).
     // Seul le cookie httpOnly transporte le secret. Le frontend signal "user revient
