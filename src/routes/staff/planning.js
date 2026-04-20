@@ -481,7 +481,7 @@ router.get('/absences/:id', async (req, res, next) => {
 // ============================================================
 // POST /api/planning/absences — create absence
 // ============================================================
-router.post('/absences', requireOwner, async (req, res, next) => {
+router.post('/absences', requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { practitioner_id, date_from, date_to, type, note, period, period_end } = req.body;
@@ -544,7 +544,7 @@ router.post('/absences', requireOwner, async (req, res, next) => {
 // ============================================================
 // PATCH /api/planning/absences/:id — update absence
 // ============================================================
-router.patch('/absences/:id', requireOwner, async (req, res, next) => {
+router.patch('/absences/:id', requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
@@ -650,7 +650,7 @@ router.get('/absences/:id/logs', async (req, res, next) => {
 // ============================================================
 // POST /api/planning/absences/:id/notify — send email
 // ============================================================
-router.post('/absences/:id/notify', requireOwner, async (req, res, next) => {
+router.post('/absences/:id/notify', requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
 
@@ -922,7 +922,7 @@ router.get('/impact', async (req, res, next) => {
 // POST /api/planning/notify-impacted — notify clients affected by absence
 // Sends email + SMS to clients whose bookings overlap the absence period
 // ============================================================
-router.post('/notify-impacted', requireOwner, async (req, res, next) => {
+router.post('/notify-impacted', requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { practitioner_id, date_from, date_to, period, period_end } = req.body;
@@ -1239,7 +1239,7 @@ router.post('/notify-impacted', requireOwner, async (req, res, next) => {
 // ============================================================
 // POST /api/planning/reassign — reassign a booking to another practitioner
 // ============================================================
-router.post('/reassign', requireOwner, async (req, res, next) => {
+router.post('/reassign', requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { booking_id, new_practitioner_id } = req.body;
@@ -1525,7 +1525,7 @@ router.get('/export', requireOwner, async (req, res, next) => {
 // ============================================================
 // POST /api/planning/send-planning — send monthly planning by email
 // ============================================================
-router.post('/send-planning', requireOwner, async (req, res, next) => {
+router.post('/send-planning', requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { practitioner_id, month } = req.body;

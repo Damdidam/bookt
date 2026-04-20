@@ -96,7 +96,7 @@ router.get('/', async (req, res, next) => {
 // ============================================================
 // POST /api/waitlist — manually add someone to waitlist (pro)
 // ============================================================
-router.post('/', async (req, res, next) => {
+router.post('/', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { practitioner_id, service_id, service_variant_id, client_name, client_email,
@@ -196,7 +196,7 @@ router.post('/', async (req, res, next) => {
 // ============================================================
 // PATCH /api/waitlist/:id — update entry (notes, status)
 // ============================================================
-router.patch('/:id', async (req, res, next) => {
+router.patch('/:id', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
@@ -273,7 +273,7 @@ router.delete('/:id', blockIfImpersonated, async (req, res, next) => {
 // POST /api/waitlist/:id/offer — manually send offer (manual mode)
 // Pro picks an entry and sends them a slot
 // ============================================================
-router.post('/:id/offer', async (req, res, next) => {
+router.post('/:id/offer', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
@@ -439,7 +439,7 @@ router.post('/:id/offer', async (req, res, next) => {
 // POST /api/waitlist/:id/contact — mark as contacted (manual mode)
 // Pro contacted the client themselves
 // ============================================================
-router.post('/:id/contact', async (req, res, next) => {
+router.post('/:id/contact', blockIfImpersonated, async (req, res, next) => {
   try {
     if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'ID invalide' });
     const { outcome } = req.body; // 'booked' or 'declined'
