@@ -24,6 +24,7 @@ import { initDrawer, toggleDrawer } from './utils/drawer.js';
 import { initTimeInputs } from './utils/dom.js';
 import { bridge } from './utils/window-bridge.js';
 import { closeModal } from './utils/dirty-guard.js';
+import { initSSE } from './utils/sse.js';
 
 // ── Auth guard ──
 if (!api.isLoggedIn()) {
@@ -198,6 +199,9 @@ initDrawer();
 
 // ── Init simple digit time inputs (replaces Android clock picker) ──
 initTimeInputs();
+
+// ── Init global SSE (dispatches genda:booking_update / genda:waitlist_match on window) ──
+initSSE();
 
 // ── Init router & load default view ──
 initRouter();

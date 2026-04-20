@@ -318,4 +318,15 @@ Object.defineProperty(window, 'viewState', { get(){return viewState;}, configura
 
 bridge({ loadWaitlist, wlOpenAdd, wlOnSvcChange, wlSaveAdd, wlOffer, wlSendOffer, wlContact, wlRemove, wlDetail, wlSaveNotes, wlChangeStatus });
 
+// Debounced auto-reload on SSE booking_update / waitlist_match si l'utilisateur est sur la page waitlist.
+let _wlReloadTimer = null;
+function _wlReloadIfActive() {
+  const onWl = document.querySelector('.ni.active[data-section="waitlist"]');
+  if (!onWl) return;
+  if (_wlReloadTimer) clearTimeout(_wlReloadTimer);
+  _wlReloadTimer = setTimeout(() => { _wlReloadTimer = null; loadWaitlist().catch(() => {}); }, 500);
+}
+window.addEventListener('genda:booking_update', _wlReloadIfActive);
+window.addEventListener('genda:waitlist_match', _wlReloadIfActive);
+
 export { loadWaitlist, wlOpenAdd, wlOnSvcChange, wlSaveAdd, wlOffer, wlSendOffer, wlContact, wlRemove, wlDetail, wlSaveNotes, wlChangeStatus };

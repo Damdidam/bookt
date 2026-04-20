@@ -15,9 +15,10 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const HEX_RE = /^#[0-9a-fA-F]{3,8}$/;
 
 // ── Conflict check: does any practitioner have active bookings in [start, end)? ──
-async function _checkBookingConflicts(bid, pracIds, startAt, endAt) {
-  const result = await queryWithRLS(bid,
-    `SELECT b.id, b.practitioner_id, b.start_at, b.end_at,
+// `client` optionnel : si fourni (tx en cours), exécute via ce client pour bénéficier
+// de l'advisory lock déjà posé. Sinon, query directe avec RLS.
+async function _checkBookingConflicts(bid, pracIds, startAt, endAt, client) {
+  const sql = `SELECT b.id, b.practitioner_id, b.start_at, b.end_at,
             COALESCE(c.full_name, 'Client') AS client_name,
             COALESCE(s.name, b.custom_label, 'RDV') AS service_name
      FROM bookings b
@@ -29,10 +30,29 @@ async function _checkBookingConflicts(bid, pracIds, startAt, endAt) {
        AND b.start_at < $4 AND b.end_at > $3
        AND NOT (b.processing_time > 0
          AND date_trunc('minute', $3::timestamptz) >= date_trunc('minute', b.start_at) + (COALESCE(s.buffer_before_min,0) + b.processing_start) * interval '1 minute'
-         AND date_trunc('minute', $4::timestamptz) <= date_trunc('minute', b.start_at) + (COALESCE(s.buffer_before_min,0) + b.processing_start + b.processing_time) * interval '1 minute')`,
-    [bid, pracIds, startAt, endAt]
-  );
+         AND date_trunc('minute', $4::timestamptz) <= date_trunc('minute', b.start_at) + (COALESCE(s.buffer_before_min,0) + b.processing_start + b.processing_time) * interval '1 minute')`;
+  const params = [bid, pracIds, startAt, endAt];
+  const result = client
+    ? await client.query(sql, params)
+    : await queryWithRLS(bid, sql, params);
   return result.rows;
+}
+
+// Helper : acquire advisory locks sur (pracIds × startAt) + re-check conflict inside tx.
+// Throw avec _conflict=true si collision. pracIds sont sortés pour deadlock-free ordering.
+async function _lockAndCheckConflict(txClient, bid, pracIds, startAt, endAt) {
+  const sorted = [...new Set(pracIds)].sort();
+  const startISO = new Date(startAt).toISOString();
+  for (const pid of sorted) {
+    await txClient.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [`${pid}_${startISO}`]);
+  }
+  const conflicts = await _checkBookingConflicts(bid, pracIds, startAt, endAt, txClient);
+  if (conflicts.length > 0) {
+    const names = conflicts.map(c => `${c.client_name} (${c.service_name})`);
+    const err = new Error(`Conflit avec ${[...new Set(names)].join(', ')}`);
+    err._conflict = true;
+    throw err;
+  }
 }
 
 // ============================================================
@@ -97,41 +117,12 @@ router.post('/', async (req, res, next) => {
       return res.status(400).json({ error: 'Un ou plusieurs praticiens sont invalides' });
     }
 
-    // BUG-TASK-CONFLICT-RACE fix : conflict check + INSERT dans une transaction avec
-    // pg_advisory_xact_lock par (practitioner, slot_start). Sort pour deadlock-free ordering.
-    // Empêche qu'une tâche et un booking soient créés concurremment sur le même slot.
-    const sortedPracIds = [...pracIds].sort();
-    const startAtISO = new Date(start_at).toISOString();
+    // BUG-TASK-CONFLICT-RACE : conflict check + INSERT dans tx + advisory lock.
     const groupId = pracIds.length > 1 ? crypto.randomUUID() : null;
     let created;
     try {
       created = await transactionWithRLS(bid, async (txClient) => {
-        for (const pid of sortedPracIds) {
-          await txClient.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [`${pid}_${startAtISO}`]);
-        }
-        // Re-check conflict dans la tx après lock acquisition
-        const conflictRes = await txClient.query(
-          `SELECT b.id, b.practitioner_id, b.start_at, b.end_at,
-                  COALESCE(c.full_name, 'Client') AS client_name,
-                  COALESCE(s.name, b.custom_label, 'RDV') AS service_name
-             FROM bookings b
-             LEFT JOIN clients c ON c.id = b.client_id
-             LEFT JOIN services s ON s.id = b.service_id
-            WHERE b.business_id = $1
-              AND b.practitioner_id = ANY($2::uuid[])
-              AND b.status IN ('pending','confirmed','modified_pending','pending_deposit')
-              AND b.start_at < $4 AND b.end_at > $3
-              AND NOT (b.processing_time > 0
-                AND date_trunc('minute', $3::timestamptz) >= date_trunc('minute', b.start_at) + (COALESCE(s.buffer_before_min,0) + b.processing_start) * interval '1 minute'
-                AND date_trunc('minute', $4::timestamptz) <= date_trunc('minute', b.start_at) + (COALESCE(s.buffer_before_min,0) + b.processing_start + b.processing_time) * interval '1 minute')`,
-          [bid, pracIds, start_at, end_at]
-        );
-        if (conflictRes.rows.length > 0) {
-          const names = conflictRes.rows.map(c => `${c.client_name} (${c.service_name})`);
-          const err = new Error(`Conflit avec ${[...new Set(names)].join(', ')}`);
-          err._conflict = true;
-          throw err;
-        }
+        await _lockAndCheckConflict(txClient, bid, pracIds, start_at, end_at);
         const results = [];
         for (const pid of pracIds) {
           const r = await txClient.query(
@@ -292,26 +283,10 @@ router.patch('/:id', async (req, res, next) => {
       if (refreshed.rows.length > 0) task.group_id = refreshed.rows[0].group_id;
     }
 
-    // ── Conflict check if time changes ──
+    // ── Conflict check if time changes — wrap check + UPDATE dans tx avec advisory lock ──
     const newStart = req.body.start_at || task.start_at;
     const newEnd = req.body.end_at || task.end_at;
-    if (req.body.start_at || req.body.end_at) {
-      // Gather all practitioner IDs affected
-      let affectedPracIds;
-      if (task.group_id) {
-        const members = await queryWithRLS(bid,
-          `SELECT practitioner_id FROM internal_tasks WHERE group_id = $1 AND business_id = $2`,
-          [task.group_id, bid]);
-        affectedPracIds = members.rows.map(r => r.practitioner_id);
-      } else {
-        affectedPracIds = [req.body.practitioner_id || task.practitioner_id];
-      }
-      const conflicts = await _checkBookingConflicts(bid, affectedPracIds, newStart, newEnd);
-      if (conflicts.length > 0) {
-        const names = conflicts.map(c => `${c.client_name} (${c.service_name})`);
-        return res.status(409).json({ error: `Conflit avec ${[...new Set(names)].join(', ')}` });
-      }
-    }
+    const timeChanged = !!(req.body.start_at || req.body.end_at);
 
     // Build SET clause for shared fields
     const sharedFields = ['title', 'start_at', 'end_at', 'color', 'note', 'status'];
@@ -334,20 +309,40 @@ router.patch('/:id', async (req, res, next) => {
     if (sets.length > 0) {
       sets.push(`updated_at = now()`);
 
-      if (task.group_id) {
-        // Propagate to ALL siblings
-        vals.push(task.group_id); vals.push(bid);
-        await queryWithRLS(bid,
-          `UPDATE internal_tasks SET ${sets.join(', ')} WHERE group_id = $${idx} AND business_id = $${idx + 1}`,
-          vals
-        );
-      } else {
-        // Single task update
-        vals.push(id); vals.push(bid);
-        await queryWithRLS(bid,
-          `UPDATE internal_tasks SET ${sets.join(', ')} WHERE id = $${idx} AND business_id = $${idx + 1}`,
-          vals
-        );
+      try {
+        await transactionWithRLS(bid, async (txClient) => {
+          if (timeChanged) {
+            let affectedPracIds;
+            if (task.group_id) {
+              const members = await txClient.query(
+                `SELECT practitioner_id FROM internal_tasks WHERE group_id = $1 AND business_id = $2`,
+                [task.group_id, bid]);
+              affectedPracIds = members.rows.map(r => r.practitioner_id);
+            } else {
+              affectedPracIds = [req.body.practitioner_id || task.practitioner_id];
+            }
+            await _lockAndCheckConflict(txClient, bid, affectedPracIds, newStart, newEnd);
+          }
+
+          if (task.group_id) {
+            // Propagate to ALL siblings
+            const _vals = [...vals, task.group_id, bid];
+            await txClient.query(
+              `UPDATE internal_tasks SET ${sets.join(', ')} WHERE group_id = $${idx} AND business_id = $${idx + 1}`,
+              _vals
+            );
+          } else {
+            // Single task update
+            const _vals = [...vals, id, bid];
+            await txClient.query(
+              `UPDATE internal_tasks SET ${sets.join(', ')} WHERE id = $${idx} AND business_id = $${idx + 1}`,
+              _vals
+            );
+          }
+        });
+      } catch (err) {
+        if (err._conflict) return res.status(409).json({ error: err.message });
+        throw err;
       }
     }
 
@@ -391,60 +386,61 @@ router.patch('/:id/move', async (req, res, next) => {
       return res.status(404).json({ error: 'Tâche introuvable' });
     }
 
-    // ── Conflict check before move ──
-    if (task.group_id) {
-      const members = await queryWithRLS(bid,
-        `SELECT practitioner_id FROM internal_tasks WHERE group_id = $1 AND business_id = $2`,
-        [task.group_id, bid]);
-      const pracIds = members.rows.map(r => r.practitioner_id);
-      const conflicts = await _checkBookingConflicts(bid, pracIds, start_at, end_at);
-      if (conflicts.length > 0) {
-        const names = conflicts.map(c => `${c.client_name} (${c.service_name})`);
-        return res.status(409).json({ error: `Conflit avec ${[...new Set(names)].join(', ')}` });
+    // ── Conflict check + UPDATE wrappé dans tx + advisory lock (anti-race) ──
+    try {
+      if (task.group_id) {
+        const groupMoveResult = await transactionWithRLS(bid, async (txClient) => {
+          const members = await txClient.query(
+            `SELECT practitioner_id FROM internal_tasks WHERE group_id = $1 AND business_id = $2`,
+            [task.group_id, bid]);
+          const pracIds = members.rows.map(r => r.practitioner_id);
+          await _lockAndCheckConflict(txClient, bid, pracIds, start_at, end_at);
+
+          // Group move: update ALL siblings with same time
+          await txClient.query(
+            `UPDATE internal_tasks SET start_at = $1, end_at = $2, updated_at = now()
+             WHERE group_id = $3 AND business_id = $4`,
+            [start_at, end_at, task.group_id, bid]
+          );
+          // If practitioner changed (cross-column drag), only update THIS task
+          if (practitioner_id && UUID_RE.test(practitioner_id) && practitioner_id !== task.practitioner_id) {
+            await txClient.query(
+              `UPDATE internal_tasks SET practitioner_id = $1, updated_at = now() WHERE id = $2 AND business_id = $3`,
+              [practitioner_id, id, bid]
+            );
+          }
+          return true;
+        });
+        if (groupMoveResult) {
+          broadcast(bid, 'booking_update', { action: 'task_moved' });
+          return res.json({ updated: true, group_moved: true });
+        }
       }
 
-      // Group move: update ALL siblings with same time
-      await queryWithRLS(bid,
-        `UPDATE internal_tasks SET start_at = $1, end_at = $2, updated_at = now()
-         WHERE group_id = $3 AND business_id = $4`,
-        [start_at, end_at, task.group_id, bid]
-      );
-      // If practitioner changed (cross-column drag), only update THIS task
-      if (practitioner_id && UUID_RE.test(practitioner_id) && practitioner_id !== task.practitioner_id) {
-        await queryWithRLS(bid,
-          `UPDATE internal_tasks SET practitioner_id = $1, updated_at = now() WHERE id = $2 AND business_id = $3`,
-          [practitioner_id, id, bid]
+      // Single task: conflict check + UPDATE in tx
+      const movePracId = (practitioner_id && UUID_RE.test(practitioner_id)) ? practitioner_id : task.practitioner_id;
+      const result = await transactionWithRLS(bid, async (txClient) => {
+        await _lockAndCheckConflict(txClient, bid, [movePracId], start_at, end_at);
+        const sets = ['start_at = $3', 'end_at = $4', 'updated_at = now()'];
+        const vals = [bid, id, start_at, end_at];
+        let idx = 5;
+        if (practitioner_id && UUID_RE.test(practitioner_id)) {
+          sets.push(`practitioner_id = $${idx}`);
+          vals.push(practitioner_id);
+        }
+        const r = await txClient.query(
+          `UPDATE internal_tasks SET ${sets.join(', ')} WHERE id = $2 AND business_id = $1 RETURNING *`,
+          vals
         );
-      }
+        return r.rows[0] || null;
+      });
+      if (!result) return res.status(404).json({ error: 'Tâche introuvable' });
       broadcast(bid, 'booking_update', { action: 'task_moved' });
-      return res.json({ updated: true, group_moved: true });
+      res.json(result);
+    } catch (err) {
+      if (err._conflict) return res.status(409).json({ error: err.message });
+      throw err;
     }
-
-    // Single task: conflict check
-    const movePracId = (practitioner_id && UUID_RE.test(practitioner_id)) ? practitioner_id : task.practitioner_id;
-    const moveConflicts = await _checkBookingConflicts(bid, [movePracId], start_at, end_at);
-    if (moveConflicts.length > 0) {
-      const names = moveConflicts.map(c => `${c.client_name} (${c.service_name})`);
-      return res.status(409).json({ error: `Conflit avec ${[...new Set(names)].join(', ')}` });
-    }
-
-    // Single task move (original logic)
-    const sets = ['start_at = $3', 'end_at = $4', 'updated_at = now()'];
-    const vals = [bid, id, start_at, end_at];
-    let idx = 5;
-    if (practitioner_id && UUID_RE.test(practitioner_id)) {
-      sets.push(`practitioner_id = $${idx}`);
-      vals.push(practitioner_id);
-    }
-
-    const result = await queryWithRLS(bid,
-      `UPDATE internal_tasks SET ${sets.join(', ')} WHERE id = $2 AND business_id = $1 RETURNING *`,
-      vals
-    );
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Tâche introuvable' });
-
-    broadcast(bid, 'booking_update', { action: 'task_moved' });
-    res.json(result.rows[0]);
   } catch (err) { next(err); }
 });
 

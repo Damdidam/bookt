@@ -495,4 +495,13 @@ bridge({ loadClients, openClientDetail, openNewClientModal, createClient, openCs
 Object.defineProperty(window, 'clientSearch', { get(){ return clientSearch; }, set(v){ clientSearch=v; }, configurable: true });
 Object.defineProperty(window, 'clientFilter', { get(){ return clientFilter; }, set(v){ clientFilter=v; }, configurable: true });
 
+// Debounced auto-reload on SSE booking_update si l'utilisateur est sur la page clients.
+let _clientsReloadTimer = null;
+window.addEventListener('genda:booking_update', () => {
+  const onClients = document.querySelector('.ni.active[data-section="clients"]');
+  if (!onClients) return;
+  if (_clientsReloadTimer) clearTimeout(_clientsReloadTimer);
+  _clientsReloadTimer = setTimeout(() => { _clientsReloadTimer = null; loadClients().catch(() => {}); }, 500);
+});
+
 export { loadClients, openClientDetail, openNewClientModal, createClient, openCsvImportModal, saveClient, blockClient, unblockClient, resetNoShow, resetExpired, clientLiveSearch };

@@ -219,4 +219,13 @@ async function openBookingDetail(bookingId){
 
 bridge({ loadDashboard, openBookingDetail, dashToggleTodo });
 
+// Debounced auto-reload on SSE booking_update si l'utilisateur est sur la home.
+let _homeReloadTimer = null;
+window.addEventListener('genda:booking_update', () => {
+  const isOnHome = document.querySelector('.ni.active[data-section="home"]');
+  if (!isOnHome) return;
+  if (_homeReloadTimer) clearTimeout(_homeReloadTimer);
+  _homeReloadTimer = setTimeout(() => { _homeReloadTimer = null; loadDashboard().catch(() => {}); }, 500);
+});
+
 export { loadDashboard, openBookingDetail };
