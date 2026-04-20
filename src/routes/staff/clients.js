@@ -486,6 +486,14 @@ router.post('/:id/block', requireOwner, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { reason } = req.body;
+    const finalReason = reason || 'Bloqué manuellement';
+
+    // P1-04: capture état avant pour audit RGPD — client a le droit de savoir
+    // QUI a pris la décision de le bloquer et POURQUOI.
+    const before = await queryWithRLS(bid,
+      `SELECT is_blocked, blocked_reason FROM clients WHERE id = $1 AND business_id = $2`,
+      [req.params.id, bid]
+    );
 
     const result = await queryWithRLS(bid,
       `UPDATE clients SET
@@ -495,10 +503,22 @@ router.post('/:id/block', requireOwner, async (req, res, next) => {
         updated_at = NOW()
        WHERE id = $2 AND business_id = $3
        RETURNING id, full_name, is_blocked`,
-      [reason || 'Bloqué manuellement', req.params.id, bid]
+      [finalReason, req.params.id, bid]
     );
 
     if (result.rows.length === 0) return res.status(404).json({ error: 'Client introuvable' });
+
+    // P1-04: audit log (RGPD — client/contrôleur peut retracer la décision).
+    try {
+      await queryWithRLS(bid,
+        `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
+         VALUES ($1, $2, 'client', $3, 'client_blocked', $4, $5)`,
+        [bid, req.user.id, req.params.id,
+         JSON.stringify({ is_blocked: before.rows[0]?.is_blocked || false, blocked_reason: before.rows[0]?.blocked_reason || null }),
+         JSON.stringify({ is_blocked: true, blocked_reason: finalReason, actor_email: req.user.email })]
+      );
+    } catch (_) {}
+
     res.json({ blocked: true, client: result.rows[0] });
   } catch (err) { next(err); }
 });
@@ -509,6 +529,11 @@ router.post('/:id/block', requireOwner, async (req, res, next) => {
 router.post('/:id/unblock', requireOwner, async (req, res, next) => {
   try {
     const bid = req.businessId;
+
+    const before = await queryWithRLS(bid,
+      `SELECT is_blocked, blocked_reason FROM clients WHERE id = $1 AND business_id = $2`,
+      [req.params.id, bid]
+    );
 
     const result = await queryWithRLS(bid,
       `UPDATE clients SET
@@ -522,6 +547,18 @@ router.post('/:id/unblock', requireOwner, async (req, res, next) => {
     );
 
     if (result.rows.length === 0) return res.status(404).json({ error: 'Client introuvable' });
+
+    // P1-04: audit log pour traçabilité RGPD.
+    try {
+      await queryWithRLS(bid,
+        `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
+         VALUES ($1, $2, 'client', $3, 'client_unblocked', $4, $5)`,
+        [bid, req.user.id, req.params.id,
+         JSON.stringify({ is_blocked: before.rows[0]?.is_blocked || false, blocked_reason: before.rows[0]?.blocked_reason || null }),
+         JSON.stringify({ is_blocked: false, actor_email: req.user.email })]
+      );
+    } catch (_) {}
+
     res.json({ unblocked: true, client: result.rows[0] });
   } catch (err) { next(err); }
 });
@@ -532,6 +569,11 @@ router.post('/:id/unblock', requireOwner, async (req, res, next) => {
 router.post('/:id/reset-noshow', requireOwner, async (req, res, next) => {
   try {
     const bid = req.businessId;
+
+    const before = await queryWithRLS(bid,
+      `SELECT no_show_count, is_blocked, blocked_reason FROM clients WHERE id = $1 AND business_id = $2`,
+      [req.params.id, bid]
+    );
 
     const result = await queryWithRLS(bid,
       `UPDATE clients SET
@@ -547,6 +589,19 @@ router.post('/:id/reset-noshow', requireOwner, async (req, res, next) => {
     );
 
     if (result.rows.length === 0) return res.status(404).json({ error: 'Client introuvable' });
+
+    // P1-04: audit log pour traçabilité RGPD (contrairement à un simple reset UI,
+    // ceci modifie un comportement business — blocage automatique auto-clear).
+    try {
+      await queryWithRLS(bid,
+        `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
+         VALUES ($1, $2, 'client', $3, 'client_reset_noshow', $4, $5)`,
+        [bid, req.user.id, req.params.id,
+         JSON.stringify({ no_show_count: before.rows[0]?.no_show_count || 0, is_blocked: before.rows[0]?.is_blocked || false }),
+         JSON.stringify({ no_show_count: 0, is_blocked: false, actor_email: req.user.email })]
+      );
+    } catch (_) {}
+
     res.json({ reset: true, client: result.rows[0] });
   } catch (err) { next(err); }
 });
@@ -557,6 +612,11 @@ router.post('/:id/reset-noshow', requireOwner, async (req, res, next) => {
 router.post('/:id/reset-expired', requireOwner, async (req, res, next) => {
   try {
     const bid = req.businessId;
+
+    const before = await queryWithRLS(bid,
+      `SELECT expired_pending_count FROM clients WHERE id = $1 AND business_id = $2`,
+      [req.params.id, bid]
+    );
 
     const result = await queryWithRLS(bid,
       `UPDATE clients SET
@@ -569,6 +629,18 @@ router.post('/:id/reset-expired', requireOwner, async (req, res, next) => {
     );
 
     if (result.rows.length === 0) return res.status(404).json({ error: 'Client introuvable' });
+
+    // P1-04: audit log pour traçabilité RGPD.
+    try {
+      await queryWithRLS(bid,
+        `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
+         VALUES ($1, $2, 'client', $3, 'client_reset_expired', $4, $5)`,
+        [bid, req.user.id, req.params.id,
+         JSON.stringify({ expired_pending_count: before.rows[0]?.expired_pending_count || 0 }),
+         JSON.stringify({ expired_pending_count: 0, actor_email: req.user.email })]
+      );
+    } catch (_) {}
+
     res.json({ reset: true, client: result.rows[0] });
   } catch (err) { next(err); }
 });
