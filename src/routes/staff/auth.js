@@ -13,6 +13,20 @@ const { sendEmail, buildEmailHTML, escHtml } = require('../../services/email');
 // UI: Dashboard login screen
 // ============================================================
 router.post('/login', authLimiter, async (req, res, next) => {
+  // H#16 v2: timing attack fix — bound the total response time on the magic-link
+  // path (password=null) so both branches (email exists / email absent) land in
+  // the same ~450ms window. The previous fix put the delay only in the absent
+  // branch, while the existing-email branch fired sendEmail as .catch() and
+  // responded in ~40-50ms — so FAST response = account exists (inverted leak).
+  const tStart = Date.now();
+  const minMagicLinkMs = 400 + Math.floor(Math.random() * 100); // 400-500ms
+  const bounded = async (payload) => {
+    const elapsed = Date.now() - tStart;
+    if (elapsed < minMagicLinkMs) {
+      await new Promise((r) => setTimeout(r, minMagicLinkMs - elapsed));
+    }
+    return res.json(payload);
+  };
   try {
     const { email, password } = req.body;
 
@@ -43,13 +57,9 @@ router.post('/login', authLimiter, async (req, res, next) => {
         await bcrypt.compare(password, '$2b$12$K4z0Bx0dQ5xP0xP0xP0xP.0xP0xP0xP0xP0xP0xP0xP0xP0xP0x');
         return res.status(401).json({ error: 'Email ou mot de passe incorrect' });
       }
-      // H#16 fix: magic-link branch — if email doesn't exist, the work above
-      // (INSERT magic_links + send email) doesn't run, so the response lands
-      // much faster than for a real account. Timing side-channel reveals
-      // account existence despite the unified message. Add a ~400ms random
-      // delay that approximates the INSERT + Brevo call latency.
-      await new Promise((r) => setTimeout(r, 350 + Math.floor(Math.random() * 100)));
-      return res.json({ message: 'Si ce compte existe, un lien de connexion a été envoyé.' });
+      // H#16 v2: bounded() ci-dessus aligne la réponse sur minMagicLinkMs (400-500ms)
+      // en ajoutant le delta restant — même fenêtre que la branche email-existant.
+      return bounded({ message: 'Si ce compte existe, un lien de connexion a été envoyé.' });
     }
 
     const user = result.rows[0];
@@ -123,6 +133,9 @@ router.post('/login', authLimiter, async (req, res, next) => {
       businessName: user.business_name || 'Genda'
     });
 
+    // H#16 v2: fire-and-forget sendEmail (la réponse ne doit pas bloquer sur Brevo).
+    // Le bounded() ci-dessous aligne timing — même fenêtre 400-500ms que la branche
+    // email-absent → pas de signal d'énumération via latence.
     sendEmail({
       to: email,
       subject: `Connexion à ${user.business_name || 'Genda'}`,
@@ -130,7 +143,7 @@ router.post('/login', authLimiter, async (req, res, next) => {
       fromName: user.business_name || 'Genda'
     }).catch(e => console.warn('[AUTH] Magic link email error:', e.message));
 
-    res.json({ message: 'Si ce compte existe, un lien de connexion a été envoyé.' });
+    return bounded({ message: 'Si ce compte existe, un lien de connexion a été envoyé.' });
   } catch (err) {
     next(err);
   }
