@@ -424,12 +424,20 @@ router.get('/:slug/client-phone', clientPhoneLimiter, async (req, res, next) => 
       );
     }
     if (cl.rows.length === 0 && phone) {
+      // Lenient match: normalized E.164 OR digits-only — same pattern as the F#10
+      // Twilio/waitlist fixes. Legacy rows stored as '0475…' still resolve when
+      // the caller sends '+32475…'.
+      const { normalizeE164 } = require('../../utils/phone');
+      const _e164 = normalizeE164(phone, 'BE') || phone;
+      const _digits = _e164.replace(/[^\d]/g, '');
       cl = await query(
         `SELECT c.id, c.phone, c.full_name,
                 (SELECT COUNT(*)::int FROM bookings b WHERE b.client_id = c.id AND b.status NOT IN ('cancelled')) AS booking_count
-         FROM clients c WHERE c.business_id = $1 AND c.phone = $2
-         ORDER BY c.updated_at DESC LIMIT 1`,
-        [bid, phone]
+         FROM clients c
+          WHERE c.business_id = $1
+            AND (c.phone = $2 OR regexp_replace(COALESCE(c.phone, ''), '[^0-9]', '', 'g') = $3)
+          ORDER BY c.updated_at DESC LIMIT 1`,
+        [bid, _e164, _digits]
       );
     }
     if (cl.rows.length === 0) return res.json({ is_new: true, booking_count: 0 });

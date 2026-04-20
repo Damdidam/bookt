@@ -903,7 +903,7 @@ router.post('/:id/invite', requireOwner, blockIfImpersonated, async (req, res, n
     if (pract.rows[0].user_id) return res.status(400).json({ error: 'Ce praticien a déjà un compte' });
 
     const existing = await query(
-      `SELECT id FROM users WHERE email = $1 AND business_id = $2`,
+      `SELECT id FROM users WHERE LOWER(email) = $1 AND business_id = $2`,
       [email.toLowerCase().trim(), bid]
     );
     if (existing.rows.length > 0) return res.status(409).json({ error: 'Cet email est déjà utilisé' });
