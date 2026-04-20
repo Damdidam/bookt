@@ -753,10 +753,10 @@ async function handleStripeWebhook(req, res) {
                 const passData = { code, name: tpl.name, sessions_total: tpl.sessions_count, price_cents: tpl.price_cents, service_name: tpl.service_name, buyer_name, buyer_email, expires_at: expiresAt };
                 await sendPassPurchaseEmail({
                   pass: passData,
-                  business: { name: biz.name, slug: biz.slug, email: biz.email, phone: biz.phone, address: biz.address, theme: biz.theme }
+                  business: { id: business_id, name: biz.name, slug: biz.slug, email: biz.email, phone: biz.phone, address: biz.address, theme: biz.theme }
                 });
                 // M6: Notify merchant of pass purchase
-                sendPassPurchaseProEmail({ pass: passData, business: { name: biz.name, email: biz.email, theme: biz.theme } }).catch(e =>
+                sendPassPurchaseProEmail({ pass: passData, business: { id: business_id, name: biz.name, email: biz.email, theme: biz.theme } }).catch(e =>
                   console.warn('[STRIPE] Pass pro notification failed:', e.message));
               }
             } catch (emailErr) { console.warn('[STRIPE] Pass email error:', emailErr.message); }
@@ -1013,7 +1013,7 @@ async function handleStripeWebhook(req, res) {
                     const { sendPartialRefundEmail } = require('../../services/email');
                     sendPartialRefundEmail({
                       booking: { client_name: pr.client_name, client_email: pr.client_email, service_name: pr.service_name, start_at: pr.start_at, public_token: pr.public_token },
-                      business: { name: pr.biz_name, email: pr.biz_email, phone: pr.biz_phone, address: pr.biz_address, theme: pr.biz_theme, slug: pr.biz_slug },
+                      business: { id: bk.business_id, name: pr.biz_name, email: pr.biz_email, phone: pr.biz_phone, address: pr.biz_address, theme: pr.biz_theme, slug: pr.biz_slug },
                       refundAmountCents: charge.amount_refunded,
                       totalAmountCents: charge.amount
                     }).catch(e => console.warn('[STRIPE WH] Partial refund email error:', e.message));

@@ -703,7 +703,7 @@ router.post(['/manage/:token/reschedule', '/booking/:token/reschedule'], booking
           }
           await sendRescheduleConfirmationEmail({
             booking: r,
-            business: { name: r.business_name, slug: r.business_slug, settings: r.settings, theme: r.theme, email: r.business_email, phone: r.business_phone, address: r.business_address },
+            business: { id: bk.business_id, name: r.business_name, slug: r.business_slug, settings: r.settings, theme: r.theme, email: r.business_email, phone: r.business_phone, address: r.business_address },
             oldStartAt: bk.start_at,
             oldEndAt: groupMembers.length > 1 ? groupMembers[groupMembers.length - 1].end_at : bk.end_at,
             groupServices: groupSvcs,

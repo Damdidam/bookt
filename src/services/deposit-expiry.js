@@ -476,6 +476,7 @@ async function processDepositReminders() {
           promotion_discount_pct: bk.promotion_discount_pct
         },
         business: {
+          id: bk.business_id,
           name: bk.biz_name, slug: bk.biz_slug, email: bk.biz_email,
           phone: bk.biz_phone, address: bk.biz_address,
           theme: bk.biz_theme, settings: bk.biz_settings

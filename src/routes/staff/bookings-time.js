@@ -569,6 +569,7 @@ let sql = `UPDATE bookings SET start_at = $1, end_at = $2, reminder_24h_sent_at 
                   new_end_at: gt.group_end
                 },
                 business: {
+                  id: bid,
                   name: bk.business_name,
                   email: bk.business_email,
                   phone: bk.business_phone,
@@ -1314,7 +1315,7 @@ router.patch('/:id/edit', async (req, res, next) => {
                 old_practitioner_name: ed.old_practitioner_name,
                 new_practitioner_name: ed.new_practitioner_name
               },
-              business: { name: ed.biz_name, email: ed.biz_email, phone: ed.biz_phone, address: ed.biz_address, theme: ed.biz_theme }
+              business: { id: bid, name: ed.biz_name, email: ed.biz_email, phone: ed.biz_phone, address: ed.biz_address, theme: ed.biz_theme }
             });
           }
         } catch (e) { console.warn('[EDIT PRAC EMAIL] error:', e.message); }
@@ -1722,6 +1723,7 @@ router.patch('/:id/modify', async (req, res, next) => {
             new_end_at: end_at
           },
           business: {
+            id: bid,
             name: oldBooking.business_name,
             email: oldBooking.business_email,
             phone: oldBooking.business_phone,
