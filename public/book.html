@@ -2766,6 +2766,13 @@ async function submitBooking(){
     if(selectedSlot.end_at)bookingBody.end_at=selectedSlot.end_at;
     if(oauthProvider&&oauthProviderId){bookingBody.oauth_provider=oauthProvider;bookingBody.oauth_provider_id=oauthProviderId;}
     if(appliedPromos.length>0){var ap=appliedPromos.find(function(p){return p.type!=='info_only';});if(ap)bookingBody.promotion_id=ap.id;}
+    // Pass pre-fill : si le client arrive via un CTA email `?pass=CODE` (expiry warning),
+    // on propage au backend pour l'auto-débit du pass sans requérir saisie manuelle.
+    var _passPrefill=urlParams.get('pass');
+    if(_passPrefill&&_passPrefill.trim())bookingBody.pass_code=_passPrefill.trim().toUpperCase();
+    // GC pre-fill : stocker en sessionStorage pour que deposit.html le lise après redirect.
+    var _gcPrefill=urlParams.get('gc');
+    if(_gcPrefill&&_gcPrefill.trim()){try{sessionStorage.setItem('gc_prefill',_gcPrefill.trim().toUpperCase());}catch(_){}}
 
     const res=await fetch('/api/public/'+slug+'/bookings',{
       method:'POST',headers:{'Content-Type':'application/json'},
@@ -3001,9 +3008,9 @@ function wlShowForm(){
   const area=document.getElementById('wlArea');
   var wlPracLabel=selectedPractitioner?escH(selectedPractitioner.display_name):'tout praticien disponible';
   area.innerHTML='<div class="wl-form" id="wlForm"><h3>Liste d\'attente</h3><p class="wl-form-sub">Pour <strong>'+escH(selectedService?.name||'cette prestation')+'</strong> avec <strong>'+wlPracLabel+'</strong></p>'
-    +'<div class="fg"><label class="fl">Prénom et nom *</label><input class="fi" id="wlName" placeholder="Marie Dupont"></div>'
-    +'<div class="fg"><label class="fl">Email *</label><input class="fi" type="email" id="wlEmail" placeholder="marie@example.com"></div>'
-    +'<div class="fg"><label class="fl">Téléphone</label><div class="phone-wrap"><select id="wlPhonePrefix" class="phone-prefix" onchange="onWlPhonePrefixChange()"><option value="+32" selected>🇧🇪 +32</option><option value="+33">🇫🇷 +33</option><option value="+352">🇱🇺 +352</option></select><input class="fi" id="wlPhone" placeholder="4XX XX XX XX" inputmode="tel" maxlength="15"></div></div>'
+    +'<div class="fg"><label class="fl">Prénom et nom *</label><input class="fi" id="wlName" placeholder="Marie Dupont" autocomplete="name"></div>'
+    +'<div class="fg"><label class="fl">Email *</label><input class="fi" type="email" id="wlEmail" placeholder="marie@example.com" autocomplete="email"></div>'
+    +'<div class="fg"><label class="fl">Téléphone</label><div class="phone-wrap"><select id="wlPhonePrefix" class="phone-prefix" onchange="onWlPhonePrefixChange()"><option value="+32" selected>🇧🇪 +32</option><option value="+33">🇫🇷 +33</option><option value="+352">🇱🇺 +352</option></select><input class="fi" id="wlPhone" placeholder="4XX XX XX XX" inputmode="tel" maxlength="15" autocomplete="tel-national"></div></div>'
     +'<div class="fg"><label class="fl">Jours qui vous conviennent</label><div class="wl-days">'+WL_DAYS.map((d,i)=>'<button type="button" class="wl-day '+(i<5?'on':'')+'" data-day="'+i+'">'+d+'</button>').join('')+'</div></div>'
     +'<div class="fg"><label class="fl">Préférence horaire</label><select class="fi" id="wlTime" style="padding:8px 12px"><option value="any">Toute la journée</option><option value="morning">Matin</option><option value="afternoon">Après-midi</option></select></div>'
     +'<button class="wl-submit" id="wlSubmitBtn" onclick="wlSubmit()">S\'inscrire →</button>'

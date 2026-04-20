@@ -193,16 +193,16 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
           <h2>Lancez votre salon</h2>
           <p>Gratuit, sans engagement. En ligne en 5 minutes.</p>
         </div>
-        <div class="fg"><label class="fl">Votre nom complet</label><input class="fi" id="f_name" placeholder="Sarah Delcourt"></div>
-        <div class="fg"><label class="fl">Email professionnel</label><input class="fi" type="email" id="f_email" placeholder="sarah@lestudio-coiffure.be"></div>
+        <div class="fg"><label class="fl">Votre nom complet</label><input class="fi" id="f_name" placeholder="Sarah Delcourt" autocomplete="name"></div>
+        <div class="fg"><label class="fl">Email professionnel</label><input class="fi" type="email" id="f_email" placeholder="sarah@lestudio-coiffure.be" autocomplete="email"></div>
         <div class="fg"><label class="fl">Nom du salon</label><input class="fi" id="f_biz" placeholder="Le Studio Coiffure" oninput="updSlug()"></div>
         <div class="slug-prev"><span class="d">genda.be/</span><span class="s" id="slugPrev">votre-salon</span></div>
-        <div class="fg"><label class="fl">Téléphone</label><input class="fi" id="f_phone" type="tel" placeholder="+32 / +33..."></div>
+        <div class="fg"><label class="fl">Téléphone</label><input class="fi" id="f_phone" type="tel" placeholder="+32 / +33..." autocomplete="tel"></div>
         <div class="fg"><label class="fl">Adresse</label>
           <div class="fr"><input class="fi" id="f_street" placeholder="Rue du Midi" style="grid-column:1/2"><input class="fi" id="f_street_nr" placeholder="N°" style="max-width:80px"></div>
           <div class="fr" style="margin-top:8px"><input class="fi" id="f_zip" placeholder="1000" style="max-width:100px"><input class="fi" id="f_city" placeholder="Bruxelles"></div>
         </div>
-        <div class="fg" style="margin-top:10px"><label class="fl">Mot de passe</label><input class="fi" type="password" id="f_pass" placeholder="Min. 8 caractères" required></div>
+        <div class="fg" style="margin-top:10px"><label class="fl">Mot de passe</label><input class="fi" type="password" id="f_pass" placeholder="Min. 8 caractères" required autocomplete="new-password"></div>
         <div class="fg"><label class="fl">Votre secteur</label>
           <div class="sectors">
             <button class="sec-btn" onclick="selSec(this,'coiffeur')"><div class="i"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg></div><div class="n">Coiffure</div></button>

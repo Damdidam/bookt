@@ -243,6 +243,19 @@ function render(d) {
   if (depStatus === 'pending') {
     checkClientGiftCards(netDepositCents);
   }
+
+  // Pre-fill GC code si le client arrive via un CTA email `?gc=CODE` (expiry warning).
+  // Source : query param direct, ou sessionStorage (propagé depuis /book?gc=CODE).
+  try {
+    let _gcCode = new URLSearchParams(window.location.search).get('gc');
+    if (!_gcCode) {
+      try { _gcCode = sessionStorage.getItem('gc_prefill'); sessionStorage.removeItem('gc_prefill'); } catch (_) {}
+    }
+    if (_gcCode && _gcCode.trim()) {
+      const _gcInput = document.getElementById('gcCode');
+      if (_gcInput) _gcInput.value = _gcCode.trim().toUpperCase();
+    }
+  } catch (_) { /* no-op */ }
 }
 
 function startCountdown(deadline) {

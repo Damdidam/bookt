@@ -131,8 +131,8 @@ tr:hover td{background:rgba(224,122,95,.02)}
     <h2>Admin Panel</h2>
     <p class="sub">Accès réservé aux administrateurs.</p>
     <div class="err" id="loginErr"></div>
-    <div class="fg"><label class="fl">Email</label><input class="fi" id="loginEmail" type="email" placeholder="hakim@..."></div>
-    <div class="fg"><label class="fl">Mot de passe</label><input class="fi" id="loginPass" type="password" placeholder="••••••••"></div>
+    <div class="fg"><label class="fl">Email</label><input class="fi" id="loginEmail" type="email" placeholder="hakim@..." autocomplete="email"></div>
+    <div class="fg"><label class="fl">Mot de passe</label><input class="fi" id="loginPass" type="password" placeholder="••••••••" autocomplete="current-password"></div>
     <button class="btn" id="loginBtn" onclick="doLogin()">Connexion</button>
   </div>
 </div>
