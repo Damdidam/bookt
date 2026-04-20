@@ -122,17 +122,23 @@ async function findOrCreateClient(txClient, {
           [clientId]
         );
         const b = beforeExact.rows[0], a = afterExact.rows[0];
-        const changedKeys = Object.keys(b).filter(k => String(b[k]) !== String(a[k]));
-        if (changedKeys.length > 0) {
-          try {
-            const oldData = {}; const newData = { source: 'booking_exact_match' };
-            changedKeys.forEach(k => { oldData[k] = b[k]; newData[k] = a[k]; });
-            await txClient.query(
-              `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
-               VALUES ($1, NULL, 'client', $2, 'client_update_booking', $3, $4)`,
-              [businessId, clientId, JSON.stringify(oldData), JSON.stringify(newData)]
-            );
-          } catch (e) { console.error('[AUDIT] booking exact match audit insert failed:', e.message); }
+        // Garde contre concurrent DELETE client (RGPD right-to-be-forgotten)
+        // entre UPDATE et SELECT after → évite TypeError crash + rollback booking.
+        if (a) {
+          const changedKeys = Object.keys(b).filter(k => String(b[k]) !== String(a[k]));
+          if (changedKeys.length > 0) {
+            try {
+              // Source précise : oauth vs exact match (art.30 traçabilité exacte).
+              const oldData = {};
+              const newData = { source: matchType === 'oauth' ? 'booking_oauth_match' : 'booking_exact_match' };
+              changedKeys.forEach(k => { oldData[k] = b[k]; newData[k] = a[k]; });
+              await txClient.query(
+                `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
+                 VALUES ($1, NULL, 'client', $2, 'client_update_booking', $3, $4)`,
+                [businessId, clientId, JSON.stringify(oldData), JSON.stringify(newData)]
+              );
+            } catch (e) { console.error('[AUDIT] booking exact match audit insert failed:', e.message); }
+          }
         }
       }
     } else if (matchType === 'phone' || matchType === 'email') {
@@ -159,17 +165,20 @@ async function findOrCreateClient(txClient, {
           [clientId, businessId]
         );
         const b = beforeSoft.rows[0], a = afterSoft.rows[0];
-        const changedKeys = Object.keys(b).filter(k => String(b[k]) !== String(a[k]));
-        if (changedKeys.length > 0) {
-          try {
-            const oldData = {}; const newData = { source: `booking_${matchType}_match` };
-            changedKeys.forEach(k => { oldData[k] = b[k]; newData[k] = a[k]; });
-            await txClient.query(
-              `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
-               VALUES ($1, NULL, 'client', $2, 'client_update_booking', $3, $4)`,
-              [businessId, clientId, JSON.stringify(oldData), JSON.stringify(newData)]
-            );
-          } catch (e) { console.error('[AUDIT] booking soft match audit insert failed:', e.message); }
+        // Garde concurrent DELETE (même raison que branche exact ci-dessus).
+        if (a) {
+          const changedKeys = Object.keys(b).filter(k => String(b[k]) !== String(a[k]));
+          if (changedKeys.length > 0) {
+            try {
+              const oldData = {}; const newData = { source: `booking_${matchType}_match` };
+              changedKeys.forEach(k => { oldData[k] = b[k]; newData[k] = a[k]; });
+              await txClient.query(
+                `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
+                 VALUES ($1, NULL, 'client', $2, 'client_update_booking', $3, $4)`,
+                [businessId, clientId, JSON.stringify(oldData), JSON.stringify(newData)]
+              );
+            } catch (e) { console.error('[AUDIT] booking soft match audit insert failed:', e.message); }
+          }
         }
       }
     }
