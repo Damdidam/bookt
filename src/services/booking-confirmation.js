@@ -197,20 +197,77 @@ async function processExpiredPendingBookings() {
               }
               await client.query(`UPDATE bookings SET deposit_status = $2 WHERE id = $1`, [bk.id, _finalDepStatus]);
               if (bk.group_id) {
-                // A#10 fix: also cover siblings whose deposit_payment_intent_id differs
-                // (rare but possible after split-group or ungroup). Previously the
-                // filter `deposit_payment_intent_id = $3` left those siblings stuck at
-                // deposit_status='paid' while the primary was cancelled → DB drift.
-                // We only touch siblings that share the SAME refund outcome (status paid,
-                // cancelled by the cron), so a still-active sibling isn't mislabeled.
+                // A#10 fix v2 — corrige une régression inverse détectée par l'audit
+                // exhaustif : la v1 marquait les siblings à PI distinct `refunded` en DB
+                // sans émettre le refund Stripe correspondant (drift inverse : client
+                // pas remboursé, DB dit remboursé). On fait maintenant :
+                //   (1) UPDATE same-PI siblings avec _finalDepStatus (refund déjà fait)
+                //   (2) SELECT siblings à PI distinct qui auraient pu rester à 'paid'
+                //   (3) Pour chacun, refund Stripe sur SON PI, puis UPDATE DB
+                // Edge: si un PI sibling ne peut pas être refundé (Stripe fail), on
+                // laisse deposit_status='paid' + log warning pour action manuelle pro.
                 await client.query(
                   `UPDATE bookings SET deposit_status = $2
                     WHERE group_id = $1
                       AND id != $3
+                      AND deposit_payment_intent_id = $4
                       AND status = 'cancelled'
                       AND deposit_status = 'paid'`,
-                  [bk.group_id, _finalDepStatus, bk.id]
+                  [bk.group_id, _finalDepStatus, bk.id, bk.deposit_payment_intent_id]
                 );
+
+                // (2) + (3) : siblings à PI distinct → refund Stripe individuel.
+                const _distinctPiSibs = await client.query(
+                  `SELECT id, deposit_payment_intent_id, deposit_amount_cents
+                     FROM bookings
+                    WHERE group_id = $1
+                      AND id != $2
+                      AND status = 'cancelled'
+                      AND deposit_status = 'paid'
+                      AND deposit_payment_intent_id IS NOT NULL
+                      AND deposit_payment_intent_id != $3`,
+                  [bk.group_id, bk.id, bk.deposit_payment_intent_id]
+                );
+                for (const _sib of _distinctPiSibs.rows) {
+                  try {
+                    let _sibPi = _sib.deposit_payment_intent_id;
+                    if (_sibPi.startsWith('cs_')) {
+                      const _sibSess = await stripe.checkout.sessions.retrieve(_sibPi);
+                      _sibPi = _sibSess.payment_intent;
+                    }
+                    if (!_sibPi || !_sibPi.startsWith('pi_')) {
+                      console.warn(`[CONFIRM CRON] Sibling ${_sib.id} PI non-résolu (${_sib.deposit_payment_intent_id}) — deposit_status laissé 'paid', refund manuel requis`);
+                      continue;
+                    }
+                    if (_refundPolicy === 'net' && _sib.deposit_amount_cents) {
+                      const _sibGc = await client.query(
+                        `SELECT COALESCE(SUM(amount_cents), 0) AS gc FROM gift_card_transactions WHERE booking_id = $1 AND type = 'debit'`,
+                        [_sib.id]
+                      );
+                      const _sibCharge = Math.max(_sib.deposit_amount_cents - (parseInt(_sibGc.rows[0]?.gc) || 0), 0);
+                      const _sibFees = await resolveStripeFeeCents(stripe, _sibPi, _sibCharge);
+                      const _sibNet = Math.max(_sibCharge - _sibFees, 0);
+                      if (_sibNet >= 50) {
+                        await stripe.refunds.create({ payment_intent: _sibPi, amount: _sibNet });
+                        await client.query(`UPDATE bookings SET deposit_status = 'refunded' WHERE id = $1`, [_sib.id]);
+                        console.log(`[CONFIRM CRON] Sibling ${_sib.id} net refund: ${_sibNet}c for PI ${_sibPi}`);
+                      } else {
+                        await client.query(`UPDATE bookings SET deposit_status = 'cancelled' WHERE id = $1`, [_sib.id]);
+                        console.warn(`[CONFIRM CRON] Sibling ${_sib.id} netRefund=${_sibNet}c <50c — deposit retenu`);
+                      }
+                    } else {
+                      await stripe.refunds.create({ payment_intent: _sibPi });
+                      await client.query(`UPDATE bookings SET deposit_status = 'refunded' WHERE id = $1`, [_sib.id]);
+                      console.log(`[CONFIRM CRON] Sibling ${_sib.id} full refund for PI ${_sibPi}`);
+                    }
+                  } catch (_sibErr) {
+                    if (_sibErr.code === 'charge_already_refunded') {
+                      await client.query(`UPDATE bookings SET deposit_status = 'refunded' WHERE id = $1`, [_sib.id]);
+                    } else {
+                      console.error(`[CONFIRM CRON] Sibling ${_sib.id} refund failed:`, _sibErr.message, '— deposit_status=paid conservé pour refund manuel');
+                    }
+                  }
+                }
               }
             }
           } catch (stripeErr) {
