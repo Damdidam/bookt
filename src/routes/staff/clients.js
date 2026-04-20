@@ -698,7 +698,10 @@ router.delete('/:id', requireOwner, blockIfImpersonated, async (req, res, next) 
       return res.status(409).json({ error: 'Client déjà anonymisé' });
     }
 
-    // Anonymisation : full_name marker, PII null, consent_* false, tokens cleared.
+    const origEmail = (before.rows[0].email || '').toLowerCase().trim();
+    const origPhone = before.rows[0].phone || '';
+
+    // Anonymisation complète : full_name marker, PII null, consent_* false, blocked_reason clear.
     const result = await queryWithRLS(bid,
       `UPDATE clients SET
         full_name = '[supprimé]',
@@ -708,6 +711,7 @@ router.delete('/:id', requireOwner, blockIfImpersonated, async (req, res, next) 
         notes = NULL,
         remarks = NULL,
         birthday = NULL,
+        blocked_reason = NULL,
         consent_sms = false,
         consent_email = false,
         consent_marketing = false,
@@ -721,16 +725,68 @@ router.delete('/:id', requireOwner, blockIfImpersonated, async (req, res, next) 
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Client introuvable' });
 
+    // Cascade anonymisation sur tables sans client_id direct mais avec PII dénormalisées.
+    // On match par email (case-insensitive) et phone — cible uniquement ce client.
+    // Exception : invoices conserve les données (obligation légale 7 ans compta BE/FR
+    // art.R123-83 + CIR BE). Les autres (waitlist, quote_requests, passes, gift_cards,
+    // notifications) sont purgées des PII sans intérêt fiscal.
+    if (origEmail || origPhone) {
+      try {
+        if (origEmail) {
+          await queryWithRLS(bid,
+            `UPDATE waitlist_entries SET client_name = '[supprimé]', client_email = NULL, client_phone = NULL, note = NULL, updated_at = NOW()
+             WHERE business_id = $1 AND LOWER(client_email) = $2`,
+            [bid, origEmail]
+          );
+          await queryWithRLS(bid,
+            `UPDATE quote_requests SET client_name = '[supprimé]', client_email = NULL, client_phone = NULL, description = NULL
+             WHERE business_id = $1 AND LOWER(client_email) = $2`,
+            [bid, origEmail]
+          );
+          await queryWithRLS(bid,
+            `UPDATE passes SET buyer_name = '[supprimé]', buyer_email = NULL
+             WHERE business_id = $1 AND LOWER(buyer_email) = $2`,
+            [bid, origEmail]
+          );
+          await queryWithRLS(bid,
+            `UPDATE gift_cards SET buyer_name = '[supprimé]', buyer_email = NULL, message = NULL
+             WHERE business_id = $1 AND LOWER(buyer_email) = $2`,
+            [bid, origEmail]
+          );
+          await queryWithRLS(bid,
+            `UPDATE gift_cards SET recipient_name = '[supprimé]', recipient_email = NULL
+             WHERE business_id = $1 AND LOWER(recipient_email) = $2`,
+            [bid, origEmail]
+          );
+          await queryWithRLS(bid,
+            `UPDATE notifications SET recipient_email = NULL, recipient_phone = NULL
+             WHERE business_id = $1 AND LOWER(recipient_email) = $2`,
+            [bid, origEmail]
+          );
+        }
+        if (origPhone) {
+          await queryWithRLS(bid,
+            `UPDATE notifications SET recipient_phone = NULL
+             WHERE business_id = $1 AND recipient_phone = $2`,
+            [bid, origPhone]
+          );
+        }
+      } catch (e) { console.error('[RGPD] Cascade PII anonymization error:', e.message); }
+    }
+
     // Audit log — preuve vitale RGPD art.5(2) accountability.
+    // old_data N'inclut PAS les PII en clair (leak dans audit_logs sinon) — juste
+    // des markers `[present]` pour prouver que les champs étaient bien remplis.
     try {
       await queryWithRLS(bid,
         `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
          VALUES ($1, $2, 'client', $3, 'client_anonymized_rgpd', $4, $5)`,
         [bid, req.user.id, req.params.id,
          JSON.stringify({
-           full_name: before.rows[0].full_name,
-           email: before.rows[0].email,
-           phone: before.rows[0].phone ? '[present]' : null
+           full_name: before.rows[0].full_name ? '[present]' : null,
+           email: before.rows[0].email ? '[present]' : null,
+           phone: before.rows[0].phone ? '[present]' : null,
+           is_blocked: before.rows[0].is_blocked || false
          }),
          JSON.stringify({
            full_name: '[supprimé]',
