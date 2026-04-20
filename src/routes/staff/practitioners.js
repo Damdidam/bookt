@@ -746,6 +746,21 @@ router.delete('/:id', requireOwner, blockIfImpersonated, async (req, res, next) 
            FOR UPDATE`,
           [pracId, bid]
         );
+        // P2-orphan-recovery : bookings déjà cancelled par précédent DELETE mais
+        // dont le deposit_status='paid' n'a pas été refunded (crash pod entre TX
+        // commit et le Stripe refund loop post-TX). Inclus dans le loop refund.
+        // Idempotent via `prac-del-refund-${bk.id}` : même refund Stripe si retry.
+        const orphanRes = await client.query(
+          `SELECT id, group_id, client_id, deposit_status, deposit_amount_cents, deposit_payment_intent_id
+           FROM bookings
+           WHERE practitioner_id = $1 AND business_id = $2
+             AND status = 'cancelled'
+             AND deposit_status = 'paid'
+             AND cancel_reason = 'Praticien retiré du planning'
+             AND deposit_payment_intent_id IS NOT NULL
+             AND start_at > NOW() - INTERVAL '30 days'`,
+          [pracId, bid]
+        );
         const cancelReasonPrac = 'Praticien retiré du planning';
         await client.query(
           `UPDATE bookings SET status = 'cancelled', cancel_reason = $3,
@@ -770,7 +785,9 @@ router.delete('/:id', requireOwner, blockIfImpersonated, async (req, res, next) 
             [bkIds]
           );
         }
-        return listRes.rows;
+        // Concatène listRes.rows (nouveaux cancels) + orphanRes.rows (récupération
+        // crash pod précédent) → tous passent dans le loop refund post-TX.
+        return [...listRes.rows, ...orphanRes.rows];
       });
       cancelledCount = txTargets.length;
       cancelledDetails = txTargets;
