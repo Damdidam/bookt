@@ -188,7 +188,29 @@ async function generateInvoicePDF(invoice, items, opts = {}) {
     doc.fontSize(9).font('Helvetica').fillColor(MUTED);
     const htCents = (invoice.subtotal_cents || 0) - (invoice.vat_amount_cents || 0);
     doc.text('Sous-total HTVA', totX, y); doc.text(formatMoney(htCents), totX, y, { width: totW, align: 'right' }); y += 16;
-    doc.text(`TVA (${invoice.vat_rate}%)`, totX, y); doc.text(formatMoney(invoice.vat_amount_cents), totX, y, { width: totW, align: 'right' }); y += 18;
+
+    // VAT ventilation — BE compliance (Code TVA art.5 §1) requires per-rate breakdown
+    // when the invoice mixes rates (e.g. 6% service + 21% product). We group items by
+    // their actual vat_rate instead of trusting the header (A#2/A#3 avoid stale header).
+    const vatByRate = new Map(); // rate → cents (vat amount)
+    (items || []).forEach(it => {
+      const _p = parseFloat(it.vat_rate);
+      const r = isNaN(_p) ? (parseFloat(invoice.vat_rate) || 21) : _p;
+      const lineVat = Math.round((it.total_cents || 0) * r / (100 + r));
+      vatByRate.set(r, (vatByRate.get(r) || 0) + lineVat);
+    });
+    if (vatByRate.size <= 1) {
+      // Single-rate (or empty items) — keep the compact single line.
+      const [singleRate] = vatByRate.size === 1 ? [...vatByRate.keys()] : [parseFloat(invoice.vat_rate) || 21];
+      doc.text(`TVA (${singleRate}%)`, totX, y); doc.text(formatMoney(invoice.vat_amount_cents), totX, y, { width: totW, align: 'right' }); y += 18;
+    } else {
+      // Multi-rate — one line per rate, descending for readability.
+      const sortedRates = [...vatByRate.keys()].sort((a, b) => b - a);
+      for (const r of sortedRates) {
+        doc.text(`TVA (${r}%)`, totX, y); doc.text(formatMoney(vatByRate.get(r)), totX, y, { width: totW, align: 'right' }); y += 16;
+      }
+      y += 2; // small gap before total
+    }
 
     // Total box
     doc.roundedRect(totX - 10, y - 4, totW + 20, 28, 4).fillColor(PRIMARY).fill();

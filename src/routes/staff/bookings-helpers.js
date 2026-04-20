@@ -37,16 +37,31 @@ async function syncDraftInvoicesForBookings(txClient, bookingIds) {
       `SELECT total_cents, vat_rate FROM invoice_items WHERE invoice_id = $1`, [iv.id]
     );
     let _sub = 0, _vat = 0;
+    const _ratesSeen = new Set();
     for (const _it of itRes.rows) {
       const _t = parseInt(_it.total_cents) || 0;
-      const _r = parseFloat(_it.vat_rate) || 21;
+      // 0% exemption must not be coerced to 21 (E#4 fix applied here too).
+      const _parsed = parseFloat(_it.vat_rate);
+      const _r = isNaN(_parsed) ? 21 : _parsed;
+      _ratesSeen.add(_r);
       _sub += _t;
       _vat += Math.round(_t * _r / (100 + _r));
     }
-    await txClient.query(
-      `UPDATE invoices SET subtotal_cents = $1, vat_amount_cents = $2, total_cents = $1, updated_at = NOW() WHERE id = $3`,
-      [_sub, _vat, iv.id]
-    );
+    // If the draft is single-rate, align invoices.vat_rate to the actual rate; for
+    // multi-rate drafts we leave the header alone — the PDF reads per-line rates
+    // and displays ventilation (see invoice-pdf.js).
+    if (_ratesSeen.size === 1) {
+      const [_uniqueRate] = _ratesSeen;
+      await txClient.query(
+        `UPDATE invoices SET subtotal_cents = $1, vat_amount_cents = $2, total_cents = $1, vat_rate = $4, updated_at = NOW() WHERE id = $3`,
+        [_sub, _vat, iv.id, _uniqueRate]
+      );
+    } else {
+      await txClient.query(
+        `UPDATE invoices SET subtotal_cents = $1, vat_amount_cents = $2, total_cents = $1, updated_at = NOW() WHERE id = $3`,
+        [_sub, _vat, iv.id]
+      );
+    }
   }
 
   // P2a-11 fix: invoices sent/paid sont IMMUTABLES (legal BE — credit note requise).

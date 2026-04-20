@@ -165,6 +165,12 @@ router.post('/', requireOwner, blockIfImpersonated, async (req, res, next) => {
 
     const invoiceType = type || 'invoice';
 
+    // Resolve the default VAT rate once — must handle 0% exemption (art.44 BE).
+    // Previously `vat_rate || 21` forced 21% when user selected 0% → non-compliance.
+    // parseFloat(0) = 0, parseFloat(null/undefined/'') = NaN → isNaN fallback to 21.
+    const _parsedDefaultVat = parseFloat(vat_rate);
+    const _defaultVatRate = isNaN(_parsedDefaultVat) ? 21 : _parsedDefaultVat;
+
     // Get business info
     const bizResult = await queryWithRLS(bid,
       `SELECT name, address, bce_number, email, phone,
@@ -250,7 +256,7 @@ router.post('/', requireOwner, blockIfImpersonated, async (req, res, next) => {
             description: `${svcLabel} — ${new Date(sib.start_at).toLocaleDateString('fr-BE', { timeZone: 'Europe/Brussels' })}${isPassCovered ? ' (pass)' : ''}${lmSuffix}`,
             quantity: 1,
             unit_price_cents: isPassCovered ? 0 : (sib.booked_price_cents ?? sib.variant_price_cents ?? sib.price_cents ?? 0),
-            vat_rate: vat_rate || 21
+            vat_rate: _defaultVatRate
           };
         });
 
@@ -261,7 +267,7 @@ router.post('/', requireOwner, blockIfImpersonated, async (req, res, next) => {
             description: `Réduction : ${promoSib.promotion_label}${promoSib.promotion_discount_pct ? ' (-' + promoSib.promotion_discount_pct + '%)' : ''}`,
             quantity: 1,
             unit_price_cents: -promoSib.promotion_discount_cents,
-            vat_rate: vat_rate || 21
+            vat_rate: _defaultVatRate
           });
         }
 
@@ -271,7 +277,7 @@ router.post('/', requireOwner, blockIfImpersonated, async (req, res, next) => {
             description: 'Acompte versé',
             quantity: 1,
             unit_price_cents: -bk.deposit_amount_cents,
-            vat_rate: vat_rate || 21
+            vat_rate: _defaultVatRate
           });
         }
       }
@@ -284,14 +290,16 @@ router.post('/', requireOwner, blockIfImpersonated, async (req, res, next) => {
     // Calculate totals (before transaction — pure computation).
     // Prices are TTC (VAT included). Extract VAT per LINE using each item.vat_rate
     // so multi-rate invoices (e.g. 6% service + 21% product) compute correctly.
-    const parsedVat = parseFloat(vat_rate);
-    const vatR = isNaN(parsedVat) ? 21 : parsedVat;
     let subtotal = 0;
     let vatAmount = 0;
     invoiceItems.forEach(item => {
       item.total_cents = Math.round((item.quantity || 1) * (item.unit_price_cents || 0));
       subtotal += item.total_cents;
-      const lineRate = (item.vat_rate !== undefined && item.vat_rate !== null) ? parseFloat(item.vat_rate) : vatR;
+      // Nullish fallback — let 0 (exemption art.44) flow through instead of being
+      // coerced to the default rate.
+      const _pLine = parseFloat(item.vat_rate);
+      const lineRate = isNaN(_pLine) ? _defaultVatRate : _pLine;
+      item.vat_rate = lineRate; // normalize for downstream SQL insert + PDF
       vatAmount += Math.round(item.total_cents * lineRate / (100 + lineRate));
     });
     const total = subtotal;
@@ -328,7 +336,7 @@ router.post('/', requireOwner, blockIfImpersonated, async (req, res, next) => {
          client_address || null, client_bce || client?.bce_number || null,
          biz.name, biz.address || null, biz.bce_number || null,
          biz.iban || null, biz.bic || null,
-         subtotal, vatAmount, total, vatR,
+         subtotal, vatAmount, total, _defaultVatRate,
          structuredComm, notes || null,
          biz.invoice_footer || null,
          language || 'fr']
@@ -341,7 +349,9 @@ router.post('/', requireOwner, blockIfImpersonated, async (req, res, next) => {
           `INSERT INTO invoice_items (invoice_id, booking_id, description, quantity, unit_price_cents, vat_rate, total_cents, sort_order)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
           [invoiceId, item.booking_id || null, item.description, item.quantity || 1,
-           item.unit_price_cents || 0, (item.vat_rate !== undefined && item.vat_rate !== null) ? parseFloat(item.vat_rate) : vatR,
+           item.unit_price_cents || 0,
+           // item.vat_rate was normalized in the totals loop (nullish-safe).
+           item.vat_rate,
            item.total_cents || 0, i]
         );
       }
