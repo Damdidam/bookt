@@ -786,8 +786,12 @@ router.delete('/:id', requireOwner, blockIfImpersonated, async (req, res, next) 
           );
         }
         // Concatène listRes.rows (nouveaux cancels) + orphanRes.rows (récupération
-        // crash pod précédent) → tous passent dans le loop refund post-TX.
-        return [...listRes.rows, ...orphanRes.rows];
+        // crash pod précédent). Orphelins flaggés `_isOrphan=true` pour skip
+        // calSyncDelete + email notification (déjà faits au run initial avant crash).
+        return [
+          ...listRes.rows.map(r => ({ ...r, _isOrphan: false })),
+          ...orphanRes.rows.map(r => ({ ...r, _isOrphan: true }))
+        ];
       });
       cancelledCount = txTargets.length;
       cancelledDetails = txTargets;
@@ -818,15 +822,17 @@ router.delete('/:id', requireOwner, blockIfImpersonated, async (req, res, next) 
             if (e.code !== 'charge_already_refunded') console.warn(`[PRAC DEL] Stripe refund ${bk.id}:`, e.message);
           }
         }
-        // calSyncDelete
-        try { const { calSyncDelete } = require('./bookings-helpers'); calSyncDelete(bid, bk.id); } catch (_) {}
-        // Queue email_cancellation_pro
-        try {
-          await query(
-            `INSERT INTO notifications (business_id, booking_id, type, status) VALUES ($1, $2, 'email_cancellation_pro', 'queued')`,
-            [bid, bk.id]
-          );
-        } catch (_) {}
+        // calSyncDelete + email queue : skippés pour orphelins (déjà faits
+        // au run initial avant crash — éviter double-email au pro).
+        if (!bk._isOrphan) {
+          try { const { calSyncDelete } = require('./bookings-helpers'); calSyncDelete(bid, bk.id); } catch (_) {}
+          try {
+            await query(
+              `INSERT INTO notifications (business_id, booking_id, type, status) VALUES ($1, $2, 'email_cancellation_pro', 'queued')`,
+              [bid, bk.id]
+            );
+          } catch (_) {}
+        }
       }
       // Broadcast SSE (un seul pour le batch)
       try {
