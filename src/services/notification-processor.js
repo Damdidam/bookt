@@ -697,7 +697,8 @@ async function processNotifications() {
                 ctaText: 'Voir dans le dashboard', ctaUrl: `${_baseOrphan}/dashboard`,
                 businessName: bk.biz_name, primaryColor: _scOrphan(bk.biz_theme?.primary_color),
                 footerText: `${bk.biz_name} · Via Genda.be`
-              }), fromName: 'Genda'
+              }), fromName: 'Genda',
+              businessId: bk.business_id
             });
             result = { success: true };
             break;
