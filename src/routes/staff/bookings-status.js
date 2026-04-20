@@ -500,17 +500,15 @@ router.patch('/:id/status', blockIfImpersonated, async (req, res, next) => {
                   piId = session.payment_intent;
                 }
                 if (piId && piId.startsWith('pi_')) {
-                  // B#3 fix: staff cancel = le pro annule activement. Par cohérence
-                  // avec reject public (booking-actions.js:658-661) qui commente
-                  // explicitement "refund_policy='net' is for CLIENT-initiated cancel,
-                  // not applicable to staff-initiated", on force refund FULL ici.
-                  // Le pro absorbe les frais Stripe quand il est à l'origine de
-                  // l'annulation — le client reçoit l'intégralité de son acompte.
-                  // La policy 'net' reste applicable via:
-                  //   - public /cancel (client-initiated) : booking-actions.js
-                  //   - deposit-refund manuel (pro choisit net) : L1222+ ci-dessous
+                  // B#3 + GC-MIX fix: staff cancel force refund FULL (pro absorbe frais).
+                  // MAIS le refund Stripe porte UNIQUEMENT sur la portion chargée =
+                  // deposit_amount_cents - gc_paid_cents. Si on met netRefundCentsForEmail
+                  // = deposit_amount_cents, email-cancel.js:L89 affiche un montant Stripe
+                  // gonflé du GC (ex: dépôt 50€ payé 20€ GC + 30€ Stripe → email mentait
+                  // "50€ remboursés par CB" alors que Stripe n'a rendu que 30€).
+                  // On laisse `null` → email retombe sur calcul correct = charge - GC.
+                  // Parité avec reject public (booking-actions.js:607 rejectNetRefundCents=null).
                   await stripe.refunds.create({ payment_intent: piId });
-                  netRefundCentsForEmail = dep.deposit_amount_cents;
                 }
               } catch (stripeErr) {
                 if (stripeErr.code !== 'charge_already_refunded') {
@@ -537,6 +535,9 @@ router.patch('/:id/status', blockIfImpersonated, async (req, res, next) => {
             // Refund gift card debits if deposit cancelled/refunded
             if (newDepStatus === 'cancelled' || newDepStatus === 'refunded') {
               gcRefundForEmail = await refundGiftCardForBooking(id, client) || { refunded: 0 };
+              // Propage montant GC au payload sendDepositRefundEmail (L894 consomme
+              // txResult.gcPaidForRefundEmail — sans ça l'email oublie le bloc GC).
+              gcPaidForRefundEmail = gcRefundForEmail.refunded || 0;
               try { passRefundForEmail = await refundPassForBooking(id, client) || { refunded: 0 }; } catch (e) { console.warn('[PASS REFUND]', e.message); }
             }
 
