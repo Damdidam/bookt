@@ -46,8 +46,14 @@ function shouldRequireDeposit(bizSettings, totalPriceCents, totalDurationMin, no
   // modifié (salon baisse son tarif p.ex.), on NE recalcule PAS le deposit
   // (pas de refund automatique de l'excédent). L'acompte est une garantie
   // contractuelle fixe, pas un pourcentage glissant.
-  // Enforcement : les UPDATE deposit_amount_cents dans booking-reschedule.js:580,
-  // bookings-time.js:455+806 ont le guard `WHERE deposit_status = 'pending'`.
+  // Enforcement :
+  //   - reschedule/move/modify : guard `WHERE deposit_status = 'pending'` sur
+  //     booking-reschedule.js:580, bookings-time.js:455+806. Si paid → skip.
+  //   - ungroup : bookings-ungroup.js:490 update sans guard MAIS détecte
+  //     l'overpayment (paid + newDeposit < oldDeposit) et déclenche refund
+  //     Stripe auto + audit log. Couvert via compensation, pas via guard.
+  //   - waitlist accept : booking est neuf (status='pending_deposit') donc
+  //     deposit jamais payé à ce stade.
   // Le client bénéficie naturellement de la baisse via une charge réduite sur place
   // (total - acompte figé). Pour refund explicite, le pro utilise le dashboard.
   let depCents = 0;
