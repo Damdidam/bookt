@@ -2770,9 +2770,11 @@ async function submitBooking(){
     // on propage au backend pour l'auto-débit du pass sans requérir saisie manuelle.
     var _passPrefill=urlParams.get('pass');
     if(_passPrefill&&_passPrefill.trim())bookingBody.pass_code=_passPrefill.trim().toUpperCase();
-    // GC pre-fill : stocker en sessionStorage pour que deposit.html le lise après redirect.
+    // GC pre-fill : stocker en sessionStorage avec clé scopée au salon (slug) pour éviter
+    // le leak cross-salon (client réserve salon A sans deposit → GC pré-rempli sur salon B
+    // ensuite = erreur "Carte cadeau inconnue" car codes business_id-scopés).
     var _gcPrefill=urlParams.get('gc');
-    if(_gcPrefill&&_gcPrefill.trim()){try{sessionStorage.setItem('gc_prefill',_gcPrefill.trim().toUpperCase());}catch(_){}}
+    if(_gcPrefill&&_gcPrefill.trim()){try{sessionStorage.setItem('gc_prefill:'+slug,_gcPrefill.trim().toUpperCase());}catch(_){}}
 
     const res=await fetch('/api/public/'+slug+'/bookings',{
       method:'POST',headers:{'Content-Type':'application/json'},

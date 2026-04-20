@@ -245,11 +245,16 @@ function render(d) {
   }
 
   // Pre-fill GC code si le client arrive via un CTA email `?gc=CODE` (expiry warning).
-  // Source : query param direct, ou sessionStorage (propagé depuis /book?gc=CODE).
+  // Source : query param direct, ou sessionStorage scopé par slug (propagé depuis
+  // /{slug}/book?gc=CODE). Clé namespacée pour éviter leak cross-salon.
   try {
     let _gcCode = new URLSearchParams(window.location.search).get('gc');
-    if (!_gcCode) {
-      try { _gcCode = sessionStorage.getItem('gc_prefill'); sessionStorage.removeItem('gc_prefill'); } catch (_) {}
+    if (!_gcCode && biz.slug) {
+      try {
+        const _k = 'gc_prefill:' + biz.slug;
+        _gcCode = sessionStorage.getItem(_k);
+        sessionStorage.removeItem(_k);
+      } catch (_) {}
     }
     if (_gcCode && _gcCode.trim()) {
       const _gcInput = document.getElementById('gcCode');
