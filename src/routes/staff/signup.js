@@ -50,6 +50,10 @@ router.post('/signup', authLimiter, async (req, res, next) => {
     if (!password || password.length < 8) {
       return res.status(400).json({ error: 'Mot de passe requis (minimum 8 caractères)' });
     }
+    // H#8 fix: cap length to protect bcrypt.hash from multi-MB DoS payloads.
+    if (password.length > 128) {
+      return res.status(400).json({ error: 'Mot de passe trop long (max 128 caractères)' });
+    }
 
     // Email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -66,17 +70,34 @@ router.post('/signup', authLimiter, async (req, res, next) => {
     // Normalize email: strip +tag, Gmail dots → canonical form for uniqueness
     const normalizedEmail = normalizeEmail(email);
 
-    // Check email uniqueness — raw match first
+    // Check email uniqueness — raw match first (uses idx_users_email_lower from v77).
+    const rawLower = email.toLowerCase().trim();
     const existingUser = await query(
-      `SELECT id FROM users WHERE LOWER(email) = $1`, [email.toLowerCase().trim()]
+      `SELECT id FROM users WHERE LOWER(email) = $1`, [rawLower]
     );
     if (existingUser.rows.length > 0) {
       return res.status(409).json({ error: 'Un compte existe déjà avec cet email' });
     }
-    // Then check normalized form (catches +tag aliases, Gmail dots)
-    const allEmails = await query(`SELECT email FROM users WHERE is_active = true`);
-    if (allEmails.rows.some(u => normalizeEmail(u.email) === normalizedEmail)) {
-      return res.status(409).json({ error: 'Un compte existe déjà avec cet email (alias détecté)' });
+    // H#6 fix: if the raw email already equals its canonical form (no +tag, not
+    // gmail/googlemail dots-mattering), the check above is sufficient. Otherwise
+    // scan ONLY users on the same domain (bounded subset) — previously this
+    // pulled every user row into memory → linear DoS at scale.
+    if (normalizedEmail !== rawLower) {
+      const atIdx = rawLower.lastIndexOf('@');
+      const domain = atIdx > 0 ? rawLower.slice(atIdx + 1) : '';
+      const domainsToScan = (domain === 'gmail.com' || domain === 'googlemail.com')
+        ? ['gmail.com', 'googlemail.com']
+        : [domain];
+      const sameDomainUsers = await query(
+        `SELECT email FROM users
+          WHERE is_active = true
+            AND LOWER(SPLIT_PART(email, '@', 2)) = ANY($1::text[])
+          LIMIT 5000`,
+        [domainsToScan]
+      );
+      if (sameDomainUsers.rows.some(u => normalizeEmail(u.email) === normalizedEmail)) {
+        return res.status(409).json({ error: 'Un compte existe déjà avec cet email (alias détecté)' });
+      }
     }
 
     // Generate slug from business name
@@ -250,8 +271,9 @@ router.post('/signup', authLimiter, async (req, res, next) => {
       await client.query('COMMIT');
 
       // ===== GENERATE JWT =====
+      // token_version starts at 0 on INSERT (default column value).
       const token = jwt.sign(
-        { userId, businessId },
+        { userId, businessId, tv: 0 },
         process.env.JWT_SECRET,
         { expiresIn: '24h' }
       );

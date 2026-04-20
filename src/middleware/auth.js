@@ -30,7 +30,7 @@ async function requireAuth(req, res, next) {
 
     // Fetch user + business + linked practitioner in one query
     const result = await query(
-      `SELECT u.id, u.email, u.role, u.business_id, u.is_superadmin,
+      `SELECT u.id, u.email, u.role, u.business_id, u.is_superadmin, u.token_version,
               b.slug, b.plan, b.sector,
               p.id AS practitioner_id
        FROM users u
@@ -42,6 +42,13 @@ async function requireAuth(req, res, next) {
 
     if (result.rows.length === 0) {
       return res.status(401).json({ error: 'Compte désactivé ou introuvable' });
+    }
+
+    // H#14 fix: reject JWTs issued before the last logout / password change.
+    // Tokens minted before v78 have no `tv` claim → treat as 0 (baseline).
+    const tokenVersion = typeof decoded.tv === 'number' ? decoded.tv : 0;
+    if (tokenVersion !== (result.rows[0].token_version || 0)) {
+      return res.status(401).json({ error: 'Session révoquée, reconnectez-vous' });
     }
 
     const user = result.rows[0];

@@ -335,11 +335,13 @@ app.post('/:slug/access', _accessLimiter, async (req, res) => {
     const settings = rows[0].settings || {};
     if (settings.minisite_test_mode && settings.minisite_test_password) {
       if (req.body?.password === settings.minisite_test_password) {
-        res.cookie('minisite_access_' + req.params.slug, settings.minisite_test_password, {
-          maxAge: 24 * 60 * 60 * 1000, // 24h
-          httpOnly: true,
-          sameSite: 'lax'
-        });
+        // H#5 fix: store an HMAC token, never the raw password (logs, Referer, DOM).
+        const { minisiteAccessToken, minisiteAccessCookieOptions } = require('./services/minisite-access');
+        res.cookie(
+          'minisite_access_' + req.params.slug,
+          minisiteAccessToken(req.params.slug, settings.minisite_test_password),
+          minisiteAccessCookieOptions()
+        );
         return res.redirect('/' + req.params.slug);
       }
       return res.redirect('/' + req.params.slug + '?wrong=1');
@@ -371,7 +373,9 @@ app.get('/:slug', async (req, res, next) => {
       const bizSettings = biz.settings || {};
       if (bizSettings.minisite_test_mode && bizSettings.minisite_test_password) {
         const cookies = parseCookies(req);
-        if (cookies['minisite_access_' + slug] !== bizSettings.minisite_test_password) {
+        const { minisiteAccessToken: _miniTok } = require('./services/minisite-access');
+        const _miniExpected = _miniTok(slug, bizSettings.minisite_test_password);
+        if (cookies['minisite_access_' + slug] !== _miniExpected) {
           return res.send(buildTestModePage(biz.name, slug, biz.logo_url, req.query.wrong === '1'));
         }
       }
@@ -417,7 +421,9 @@ app.get('/:slug/book', async (req, res) => {
       const bizSettings = rows[0].settings || {};
       if (bizSettings.minisite_test_mode && bizSettings.minisite_test_password) {
         const cookies = parseCookies(req);
-        if (cookies['minisite_access_' + slug] !== bizSettings.minisite_test_password) {
+        const { minisiteAccessToken: _miniTok } = require('./services/minisite-access');
+        const _miniExpected = _miniTok(slug, bizSettings.minisite_test_password);
+        if (cookies['minisite_access_' + slug] !== _miniExpected) {
           return res.redirect('/' + slug);
         }
       }
@@ -440,7 +446,9 @@ app.get('/:slug/gift-card', async (req, res) => {
       const bizSettings = rows[0].settings || {};
       if (bizSettings.minisite_test_mode && bizSettings.minisite_test_password) {
         const cookies = parseCookies(req);
-        if (cookies['minisite_access_' + slug] !== bizSettings.minisite_test_password) {
+        const { minisiteAccessToken: _miniTok } = require('./services/minisite-access');
+        const _miniExpected = _miniTok(slug, bizSettings.minisite_test_password);
+        if (cookies['minisite_access_' + slug] !== _miniExpected) {
           return res.redirect('/' + slug);
         }
       }
@@ -463,7 +471,9 @@ app.get('/:slug/pass', async (req, res) => {
       const bizSettings = rows[0].settings || {};
       if (bizSettings.minisite_test_mode && bizSettings.minisite_test_password) {
         const cookies = parseCookies(req);
-        if (cookies['minisite_access_' + slug] !== bizSettings.minisite_test_password) {
+        const { minisiteAccessToken: _miniTok } = require('./services/minisite-access');
+        const _miniExpected = _miniTok(slug, bizSettings.minisite_test_password);
+        if (cookies['minisite_access_' + slug] !== _miniExpected) {
           return res.redirect('/' + slug);
         }
       }
@@ -486,7 +496,9 @@ app.get('/:slug/guide', async (req, res) => {
       const bizSettings = rows[0].settings || {};
       if (bizSettings.minisite_test_mode && bizSettings.minisite_test_password) {
         const cookies = parseCookies(req);
-        if (cookies['minisite_access_' + slug] !== bizSettings.minisite_test_password) {
+        const { minisiteAccessToken: _miniTok } = require('./services/minisite-access');
+        const _miniExpected = _miniTok(slug, bizSettings.minisite_test_password);
+        if (cookies['minisite_access_' + slug] !== _miniExpected) {
           return res.redirect('/' + slug);
         }
       }

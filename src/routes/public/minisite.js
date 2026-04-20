@@ -84,7 +84,9 @@ router.get('/:slug', slotsLimiter, async (req, res, next) => {
         const [k, v] = c.trim().split('=');
         if (k) cookies[k] = decodeURIComponent(v || '');
       });
-      if (cookies['minisite_access_' + biz.slug] !== bizSettings.minisite_test_password) {
+      const { minisiteAccessToken } = require('../../services/minisite-access');
+      const _expected = minisiteAccessToken(biz.slug, bizSettings.minisite_test_password);
+      if (cookies['minisite_access_' + biz.slug] !== _expected) {
         return res.status(401).json({ error: 'protected', requires_password: true });
       }
     }

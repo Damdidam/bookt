@@ -241,7 +241,7 @@ router.post('/impersonate/:businessId', async (req, res, next) => {
   try {
     // Find the owner of the target business
     const ownerResult = await query(
-      `SELECT u.id, u.email, u.role, u.business_id, b.name AS business_name, b.slug
+      `SELECT u.id, u.email, u.role, u.business_id, u.token_version, b.name AS business_name, b.slug
        FROM users u
        JOIN businesses b ON b.id = u.business_id
        WHERE u.business_id = $1 AND u.role = 'owner' AND u.is_active = true
@@ -260,6 +260,7 @@ router.post('/impersonate/:businessId', async (req, res, next) => {
       {
         userId: owner.id,
         businessId: owner.business_id,
+        tv: owner.token_version || 0,
         impersonated: true,
         impersonatedBy: req.user.id
       },

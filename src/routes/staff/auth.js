@@ -19,14 +19,21 @@ router.post('/login', authLimiter, async (req, res, next) => {
     if (!email) {
       return res.status(400).json({ error: 'Email requis' });
     }
+    // H#8 fix: bcrypt.compare cost is linear in input length. express.json accepts
+    // up to 5MB by default — a single 5MB password would hang the event loop for
+    // hundreds of ms. Cap at 128 chars (well above any real password).
+    if (password != null && typeof password === 'string' && password.length > 128) {
+      return res.status(400).json({ error: 'Mot de passe trop long' });
+    }
 
-    // Find user
+    // Find user — LOWER(u.email) to leverage the functional index idx_users_email_lower (v77)
+    // and stay case-insensitive even if legacy rows were inserted with mixed case.
     const result = await query(
-      `SELECT u.id, u.email, u.role, u.password_hash, u.business_id,
+      `SELECT u.id, u.email, u.role, u.password_hash, u.business_id, u.token_version,
               b.name AS business_name
        FROM users u
        JOIN businesses b ON b.id = u.business_id
-       WHERE u.email = $1 AND u.is_active = true AND b.is_active = true`,
+       WHERE LOWER(u.email) = $1 AND u.is_active = true AND b.is_active = true`,
       [email.toLowerCase().trim()]
     );
 
@@ -49,7 +56,7 @@ router.post('/login', authLimiter, async (req, res, next) => {
       }
 
       const token = jwt.sign(
-        { userId: user.id, businessId: user.business_id },
+        { userId: user.id, businessId: user.business_id, tv: user.token_version || 0 },
         process.env.JWT_SECRET,
         { expiresIn: process.env.JWT_EXPIRES_IN || '8h' }
       );
@@ -151,7 +158,7 @@ router.post('/verify', authLimiter, async (req, res, next) => {
 
     // Fetch user info with business details
     const userResult = await query(
-      `SELECT u.id, u.email, u.role, u.business_id, b.name AS business_name
+      `SELECT u.id, u.email, u.role, u.business_id, u.token_version, b.name AS business_name
        FROM users u JOIN businesses b ON b.id = u.business_id
        WHERE u.id = $1 AND u.is_active = true AND b.is_active = true`,
       [user_id]
@@ -167,7 +174,7 @@ router.post('/verify', authLimiter, async (req, res, next) => {
 
     // Generate JWT
     const jwtToken = jwt.sign(
-      { userId: user_id, businessId: ml.business_id },
+      { userId: user_id, businessId: ml.business_id, tv: ml.token_version || 0 },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || '8h' }
     );
@@ -231,11 +238,15 @@ router.get('/me', requireAuth, async (req, res, next) => {
 // Change password (requires current password)
 // UI: Settings > Sécurité
 // ============================================================
-router.post('/change-password', requireAuth, async (req, res, next) => {
+router.post('/change-password', authLimiter, requireAuth, async (req, res, next) => {
   try {
     const { current_password, new_password } = req.body;
     if (!current_password || !new_password) {
       return res.status(400).json({ error: 'Mot de passe actuel et nouveau requis' });
+    }
+    // H#8 fix: same length cap as login — defends against bcrypt DoS on both passwords.
+    if (current_password.length > 128 || new_password.length > 128) {
+      return res.status(400).json({ error: 'Mot de passe trop long' });
     }
     if (new_password.length < 8) {
       return res.status(400).json({ error: 'Le nouveau mot de passe doit contenir au moins 8 caractères' });
@@ -252,7 +263,13 @@ router.post('/change-password', requireAuth, async (req, res, next) => {
     if (!valid) return res.status(401).json({ error: 'Mot de passe actuel incorrect' });
 
     const hash = await bcrypt.hash(new_password, 12);
-    await query('UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2', [hash, req.user.id]);
+    // H#14 fix: bump token_version to invalidate ALL other active sessions after
+    // a password change. The caller will need to re-authenticate on their next
+    // request too — that's the safe behaviour.
+    await query(
+      'UPDATE users SET password_hash = $1, token_version = token_version + 1, updated_at = NOW() WHERE id = $2',
+      [hash, req.user.id]
+    );
 
     res.json({ updated: true });
   } catch (err) { next(err); }
@@ -275,7 +292,7 @@ router.post('/forgot-password', authLimiter, async (req, res, next) => {
       `SELECT u.id, u.email, u.role, b.name AS business_name
        FROM users u
        JOIN businesses b ON b.id = u.business_id
-       WHERE u.email = $1 AND u.is_active = true AND b.is_active = true`,
+       WHERE LOWER(u.email) = $1 AND u.is_active = true AND b.is_active = true`,
       [email.toLowerCase().trim()]
     );
 
@@ -331,6 +348,10 @@ router.post('/reset-password', authLimiter, async (req, res, next) => {
     if (!token || !new_password) {
       return res.status(400).json({ error: 'Token et nouveau mot de passe requis' });
     }
+    // H#8 fix: bcrypt DoS cap.
+    if (new_password.length > 128) {
+      return res.status(400).json({ error: 'Mot de passe trop long' });
+    }
     if (new_password.length < 8) {
       return res.status(400).json({ error: 'Le mot de passe doit contenir au moins 8 caractères' });
     }
@@ -358,7 +379,11 @@ router.post('/reset-password', authLimiter, async (req, res, next) => {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      await client.query('UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2', [hash, rt.user_id]);
+      // H#14 fix: bump token_version → any active JWT for this user is revoked.
+      await client.query(
+        'UPDATE users SET password_hash = $1, token_version = token_version + 1, updated_at = NOW() WHERE id = $2',
+        [hash, rt.user_id]
+      );
 
       // Invalidate all other tokens for this user
       await client.query(
@@ -384,10 +409,18 @@ router.post('/reset-password', authLimiter, async (req, res, next) => {
 
 // ============================================================
 // POST /api/auth/logout
-// Client-side only (clear JWT), but we can log it
+// H#14 fix: increment users.token_version so the caller's JWT (and any other
+// active session for this user) is rejected by requireAuth on the next request.
+// Previously this was a no-op → a stolen token remained valid until expiry.
 // ============================================================
-router.post('/logout', requireAuth, (req, res) => {
-  res.json({ message: 'Déconnecté' });
+router.post('/logout', requireAuth, async (req, res, next) => {
+  try {
+    await query(
+      `UPDATE users SET token_version = token_version + 1, updated_at = NOW() WHERE id = $1`,
+      [req.user.id]
+    );
+    res.json({ message: 'Déconnecté' });
+  } catch (err) { next(err); }
 });
 
 module.exports = router;
