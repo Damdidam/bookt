@@ -143,7 +143,9 @@ app.use(express.static(path.join(__dirname, '../public'), { maxAge: '1h' }));
 // (/, /book, /gift-card, /pass, /guide), rewrite it to /{slug}/... so the existing
 // /:slug[/page] handlers render normally. Without this, salon-x.be/ returns the
 // Genda landing page instead of the pro's minisite.
-const MINISITE_ENTRY_PATHS = new Set(['/', '/book', '/gift-card', '/pass', '/guide', '/manage-booking']);
+// /manage-booking is NOT a /:slug sub-route — bookings are reached via /booking/:token,
+// so there's no need to rewrite it for custom domains.
+const MINISITE_ENTRY_PATHS = new Set(['/', '/book', '/gift-card', '/pass', '/guide']);
 app.use(async (req, res, next) => {
   if (req.method !== 'GET') return next();
   if (!MINISITE_ENTRY_PATHS.has(req.path)) return next();

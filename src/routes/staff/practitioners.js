@@ -175,7 +175,7 @@ router.patch('/me', async (req, res, next) => {
 // ============================================================
 // POST /api/practitioners/:id/photo — Upload practitioner photo
 // Accepts: { photo: "data:image/jpeg;base64,..." }
-// Saves to /public/uploads/practitioners/<id>.<ext>
+// Saves to UPLOADS_BASE/practitioners/<id>.<ext> (env UPLOADS_DIR or default public/uploads)
 // ============================================================
 router.post('/:id/photo', requireOwner, async (req, res, next) => {
   try {
