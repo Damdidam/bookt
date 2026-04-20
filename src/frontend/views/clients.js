@@ -505,8 +505,8 @@ async function csvDoImport(){
 // Expose to global scope for onclick handlers in dynamic HTML
 bridge({ loadClients, openClientDetail, openNewClientModal, createClient, openCsvImportModal, csvHandleFile, csvDoImport, saveClient, blockClient, unblockClient, resetNoShow, resetExpired, clientLiveSearch, clientsGoToPage, get clientSearch(){ return clientSearch; }, set clientSearch(v){ if(clientSearch!==v){clientOffset=0;} clientSearch=v; }, get clientFilter(){ return clientFilter; }, set clientFilter(v){ if(clientFilter!==v){clientOffset=0;} clientFilter=v; } });
 // Also expose the mutable variables directly on window for inline onclick handlers
-Object.defineProperty(window, 'clientSearch', { get(){ return clientSearch; }, set(v){ clientSearch=v; }, configurable: true });
-Object.defineProperty(window, 'clientFilter', { get(){ return clientFilter; }, set(v){ clientFilter=v; }, configurable: true });
+Object.defineProperty(window, 'clientSearch', { get(){ return clientSearch; }, set(v){ if(clientSearch!==v){clientOffset=0;} clientSearch=v; }, configurable: true });
+Object.defineProperty(window, 'clientFilter', { get(){ return clientFilter; }, set(v){ if(clientFilter!==v){clientOffset=0;} clientFilter=v; }, configurable: true });
 
 // Debounced auto-reload on SSE booking_update si l'utilisateur est sur la page clients.
 let _clientsReloadTimer = null;

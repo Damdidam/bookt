@@ -115,6 +115,9 @@ router.get('/', async (req, res, next) => {
       [bid]
     );
 
+    const total_count = parseInt(countResult.rows[0].count) || 0;
+    const limitVal = parseInt(limit) || 50;
+    const offsetVal = parseInt(offset) || 0;
     res.json({
       clients: result.rows.map(c => ({
         ...c,
@@ -128,8 +131,9 @@ router.get('/', async (req, res, next) => {
            : parseInt(c.total_bookings) === 0 ? 'nouveau'
            : 'actif'
       })),
-      total: parseInt(countResult.rows[0].count),
-      stats: statsResult.rows[0]
+      total: total_count, // backward compat (frontend fallback)
+      stats: statsResult.rows[0],
+      pagination: { total_count, limit: limitVal, offset: offsetVal }
     });
   } catch (err) {
     next(err);

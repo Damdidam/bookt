@@ -17,6 +17,7 @@ export function renderPagination({ total, limit, offset, onPage, label }) {
   total = parseInt(total) || 0;
   limit = parseInt(limit) || 50;
   offset = parseInt(offset) || 0;
+  if (total === 0) return ''; // empty list → no nav (caller shows empty state)
   if (total <= limit && offset === 0) return ''; // single page, no nav needed
 
   const currentPage = Math.floor(offset / limit) + 1;
