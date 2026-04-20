@@ -500,37 +500,17 @@ router.patch('/:id/status', blockIfImpersonated, async (req, res, next) => {
                   piId = session.payment_intent;
                 }
                 if (piId && piId.startsWith('pi_')) {
-                  const refundPolicy = dep.settings?.refund_policy || 'full';
-                  if (refundPolicy === 'net' && dep.deposit_amount_cents) {
-                    // Determine actual Stripe charge: deposit minus any gift card portion
-                    const gcPaidRes = await client.query(
-                      `SELECT COALESCE(SUM(amount_cents), 0) AS gc_paid_cents
-                       FROM gift_card_transactions WHERE booking_id = $1 AND type = 'debit'`,
-                      [id]
-                    );
-                    const gcPaidCents = parseInt(gcPaidRes.rows[0]?.gc_paid_cents) || 0;
-                    gcPaidForRefundEmail = gcPaidCents;
-                    const actualStripeCharge = Math.max(dep.deposit_amount_cents - gcPaidCents, 0);
-                    // A#4 fix: ask Stripe for the actual fee (Bancontact flat 0.24€ vs
-                    // the 1.5%+25c Visa/MC estimate). Fallback to estimate if API fails.
-                    const { resolveStripeFeeCents } = require('../../services/stripe-fee');
-                    const stripeFees = await resolveStripeFeeCents(stripe, piId, actualStripeCharge);
-                    const netRefund = Math.max(actualStripeCharge - stripeFees, 0);
-                    netRefundCentsForEmail = netRefund;
-                    // D-12 fix: Stripe min 50c — traiter net<50 comme fees_exceed_charge
-                    if (netRefund >= 50) {
-                      await stripe.refunds.create({ payment_intent: piId, amount: netRefund });
-                      console.log(`[DEPOSIT REFUND] Net refund: ${netRefund}c (fees: ${stripeFees}c, gc: ${gcPaidCents}c) for PI ${piId}`);
-                    } else {
-                      // Fees ≥ charge OU net trop petit pour Stripe — deposit retenu.
-                      console.warn(`[DEPOSIT REFUND] netRefund=${netRefund}c <50c (fees ${stripeFees}c, charge ${actualStripeCharge}c) — deposit retained for PI ${piId}`);
-                      netRefundCentsForEmail = 0;
-                      newDepStatus = 'cancelled';
-                      depRetentionReason = 'fees_exceed_charge';
-                    }
-                  } else {
-                    await stripe.refunds.create({ payment_intent: piId });
-                  }
+                  // B#3 fix: staff cancel = le pro annule activement. Par cohérence
+                  // avec reject public (booking-actions.js:658-661) qui commente
+                  // explicitement "refund_policy='net' is for CLIENT-initiated cancel,
+                  // not applicable to staff-initiated", on force refund FULL ici.
+                  // Le pro absorbe les frais Stripe quand il est à l'origine de
+                  // l'annulation — le client reçoit l'intégralité de son acompte.
+                  // La policy 'net' reste applicable via:
+                  //   - public /cancel (client-initiated) : booking-actions.js
+                  //   - deposit-refund manuel (pro choisit net) : L1222+ ci-dessous
+                  await stripe.refunds.create({ payment_intent: piId });
+                  netRefundCentsForEmail = dep.deposit_amount_cents;
                 }
               } catch (stripeErr) {
                 if (stripeErr.code !== 'charge_already_refunded') {
