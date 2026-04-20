@@ -730,48 +730,63 @@ router.delete('/:id', requireOwner, blockIfImpersonated, async (req, res, next) 
     // Exception : invoices conserve les données (obligation légale 7 ans compta BE/FR
     // art.R123-83 + CIR BE). Les autres (waitlist, quote_requests, passes, gift_cards,
     // notifications) sont purgées des PII sans intérêt fiscal.
-    if (origEmail || origPhone) {
+    // Chaque cascade est dans son PROPRE try/catch pour fail-safe : si une
+    // UPDATE échoue (NOT NULL constraint, table absente en test, etc.), les
+    // autres continuent quand même.
+    // Utilisation de '' au lieu de NULL pour les colonnes NOT NULL (client_email,
+    // description) — vaut marker de PII effacée sans violer la contrainte DB.
+    if (origEmail) {
       try {
-        if (origEmail) {
-          await queryWithRLS(bid,
-            `UPDATE waitlist_entries SET client_name = '[supprimé]', client_email = NULL, client_phone = NULL, note = NULL, updated_at = NOW()
-             WHERE business_id = $1 AND LOWER(client_email) = $2`,
-            [bid, origEmail]
-          );
-          await queryWithRLS(bid,
-            `UPDATE quote_requests SET client_name = '[supprimé]', client_email = NULL, client_phone = NULL, description = NULL
-             WHERE business_id = $1 AND LOWER(client_email) = $2`,
-            [bid, origEmail]
-          );
-          await queryWithRLS(bid,
-            `UPDATE passes SET buyer_name = '[supprimé]', buyer_email = NULL
-             WHERE business_id = $1 AND LOWER(buyer_email) = $2`,
-            [bid, origEmail]
-          );
-          await queryWithRLS(bid,
-            `UPDATE gift_cards SET buyer_name = '[supprimé]', buyer_email = NULL, message = NULL
-             WHERE business_id = $1 AND LOWER(buyer_email) = $2`,
-            [bid, origEmail]
-          );
-          await queryWithRLS(bid,
-            `UPDATE gift_cards SET recipient_name = '[supprimé]', recipient_email = NULL
-             WHERE business_id = $1 AND LOWER(recipient_email) = $2`,
-            [bid, origEmail]
-          );
-          await queryWithRLS(bid,
-            `UPDATE notifications SET recipient_email = NULL, recipient_phone = NULL
-             WHERE business_id = $1 AND LOWER(recipient_email) = $2`,
-            [bid, origEmail]
-          );
-        }
-        if (origPhone) {
-          await queryWithRLS(bid,
-            `UPDATE notifications SET recipient_phone = NULL
-             WHERE business_id = $1 AND recipient_phone = $2`,
-            [bid, origPhone]
-          );
-        }
-      } catch (e) { console.error('[RGPD] Cascade PII anonymization error:', e.message); }
+        await queryWithRLS(bid,
+          `UPDATE waitlist_entries SET client_name = '[supprimé]', client_email = '', client_phone = NULL, note = NULL, staff_notes = NULL, updated_at = NOW()
+           WHERE business_id = $1 AND LOWER(client_email) = $2`,
+          [bid, origEmail]
+        );
+      } catch (e) { console.error('[RGPD] waitlist_entries cascade:', e.message); }
+      try {
+        await queryWithRLS(bid,
+          `UPDATE quote_requests SET client_name = '[supprimé]', client_email = '', client_phone = NULL, description = ''
+           WHERE business_id = $1 AND LOWER(client_email) = $2`,
+          [bid, origEmail]
+        );
+      } catch (e) { console.error('[RGPD] quote_requests cascade:', e.message); }
+      try {
+        await queryWithRLS(bid,
+          `UPDATE passes SET buyer_name = '[supprimé]', buyer_email = NULL
+           WHERE business_id = $1 AND LOWER(buyer_email) = $2`,
+          [bid, origEmail]
+        );
+      } catch (e) { console.error('[RGPD] passes cascade:', e.message); }
+      try {
+        await queryWithRLS(bid,
+          `UPDATE gift_cards SET buyer_name = '[supprimé]', buyer_email = NULL, message = NULL
+           WHERE business_id = $1 AND LOWER(buyer_email) = $2`,
+          [bid, origEmail]
+        );
+      } catch (e) { console.error('[RGPD] gift_cards buyer cascade:', e.message); }
+      try {
+        await queryWithRLS(bid,
+          `UPDATE gift_cards SET recipient_name = '[supprimé]', recipient_email = NULL
+           WHERE business_id = $1 AND LOWER(recipient_email) = $2`,
+          [bid, origEmail]
+        );
+      } catch (e) { console.error('[RGPD] gift_cards recipient cascade:', e.message); }
+      try {
+        await queryWithRLS(bid,
+          `UPDATE notifications SET recipient_email = NULL, recipient_phone = NULL
+           WHERE business_id = $1 AND LOWER(recipient_email) = $2`,
+          [bid, origEmail]
+        );
+      } catch (e) { console.error('[RGPD] notifications email cascade:', e.message); }
+    }
+    if (origPhone) {
+      try {
+        await queryWithRLS(bid,
+          `UPDATE notifications SET recipient_phone = NULL
+           WHERE business_id = $1 AND recipient_phone = $2`,
+          [bid, origPhone]
+        );
+      } catch (e) { console.error('[RGPD] notifications phone cascade:', e.message); }
     }
 
     // Audit log — preuve vitale RGPD art.5(2) accountability.
