@@ -1427,6 +1427,49 @@ router.patch('/:id/deposit-refund', blockIfImpersonated, async (req, res, next) 
             business: { name: d.biz_name, email: d.biz_email, theme: d.theme }
           }).catch(e => console.warn('[EMAIL] Deposit refund pro email error:', e.message));
         }
+
+        // B#4 fix (4e route — staff deposit-refund) : ce endpoint cancel aussi
+        // le booking (status='cancelled' + propagateGroupStatus). Les siblings
+        // multi-clients doivent recevoir un email cancel (pas le refund email —
+        // seul le primary reçoit le refund sur son compte). Parité avec /cancel
+        // public + staff cancel + crons.
+        if (d.group_id) {
+          try {
+            const _sibsMcD = await queryWithRLS(bid,
+              `SELECT b.id, b.start_at, b.end_at,
+                      COALESCE(sv.price_cents, s.price_cents, 0) AS service_price_cents,
+                      COALESCE(sv.duration_min, s.duration_min, 0) AS duration_min,
+                      b.booked_price_cents, b.discount_pct,
+                      b.promotion_label, b.promotion_discount_cents, b.promotion_discount_pct,
+                      b.custom_label, b.comment_client, b.cancel_reason,
+                      b.deposit_required, b.deposit_status, b.deposit_amount_cents,
+                      b.deposit_paid_at, b.deposit_payment_intent_id,
+                      c.full_name AS client_name, c.email AS client_email,
+                      CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS service_name,
+                      s.category AS service_category,
+                      p.display_name AS practitioner_name
+                 FROM bookings b
+                 LEFT JOIN clients c ON c.id = b.client_id
+                 LEFT JOIN services s ON s.id = b.service_id
+                 LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+                 LEFT JOIN practitioners p ON p.id = b.practitioner_id
+                WHERE b.group_id = $1 AND b.business_id = $2 AND b.id != $3
+                  AND c.email IS NOT NULL AND LOWER(c.email) != LOWER($4)`,
+              [d.group_id, bid, id, d.client_email || '']
+            );
+            const { sendCancellationEmail: _sendCancelD } = require('../../services/email');
+            for (const _sibD of _sibsMcD.rows) {
+              try {
+                const _sibGcD = await getGcPaidCents(_sibD.id);
+                _sendCancelD({
+                  booking: { start_at: _sibD.start_at, end_at: _sibD.end_at, client_name: _sibD.client_name, client_email: _sibD.client_email, service_name: _sibD.service_name, service_category: _sibD.service_category, custom_label: _sibD.custom_label, comment_client: _sibD.comment_client, practitioner_name: _sibD.practitioner_name, deposit_required: _sibD.deposit_required, deposit_status: _sibD.deposit_status, deposit_amount_cents: _sibD.deposit_amount_cents, deposit_paid_at: _sibD.deposit_paid_at, deposit_payment_intent_id: _sibD.deposit_payment_intent_id, gc_paid_cents: _sibGcD, service_price_cents: _sibD.service_price_cents, booked_price_cents: _sibD.booked_price_cents, discount_pct: _sibD.discount_pct, duration_min: _sibD.duration_min, promotion_label: _sibD.promotion_label, promotion_discount_cents: _sibD.promotion_discount_cents, promotion_discount_pct: _sibD.promotion_discount_pct, cancel_reason: _sibD.cancel_reason || 'Acompte remboursé — RDV annulé' },
+                  business: { name: d.biz_name, slug: d.slug, email: d.biz_email, phone: d.biz_phone, address: d.address, settings: d.settings, theme: d.theme },
+                  groupServices
+                }).catch(e => console.warn('[EMAIL] Multi-client deposit-refund sibling cancel error:', e.message));
+              } catch (_sibErrD) { console.warn('[EMAIL] Multi-client deposit-refund sibling error:', _sibErrD.message); }
+            }
+          } catch (_sibQueryErrD) { console.warn('[EMAIL] Multi-client deposit-refund siblings query error:', _sibQueryErrD.message); }
+        }
       }
     } catch (e) { console.warn('[EMAIL] Deposit refund email fetch error:', e.message); }
 
