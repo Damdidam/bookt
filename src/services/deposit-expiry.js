@@ -353,11 +353,13 @@ async function processExpiredDeposits() {
             // H8 fix: lookup actual refunds + cancel_reason so sibling email matches primary cron
             const _gcRefSibExp = await query(`SELECT COALESCE(SUM(amount_cents), 0)::int AS amt FROM gift_card_transactions WHERE booking_id = $1 AND type = 'refund'`, [sib.id]);
             const _passRefSibExp = await query(`SELECT 1 FROM pass_transactions WHERE booking_id = $1 AND type = 'refund' LIMIT 1`, [sib.id]);
-            const _adjSibPriceExp = sib.discount_pct ? Math.round((sib.service_price_cents || 0) * (100 - sib.discount_pct) / 100) : (sib.service_price_cents || 0);
+            // B#1 fix: pass the RAW service_price_cents so the template can detect LM
+            // (rawPrice > bookedPrice) and render the "Last Minute -X%" struck-through banner.
+            // Previously we pre-applied discount_pct here → template saw raw==booked → no LM banner.
             const { sendCancellationEmail } = require('./email');
             await sendCancellationEmail({
               // H7 fix: forward custom_label so sibling email shows personalised service label
-              booking: { start_at: sib.start_at, end_at: sib.end_at, client_name: sib.client_name, client_email: sib.client_email, service_name: sib.service_name, service_category: sib.service_category, custom_label: sib.custom_label, comment_client: sib.comment_client, service_price_cents: _adjSibPriceExp, booked_price_cents: sib.booked_price_cents, discount_pct: sib.discount_pct, duration_min: sib.duration_min, practitioner_name: sib.practitioner_name, deposit_required: sib.deposit_required, deposit_status: sib.deposit_status, deposit_amount_cents: sib.deposit_amount_cents, deposit_paid_at: sib.deposit_paid_at, deposit_payment_intent_id: sib.deposit_payment_intent_id, gc_paid_cents: gcPaidSib, gc_refunded_cents: _gcRefSibExp.rows[0]?.amt || 0, pass_refunded: _passRefSibExp.rows.length > 0, promotion_label: sib.promotion_label, promotion_discount_cents: sib.promotion_discount_cents, promotion_discount_pct: sib.promotion_discount_pct, cancel_reason: 'Acompte non payé dans le délai imparti' },
+              booking: { start_at: sib.start_at, end_at: sib.end_at, client_name: sib.client_name, client_email: sib.client_email, service_name: sib.service_name, service_category: sib.service_category, custom_label: sib.custom_label, comment_client: sib.comment_client, service_price_cents: sib.service_price_cents, booked_price_cents: sib.booked_price_cents, discount_pct: sib.discount_pct, duration_min: sib.duration_min, practitioner_name: sib.practitioner_name, deposit_required: sib.deposit_required, deposit_status: sib.deposit_status, deposit_amount_cents: sib.deposit_amount_cents, deposit_paid_at: sib.deposit_paid_at, deposit_payment_intent_id: sib.deposit_payment_intent_id, gc_paid_cents: gcPaidSib, gc_refunded_cents: _gcRefSibExp.rows[0]?.amt || 0, pass_refunded: _passRefSibExp.rows.length > 0, promotion_label: sib.promotion_label, promotion_discount_cents: sib.promotion_discount_cents, promotion_discount_pct: sib.promotion_discount_pct, cancel_reason: 'Acompte non payé dans le délai imparti' },
               business: { name: sib.biz_name, slug: sib.biz_slug, email: sib.biz_email, phone: sib.biz_phone, address: sib.biz_address, theme: sib.biz_theme, settings: sib.biz_settings },
               groupServices: _sibGroupServicesExp
             });
@@ -377,4 +379,130 @@ async function processExpiredDeposits() {
   }
 }
 
-module.exports = { processExpiredDeposits };
+/**
+ * Send deposit reminder emails 48h before deadline.
+ * email-deposit.js::sendDepositReminderEmail was defined + exported but never
+ * called (C#2 orphan fix). This cron runs every 10 min and picks bookings whose
+ * deadline falls in [NOW+47h, NOW+49h] — wider-than-2h window covers cron jitter.
+ * Sets deposit_reminder_sent=true to guarantee one-shot.
+ */
+async function processDepositReminders() {
+  const rows = await query(
+    `SELECT b.id, b.business_id, b.public_token, b.start_at, b.end_at,
+            b.deposit_amount_cents, b.deposit_deadline, b.group_id,
+            b.promotion_label, b.promotion_discount_cents, b.promotion_discount_pct,
+            b.booked_price_cents, b.discount_pct,
+            c.full_name AS client_name, c.email AS client_email,
+            CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+            s.category AS service_category,
+            COALESCE(sv.price_cents, s.price_cents, 0) AS service_price_cents,
+            COALESCE(sv.duration_min, s.duration_min, 0) AS duration_min,
+            p.display_name AS practitioner_name,
+            biz.name AS biz_name, biz.slug AS biz_slug, biz.email AS biz_email,
+            biz.phone AS biz_phone, biz.address AS biz_address,
+            biz.theme AS biz_theme, biz.settings AS biz_settings
+       FROM bookings b
+       JOIN clients c ON c.id = b.client_id
+       JOIN services s ON s.id = b.service_id
+       LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+       LEFT JOIN practitioners p ON p.id = b.practitioner_id
+       JOIN businesses biz ON biz.id = b.business_id
+      WHERE b.status = 'pending_deposit'
+        AND b.deposit_status = 'pending'
+        AND COALESCE(b.deposit_reminder_sent, false) = false
+        AND b.deposit_deadline IS NOT NULL
+        AND b.deposit_deadline BETWEEN NOW() + INTERVAL '47 hours' AND NOW() + INTERVAL '49 hours'
+        AND c.email IS NOT NULL
+      LIMIT 50`
+  );
+
+  let sent = 0;
+  for (const bk of rows.rows) {
+    try {
+      // Mark first (atomic flip) to prevent double-send if cron double-fires.
+      const flip = await query(
+        `UPDATE bookings SET deposit_reminder_sent = true, updated_at = NOW()
+         WHERE id = $1 AND COALESCE(deposit_reminder_sent, false) = false
+         RETURNING id`,
+        [bk.id]
+      );
+      if (flip.rowCount === 0) continue;
+
+      const { sendDepositReminderEmail } = require('./email');
+      const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+      const depositUrl = `${baseUrl}/deposit/${bk.public_token}`;
+      const payUrl = `${baseUrl}/api/public/deposit/${bk.public_token}/pay`;
+
+      // Gather group siblings for multi-service display (same pattern as sendDepositRequestEmail)
+      let groupServices = null;
+      if (bk.group_id) {
+        const grp = await query(
+          `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS name,
+                  COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                  COALESCE(sv.price_cents, s.price_cents) AS price_cents,
+                  b2.discount_pct,
+                  p.display_name AS practitioner_name
+             FROM bookings b2
+             LEFT JOIN services s ON s.id = b2.service_id
+             LEFT JOIN service_variants sv ON sv.id = b2.service_variant_id
+             LEFT JOIN practitioners p ON p.id = b2.practitioner_id
+            WHERE b2.group_id = $1 AND b2.business_id = $2 AND b2.status NOT IN ('cancelled')
+            ORDER BY b2.group_order, b2.start_at`,
+          [bk.group_id, bk.business_id]
+        );
+        if (grp.rows.length > 1) {
+          grp.rows.forEach(r => {
+            if (r.discount_pct && r.price_cents) {
+              r.original_price_cents = r.price_cents;
+              r.price_cents = Math.round(r.price_cents * (100 - r.discount_pct) / 100);
+            }
+          });
+          groupServices = grp.rows;
+        }
+      }
+
+      await sendDepositReminderEmail({
+        booking: {
+          start_at: bk.start_at, end_at: bk.end_at,
+          client_name: bk.client_name, client_email: bk.client_email,
+          service_name: bk.service_name, service_category: bk.service_category,
+          service_price_cents: bk.service_price_cents,
+          booked_price_cents: bk.booked_price_cents, discount_pct: bk.discount_pct,
+          duration_min: bk.duration_min, practitioner_name: bk.practitioner_name,
+          deposit_amount_cents: bk.deposit_amount_cents,
+          deposit_deadline: bk.deposit_deadline,
+          promotion_label: bk.promotion_label,
+          promotion_discount_cents: bk.promotion_discount_cents,
+          promotion_discount_pct: bk.promotion_discount_pct
+        },
+        business: {
+          name: bk.biz_name, slug: bk.biz_slug, email: bk.biz_email,
+          phone: bk.biz_phone, address: bk.biz_address,
+          theme: bk.biz_theme, settings: bk.biz_settings
+        },
+        depositUrl, payUrl, groupServices
+      });
+
+      try {
+        await query(
+          `INSERT INTO notifications (business_id, booking_id, type, recipient_email, status, sent_at)
+           VALUES ($1, $2, 'email_deposit_reminder', $3, 'sent', NOW())`,
+          [bk.business_id, bk.id, bk.client_email]
+        );
+      } catch (_) { /* best-effort audit */ }
+      sent++;
+    } catch (e) {
+      console.warn(`[DEPOSIT REMINDER] Booking ${bk.id} email error:`, e.message);
+      // Rollback flag so we can retry next cycle — the reminder matters more
+      // than risking a duplicate (Brevo bounces on identical Message-ID anyway).
+      await query(
+        `UPDATE bookings SET deposit_reminder_sent = false WHERE id = $1`,
+        [bk.id]
+      ).catch(() => {});
+    }
+  }
+
+  return { sent };
+}
+
+module.exports = { processExpiredDeposits, processDepositReminders };

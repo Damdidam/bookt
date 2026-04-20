@@ -482,7 +482,8 @@ let sql = `UPDATE bookings SET start_at = $1, end_at = $2, reminder_24h_sent_at 
                     COALESCE(sv.price_cents, s.price_cents, 0) AS service_price_cents,
                     COALESCE(sv.duration_min, s.duration_min, 0) AS duration_min,
                     p.display_name AS practitioner_name,
-                    biz.name AS business_name, biz.theme, biz.address, biz.email AS business_email, biz.phone AS business_phone
+                    biz.name AS business_name, biz.theme, biz.address, biz.email AS business_email, biz.phone AS business_phone,
+                    biz.settings AS business_settings
              FROM bookings b
              LEFT JOIN clients c ON c.id = b.client_id
              LEFT JOIN services s ON s.id = b.service_id
@@ -572,7 +573,8 @@ let sql = `UPDATE bookings SET start_at = $1, end_at = $2, reminder_24h_sent_at 
                   email: bk.business_email,
                   phone: bk.business_phone,
                   theme: bk.theme || {},
-                  address: bk.address
+                  address: bk.address,
+                  settings: bk.business_settings
                 },
                 groupServices: groupServices.length > 1 ? groupServices : undefined
               });
@@ -860,7 +862,9 @@ let sql = `UPDATE bookings SET start_at = $1, end_at = $2, reminder_24h_sent_at 
                   COALESCE(sv.price_cents, s.price_cents, 0) AS service_price_cents,
                   COALESCE(sv.duration_min, s.duration_min, 0) AS duration_min,
                   p.display_name AS practitioner_name,
-                  biz.name AS business_name, biz.theme, biz.address, biz.email AS business_email
+                  biz.name AS business_name, biz.theme, biz.address,
+                  biz.email AS business_email, biz.phone AS business_phone,
+                  biz.settings AS business_settings
            FROM bookings b
            LEFT JOIN clients c ON c.id = b.client_id
            LEFT JOIN services s ON s.id = b.service_id
@@ -907,7 +911,8 @@ let sql = `UPDATE bookings SET start_at = $1, end_at = $2, reminder_24h_sent_at 
                   email: bk.business_email,
                   phone: bk.business_phone,
                   theme: bk.theme || {},
-                  address: bk.address
+                  address: bk.address,
+                  settings: bk.business_settings
                 }
               });
               notificationResult.email = emailResult.success ? 'sent' : 'error';
@@ -1480,7 +1485,8 @@ router.patch('/:id/modify', async (req, res, next) => {
               COALESCE(sv.duration_min, s.duration_min, 0) AS duration_min,
               COALESCE(s.buffer_before_min, 0) AS svc_buffer_before,
               p.display_name AS practitioner_name,
-              biz.name AS business_name, biz.slug, biz.theme, biz.address, biz.email AS business_email, biz.phone AS business_phone
+              biz.name AS business_name, biz.slug, biz.theme, biz.address, biz.email AS business_email, biz.phone AS business_phone,
+              biz.settings AS business_settings
        FROM bookings b
        LEFT JOIN clients c ON c.id = b.client_id
        LEFT JOIN services s ON s.id = b.service_id
@@ -1720,7 +1726,8 @@ router.patch('/:id/modify', async (req, res, next) => {
             email: oldBooking.business_email,
             phone: oldBooking.business_phone,
             theme: oldBooking.theme || {},
-            address: oldBooking.address
+            address: oldBooking.address,
+            settings: oldBooking.business_settings
           },
           groupServices
         });
@@ -1891,7 +1898,8 @@ router.post('/:id/send-reminder', async (req, res, next) => {
               COALESCE(sv.duration_min, s.duration_min) AS svc_duration_min,
               COALESCE(sv.price_cents, s.price_cents) AS svc_price_cents,
               p.display_name AS practitioner_name,
-              biz.name AS business_name, biz.slug, biz.theme, biz.address, biz.email AS business_email, biz.phone AS business_phone
+              biz.name AS business_name, biz.slug, biz.theme, biz.address, biz.email AS business_email, biz.phone AS business_phone,
+              biz.settings AS business_settings
        FROM bookings b
        LEFT JOIN clients c ON c.id = b.client_id
        LEFT JOIN services s ON s.id = b.service_id

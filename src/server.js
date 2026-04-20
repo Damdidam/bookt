@@ -617,7 +617,8 @@ app.listen(PORT, async () => {
       'email_waitlist_offer','waitlist_match',
       'email_confirmation_request','sms_confirmation_reply',
       'email_deposit_orphan','email_dispute_alert','manual_reminder',
-      'email_giftcard_expiry_warning','email_pass_expiry_warning'
+      'email_giftcard_expiry_warning','email_pass_expiry_warning',
+      'email_deposit_reminder'
     ))`);
   } catch (e) { console.warn('  ⚠ schema-v69 auto-migrate:', e.message); }
   // schema-v73 (E2E tests infra): is_test_account flag + seed_tracking + test_mock_log
@@ -732,6 +733,27 @@ app.listen(PORT, async () => {
       depositRunning = false;
     }
   }, depositInterval);
+
+  // ===== DEPOSIT REMINDER CRON — 48h-before-deadline email, every 10 min =====
+  // C#2 fix: sendDepositReminderEmail was exported but never scheduled. Without this
+  // cron, clients never received the urgent reminder and bookings auto-cancelled silently.
+  const depositReminderInterval = parseInt(process.env.DEPOSIT_REMINDER_CRON_INTERVAL_MS, 10) || 10 * 60 * 1000;
+  let depositReminderRunning = false;
+  setInterval(async () => {
+    if (depositReminderRunning) return;
+    depositReminderRunning = true;
+    try {
+      const { processDepositReminders } = require('./services/deposit-expiry');
+      const result = await processDepositReminders();
+      if (result.sent > 0) {
+        console.log(`[DEPOSIT REMINDER CRON] ${result.sent} reminder(s) sent`);
+      }
+    } catch (e) {
+      console.error('[DEPOSIT REMINDER CRON] Error:', e.message); Sentry.captureException(e);
+    } finally {
+      depositReminderRunning = false;
+    }
+  }, depositReminderInterval);
 
   // ===== GIFT CARD EXPIRY CRON — expire old gift cards every hour =====
   let gcRunning = false;

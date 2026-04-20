@@ -152,12 +152,18 @@ async function sendPostBookingComms({
             const _svcLabel = groupServices && groupServices.length > 1
               ? `${groupServices[0].name} +${groupServices.length - 1}`
               : serviceName || 'RDV';
-            await sendSMS({ to: clientPhone, body: `${bizRow.rows[0].name} : Acompte ${depAmt}\u20ac pour "${_svcLabel}"${practitionerName ? ' avec ' + practitionerName : ''} le ${_sDate} \u00e0 ${_sTime}${_depDl ? '. Avant le ' + _depDl : ''}. Payez : ${depositUrl}`, businessId, clientId: createdBooking.client_id });
+            // C#6 fix: reflect the actual sendSMS outcome in audit — previously
+            // the status was hardcoded 'sent' even when the send was skipped
+            // (consent opt-out, no Twilio key, monthly cap) or failed (Twilio 400).
+            const _depSmsRes = await sendSMS({ to: clientPhone, body: `${bizRow.rows[0].name} : Acompte ${depAmt}\u20ac pour "${_svcLabel}"${practitionerName ? ' avec ' + practitionerName : ''} le ${_sDate} \u00e0 ${_sTime}${_depDl ? '. Avant le ' + _depDl : ''}. Payez : ${depositUrl}`, businessId, clientId: createdBooking.client_id });
             try {
+              // notifications.status CHECK = {'queued','sent','failed'} — skip + failed both map to 'failed'
+              const _depStatus = _depSmsRes?.success ? 'sent' : 'failed';
+              const _depError = _depSmsRes?.skipped ? 'skipped_opt_out_or_cap' : (_depSmsRes?.error || null);
               await query(
-                `INSERT INTO notifications (business_id, booking_id, type, recipient_phone, status, sent_at)
-                 VALUES ($1,$2,'sms_deposit_request',$3,'sent',NOW())`,
-                [businessId, createdBooking.id, clientPhone]
+                `INSERT INTO notifications (business_id, booking_id, type, recipient_phone, status, sent_at, error)
+                 VALUES ($1,$2,'sms_deposit_request',$3,$4,NOW(),$5)`,
+                [businessId, createdBooking.id, clientPhone, _depStatus, _depError]
               );
             } catch (_) {}
           } catch (smsErr) { console.warn('[SMS] Deposit request SMS error:', smsErr.message); }
