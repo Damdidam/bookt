@@ -243,6 +243,7 @@ async function sendNewBookingProEmail(bk, groupServices) {
   return sendEmail({
     to: bk.biz_email,
     toName: bk.biz_name,
+    businessId: bk.business_id,
     subject: `Nouveau RDV \u2014 ${clientNameRaw} \u2014 ${fmtDate(bk.start_at)}`,
     html,
     fromName: 'Genda',
@@ -307,6 +308,7 @@ async function sendCancellationProEmail(bk, groupServices) {
   return sendEmail({
     to: bk.biz_email,
     toName: bk.biz_name,
+    businessId: bk.business_id,
     subject: `Annulation \u2014 ${clientNameRaw} \u2014 ${fmtDate(bk.start_at)}`,
     html,
     fromName: 'Genda'
@@ -383,6 +385,7 @@ async function sendRescheduleProEmail(bk, groupServices, metadata) {
   return sendEmail({
     to: bk.biz_email,
     toName: bk.biz_name,
+    businessId: bk.business_id,
     subject: `RDV d\u00e9plac\u00e9 \u2014 ${clientNameRaw} \u2014 ${dateStr}`,
     html,
     fromName: 'Genda'
@@ -443,6 +446,7 @@ async function sendModificationConfirmedProEmail(bk, groupServices) {
   return sendEmail({
     to: bk.biz_email,
     toName: bk.biz_name,
+    businessId: bk.business_id,
     subject: `Modification confirm\u00e9e \u2014 ${clientNameRaw} \u2014 ${dateStr}`,
     html,
     fromName: 'Genda'
@@ -516,6 +520,7 @@ async function sendModificationRejectedProEmail(bk, groupServices) {
   return sendEmail({
     to: bk.biz_email,
     toName: bk.biz_name,
+    businessId: bk.business_id,
     subject: `Modification refus\u00e9e \u2014 ${clientNameRaw}`,
     html,
     fromName: 'Genda'
@@ -641,7 +646,7 @@ async function processNotifications() {
             }
             const _ctxLine = _disputeCtx.length > 0 ? `<div style="font-size:14px;color:#3D3832;margin-top:6px">${_disputeCtx.join(' · ')}</div>` : '';
             await sendEmail({
-              to: bk.biz_email, toName: bk.biz_name,
+              to: bk.biz_email, toName: bk.biz_name, businessId: bk.business_id,
               subject: `⚠ Litige Stripe — ${amtStr} — action requise`,
               html: buildEmailHTML({
                 title: 'Litige reçu', preheader: `Un litige de ${amtStr} a été ouvert`,

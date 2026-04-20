@@ -199,6 +199,7 @@ async function sendCancellationEmail({ booking, business, groupServices }) {
   return sendEmail({
     to: booking.client_email,
     toName: booking.client_name,
+    businessId: business.id,
     subject: `Rendez-vous annul\u00e9 \u2014 ${business.name}`,
     html,
     fromName: business.name,
@@ -383,6 +384,7 @@ async function sendRescheduleConfirmationEmail({ booking, business, oldStartAt, 
   return sendEmail({
     to: booking.client_email,
     toName: booking.client_name,
+    businessId: business.id,
     subject: `Rendez-vous déplacé — ${business.name}`,
     html,
     fromName: business.name,

@@ -174,6 +174,7 @@ async function sendBookingConfirmation({ booking, business, groupServices }) {
   return sendEmail({
     to: booking.client_email,
     toName: booking.client_name,
+    businessId: business.id,
     subject: isMulti ? `Confirmation de vos ${groupServices.length} prestations \u2014 ${business.name}` : `Confirmation de votre RDV \u2014 ${business.name}`,
     html,
     fromName: business.name,
@@ -353,6 +354,7 @@ async function sendBookingConfirmationRequest({ booking, business, timeoutMin, g
   return sendEmail({
     to: booking.client_email,
     toName: booking.client_name,
+    businessId: business.id,
     subject: `Confirmez votre RDV \u2014 ${business.name}`,
     html,
     fromName: business.name,

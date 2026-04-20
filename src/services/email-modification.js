@@ -167,6 +167,7 @@ async function sendModificationEmail({ booking, business, groupServices }) {
   return sendEmail({
     to: booking.client_email,
     toName: booking.client_name,
+    businessId: business.id,
     subject: `Modification de votre RDV \u2014 ${business.name}`,
     html,
     fromName: business.name,
@@ -222,6 +223,7 @@ async function sendPractitionerChangeEmail({ booking, business }) {
   return sendEmail({
     to: booking.client_email,
     toName: booking.client_name,
+    businessId: business.id,
     subject: `Changement de praticien \u2014 ${business.name}`,
     html,
     fromName: business.name,

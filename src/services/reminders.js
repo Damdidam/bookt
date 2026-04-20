@@ -63,7 +63,7 @@ async function process24hReminders(stats) {
   const bookings = await query(`
     SELECT
       bk.id, bk.start_at, bk.end_at, bk.public_token, bk.appointment_mode,
-      bk.group_id, bk.group_order,
+      bk.group_id, bk.group_order, bk.client_id,
       c.full_name AS client_name, c.email AS client_email,
       c.phone AS client_phone, c.consent_sms,
       p.display_name AS practitioner_name,
@@ -344,7 +344,7 @@ async function process2hReminders(stats) {
   const bookings = await query(`
     SELECT
       bk.id, bk.start_at, bk.end_at, bk.public_token,
-      bk.group_id, bk.group_order,
+      bk.group_id, bk.group_order, bk.client_id,
       c.full_name AS client_name, c.email AS client_email,
       c.phone AS client_phone, c.consent_sms,
       p.display_name AS practitioner_name,

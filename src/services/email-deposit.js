@@ -140,6 +140,7 @@ async function sendDepositRequestEmail({ booking, business, depositUrl, payUrl, 
   return sendEmail({
     to: booking.client_email,
     toName: booking.client_name,
+    businessId: business.id,
     subject: `Acompte requis \u2014 ${business.name}`,
     html,
     fromName: business.name,
@@ -297,6 +298,7 @@ async function sendDepositReminderEmail({ booking, business, depositUrl, payUrl,
   return sendEmail({
     to: booking.client_email,
     toName: booking.client_name,
+    businessId: business.id,
     subject: `\u26a0\ufe0f Rappel acompte \u2014 ${business.name}`,
     html,
     fromName: business.name,
@@ -450,6 +452,7 @@ async function sendDepositPaidEmail({ booking, business, groupServices }) {
   return sendEmail({
     to: booking.client_email,
     toName: booking.client_name,
+    businessId: business.id,
     subject: `Acompte re\u00e7u \u2014 ${business.name}`,
     html,
     fromName: business.name,
@@ -622,6 +625,7 @@ async function sendDepositRefundEmail({ booking, business, groupServices }) {
   return sendEmail({
     to: booking.client_email,
     toName: booking.client_name,
+    businessId: business.id,
     subject: `Acompte rembours\u00e9 \u2014 ${business.name}`,
     html,
     fromName: business.name,
@@ -670,6 +674,7 @@ async function sendDepositPaidProEmail({ booking, business }) {
   return sendEmail({
     to: business.email,
     toName: business.name,
+    businessId: business.id,
     subject: `Acompte reçu — ${clientNameRaw} — ${dateStr}`,
     html,
     fromName: 'Genda'
@@ -717,6 +722,7 @@ async function sendDepositRefundProEmail({ booking, business }) {
   return sendEmail({
     to: business.email,
     toName: business.name,
+    businessId: business.id,
     subject: `Acompte remboursé — ${clientNameRaw}`,
     html,
     fromName: 'Genda'
@@ -772,6 +778,7 @@ async function sendPartialRefundEmail({ booking, business, refundAmountCents, to
   return sendEmail({
     to: booking.client_email,
     toName: booking.client_name,
+    businessId: business.id,
     subject: `Remboursement partiel \u2014 ${business.name}`,
     html,
     fromName: business.name,
