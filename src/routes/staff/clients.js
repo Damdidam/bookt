@@ -677,4 +677,72 @@ router.post('/:id/reset-expired', requireOwner, blockIfImpersonated, async (req,
   } catch (err) { next(err); }
 });
 
+// ============================================================
+// DELETE /api/clients/:id — RGPD art.17 droit à l'oubli
+// ANONYMISATION (pas suppression physique) pour conserver la comptabilité
+// 7 ans (art.R123-83 code de commerce FR + obligations fiscales BE).
+// Les bookings passés sont préservés avec client_id conservé mais les PII
+// (nom, email, phone) sont effacées de la table clients.
+// ============================================================
+router.delete('/:id', requireOwner, blockIfImpersonated, async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+
+    // Capture before state pour audit (preuve que la demande a été exécutée).
+    const before = await queryWithRLS(bid,
+      `SELECT id, full_name, email, phone, is_blocked FROM clients WHERE id = $1 AND business_id = $2`,
+      [req.params.id, bid]
+    );
+    if (before.rows.length === 0) return res.status(404).json({ error: 'Client introuvable' });
+    if (before.rows[0].full_name === '[supprimé]') {
+      return res.status(409).json({ error: 'Client déjà anonymisé' });
+    }
+
+    // Anonymisation : full_name marker, PII null, consent_* false, tokens cleared.
+    const result = await queryWithRLS(bid,
+      `UPDATE clients SET
+        full_name = '[supprimé]',
+        email = NULL,
+        phone = NULL,
+        bce_number = NULL,
+        notes = NULL,
+        remarks = NULL,
+        birthday = NULL,
+        consent_sms = false,
+        consent_email = false,
+        consent_marketing = false,
+        oauth_provider = NULL,
+        oauth_provider_id = NULL,
+        language_preference = NULL,
+        updated_at = NOW()
+       WHERE id = $1 AND business_id = $2
+       RETURNING id`,
+      [req.params.id, bid]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Client introuvable' });
+
+    // Audit log — preuve vitale RGPD art.5(2) accountability.
+    try {
+      await queryWithRLS(bid,
+        `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
+         VALUES ($1, $2, 'client', $3, 'client_anonymized_rgpd', $4, $5)`,
+        [bid, req.user.id, req.params.id,
+         JSON.stringify({
+           full_name: before.rows[0].full_name,
+           email: before.rows[0].email,
+           phone: before.rows[0].phone ? '[present]' : null
+         }),
+         JSON.stringify({
+           full_name: '[supprimé]',
+           actor_email: req.user.email,
+           impersonated_by: req.user.impersonatedBy || null,
+           reason: 'rgpd_art17_right_to_erasure'
+         })]
+      );
+    } catch (e) { console.error('[AUDIT] client_anonymized_rgpd audit insert failed:', e.message); }
+
+    res.json({ anonymized: true, id: req.params.id });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;
