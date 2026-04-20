@@ -110,9 +110,12 @@ function wlOpenAdd(){
     m+=`<div><label class="m-field-label">Praticien *</label><select class="m-input" id="wla_prac">`;
     pracs.forEach(p=>{m+=`<option value="${esc(p.id)}">${esc(p.display_name)}</option>`;});
     m+=`</select></div>`;
-    m+=`<div><label class="m-field-label">Prestation *</label><select class="m-input" id="wla_svc">`;
+    m+=`<div><label class="m-field-label">Prestation *</label><select class="m-input" id="wla_svc" onchange="wlOnSvcChange()">`;
     services.forEach(s=>{m+=`<option value="${esc(s.id)}">${esc(s.name)} (${s.duration_min} min)</option>`;});
     m+=`</select></div>`;
+    m+=`<div id="wla_variant_wrap" style="display:none"><label class="m-field-label">Variante</label><select class="m-input" id="wla_variant"></select></div>`;
+    // Expose services map + variants to wlOnSvcChange
+    window._wlServicesMap = services.reduce((acc,s)=>{ acc[s.id] = s.variants || []; return acc; }, {});
     m+=`<div><label class="m-field-label">Jours pr\u00e9f\u00e9r\u00e9s</label><div style="display:flex;gap:4px;flex-wrap:wrap" id="wla_days">`;
     for(let i=0;i<7;i++){
       m+=`<button type="button" class="btn-sm ${i<5?'active':''}" data-day="${i}" onclick="this.classList.toggle('active')" style="min-width:42px">${DAY_S[i]}</button>`;
@@ -123,7 +126,23 @@ function wlOpenAdd(){
     m+=`</div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('wlAddModal')">Annuler</button><button class="m-btn m-btn-primary" onclick="wlSaveAdd()">Ajouter</button></div></div></div>`;
     document.body.insertAdjacentHTML('beforeend',m);
     guardModal(document.getElementById('wlAddModal'), { noBackdropClose: true });
+    wlOnSvcChange(); // init variant picker visibility for preselected service
   });
+}
+
+function wlOnSvcChange(){
+  const svcId = document.getElementById('wla_svc').value;
+  const variants = (window._wlServicesMap || {})[svcId] || [];
+  const wrap = document.getElementById('wla_variant_wrap');
+  const sel = document.getElementById('wla_variant');
+  if (variants.length === 0) {
+    wrap.style.display = 'none';
+    sel.innerHTML = '';
+    return;
+  }
+  wrap.style.display = '';
+  sel.innerHTML = '<option value="">— Toute variante —</option>' +
+    variants.map(v=>`<option value="${esc(v.id)}">${esc(v.name)}${v.price_cents?' ('+(v.price_cents/100).toFixed(2).replace('.',',')+' €)':''}</option>`).join('');
 }
 
 async function wlSaveAdd(){
@@ -132,10 +151,13 @@ async function wlSaveAdd(){
   if(!name||!email){GendaUI.toast('Nom et email requis','error');return;}
   const days=[];
   document.querySelectorAll('#wla_days .btn-sm.active').forEach(b=>days.push(parseInt(b.dataset.day)));
+  const variantEl=document.getElementById('wla_variant');
+  const variantId=(variantEl && variantEl.value) ? variantEl.value : null;
   try{
     await api.post('/api/waitlist',{
       practitioner_id:document.getElementById('wla_prac').value,
       service_id:document.getElementById('wla_svc').value,
+      service_variant_id:variantId,
       client_name:name,client_email:email,
       client_phone:document.getElementById('wla_phone').value.trim()||null,
       preferred_days:days,
@@ -294,6 +316,6 @@ async function wlChangeStatus(entryId,status){
 // Expose viewState to window for inline onclick handlers
 Object.defineProperty(window, 'viewState', { get(){return viewState;}, configurable: true });
 
-bridge({ loadWaitlist, wlOpenAdd, wlSaveAdd, wlOffer, wlSendOffer, wlContact, wlRemove, wlDetail, wlSaveNotes, wlChangeStatus });
+bridge({ loadWaitlist, wlOpenAdd, wlOnSvcChange, wlSaveAdd, wlOffer, wlSendOffer, wlContact, wlRemove, wlDetail, wlSaveNotes, wlChangeStatus });
 
-export { loadWaitlist, wlOpenAdd, wlSaveAdd, wlOffer, wlSendOffer, wlContact, wlRemove, wlDetail, wlSaveNotes, wlChangeStatus };
+export { loadWaitlist, wlOpenAdd, wlOnSvcChange, wlSaveAdd, wlOffer, wlSendOffer, wlContact, wlRemove, wlDetail, wlSaveNotes, wlChangeStatus };

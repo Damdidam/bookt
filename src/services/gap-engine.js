@@ -218,13 +218,17 @@ async function detectGaps({ businessId, date, practitionerId }) {
   // ── 5. Fetch waitlist entries ──
   let waitlistByPrac = {};
   try {
+    // Exclude entries whose variant has been deactivated — staff can't honor them anyway.
+    // Parité avec processWaitlistForCancellation + processExpiredOffers cascade.
     const wlResult = await queryWithRLS(businessId,
-      `SELECT id, practitioner_id, service_id, client_name, client_email, preferred_time
-       FROM waitlist_entries
-       WHERE business_id = $1 AND practitioner_id = ANY($2)
-       AND status = 'waiting'
-       AND (preferred_days @> $3::jsonb OR preferred_days IS NULL OR jsonb_array_length(preferred_days) = 0)
-       ORDER BY priority ASC, created_at ASC`,
+      `SELECT we.id, we.practitioner_id, we.service_id, we.client_name, we.client_email, we.preferred_time
+       FROM waitlist_entries we
+         LEFT JOIN service_variants sv ON sv.id = we.service_variant_id
+       WHERE we.business_id = $1 AND we.practitioner_id = ANY($2)
+       AND we.status = 'waiting'
+       AND (we.service_variant_id IS NULL OR sv.is_active = true)
+       AND (we.preferred_days @> $3::jsonb OR we.preferred_days IS NULL OR jsonb_array_length(we.preferred_days) = 0)
+       ORDER BY we.priority ASC, we.created_at ASC`,
       [businessId, practitionerIds, JSON.stringify([weekday])]);
     for (const row of wlResult.rows) {
       const pid = row.practitioner_id;
