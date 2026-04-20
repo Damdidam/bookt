@@ -685,7 +685,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
             let noShowCount = 0;
             let clientIsVip = false;
             if (clientId) {
-              const nsRow = await client.query(`SELECT no_show_count, is_vip FROM clients WHERE id = $1`, [clientId]);
+              const nsRow = await client.query(`SELECT no_show_count, is_vip FROM clients WHERE id = $1 AND business_id = $2`, [clientId, businessId]);
               noShowCount = nsRow.rows[0]?.no_show_count || 0;
               clientIsVip = !!nsRow.rows[0]?.is_vip;
             }
@@ -1304,7 +1304,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           let noShowCount = 0;
           let clientIsVip = false;
           if (clientId) {
-            const nsRow = await client.query(`SELECT no_show_count, is_vip FROM clients WHERE id = $1`, [clientId]);
+            const nsRow = await client.query(`SELECT no_show_count, is_vip FROM clients WHERE id = $1 AND business_id = $2`, [clientId, businessId]);
             noShowCount = nsRow.rows[0]?.no_show_count || 0;
             clientIsVip = !!nsRow.rows[0]?.is_vip;
           }

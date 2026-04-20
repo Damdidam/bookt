@@ -332,8 +332,10 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
       }
 
       // PUB-V12-008: Check if client is blocked BEFORE creating the booking
+      // RULE RLS: scope par business_id — clientId est UUID unique mais convention
+      // multi-tenant impose le filtre explicite.
       const blockedCheck = await client.query(
-        `SELECT is_blocked FROM clients WHERE id = $1`, [clientId]
+        `SELECT is_blocked FROM clients WHERE id = $1 AND business_id = $2`, [clientId, e.business_id]
       );
       if (blockedCheck.rows[0]?.is_blocked) {
         throw Object.assign(
@@ -371,7 +373,7 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
       const wlDuration = parseInt(svcPriceWl.rows[0]?.duration) || 0;
       let wlNoShow = 0, wlIsVip = false;
       if (clientId) {
-        const nsWl = await client.query(`SELECT no_show_count, is_vip FROM clients WHERE id = $1`, [clientId]);
+        const nsWl = await client.query(`SELECT no_show_count, is_vip FROM clients WHERE id = $1 AND business_id = $2`, [clientId, e.business_id]);
         wlNoShow = nsWl.rows[0]?.no_show_count || 0;
         wlIsVip = !!nsWl.rows[0]?.is_vip;
       }
