@@ -122,7 +122,11 @@ router.post('/checkout', requireAuth, requireOwner, blockIfImpersonated, async (
       metadata: { business_id: bid, plan }
     };
 
-    const session = await stripe.checkout.sessions.create(sessionParams);
+    // P1-stripe-idem : bucket 30s par biz + plan — dedupe double-clic
+    // "souscrire au plan Pro". Retry légitime après 30s = nouveau bucket,
+    // nouvelle session (ex: user reload page dashboard).
+    const _idemSub = `sub-checkout-${bid}-${plan}-${Math.floor(Date.now() / 30000)}`;
+    const session = await stripe.checkout.sessions.create(sessionParams, { idempotencyKey: _idemSub });
 
     res.json({ url: session.url, session_id: session.id });
   } catch (err) {

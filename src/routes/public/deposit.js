@@ -142,6 +142,10 @@ router.post('/deposit/:token/checkout', depositLimiter, async (req, res, next) =
       if (cnt > 1) serviceLabelCheckout = `${cnt} prestations`;
     }
 
+    // P1-stripe-idem : idempotencyKey bucket 30s pour dedupe les double-clic
+    // et retry réseau instantanés. Bucket court (pas booking.id stable) pour
+    // permettre retry légitime après session expirée 1h (user attend 30s+,
+    // nouvelle key, nouvelle session). Stripe accepte 255 chars max.
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       payment_method_types: ['card', 'bancontact'],
@@ -171,7 +175,7 @@ router.post('/deposit/:token/checkout', depositLimiter, async (req, res, next) =
       cancel_url: `${baseUrl}/deposit/${token}`,
       locale: 'fr',
       expires_at: Math.floor(Date.now() / 1000) + 3600 // 1h — UX plus safe pour abandons/reprises
-    });
+    }, { idempotencyKey: `deposit-checkout-${bk.id}-${Math.floor(Date.now() / 30000)}` });
 
     // 6. Store checkout session ID (payment_intent is null at creation for Checkout sessions)
     // We store session.id (cs_...) so the verify endpoint can check payment status with Stripe
@@ -313,6 +317,7 @@ router.get('/deposit/:token/pay', depositLimiter, async (req, res, next) => {
       if (cnt2 > 1) serviceLabelCheckout2 = `${cnt2} prestations`;
     }
 
+    // P1-stripe-idem : même pattern que L145 (bucket 30s).
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       payment_method_types: ['card', 'bancontact'],
@@ -342,7 +347,7 @@ router.get('/deposit/:token/pay', depositLimiter, async (req, res, next) => {
       cancel_url: depositPageUrl,
       locale: 'fr',
       expires_at: Math.floor(Date.now() / 1000) + 3600
-    });
+    }, { idempotencyKey: `deposit-pay-${bk.id}-${Math.floor(Date.now() / 30000)}` });
 
     await query(
       `UPDATE bookings SET deposit_payment_intent_id = $1 WHERE id = $2`,

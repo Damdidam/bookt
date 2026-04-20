@@ -85,7 +85,11 @@ router.post('/:slug/gift-card/checkout', depositLimiter, async (req, res, next) 
       application_fee_amount: computeApplicationFeeCents(amount_cents),
       transfer_data: { destination: biz.stripe_connect_id }
     };
-    const session = await stripe.checkout.sessions.create(sessionOpts);
+    // P1-stripe-idem : bucket 30s par buyer_email + biz pour dedupe double-clic.
+    // Pas de GC id en amont (créée seulement après paiement), donc clé basée
+    // sur input user (email + biz + amount) + bucket temps court.
+    const _idemGc = `gc-checkout-${biz.id}-${(buyer_email || '').toLowerCase()}-${amount_cents}-${Math.floor(Date.now() / 30000)}`;
+    const session = await stripe.checkout.sessions.create(sessionOpts, { idempotencyKey: _idemGc });
     res.json({ url: session.url, session_id: session.id });
   } catch (err) { console.error('[GIFT-CARD CHECKOUT] Error:', err); next(err); }
 });
@@ -362,7 +366,9 @@ router.post('/:slug/pass/checkout', depositLimiter, async (req, res, next) => {
       application_fee_amount: computeApplicationFeeCents(tpl.price_cents),
       transfer_data: { destination: biz.stripe_connect_id }
     };
-    const session = await stripe.checkout.sessions.create(passSessionOpts);
+    // P1-stripe-idem : bucket 30s par buyer_email + tpl + biz.
+    const _idemPass = `pass-checkout-${biz.id}-${tpl.id}-${(buyer_email || '').toLowerCase()}-${Math.floor(Date.now() / 30000)}`;
+    const session = await stripe.checkout.sessions.create(passSessionOpts, { idempotencyKey: _idemPass });
     res.json({ url: session.url, session_id: session.id });
   } catch (err) { next(err); }
 });
