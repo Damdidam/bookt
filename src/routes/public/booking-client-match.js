@@ -88,6 +88,11 @@ async function findOrCreateClient(txClient, {
       // Sans cette garde, un client qui a explicitement opt-out (via dashboard pro ou précédent booking)
       // se voit ré-opt-in silencieusement au booking suivant = violation RGPD (droit à l'opposition).
       // Le pro peut toujours modifier via staff/clients.js PATCH s'il a une autorisation explicite.
+      // P1-04 RGPD : capture before pour audit des modifications PII.
+      const beforeExact = await txClient.query(
+        `SELECT full_name, email, phone, bce_number, consent_sms, consent_email, consent_marketing FROM clients WHERE id = $1`,
+        [clientId]
+      );
       await txClient.query(
         `UPDATE clients SET
           full_name = COALESCE(full_name, NULLIF($1, '')),
@@ -108,8 +113,35 @@ async function findOrCreateClient(txClient, {
          clientId,
          oauth_provider || null, oauth_provider_id || null]
       );
+      // P1-04 RGPD audit : re-SELECT pour capturer les valeurs réellement
+      // écrites (logique COALESCE complexe côté SQL — plus fiable de SELECT
+      // après UPDATE que de recomputer en JS).
+      if (beforeExact.rows[0]) {
+        const afterExact = await txClient.query(
+          `SELECT full_name, email, phone, bce_number, consent_sms, consent_email, consent_marketing FROM clients WHERE id = $1`,
+          [clientId]
+        );
+        const b = beforeExact.rows[0], a = afterExact.rows[0];
+        const changedKeys = Object.keys(b).filter(k => String(b[k]) !== String(a[k]));
+        if (changedKeys.length > 0) {
+          try {
+            const oldData = {}; const newData = { source: 'booking_exact_match' };
+            changedKeys.forEach(k => { oldData[k] = b[k]; newData[k] = a[k]; });
+            await txClient.query(
+              `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
+               VALUES ($1, NULL, 'client', $2, 'client_update_booking', $3, $4)`,
+              [businessId, clientId, JSON.stringify(oldData), JSON.stringify(newData)]
+            );
+          } catch (e) { console.error('[AUDIT] booking exact match audit insert failed:', e.message); }
+        }
+      }
     } else if (matchType === 'phone' || matchType === 'email') {
       // Soft merge: only fill empty fields — merchant edits take priority
+      // P1-04 RGPD : capture before pour audit.
+      const beforeSoft = await txClient.query(
+        `SELECT full_name, email, phone FROM clients WHERE id = $1 AND business_id = $2`,
+        [clientId, businessId]
+      );
       await txClient.query(
         `UPDATE clients SET
           full_name = COALESCE(full_name, NULLIF($2, '')),
@@ -121,6 +153,25 @@ async function findOrCreateClient(txClient, {
          WHERE id = $1 AND business_id = $3`,
         [clientId, client_name, businessId, client_phone || null, client_email || null, oauth_provider || null, oauth_provider_id || null]
       );
+      if (beforeSoft.rows[0]) {
+        const afterSoft = await txClient.query(
+          `SELECT full_name, email, phone FROM clients WHERE id = $1 AND business_id = $2`,
+          [clientId, businessId]
+        );
+        const b = beforeSoft.rows[0], a = afterSoft.rows[0];
+        const changedKeys = Object.keys(b).filter(k => String(b[k]) !== String(a[k]));
+        if (changedKeys.length > 0) {
+          try {
+            const oldData = {}; const newData = { source: `booking_${matchType}_match` };
+            changedKeys.forEach(k => { oldData[k] = b[k]; newData[k] = a[k]; });
+            await txClient.query(
+              `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
+               VALUES ($1, NULL, 'client', $2, 'client_update_booking', $3, $4)`,
+              [businessId, clientId, JSON.stringify(oldData), JSON.stringify(newData)]
+            );
+          } catch (e) { console.error('[AUDIT] booking soft match audit insert failed:', e.message); }
+        }
+      }
     }
   } else {
     // Insert new client — handle unique constraint violation (concurrent booking race)

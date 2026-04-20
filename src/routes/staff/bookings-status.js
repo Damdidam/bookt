@@ -373,15 +373,29 @@ router.patch('/:id/status', blockIfImpersonated, async (req, res, next) => {
 
           const count = updated.rows[0]?.no_show_count || 0;
           if (threshold > 0 && count >= threshold && blockAction === 'block') {
-            await client.query(
+            const reasonBlk = `Bloqué automatiquement : ${count} no-show(s)`;
+            const updBlockMain = await client.query(
               `UPDATE clients SET
                 is_blocked = true,
                 blocked_at = NOW(),
                 blocked_reason = $1,
                 updated_at = NOW()
-               WHERE id = $2 AND business_id = $3`,
-              [`Bloqué automatiquement : ${count} no-show(s)`, clientId, bid]
+               WHERE id = $2 AND business_id = $3 AND is_blocked = false
+               RETURNING id`,
+              [reasonBlk, clientId, bid]
             );
+            // P1-04 RGPD art.22 : audit décision automatique (clone de L91).
+            if (updBlockMain.rowCount > 0) {
+              try {
+                await client.query(
+                  `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
+                   VALUES ($1, NULL, 'client', $2, 'client_auto_block_noshow', $3, $4)`,
+                  [bid, clientId,
+                   JSON.stringify({ is_blocked: false, no_show_count_before: count - 1 }),
+                   JSON.stringify({ is_blocked: true, blocked_reason: reasonBlk, no_show_count: count, threshold, source: 'auto_noshow_trigger_main' })]
+                );
+              } catch (e) { console.error('[AUDIT] auto-block no-show main audit insert failed:', e.message); }
+            }
           }
         }
 
@@ -417,11 +431,24 @@ router.patch('/:id/status', blockIfImpersonated, async (req, res, next) => {
             );
             const threshold = bizSettings.rows[0]?.settings?.noshow_block_threshold ?? 3;
             if (cl.no_show_count < threshold) {
-              await client.query(
+              const updUnblock = await client.query(
                 `UPDATE clients SET is_blocked = false, blocked_reason = NULL, blocked_at = NULL, updated_at = NOW()
-                 WHERE id = $1 AND business_id = $2`,
+                 WHERE id = $1 AND business_id = $2 AND is_blocked = true
+                 RETURNING id`,
                 [cid, bid]
               );
+              // P1-04 RGPD art.22 : audit décision automatique d'unblock (symétrie block).
+              if (updUnblock.rowCount > 0) {
+                try {
+                  await client.query(
+                    `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
+                     VALUES ($1, NULL, 'client', $2, 'client_auto_unblock_noshow', $3, $4)`,
+                    [bid, cid,
+                     JSON.stringify({ is_blocked: true, blocked_reason: cl.blocked_reason, no_show_count_before: cl.no_show_count + 1 }),
+                     JSON.stringify({ is_blocked: false, no_show_count: cl.no_show_count, threshold, source: 'auto_noshow_revert' })]
+                  );
+                } catch (e) { console.error('[AUDIT] auto-unblock no-show audit insert failed:', e.message); }
+              }
             }
           }
         }
@@ -2163,11 +2190,24 @@ router.delete('/:id', blockIfImpersonated, async (req, res, next) => {
           );
           const threshold = bizSettings.rows[0]?.settings?.noshow_block_threshold ?? 3;
           if (cl.no_show_count < threshold) {
-            await client.query(
+            const updUnblockDel = await client.query(
               `UPDATE clients SET is_blocked = false, blocked_reason = NULL, blocked_at = NULL, updated_at = NOW()
-               WHERE id = $1 AND business_id = $2`,
+               WHERE id = $1 AND business_id = $2 AND is_blocked = true
+               RETURNING id`,
               [clientId, bid]
             );
+            // P1-04 RGPD art.22 : audit auto-unblock sur delete-booking (symétrie block).
+            if (updUnblockDel.rowCount > 0) {
+              try {
+                await client.query(
+                  `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
+                   VALUES ($1, NULL, 'client', $2, 'client_auto_unblock_noshow', $3, $4)`,
+                  [bid, clientId,
+                   JSON.stringify({ is_blocked: true, blocked_reason: cl.blocked_reason, no_show_count_before: cl.no_show_count + 1 }),
+                   JSON.stringify({ is_blocked: false, no_show_count: cl.no_show_count, threshold, source: 'auto_noshow_delete_revert' })]
+                );
+              } catch (e) { console.error('[AUDIT] auto-unblock delete-booking audit insert failed:', e.message); }
+            }
           }
         }
       }
