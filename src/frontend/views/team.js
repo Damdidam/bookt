@@ -594,7 +594,7 @@ function teamAddSlot(day) {
   const hr = parseInt((ds || '09:00').split(':')[0]);
   const de = `${String(Math.min(hr + 4, 20)).padStart(2, '0')}:00`;
 
-  let m = `<div class="m-overlay open" id="teamSlotModal" style="z-index:350"><div class="m-dialog m-sm"><div class="m-header-simple"><h3>Créneau — ${DAYS_WEEK[day]}</h3><button class="m-close" onclick="closeModal('teamSlotModal')">${ICONS.close}</button></div><div class="m-body">
+  let m = `<div class="m-overlay open" id="teamSlotModal" style="z-index:350"><div class="m-dialog m-sm"><div class="m-header-simple"><h3>Créneau — ${DAYS_WEEK[day]}</h3><button class="m-close" onclick="closeModal('teamSlotModal')" aria-label="Fermer">${ICONS.close}</button></div><div class="m-body">
     <div class="m-row m-row-2"><div><div class="m-field-label">Début</div><input type="text" class="m-input m-time" id="tm_slot_start" value="${(ds || '09:00').slice(0, 5)}"></div><div><div class="m-field-label">Fin</div><input type="text" class="m-input m-time" id="tm_slot_end" value="${de}"></div></div>
   </div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('teamSlotModal')">Annuler</button><button class="m-btn m-btn-primary" onclick="teamConfirmAddSlot(${day})">Ajouter</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend', m);
@@ -625,7 +625,7 @@ function teamEditSlot(day, idx) {
   const st = (slot.start_time || '09:00:00').slice(0, 5);
   const en = (slot.end_time || '18:00:00').slice(0, 5);
 
-  let m = `<div class="m-overlay open" id="teamSlotModal" style="z-index:350"><div class="m-dialog m-sm"><div class="m-header-simple"><h3>Modifier créneau — ${DAYS_WEEK[day]}</h3><button class="m-close" onclick="closeModal('teamSlotModal')">${ICONS.close}</button></div><div class="m-body">
+  let m = `<div class="m-overlay open" id="teamSlotModal" style="z-index:350"><div class="m-dialog m-sm"><div class="m-header-simple"><h3>Modifier créneau — ${DAYS_WEEK[day]}</h3><button class="m-close" onclick="closeModal('teamSlotModal')" aria-label="Fermer">${ICONS.close}</button></div><div class="m-body">
     <div class="m-row m-row-2"><div><div class="m-field-label">Début</div><input type="text" class="m-input m-time" id="tm_slot_start" value="${st}"></div><div><div class="m-field-label">Fin</div><input type="text" class="m-input m-time" id="tm_slot_end" value="${en}"></div></div>
   </div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('teamSlotModal')">Annuler</button><button class="m-btn m-btn-danger" onclick="teamRemoveSlot(${day},${idx});closeModal('teamSlotModal')" style="margin-right:auto">Supprimer</button><button class="m-btn m-btn-primary" onclick="teamConfirmEditSlot(${day},${idx})">Enregistrer</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend', m);
@@ -962,7 +962,7 @@ async function openPracTasks(pracId, pracName) {
     let h = `<div class="m-overlay open" id="tasksModalOverlay"><div class="m-dialog m-flex m-md">
       <div class="m-header" style="flex-shrink:0">
         <div class="m-header-bg" style="background:linear-gradient(135deg,var(--primary) 0%,var(--primary) 60%,rgba(13,115,119,.3) 100%)"></div>
-        <button class="m-close" onclick="closeTasksModal()">×</button>
+        <button class="m-close" onclick="closeTasksModal()" aria-label="Fermer">×</button>
         <div class="m-header-content">
           <div class="m-client-hero">
             <div class="m-avatar" style="background:var(--primary)"><svg class="gi" style="width:20px;height:20px;stroke:#fff;fill:none;stroke-width:2" ${ICONS.tasks.slice(4)}></div>
@@ -1054,7 +1054,7 @@ function openInviteModal(practId, name) {
   let m = `<div class="m-overlay open" id="inviteModalOverlay"><div class="m-dialog m-sm">
     <div class="m-header-simple">
       <h3>Créer un accès — ${name}</h3>
-      <button class="m-close" onclick="closeInviteModal()">${ICONS.close}</button>
+      <button class="m-close" onclick="closeInviteModal()" aria-label="Fermer">${ICONS.close}</button>
     </div>
     <div class="m-body">
       <p style="font-size:.85rem;color:var(--text-3);margin-bottom:14px">Créez un compte pour que <strong>${name}</strong> puisse se connecter au dashboard.</p>
@@ -1136,7 +1136,7 @@ function openRoleModal(practId, name, currentRole) {
   let m = `<div class="m-overlay open" id="roleModalOverlay"><div class="m-dialog m-sm">
     <div class="m-header-simple">
       <h3>Modifier le rôle — ${name}</h3>
-      <button class="m-close" onclick="closeRoleModal()">${ICONS.close}</button>
+      <button class="m-close" onclick="closeRoleModal()" aria-label="Fermer">${ICONS.close}</button>
     </div>
     <div class="m-body">
       <div style="display:flex;flex-direction:column;gap:8px">`;

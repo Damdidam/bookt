@@ -103,7 +103,7 @@ function wlOpenAdd(){
     const pracs=(pData.practitioners||pData||[]).filter(p=>p.is_active!==false);
     const services=(sData.services||sData||[]).filter(s=>s.is_active!==false);
     const DAY_S=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
-    let m=`<div class="m-overlay open" id="wlAddModal"><div class="m-dialog m-md"><div class="m-header-simple"><h3>Ajouter \u00e0 la liste d'attente</h3><button class="m-close" onclick="closeModal('wlAddModal')">${IC.x}</button></div><div class="m-body">`;
+    let m=`<div class="m-overlay open" id="wlAddModal"><div class="m-dialog m-md"><div class="m-header-simple"><h3>Ajouter \u00e0 la liste d'attente</h3><button class="m-close" onclick="closeModal('wlAddModal')" aria-label="Fermer">${IC.x}</button></div><div class="m-body">`;
     m+=`<div><label class="m-field-label">Nom du client *</label><input class="m-input" id="wla_name" placeholder="Nom complet"></div>`;
     m+=`<div><label class="m-field-label">Email *</label><input class="m-input" id="wla_email" type="email" placeholder="email@exemple.be"></div>`;
     m+=`<div><label class="m-field-label">T\u00e9l\u00e9phone</label><input class="m-input" id="wla_phone" placeholder="+32 / +33..."></div>`;
@@ -172,7 +172,7 @@ async function wlSaveAdd(){
 
 // -- Offer a slot --
 function wlOffer(entryId,clientName,pracId,svcId){
-  let m=`<div class="m-overlay open" id="wlOfferModal"><div class="m-dialog m-sm"><div class="m-header-simple"><h3>Proposer un cr\u00e9neau \u00e0 ${clientName}</h3><button class="m-close" onclick="closeModal('wlOfferModal')">${IC.x}</button></div><div class="m-body">`;
+  let m=`<div class="m-overlay open" id="wlOfferModal"><div class="m-dialog m-sm"><div class="m-header-simple"><h3>Proposer un cr\u00e9neau \u00e0 ${clientName}</h3><button class="m-close" onclick="closeModal('wlOfferModal')" aria-label="Fermer">${IC.x}</button></div><div class="m-body">`;
   m+=`<p style="font-size:.82rem;color:var(--text-3);margin-bottom:14px">Le client recevra un lien pour accepter ou d\u00e9cliner. L'offre expire apr\u00e8s <strong>2 heures</strong>.</p>`;
   m+=`<div><label class="m-field-label">Date</label><input type="date" class="m-input" id="wlo_date" value="${new Date().toLocaleDateString('en-CA',{timeZone:'Europe/Brussels'})}"></div>`;
   m+=`<div><label class="m-field-label">Heure de d\u00e9but</label><input type="time" class="m-input" id="wlo_start" value="09:00" step="900"></div>`;
@@ -232,7 +232,7 @@ function wlDetail(idx){
   const days=(e.preferred_days||[]).map(d=>DAY_S[d]||d).join(', ');
   const created=new Date(e.created_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',timeZone:'Europe/Brussels'});
 
-  let m=`<div class="m-overlay open" id="wlDetailModal"><div class="m-dialog m-md"><div class="m-header-simple"><h3>${esc(e.client_name)}</h3><button class="m-close" onclick="closeModal('wlDetailModal')">${IC.x}</button></div><div class="m-body">`;
+  let m=`<div class="m-overlay open" id="wlDetailModal"><div class="m-dialog m-md"><div class="m-header-simple"><h3>${esc(e.client_name)}</h3><button class="m-close" onclick="closeModal('wlDetailModal')" aria-label="Fermer">${IC.x}</button></div><div class="m-body">`;
 
   // Status badge
   m+=`<div style="margin-bottom:16px"><span class="badge st-${e.status}" style="font-size:.72rem;padding:4px 12px">${WL_ST[e.status]||e.status}</span><span style="font-size:.72rem;color:var(--text-4);margin-left:8px">Inscrit le ${created}</span></div>`;

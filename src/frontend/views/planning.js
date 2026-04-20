@@ -400,7 +400,7 @@ function planOpenSendModal() {
     <div class="m-dialog m-sm">
       <div class="m-header-simple">
         <h3>Envoyer le planning</h3>
-        <button class="m-close" onclick="closeModal('planSendOverlay')">${ICONS.close}</button>
+        <button class="m-close" onclick="closeModal('planSendOverlay')" aria-label="Fermer">${ICONS.close}</button>
       </div>
       <div class="m-body">
         <div class="m-sec">
@@ -508,7 +508,7 @@ function planOpenModal(pracId, dateStr, absId) {
       <!-- Header -->
       <div class="m-header">
         <div class="m-header-bg" id="planModalHeaderBg" style="background:${tc.grad}"></div>
-        <button class="m-close" onclick="planCloseModal()">${ICONS.close}</button>
+        <button class="m-close" onclick="planCloseModal()" aria-label="Fermer">${ICONS.close}</button>
         <div class="m-header-content">
           <div class="m-client-hero">
             <div class="m-avatar" style="background:${esc(pracColor)}">${pracInitials}</div>

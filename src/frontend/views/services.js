@@ -262,7 +262,7 @@ function openCategoryModal(catLabel){
   const catId=meta.id||'';
   const color=meta.color||'#1E3A8A';
 
-  let m=`<div class="m-overlay open" id="catModalOverlay"><div class="m-dialog m-sm"><div class="m-header-simple"><h3>${isEdit?'Modifier la catégorie':'Nouvelle catégorie'}</h3><button class="m-close" onclick="closeModal('catModalOverlay')">${X_SVG}</button></div><div class="m-body">`;
+  let m=`<div class="m-overlay open" id="catModalOverlay"><div class="m-dialog m-sm"><div class="m-header-simple"><h3>${isEdit?'Modifier la catégorie':'Nouvelle catégorie'}</h3><button class="m-close" onclick="closeModal('catModalOverlay')" aria-label="Fermer">${X_SVG}</button></div><div class="m-body">`;
   m+=`<div class="svc-form-row" style="margin-bottom:14px"><div class="field"><label>Nom *</label><input id="cat_modal_name" value="${esc(label)}" placeholder="Ex: Épilation, Soins visage..."></div>`;
   m+=`<div class="field-color"><label>Couleur</label><div id="cat_color_wrap"></div></div></div>`;
   m+=`<div class="field"><label>Description <span style="font-weight:400;color:var(--text-4)">(visible par les clients)</span></label><textarea id="cat_modal_desc" rows="3" placeholder="Décrivez cette catégorie pour vos clients...">${esc(desc)}</textarea></div>`;
@@ -617,7 +617,7 @@ function renderServiceModal(svc,sectorCats,prefill,existingPromo){
   const sec=(title)=>`<div class="svc-section"><div class="svc-section-head"><span class="svc-section-title">${title}</span><span class="svc-section-line"></span></div>`;
 
   const currentCat=svc?.category||pf.category||'';
-  let m=`<div class="m-overlay open" id="svcModalOverlay"><div class="m-dialog m-md svc-modal"><div class="m-header-simple"><h3>${isEdit?'Modifier la prestation':'Nouvelle prestation'}</h3><button class="m-close" onclick="closeModal('svcModalOverlay')">${X_SVG}</button></div><div class="m-body">`;
+  let m=`<div class="m-overlay open" id="svcModalOverlay"><div class="m-dialog m-md svc-modal"><div class="m-header-simple"><h3>${isEdit?'Modifier la prestation':'Nouvelle prestation'}</h3><button class="m-close" onclick="closeModal('svcModalOverlay')" aria-label="Fermer">${X_SVG}</button></div><div class="m-body">`;
 
   // ── SECTION 1: Informations ──
   m+=sec('Informations');
@@ -1090,7 +1090,7 @@ function qsRenderStep1(){
   const svcsLabel=categoryLabels.services.toLowerCase();
   let m=`<div class="m-overlay open qs-overlay" id="qsModalOverlay"><div class="m-dialog m-lg qs-modal">
     <div class="qs-progress"><div class="qs-step active">1</div><div class="qs-line"></div><div class="qs-step">2</div></div>
-    <div class="m-header-simple"><h3>Choisissez vos catégories</h3><button class="m-close" onclick="closeModal('qsModalOverlay')">${X_SVG}</button></div>
+    <div class="m-header-simple"><h3>Choisissez vos catégories</h3><button class="m-close" onclick="closeModal('qsModalOverlay')" aria-label="Fermer">${X_SVG}</button></div>
     <div class="m-body"><p class="qs-subtitle">Décochez les catégories qui ne vous concernent pas</p><div class="qs-cat-grid">`;
   qsGroups.forEach(g=>{
     const sel=qsSelectedCats.has(g.category);

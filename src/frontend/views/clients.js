@@ -95,7 +95,7 @@ async function openClientDetail(id){
     const cl=d.client, bks=d.bookings||[];
     const vipIcon=cl.is_vip?`<span style="color:var(--gold);margin-right:6px">${IC.star}</span>`:'';
     const blockedMark=cl.is_blocked?` ${IC.ban}`:'';
-    let m=`<div class="m-overlay open" id="clientModal"><div class="m-dialog m-md"><div class="m-header-simple"><h3>${vipIcon}${esc(cl.full_name)}${blockedMark}</h3><button class="m-close" onclick="closeModal('clientModal')">${IC.x}</button></div><div class="m-body">`;
+    let m=`<div class="m-overlay open" id="clientModal"><div class="m-dialog m-md"><div class="m-header-simple"><h3>${vipIcon}${esc(cl.full_name)}${blockedMark}</h3><button class="m-close" onclick="closeModal('clientModal')" aria-label="Fermer">${IC.x}</button></div><div class="m-body">`;
     if(cl.is_blocked){
       m+=`<div style="background:var(--red-bg);border:1px solid var(--red-bg);border-radius:8px;padding:12px;margin-bottom:12px;font-size:.82rem"><strong style="color:var(--red)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg> ${categoryLabels.client} bloqué·e</strong><br><span style="color:var(--text-3)">${cl.blocked_reason||'Bloqué manuellement'}</span><br><button class="btn-sm" style="margin-top:6px;background:var(--green);color:#fff;border:none" onclick="unblockClient('${cl.id}')">Débloquer</button> <button class="btn-sm" style="margin-top:6px;background:var(--text-3);color:#fff;border:none" onclick="resetNoShow('${cl.id}')">Reset no-shows</button></div>`;
     }else if(cl.no_show_count>0){
@@ -357,7 +357,7 @@ async function resetExpired(id){
 }
 
 function openNewClientModal(){
-  let m=`<div class="m-overlay open" id="newClientModal"><div class="m-dialog m-sm"><div class="m-header-simple"><h3>Nouveau ${categoryLabels.client.toLowerCase()}</h3><button class="m-close" onclick="closeModal('newClientModal')">${IC.x}</button></div><div class="m-body">`;
+  let m=`<div class="m-overlay open" id="newClientModal"><div class="m-dialog m-sm"><div class="m-header-simple"><h3>Nouveau ${categoryLabels.client.toLowerCase()}</h3><button class="m-close" onclick="closeModal('newClientModal')" aria-label="Fermer">${IC.x}</button></div><div class="m-body">`;
   m+=`<div class="m-row"><div><label class="m-field-label">Nom *</label><input class="m-input" id="nc_name" placeholder="Nom complet"></div></div>`;
   m+=`<div class="m-row m-row-2"><div><label class="m-field-label">Téléphone</label><input class="m-input" id="nc_phone" placeholder="+32 / +33..."></div><div><label class="m-field-label">Email</label><input class="m-input" id="nc_email" type="email" placeholder="email@exemple.com"></div></div>`;
   m+=`</div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('newClientModal')">Annuler</button><button class="m-btn m-btn-primary" onclick="createClient()">Créer</button></div></div></div>`;
@@ -386,7 +386,7 @@ let _csvParsed = [];
 
 function openCsvImportModal(){
   _csvParsed = [];
-  let m=`<div class="m-overlay open" id="csvImportModal"><div class="m-dialog m-md"><div class="m-header-simple"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Importer des ${categoryLabels.clients.toLowerCase()}</h3><button class="m-close" onclick="closeModal('csvImportModal')">${IC.x}</button></div><div class="m-body">`;
+  let m=`<div class="m-overlay open" id="csvImportModal"><div class="m-dialog m-md"><div class="m-header-simple"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Importer des ${categoryLabels.clients.toLowerCase()}</h3><button class="m-close" onclick="closeModal('csvImportModal')" aria-label="Fermer">${IC.x}</button></div><div class="m-body">`;
   m+=`<div style="font-size:.82rem;color:var(--text-3);margin-bottom:12px">Format attendu : <strong>Nom, Téléphone, Email</strong> (séparateur : virgule ou point-virgule). La première ligne peut être un en-tête.</div>`;
   m+=`<div style="border:2px dashed var(--border);border-radius:10px;padding:32px;text-align:center;cursor:pointer;transition:border-color .2s" id="csvDropZone" onclick="document.getElementById('csvFileInput').click()" ondragover="event.preventDefault();this.style.borderColor='var(--primary)'" ondragleave="this.style.borderColor='var(--border)'" ondrop="event.preventDefault();this.style.borderColor='var(--border)';csvHandleFile(event.dataTransfer.files[0])">`;
   m+=`<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="var(--text-4)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:32px;height:32px;margin-bottom:8px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`;

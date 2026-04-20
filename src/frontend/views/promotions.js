@@ -152,7 +152,7 @@ async function openPromoModal(id) {
   modal.innerHTML = `<div class="m-dialog m-md">
     <div class="m-header-simple">
       <h3>${promo ? 'Modifier la promotion' : 'Nouvelle promotion'}</h3>
-      <button class="m-close" onclick="closeModal('promoModal')">${IC.x}</button>
+      <button class="m-close" onclick="closeModal('promoModal')" aria-label="Fermer">${IC.x}</button>
     </div>
     <div class="m-body">
       <div style="margin-bottom:14px">
