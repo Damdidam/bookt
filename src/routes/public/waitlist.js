@@ -317,11 +317,36 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
 
       if (existingWlClient) {
         clientId = existingWlClient.id;
+        // P1-04 RGPD : capturer before pour audit des modifications
+        // (email/phone/full_name modifiables via acceptation waitlist).
+        const before = await client.query(
+          `SELECT full_name, email, phone FROM clients WHERE id = $1`,
+          [clientId]
+        );
         // Normalize legacy phone on the fly so future matches go through direct equality.
         await client.query(
           `UPDATE clients SET full_name = COALESCE(NULLIF($1, ''), full_name), email = COALESCE($2, email), phone = COALESCE($3, phone), updated_at = NOW() WHERE id = $4`,
           [e.client_name, e.client_email, _wlPhone, clientId]
         );
+        // P1-04 RGPD : audit uniquement si un champ a réellement changé.
+        if (before.rows[0]) {
+          const b = before.rows[0];
+          const newName = (e.client_name && e.client_name !== '') ? e.client_name : b.full_name;
+          const newEmail = e.client_email || b.email;
+          const newPhone = _wlPhone || b.phone;
+          const changed = (newName !== b.full_name) || (newEmail !== b.email) || (newPhone !== b.phone);
+          if (changed) {
+            try {
+              await client.query(
+                `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
+                 VALUES ($1, NULL, 'client', $2, 'client_update_waitlist', $3, $4)`,
+                [e.business_id, clientId,
+                 JSON.stringify({ full_name: b.full_name, email: b.email, phone: b.phone }),
+                 JSON.stringify({ full_name: newName, email: newEmail, phone: newPhone, source: 'waitlist_accept' })]
+              );
+            } catch (err) { console.error('[AUDIT] waitlist client update audit insert failed:', err.message); }
+          }
+        }
       } else {
         // created_from must match CHECK constraint ('booking'|'manual'|'call').
         // 'waitlist' is not in the CHECK — using 'booking' (the client ends up with
