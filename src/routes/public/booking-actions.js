@@ -168,7 +168,9 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
                   );
                   const _gcPaid = parseInt(_gcPaidRes.rows[0]?.gc_paid_cents) || 0;
                   const _actualCharge = Math.max(postCancelBkFinal.deposit_amount_cents - _gcPaid, 0);
-                  const _fees = _actualCharge > 0 ? Math.round(_actualCharge * 0.015) + 25 : 0;
+                  // A#4 fix: real Stripe fee lookup (Bancontact 0.24€ flat vs 1.5%+25c estimate).
+                  const { resolveStripeFeeCents } = require('../../services/stripe-fee');
+                  const _fees = await resolveStripeFeeCents(_stripe, _piId, _actualCharge);
                   const _netRefund = Math.max(_actualCharge - _fees, 0);
                   publicCancelNetRefundCents = _netRefund;
                   // D-12 fix: Stripe min 50c — traiter net<50 comme fees_exceed_charge
@@ -1209,7 +1211,10 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
                   const _gcR = await txClient2.query(`SELECT COALESCE(SUM(amount_cents), 0) AS gc FROM gift_card_transactions WHERE booking_id = $1 AND type = 'debit'`, [cancelBkFinal.id]);
                   const _gc = parseInt(_gcR.rows[0]?.gc) || 0;
                   const _ch = Math.max(cancelBkFinal.deposit_amount_cents - _gc, 0);
-                  const _net = Math.max(_ch - (_ch > 0 ? Math.round(_ch * 0.015) + 25 : 0), 0);
+                  // A#4 fix: real Stripe fee (Bancontact 0.24€ flat). Fallback to estimate.
+                  const { resolveStripeFeeCents: _rs } = require('../../services/stripe-fee');
+                  const _fees = await _rs(_stripe, _piId, _ch);
+                  const _net = Math.max(_ch - _fees, 0);
                   cancelBookingNetRefundCents = _net;
                   // D-12 fix: Stripe min 50c — traiter net<50 comme fees_exceed_charge
                   if (_net >= 50) {

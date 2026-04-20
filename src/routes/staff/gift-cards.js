@@ -310,7 +310,9 @@ router.post('/:id/refund', blockIfImpersonated, async (req, res, next) => {
             throw new Error('Identifiant Stripe invalide');
           }
           if (refundPolicy === 'net') {
-            stripeFeesCents = amount_cents > 0 ? Math.round(amount_cents * 0.015) + 25 : 0;
+            // A#4 fix: real Stripe fee lookup (Bancontact flat 0.24€ vs card 1.5%+25c).
+            const { resolveStripeFeeCents } = require('../../services/stripe-fee');
+            stripeFeesCents = await resolveStripeFeeCents(stripe, piId, amount_cents);
             stripeRefundCents = Math.max(amount_cents - stripeFeesCents, 0);
           } else {
             stripeRefundCents = amount_cents;

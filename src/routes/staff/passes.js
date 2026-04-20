@@ -605,7 +605,10 @@ router.post('/:id/refund-full', blockIfImpersonated, async (req, res, next) => {
             : pass.sessions_remaining * Math.round(pass.price_cents / pass.sessions_total);
 
           if (refundPolicy === 'net') {
-            stripeFeesCents = unusedRefundCents > 0 ? Math.round(unusedRefundCents * 0.015) + 25 : 0;
+            // A#4 fix: resolve the real Stripe fee (Bancontact = 0.24€ flat vs
+            // 1.5%+25c card estimate). Fallback to estimate on API failure.
+            const { resolveStripeFeeCents } = require('../../services/stripe-fee');
+            stripeFeesCents = await resolveStripeFeeCents(stripe, piId, unusedRefundCents);
             netRefundCents = Math.max(unusedRefundCents - stripeFeesCents, 0);
           } else {
             netRefundCents = unusedRefundCents;

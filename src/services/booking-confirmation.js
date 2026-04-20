@@ -176,7 +176,11 @@ async function processExpiredPendingBookings() {
                 );
                 const _gcPaidCents = parseInt(_gcPaidRes.rows[0]?.gc_paid_cents) || 0;
                 const _actualStripeCharge = Math.max(bk.deposit_amount_cents - _gcPaidCents, 0);
-                const _stripeFees = _actualStripeCharge > 0 ? Math.round(_actualStripeCharge * 0.015) + 25 : 0;
+                // A#4 fix: Bancontact is billed flat 0.24€ regardless of amount —
+                // the 1.5%+25c estimate over-charges every BC refund by ~16c.
+                // Pull the actual fee from Stripe, fallback to estimate on error.
+                const { resolveStripeFeeCents } = require('./stripe-fee');
+                const _stripeFees = await resolveStripeFeeCents(stripe, _piId, _actualStripeCharge);
                 const _netRefund = Math.max(_actualStripeCharge - _stripeFees, 0);
                 if (_netRefund >= 50) {
                   await stripe.refunds.create({ payment_intent: _piId, amount: _netRefund });

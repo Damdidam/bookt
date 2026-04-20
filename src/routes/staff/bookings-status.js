@@ -511,8 +511,10 @@ router.patch('/:id/status', blockIfImpersonated, async (req, res, next) => {
                     const gcPaidCents = parseInt(gcPaidRes.rows[0]?.gc_paid_cents) || 0;
                     gcPaidForRefundEmail = gcPaidCents;
                     const actualStripeCharge = Math.max(dep.deposit_amount_cents - gcPaidCents, 0);
-                    // Partial refund: deduct Stripe fees (~1.5% + 25c) on actual Stripe charge
-                    const stripeFees = actualStripeCharge > 0 ? Math.round(actualStripeCharge * 0.015) + 25 : 0;
+                    // A#4 fix: ask Stripe for the actual fee (Bancontact flat 0.24€ vs
+                    // the 1.5%+25c Visa/MC estimate). Fallback to estimate if API fails.
+                    const { resolveStripeFeeCents } = require('../../services/stripe-fee');
+                    const stripeFees = await resolveStripeFeeCents(stripe, piId, actualStripeCharge);
                     const netRefund = Math.max(actualStripeCharge - stripeFees, 0);
                     netRefundCentsForEmail = netRefund;
                     // D-12 fix: Stripe min 50c — traiter net<50 comme fees_exceed_charge
@@ -1225,7 +1227,9 @@ router.patch('/:id/deposit-refund', blockIfImpersonated, async (req, res, next) 
               );
               gcPaidForRefundManual = parseInt(gcPaidManRes.rows[0]?.gc_paid_cents) || 0;
               const actualStripeCharge = Math.max(bk.rows[0].deposit_amount_cents - gcPaidForRefundManual, 0);
-              const stripeFees = actualStripeCharge > 0 ? Math.round(actualStripeCharge * 0.015) + 25 : 0;
+              // A#4 fix: real Stripe fee (Bancontact flat vs card %+flat). Fallback to estimate.
+              const { resolveStripeFeeCents } = require('../../services/stripe-fee');
+              const stripeFees = await resolveStripeFeeCents(stripe, piId, actualStripeCharge);
               netRefundCentsManual = Math.max(actualStripeCharge - stripeFees, 0);
               // B-04 fix: D-12 pattern parity — Stripe refund min = 50c. net<50 → retention + reset net=0
               // (avant: > 0 → Stripe rejette "Amount too small" → catch 500 au pro, flow cassé)
