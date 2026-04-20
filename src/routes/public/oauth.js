@@ -124,7 +124,15 @@ router.get('/facebook/callback', async (req, res) => {
 // ============================================================
 router.get('/pickup-cookie', async (req, res) => {
   try {
-    const cookieKey = req.cookies?.oauth_pickup;
+    // H#18 v2 regression fix: `req.cookies` undefined (cookie-parser NOT installed
+    // in this app). server.js:309-317 a un helper `parseCookies(req)` custom mais
+    // non exporté. On duplique les 4 lignes inline pour éviter un refactor d'import.
+    const cookies = {};
+    (req.headers.cookie || '').split(';').forEach(c => {
+      const [k, v] = c.trim().split('=');
+      if (k) cookies[k] = decodeURIComponent(v || '');
+    });
+    const cookieKey = cookies.oauth_pickup;
     if (!cookieKey) {
       return res.status(404).json({ error: 'Aucune session OAuth en cours' });
     }

@@ -312,6 +312,19 @@ router.post('/change-password', authLimiter, requireAuth, async (req, res, next)
 // UI: Login > "Mot de passe oublié ?"
 // ============================================================
 router.post('/forgot-password', authLimiter, async (req, res, next) => {
+  // H#16 v3: même pattern bounded() que /login — la branche email-absent
+  // répondait en ~5ms, la branche email-existant `await sendPasswordResetEmail`
+  // en 500-1500ms (Brevo). Énumération triviale. On borne les 2 chemins dans
+  // la même fenêtre et on passe sendEmail en fire-and-forget.
+  const tStart = Date.now();
+  const minResetMs = 500 + Math.floor(Math.random() * 120); // 500-620ms (Brevo p50 ~400ms)
+  const bounded = async (payload) => {
+    const elapsed = Date.now() - tStart;
+    if (elapsed < minResetMs) {
+      await new Promise((r) => setTimeout(r, minResetMs - elapsed));
+    }
+    return res.json(payload);
+  };
   try {
     const { email } = req.body;
     if (!email) return res.status(400).json({ error: 'Email requis' });
@@ -328,7 +341,7 @@ router.post('/forgot-password', authLimiter, async (req, res, next) => {
     );
 
     if (result.rows.length === 0) {
-      return res.json({ message: genericMsg });
+      return bounded({ message: genericMsg });
     }
 
     const user = result.rows[0];
@@ -348,23 +361,23 @@ router.post('/forgot-password', authLimiter, async (req, res, next) => {
       [user.id, tokenHash]
     );
 
-    // Send email
+    // Send email — fire-and-forget (bounded() sert d'alignement timing).
     const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
     const resetUrl = `${baseUrl}/reset-password.html?token=${token}`;
 
     const { sendPasswordResetEmail } = require('../../services/email');
-    await sendPasswordResetEmail({
+    sendPasswordResetEmail({
       email: user.email,
       name: user.email.split('@')[0],
       resetUrl,
       businessName: user.business_name
-    });
+    }).catch(e => console.warn('[AUTH] Password reset email error:', e.message));
 
     if (process.env.NODE_ENV !== 'production') {
       console.log(`\n  Password reset for ${email}: ${resetUrl}\n`);
     }
 
-    res.json({ message: genericMsg });
+    return bounded({ message: genericMsg });
   } catch (err) { next(err); }
 });
 
