@@ -4,7 +4,7 @@
  */
 const router = require('express').Router();
 const { query, pool } = require('../../services/db');
-const { depositLimiter } = require('../../middleware/rate-limiter');
+const { depositLimiter, bookingActionLimiter } = require('../../middleware/rate-limiter');
 const { BASE_URL, computeApplicationFeeCents } = require('./helpers');
 
 // ============================================================
@@ -12,7 +12,7 @@ const { BASE_URL, computeApplicationFeeCents } = require('./helpers');
 // ============================================================
 
 // GET /api/public/:slug/gift-card-config
-router.get('/:slug/gift-card-config', async (req, res, next) => {
+router.get('/:slug/gift-card-config', bookingActionLimiter, async (req, res, next) => {
   try {
     const { rows } = await query(
       `SELECT id, name, slug, settings, theme, logo_url FROM businesses WHERE slug = $1 AND is_active = true LIMIT 1`,
@@ -276,7 +276,7 @@ router.post('/gift-card/validate', depositLimiter, async (req, res, next) => {
 // ============================================================
 
 // GET /api/public/:slug/pass-config
-router.get('/:slug/pass-config', async (req, res, next) => {
+router.get('/:slug/pass-config', bookingActionLimiter, async (req, res, next) => {
   try {
     const { rows } = await query(
       `SELECT id, name, slug, settings, theme, logo_url FROM businesses WHERE slug = $1 AND is_active = true LIMIT 1`,

@@ -4,9 +4,11 @@
  */
 const router = require('express').Router();
 const { query } = require('../../services/db');
+const { bookingActionLimiter } = require('../../middleware/rate-limiter');
 
 // ─── Review submission page ─────────────────────────────────────────
-router.get('/review/:token', async (req, res, next) => {
+// P1 rate limiter : endpoint public avec token → protège contre scrape/DoS aveugle.
+router.get('/review/:token', bookingActionLimiter, async (req, res, next) => {
   try {
     const { token } = req.params;
     const existing = await query(
@@ -98,7 +100,7 @@ router.post('/review/:token', bookingLimiter, async (req, res, next) => {
 });
 
 // ─── Public guide ───────────────────────────────────────────────────
-router.get('/:slug/guide', async (req, res, next) => {
+router.get('/:slug/guide', bookingActionLimiter, async (req, res, next) => {
   try {
     const { slug } = req.params;
     const biz = await query(
@@ -148,7 +150,7 @@ router.get('/:slug/guide', async (req, res, next) => {
 });
 
 // ─── Public reviews for minisite ────────────────────────────────────
-router.get('/:slug/reviews', async (req, res, next) => {
+router.get('/:slug/reviews', bookingActionLimiter, async (req, res, next) => {
   try {
     const { slug } = req.params;
     const biz = await query(`SELECT id FROM businesses WHERE slug = $1`, [slug]);

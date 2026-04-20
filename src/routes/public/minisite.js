@@ -3,13 +3,13 @@ const { query, queryWithRLS } = require('../../services/db');
 const { getAvailableSlots } = require('../../services/slot-engine');
 const { getCategoryLabels } = require('../../services/email');
 const { _nextSlotCache, _minisiteCache, SECTOR_PRACTITIONER } = require('./helpers');
-const { slotsLimiter } = require('../../middleware/rate-limiter');
+const { slotsLimiter, bookingActionLimiter } = require('../../middleware/rate-limiter');
 
 // ============================================================
 // GET /api/public/sector-categories
 // Sector categories catalog (public, no auth)
 // ============================================================
-router.get('/sector-categories', async (req, res) => {
+router.get('/sector-categories', bookingActionLimiter, async (req, res) => {
   try {
     const { sector } = req.query;
     if (!sector) return res.status(400).json({ error: 'sector query param requis' });
