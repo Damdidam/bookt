@@ -21,19 +21,19 @@ const DUMMY_PASSWORD_HASH = bcrypt.hashSync(crypto.randomBytes(24).toString('hex
 // UI: Dashboard login screen
 // ============================================================
 router.post('/login', authLimiter, async (req, res, next) => {
-  // H#16 v2: timing attack fix — bound the total response time on the magic-link
-  // path (password=null) so both branches (email exists / email absent) land in
-  // the same ~450ms window. The previous fix put the delay only in the absent
-  // branch, while the existing-email branch fired sendEmail as .catch() and
-  // responded in ~40-50ms — so FAST response = account exists (inverted leak).
+  // H#16 v2/v3/v4: timing attack fix — bound la latence totale sur TOUS les
+  // chemins 200/401 de /login (magic link + password). Sans ça, le delta SELECT
+  // JOIN businesses (~15-30ms) entre email absent (0 row) et email existant
+  // (1 row + JOIN) reste détectable statistiquement. bounded() ajoute le delta
+  // restant pour arriver dans la fenêtre 400-500ms sur toutes les sorties non-400.
   const tStart = Date.now();
   const minMagicLinkMs = 400 + Math.floor(Math.random() * 100); // 400-500ms
-  const bounded = async (payload) => {
+  const bounded = async (status, payload) => {
     const elapsed = Date.now() - tStart;
     if (elapsed < minMagicLinkMs) {
       await new Promise((r) => setTimeout(r, minMagicLinkMs - elapsed));
     }
-    return res.json(payload);
+    return res.status(status).json(payload);
   };
   try {
     const { email, password } = req.body;
@@ -60,14 +60,12 @@ router.post('/login', authLimiter, async (req, res, next) => {
     );
 
     if (result.rows.length === 0) {
-      // Don't reveal whether email exists — dummy bcrypt (real hash) to normalize timing
+      // Don't reveal whether email exists — dummy bcrypt (real hash) + bounded().
       if (password) {
         await bcrypt.compare(password, DUMMY_PASSWORD_HASH);
-        return res.status(401).json({ error: 'Email ou mot de passe incorrect' });
+        return bounded(401, { error: 'Email ou mot de passe incorrect' });
       }
-      // H#16 v2: bounded() ci-dessus aligne la réponse sur minMagicLinkMs (400-500ms)
-      // en ajoutant le delta restant — même fenêtre que la branche email-existant.
-      return bounded({ message: 'Si ce compte existe, un lien de connexion a été envoyé.' });
+      return bounded(200, { message: 'Si ce compte existe, un lien de connexion a été envoyé.' });
     }
 
     const user = result.rows[0];
@@ -76,7 +74,7 @@ router.post('/login', authLimiter, async (req, res, next) => {
     if (password && user.password_hash) {
       const valid = await bcrypt.compare(password, user.password_hash);
       if (!valid) {
-        return res.status(401).json({ error: 'Email ou mot de passe incorrect' });
+        return bounded(401, { error: 'Email ou mot de passe incorrect' });
       }
 
       const token = jwt.sign(
@@ -97,7 +95,12 @@ router.post('/login', authLimiter, async (req, res, next) => {
       );
       const biz = bizResult.rows[0];
 
-      return res.json({
+      // Note: succès login = 200 avec token. Pas bounded() car le delta SELECT
+      // supplémentaire (UPDATE + JOIN practitioners) s'intègre naturellement dans
+      // la fenêtre — et un login valide est une action user légitime, pas un
+      // point d'énumération. L'attaquant qui connaît déjà le password n'a plus
+      // besoin d'énumérer.
+      return bounded(200, {
         token,
         user: { id: user.id, email: user.email, role: user.role, business_name: user.business_name, practitioner_id: biz.practitioner_id || null, practitioner_name: biz.practitioner_name || null },
         business: { id: biz.id, slug: biz.slug, name: biz.name, sector: biz.sector || 'autre', category: biz.category || 'autre', plan: biz.plan || 'free', settings: biz.settings || {} }
@@ -105,11 +108,9 @@ router.post('/login', authLimiter, async (req, res, next) => {
     }
 
     if (password && !user.password_hash) {
-      // H#16 v3: message générique identique aux autres 401 pour ne pas révéler
-      // l'existence d'un compte sans password_hash (content leak). Timing aussi
-      // normalisé via bcrypt dummy ci-dessus — on refait compare pour s'aligner.
+      // H#16 v3/v4: message générique identique + bcrypt dummy + bounded().
       await bcrypt.compare(password, DUMMY_PASSWORD_HASH);
-      return res.status(401).json({ error: 'Email ou mot de passe incorrect' });
+      return bounded(401, { error: 'Email ou mot de passe incorrect' });
     }
 
     // Magic link flow
@@ -155,7 +156,7 @@ router.post('/login', authLimiter, async (req, res, next) => {
       fromName: user.business_name || 'Genda'
     }).catch(e => console.warn('[AUTH] Magic link email error:', e.message));
 
-    return bounded({ message: 'Si ce compte existe, un lien de connexion a été envoyé.' });
+    return bounded(200, { message: 'Si ce compte existe, un lien de connexion a été envoyé.' });
   } catch (err) {
     next(err);
   }
@@ -318,12 +319,12 @@ router.post('/forgot-password', authLimiter, async (req, res, next) => {
   // la même fenêtre et on passe sendEmail en fire-and-forget.
   const tStart = Date.now();
   const minResetMs = 500 + Math.floor(Math.random() * 120); // 500-620ms (Brevo p50 ~400ms)
-  const bounded = async (payload) => {
+  const bounded = async (status, payload) => {
     const elapsed = Date.now() - tStart;
     if (elapsed < minResetMs) {
       await new Promise((r) => setTimeout(r, minResetMs - elapsed));
     }
-    return res.json(payload);
+    return res.status(status).json(payload);
   };
   try {
     const { email } = req.body;
@@ -341,7 +342,7 @@ router.post('/forgot-password', authLimiter, async (req, res, next) => {
     );
 
     if (result.rows.length === 0) {
-      return bounded({ message: genericMsg });
+      return bounded(200, { message: genericMsg });
     }
 
     const user = result.rows[0];
@@ -377,7 +378,7 @@ router.post('/forgot-password', authLimiter, async (req, res, next) => {
       console.log(`\n  Password reset for ${email}: ${resetUrl}\n`);
     }
 
-    return bounded({ message: genericMsg });
+    return bounded(200, { message: genericMsg });
   } catch (err) { next(err); }
 });
 
