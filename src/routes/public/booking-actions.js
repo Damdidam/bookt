@@ -28,8 +28,9 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
     if (reason && reason.length > 2000) return res.status(400).json({ error: 'Raison trop longue (max 2000)' });
 
     const result = await query(
+      // P1-07 v2: SELECT disputed_at pour bloquer self-cancel si contentieux Stripe ouvert.
       `SELECT b.id, b.status, b.start_at, b.created_at, b.business_id,
-              b.client_id, b.deposit_required, b.deposit_status, b.group_id,
+              b.client_id, b.deposit_required, b.deposit_status, b.group_id, b.disputed_at,
               biz.settings AS business_settings
        FROM bookings b
        JOIN businesses biz ON biz.id = b.business_id
@@ -41,6 +42,14 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
     const bk = result.rows[0];
     if (!['pending', 'confirmed', 'pending_deposit', 'modified_pending'].includes(bk.status)) {
       return res.status(400).json({ error: 'Ce rendez-vous ne peut plus être annulé' });
+    }
+
+    // P1-07 v2: dispute Stripe en cours → client ne peut pas s'auto-rembourser.
+    // Le client a déjà initié le dispute côté banque → doit attendre résolution
+    // Stripe avant toute action refund. Sans ce guard, client cancel → refund
+    // émis + dispute gagnée par Stripe ensuite = double-loss pour le pro.
+    if (bk.disputed_at && bk.deposit_status === 'paid') {
+      return res.status(409).json({ error: 'Litige en cours sur ce paiement. Contactez le cabinet pour annuler le RDV.' });
     }
 
     // Block cancellation of past bookings (start_at already passed)
@@ -587,7 +596,8 @@ router.post('/booking/:token/reject', async (req, res, next) => {
 
     // Client can ALWAYS reject — the deposit refund SQL handles the financial consequence
     const bkCheck = await query(
-      `SELECT b.id, b.status, b.start_at, b.deposit_required, b.deposit_status, b.deposit_amount_cents, biz.settings AS business_settings
+      // P1-07 v2: disputed_at check pour éviter double-loss (refund + dispute perdue).
+      `SELECT b.id, b.status, b.start_at, b.deposit_required, b.deposit_status, b.deposit_amount_cents, b.disputed_at, biz.settings AS business_settings
        FROM bookings b JOIN businesses biz ON biz.id = b.business_id
        WHERE b.public_token = $1`, [token]
     );
@@ -596,6 +606,13 @@ router.post('/booking/:token/reject', async (req, res, next) => {
       return res.status(404).json({ error: 'Rendez-vous introuvable' });
     }
     const bkData = bkCheck.rows[0];
+
+    // P1-07 v2: bloquer reject si dispute Stripe sur le deposit → double-loss évité.
+    if (bkData.disputed_at && bkData.deposit_status === 'paid') {
+      const msg = 'Litige en cours sur ce paiement. Contactez le cabinet pour refuser le RDV.';
+      if (isForm) return res.status(409).send(confirmationPage('Action impossible', msg, '#C62828', displayData?.business_name));
+      return res.status(409).json({ error: msg });
+    }
 
     // Reject = client refuses a staff-initiated modification. The client did not
     // initiate this change, so the deadline-based retention logic from /cancel must
@@ -1133,8 +1150,9 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
     const { token } = req.params;
 
     const result = await query(
+      // P1-07 v2: SELECT disputed_at pour bloquer self-cancel si contentieux Stripe.
       `SELECT b.id, b.status, b.start_at, b.created_at, b.business_id,
-              b.client_id, b.deposit_required, b.deposit_status, b.deposit_payment_intent_id, b.group_id,
+              b.client_id, b.deposit_required, b.deposit_status, b.deposit_payment_intent_id, b.group_id, b.disputed_at,
               biz.name AS business_name, biz.theme, biz.settings AS business_settings
        FROM bookings b JOIN businesses biz ON biz.id = b.business_id
        WHERE b.public_token = $1`,
@@ -1152,6 +1170,11 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
     }
     if (!['pending', 'confirmed', 'pending_deposit', 'modified_pending'].includes(bk.status)) {
       return respondCancel(409, 'Action impossible', 'Ce rendez-vous ne peut plus \u00eatre annul\u00e9.', '#A68B3C', bk.business_name, { code: 'invalid_status', booking_status: bk.status });
+    }
+
+    // P1-07 v2: dispute Stripe en cours → client ne peut pas s'auto-rembourser.
+    if (bk.disputed_at && bk.deposit_status === 'paid') {
+      return respondCancel(409, 'Litige en cours', 'Un litige est en cours sur ce paiement. Contactez le cabinet pour annuler.', '#C62828', bk.business_name, { code: 'dispute_open' });
     }
 
     // Block cancellation of past bookings

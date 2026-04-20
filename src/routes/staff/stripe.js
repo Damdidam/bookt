@@ -1273,6 +1273,34 @@ async function handleStripeWebhook(req, res) {
         break;
       }
 
+      // P1-07 v2: charge.dispute.closed — clear disputed_at pour débloquer
+      // refunds staff après résolution (gagnée ou perdue). Sans ce handler,
+      // le booking restait verrouillé ad vitam.
+      // Stripe envoie dispute.closed dans les 3 cas : won, lost, warning_closed.
+      case 'charge.dispute.closed': {
+        const dispute = event.data.object;
+        const chargeId = dispute.charge;
+        try {
+          const ch = await stripe.charges.retrieve(chargeId);
+          const pi = ch.payment_intent;
+          if (pi) {
+            const sessions = await stripe.checkout.sessions.list({ payment_intent: pi, limit: 1 });
+            const sessionId = sessions.data[0]?.id || null;
+            // Clear disputed_at sur les bookings matchant (même logique que dispute.created)
+            const r = await query(
+              `UPDATE bookings SET disputed_at = NULL, updated_at = NOW()
+               WHERE deposit_payment_intent_id IN ($1, $2)
+               RETURNING id`,
+              [pi, sessionId]
+            );
+            console.log(`[STRIPE WH] Dispute closed for ${r.rowCount} booking(s) (status: ${dispute.status}, PI: ${pi})`);
+          }
+        } catch (dispErr) {
+          console.warn('[STRIPE WH] charge.dispute.closed processing error:', dispErr.message);
+        }
+        break;
+      }
+
       // ST-11: Handle failed one-time payment intents (deposits, GC, passes)
       case 'payment_intent.payment_failed': {
         const pi = event.data.object;
