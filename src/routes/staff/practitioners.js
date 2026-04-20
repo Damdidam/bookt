@@ -789,7 +789,10 @@ router.delete('/:id', requireOwner, blockIfImpersonated, async (req, res, next) 
               _piId = _sess.payment_intent;
             }
             if (_piId && _piId.startsWith('pi_')) {
-              await _s.refunds.create({ payment_intent: _piId });
+              await _s.refunds.create(
+                { payment_intent: _piId },
+                { idempotencyKey: `prac-del-refund-${bk.id}` }
+              );
               await queryWithRLS(bid,
                 `UPDATE bookings SET deposit_status = 'refunded' WHERE id = $1`, [bk.id]
               );
