@@ -118,6 +118,42 @@ router.get('/facebook/callback', async (req, res) => {
 });
 
 // ============================================================
+// GET /api/public/auth/pickup-cookie
+// H#18 v2: consume pickupKey from httpOnly cookie (no secret in URL).
+// Replaces /pickup/:key — frontend calls this with no arg, cookie provides key.
+// ============================================================
+router.get('/pickup-cookie', async (req, res) => {
+  try {
+    const cookieKey = req.cookies?.oauth_pickup;
+    if (!cookieKey) {
+      return res.status(404).json({ error: 'Aucune session OAuth en cours' });
+    }
+    const r = await query(
+      `DELETE FROM oauth_states WHERE state_key = $1 AND expires_at > NOW() RETURNING data`,
+      [cookieKey]
+    );
+    // Clear cookie immediately (one-shot consumption even on error)
+    res.clearCookie('oauth_pickup', { path: `/${(req.query.slug || '').replace(/[^a-zA-Z0-9_-]/g, '')}` });
+    if (r.rows.length === 0) {
+      return res.status(404).json({ error: 'Lien expiré ou déjà utilisé' });
+    }
+    const data = typeof r.rows[0].data === 'string' ? JSON.parse(r.rows[0].data) : r.rows[0].data;
+    if (!data || data.type !== 'pickup') {
+      return res.status(404).json({ error: 'Lien expiré ou déjà utilisé' });
+    }
+    res.json({
+      name: data.name || '',
+      email: data.email || '',
+      provider: data.provider,
+      provider_id: data.providerId
+    });
+  } catch (err) {
+    console.error('[OAUTH] Pickup cookie error:', err.message);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// ============================================================
 // POST /api/public/auth/apple/callback (form_post)
 // ============================================================
 router.post('/apple/callback', async (req, res) => {
@@ -267,9 +303,11 @@ async function handleCallback(provider, params, appleUserObj, req, res) {
       secure: process.env.NODE_ENV === 'production',
       path: `/${slug}`
     });
-    // Query param conservé en fallback backward-compat (frontend pas encore migré)
-    // — sera retiré quand le frontend consommera exclusivement le cookie.
-    res.redirect(`/${slug}/${returnPage}?oauth_pickup=${pickupKey}`);
+    // H#18 v2 fix: la clé pickupKey N'EST PLUS dans l'URL (retirée du query param).
+    // Seul le cookie httpOnly transporte le secret. Le frontend signal "user revient
+    // d'OAuth" via `?oauth=1` (valeur constante, pas un secret) et appelle
+    // GET /api/public/auth/pickup-cookie qui consomme le cookie server-side.
+    res.redirect(`/${slug}/${returnPage}?oauth=1`);
   } catch (err) {
     // H#11 fix: err.message peut contenir détails providers (Google response
     // structure, tokens partiels, IDs internes) → apparaît dans URL → logs

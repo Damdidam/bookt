@@ -705,9 +705,11 @@ slug=pathParts[0];
 const urlParams=new URLSearchParams(window.location.search);
 
 // OAuth pickup on return from provider
-const _oauthPickup=urlParams.get('oauth_pickup');
+// H#18 v2: clé ne transite PLUS par URL — `?oauth=1` est juste un flag (pas un secret),
+// la clé est dans un cookie httpOnly consommé server-side par /api/public/auth/pickup-cookie.
+const _oauthReturn=urlParams.get('oauth')==='1';
 const _oauthError=urlParams.get('oauth_error');
-if(_oauthPickup||_oauthError){
+if(_oauthReturn||_oauthError){
   // Clean URL
   var cleanUrl=window.location.pathname;
   window.history.replaceState(null,'',cleanUrl);
@@ -1250,7 +1252,7 @@ function initPage(){
   initOauth();
 
   // Normal start (unless OAuth restored state and jumped to step 4)
-  if(!_oauthPickup){
+  if(!_oauthReturn){
     computeStepOrder();
     // BK-6: restore state from sessionStorage on refresh
     var _restored=false;
@@ -1844,9 +1846,10 @@ function backToOauth(){
   hideError();
 }
 
-async function handleOauthPickup(pickupKey){
+async function handleOauthPickup(){
+  // H#18 v2: pas de pickupKey en URL — server consomme cookie httpOnly.
   try{
-    var res=await fetch('/api/public/auth/pickup/'+pickupKey);
+    var res=await fetch('/api/public/auth/pickup-cookie?slug='+encodeURIComponent(slug||''),{credentials:'same-origin'});
     if(!res.ok){showManualForm();return;}
     var data=await res.json();
     oauthProvider=data.provider;
@@ -2032,9 +2035,9 @@ function initOauth(){
   // 'soft' = default: OAuth prominent, manual link visible
 
   // Handle OAuth return
-  if(_oauthPickup){
+  if(_oauthReturn){
     var restored=restoreOauthState();
-    handleOauthPickup(_oauthPickup).then(function(){
+    handleOauthPickup().then(function(){
       if(restored&&selectedSlot){
         // Jump directly to step 4 with full navigation
         computeStepOrder();

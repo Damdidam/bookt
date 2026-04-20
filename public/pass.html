@@ -291,7 +291,8 @@ var config = null;
 // OAuth state
 var oauthProvider = null, oauthProviderId = null, oauthAuthenticated = false;
 var urlParams = new URLSearchParams(window.location.search);
-var _oauthPickup = urlParams.get('oauth_pickup');
+// H#18 v2: flag `?oauth=1` (pas un secret), clé dans cookie httpOnly.
+var _oauthReturn = urlParams.get('oauth') === '1';
 var _oauthError = urlParams.get('oauth_error');
 
 // Check for success redirect
@@ -580,9 +581,10 @@ function passOauthConnect(provider) {
   window.location.href = '/api/public/auth/' + provider + '?slug=' + encodeURIComponent(slug) + '&page=pass';
 }
 
-async function handlePassOauthPickup(pickupKey) {
+async function handlePassOauthPickup() {
+  // H#18 v2: pas de clé en URL — server lit le cookie httpOnly.
   try {
-    var res = await fetch('/api/public/auth/pickup/' + pickupKey);
+    var res = await fetch('/api/public/auth/pickup-cookie?slug=' + encodeURIComponent(slug || ''), { credentials: 'same-origin' });
     if (!res.ok) { console.warn('[OAUTH] Pickup failed'); return; }
     var data = await res.json();
     oauthProvider = data.provider;
@@ -656,9 +658,9 @@ async function initPassOauth() {
   } catch (e) {}
 
   // Handle OAuth return
-  if (_oauthPickup) {
+  if (_oauthReturn) {
     restorePassOauthState();
-    await handlePassOauthPickup(_oauthPickup);
+    await handlePassOauthPickup();
     // Clean URL
     var cleanUrl = window.location.pathname;
     window.history.replaceState({}, '', cleanUrl);
