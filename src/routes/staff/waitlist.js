@@ -2,6 +2,7 @@ const router = require('express').Router();
 const { queryWithRLS } = require('../../services/db');
 const { requireAuth, resolvePractitionerScope, requirePro, blockIfImpersonated } = require('../../middleware/auth');
 const { sendEmail, buildEmailHTML, escHtml } = require('../../services/email');
+const { broadcast } = require('../../services/sse');
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -186,6 +187,8 @@ router.post('/', async (req, res, next) => {
        maxP.rows[0].next_priority]
     );
 
+    // K#2 fix: other staff members watching the waitlist view must refresh.
+    try { broadcast(bid, 'booking_update', { action: 'waitlist_entry_created' }); } catch (_) {}
     res.status(201).json({ entry: result.rows[0] });
   } catch (err) { next(err); }
 });
@@ -241,6 +244,7 @@ router.patch('/:id', async (req, res, next) => {
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Entrée introuvable' });
 
+    try { broadcast(bid, 'booking_update', { action: 'waitlist_entry_updated' }); } catch (_) {}
     res.json({ entry: result.rows[0] });
   } catch (err) { next(err); }
 });
@@ -260,6 +264,7 @@ router.delete('/:id', blockIfImpersonated, async (req, res, next) => {
       params.push(req.practitionerFilter);
     }
     await queryWithRLS(req.businessId, sql, params);
+    try { broadcast(req.businessId, 'booking_update', { action: 'waitlist_entry_deleted' }); } catch (_) {}
     res.json({ deleted: true });
   } catch (err) { next(err); }
 });
@@ -418,6 +423,7 @@ router.post('/:id/offer', async (req, res, next) => {
       }).catch(e => console.warn('[WAITLIST] Manual offer email error:', e.message));
     }
 
+    try { broadcast(bid, 'booking_update', { action: 'waitlist_entry_offered' }); } catch (_) {}
     res.json({
       offered: true,
       offer_url: offerUrl,
@@ -446,6 +452,7 @@ router.post('/:id/contact', async (req, res, next) => {
       contactParams.push(req.practitionerFilter);
     }
     await queryWithRLS(req.businessId, contactSql, contactParams);
+    try { broadcast(req.businessId, 'booking_update', { action: 'waitlist_entry_contacted', outcome: outcome === 'booked' ? 'booked' : 'declined' }); } catch (_) {}
     res.json({ updated: true });
   } catch (err) { next(err); }
 });

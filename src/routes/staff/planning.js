@@ -4,6 +4,7 @@ const { requireAuth, requireOwner, blockIfImpersonated } = require('../../middle
 const { sendEmail, buildEmailHTML, escHtml } = require('../../services/email');
 const { sendSMS } = require('../../services/sms');
 const { checkPracAvailability, calSyncPush, checkBookingConflicts, getMaxConcurrent } = require('./bookings-helpers');
+const { broadcast } = require('../../services/sse');
 
 router.use(requireAuth);
 
@@ -1213,6 +1214,13 @@ router.post('/notify-impacted', requireOwner, async (req, res, next) => {
       }
     }
 
+    // K#4 fix: absence notify can cascade-cancel bookings (split groups cancelled,
+    // and every impacted booking is emailed). The calendar views of other connected
+    // staff must refresh so cancelled events disappear — without this broadcast,
+    // the agenda stayed stale until F5.
+    if (filtered.length > 0 || splitGroupsCancelled > 0) {
+      try { broadcast(bid, 'booking_update', { action: 'absence_notified', cancelled: splitGroupsCancelled }); } catch (_) {}
+    }
     res.json({
       sent_email: sentEmail,
       sent_sms: sentSms,
@@ -1324,6 +1332,10 @@ router.post('/reassign', requireOwner, async (req, res, next) => {
     try { await calSyncPush(bid, booking_id); } catch (e) {
       console.error('[REASSIGN] calSync error:', e.message);
     }
+
+    // K#4 fix: SSE broadcast so other staff calendars re-fetch. Without this,
+    // the booking stayed visually on the old practitioner column until F5.
+    try { broadcast(bid, 'booking_update', { action: 'reassigned', booking_id, new_practitioner_id }); } catch (_) {}
 
     // 7. Notify client by email
     if (bk.client_email) {

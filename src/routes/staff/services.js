@@ -2,12 +2,22 @@ const router = require('express').Router();
 const { queryWithRLS, transactionWithRLS } = require('../../services/db');
 const { requireAuth, requireOwner, blockIfImpersonated } = require('../../middleware/auth');
 const { invalidateMinisiteCache } = require('../public/helpers');
+const { broadcast } = require('../../services/sse');
 
 router.use(requireAuth);
-// Drop the public minisite cache after every successful mutation on services.
+// Drop the public minisite cache after every successful mutation on services
+// AND broadcast a `services_changed` signal so the calendar views of other
+// connected staff refresh — K#3 fix: service duration/price/delete updates bulk
+// bookings via SQL without touching each row individually, so we need an
+// explicit signal instead of relying on per-booking broadcasts.
 router.use((req, res, next) => {
   if (['POST', 'PATCH', 'PUT', 'DELETE'].includes(req.method)) {
-    res.on('finish', () => { if (res.statusCode < 400 && req.businessId) invalidateMinisiteCache(req.businessId); });
+    res.on('finish', () => {
+      if (res.statusCode < 400 && req.businessId) {
+        try { invalidateMinisiteCache(req.businessId); } catch (_) {}
+        try { broadcast(req.businessId, 'booking_update', { action: 'services_changed' }); } catch (_) {}
+      }
+    });
   }
   next();
 });
