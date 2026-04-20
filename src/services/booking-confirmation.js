@@ -197,9 +197,19 @@ async function processExpiredPendingBookings() {
               }
               await client.query(`UPDATE bookings SET deposit_status = $2 WHERE id = $1`, [bk.id, _finalDepStatus]);
               if (bk.group_id) {
+                // A#10 fix: also cover siblings whose deposit_payment_intent_id differs
+                // (rare but possible after split-group or ungroup). Previously the
+                // filter `deposit_payment_intent_id = $3` left those siblings stuck at
+                // deposit_status='paid' while the primary was cancelled → DB drift.
+                // We only touch siblings that share the SAME refund outcome (status paid,
+                // cancelled by the cron), so a still-active sibling isn't mislabeled.
                 await client.query(
-                  `UPDATE bookings SET deposit_status = $2 WHERE group_id = $1 AND deposit_payment_intent_id = $3 AND id != $4`,
-                  [bk.group_id, _finalDepStatus, bk.deposit_payment_intent_id, bk.id]
+                  `UPDATE bookings SET deposit_status = $2
+                    WHERE group_id = $1
+                      AND id != $3
+                      AND status = 'cancelled'
+                      AND deposit_status = 'paid'`,
+                  [bk.group_id, _finalDepStatus, bk.id]
                 );
               }
             }

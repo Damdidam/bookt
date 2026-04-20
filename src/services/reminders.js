@@ -15,7 +15,11 @@ const { query, queryWithRLS, pool } = require('../services/db');
 const { sendEmail, buildEmailHTML, escHtml } = require('../services/email');
 const { sendSMS } = require('../services/sms');
 
-const PLANS_WITH_SMS = ['pro'];
+// C#7 fix: premium plan was excluded from SMS reminders while it's included in
+// SMS confirmation gating elsewhere (`plan !== 'free'` in booking-notifications.js,
+// booking-actions.js, planning.js). A premium pro got a confirmation SMS but no
+// reminder SMS — silently broken. Align the two gates.
+const PLANS_WITH_SMS = ['pro', 'premium'];
 
 /**
  * Process all pending reminders
@@ -71,7 +75,8 @@ async function process24hReminders(stats) {
       b.plan, b.settings, b.theme, b.email AS business_email,
       bk.promotion_label, bk.promotion_discount_cents,
       bk.discount_pct, bk.booked_price_cents, bk.deposit_payment_intent_id,
-      bk.deposit_required, bk.deposit_status, bk.deposit_amount_cents
+      bk.deposit_required, bk.deposit_status, bk.deposit_amount_cents,
+      bk.deposit_deadline
     FROM bookings bk
     JOIN clients c ON c.id = bk.client_id
     JOIN practitioners p ON p.id = bk.practitioner_id
@@ -232,7 +237,17 @@ async function process24hReminders(stats) {
                 return `<div style="background:#F0FDF4;border-radius:8px;padding:10px 14px;margin:12px 0;font-size:13px;color:#15803D"><strong>Acompte payé :</strong> ${depAmt} €${resteStr}</div>`;
               }
               if (bk.deposit_required && bk.deposit_status === 'pending' && bk.deposit_amount_cents) {
-                return `<div style="background:#FEF3C7;border-radius:8px;padding:10px 14px;margin:12px 0;font-size:13px;color:#92400E"><strong>⚠ Acompte en attente :</strong> ${(bk.deposit_amount_cents / 100).toFixed(2).replace('.', ',')} € — Pensez à le régler avant votre rendez-vous.</div>`;
+                // C#8 fix: include the actual deadline (was missing — client saw
+                // "Pensez à le régler avant votre rendez-vous" but no date).
+                const _depAmtStr = (bk.deposit_amount_cents / 100).toFixed(2).replace('.', ',');
+                const _deadlineStr = bk.deposit_deadline
+                  ? new Date(bk.deposit_deadline).toLocaleString('fr-BE', {
+                      timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric',
+                      month: 'long', hour: '2-digit', minute: '2-digit'
+                    })
+                  : null;
+                const _when = _deadlineStr ? ` avant le ${_deadlineStr}` : ' avant votre rendez-vous';
+                return `<div style="background:#FEF3C7;border-radius:8px;padding:10px 14px;margin:12px 0;font-size:13px;color:#92400E"><strong>⚠ Acompte en attente :</strong> ${_depAmtStr} € — Pensez à le régler${_when}.</div>`;
               }
               return '';
             })()}
@@ -336,6 +351,7 @@ async function process2hReminders(stats) {
       bk.promotion_label, bk.promotion_discount_cents,
       bk.discount_pct, bk.booked_price_cents, bk.deposit_payment_intent_id,
       bk.deposit_required, bk.deposit_status, bk.deposit_amount_cents,
+      bk.deposit_deadline,
       b.id AS business_id, b.name AS business_name,
       b.phone AS business_phone, b.address AS business_address,
       b.plan, b.settings, b.theme, b.email AS business_email
@@ -519,7 +535,15 @@ async function process2hReminders(stats) {
             return `<div style="background:#F0FDF4;border-radius:8px;padding:10px 14px;margin:12px 0;font-size:13px;color:#15803D"><strong>Acompte payé :</strong> ${(bk.deposit_amount_cents / 100).toFixed(2).replace('.', ',')} €${resteStr}</div>`;
           }
           if (bk.deposit_required && bk.deposit_status === 'pending' && bk.deposit_amount_cents) {
-            return `<div style="background:#FEF3C7;border-radius:8px;padding:10px 14px;margin:12px 0;font-size:13px;color:#92400E"><strong>⚠ Acompte en attente :</strong> ${(bk.deposit_amount_cents / 100).toFixed(2).replace('.', ',')} € — Pensez à le régler avant votre rendez-vous.</div>`;
+            // C#8 fix: include actual deadline (was missing).
+            const _deadlineStr2h = bk.deposit_deadline
+              ? new Date(bk.deposit_deadline).toLocaleString('fr-BE', {
+                  timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric',
+                  month: 'long', hour: '2-digit', minute: '2-digit'
+                })
+              : null;
+            const _when2h = _deadlineStr2h ? ` avant le ${_deadlineStr2h}` : ' avant votre rendez-vous';
+            return `<div style="background:#FEF3C7;border-radius:8px;padding:10px 14px;margin:12px 0;font-size:13px;color:#92400E"><strong>⚠ Acompte en attente :</strong> ${(bk.deposit_amount_cents / 100).toFixed(2).replace('.', ',')} € — Pensez à le régler${_when2h}.</div>`;
           }
           return '';
         })();
