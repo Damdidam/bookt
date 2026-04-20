@@ -302,16 +302,45 @@ router.patch('/:id', requireOwner, async (req, res, next) => {
 
     if (result.rows.length === 0) return res.status(404).json({ error: 'Prestation introuvable' });
 
-    // If duration or buffers changed, recalculate end_at for future bookings
-    // V11-015: This bulk update does not check for booking collisions.
-    // A full collision check would require scanning all bookings per practitioner
-    // and is deferred to a future version. For now, we ensure end_at > start_at.
+    // If duration or buffers changed, recalculate end_at for future bookings.
+    // P0-01 fix : pré-check collisions avec constraint EXCLUDE v81 pour éviter
+    // 23P01 cryptique. Si l'extension de durée créerait des chevauchements
+    // futurs, refuser avec message clair listant les RDV concernés.
     const durationChanged = fields.duration_min !== undefined || fields.buffer_before_min !== undefined || fields.buffer_after_min !== undefined;
     if (durationChanged) {
       const svc = result.rows[0];
       const totalMin = (svc.buffer_before_min || 0) + svc.duration_min + (svc.buffer_after_min || 0);
       if (totalMin <= 0) {
         return res.status(400).json({ error: 'La durée totale (durée + tampons) doit être > 0' });
+      }
+      // Pré-check : détecter les chevauchements que la nouvelle durée créerait.
+      // Note : scan sur TOUS les bookings du service (y compris variants) pour parité
+      // avec le UPDATE bulk existant. Variants qui ont leur propre durée passent par
+      // le bloc dédié L370+ et seront revérifiés là aussi.
+      const conflictRes = await queryWithRLS(bid,
+        `WITH new_durations AS (
+           SELECT b.id, b.practitioner_id, b.start_at,
+                  b.start_at + interval '1 minute' * $1 AS new_end_at
+           FROM bookings b
+           WHERE b.service_id = $2 AND b.business_id = $3
+             AND b.status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')
+             AND b.start_at > NOW()
+         )
+         SELECT n.id AS conflict_booking_id, n.start_at
+         FROM new_durations n
+         JOIN bookings o ON o.practitioner_id = n.practitioner_id
+           AND o.id != n.id
+           AND o.business_id = $3
+           AND o.status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')
+           AND tstzrange(n.start_at, n.new_end_at, '[)') && tstzrange(o.start_at, o.end_at, '[)')
+         LIMIT 5`,
+        [totalMin, id, bid]
+      );
+      if (conflictRes.rows.length > 0) {
+        const dates = conflictRes.rows.map(r => new Date(r.start_at).toLocaleString('fr-BE', { timeZone: 'Europe/Brussels' })).join(', ');
+        return res.status(409).json({
+          error: `Impossible d'appliquer cette durée : ${conflictRes.rows.length} RDV futur(s) créeraient des chevauchements (${dates}). Déplacez ou annulez ces RDV d'abord.`
+        });
       }
       await queryWithRLS(bid,
         `UPDATE bookings SET
@@ -362,6 +391,31 @@ router.patch('/:id', requireOwner, async (req, res, next) => {
           );
           // Recalculate end_at for future bookings using this variant
           const totalMin = (result.rows[0].buffer_before_min || 0) + v.duration_min + (result.rows[0].buffer_after_min || 0);
+          // P0-01 : pré-check chevauchements avant UPDATE (même pattern L314).
+          const _variantConflictRes = await queryWithRLS(bid,
+            `WITH new_durations AS (
+               SELECT b.id, b.practitioner_id, b.start_at,
+                      b.start_at + interval '1 minute' * $1 AS new_end_at
+               FROM bookings b
+               WHERE b.service_variant_id = $2 AND b.business_id = $3
+                 AND b.status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')
+                 AND b.start_at > NOW()
+             )
+             SELECT n.id AS conflict_booking_id, n.start_at
+             FROM new_durations n
+             JOIN bookings o ON o.practitioner_id = n.practitioner_id
+               AND o.id != n.id AND o.business_id = $3
+               AND o.status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')
+               AND tstzrange(n.start_at, n.new_end_at, '[)') && tstzrange(o.start_at, o.end_at, '[)')
+             LIMIT 5`,
+            [totalMin, v.id, bid]
+          );
+          if (_variantConflictRes.rows.length > 0) {
+            const _dates = _variantConflictRes.rows.map(r => new Date(r.start_at).toLocaleString('fr-BE', { timeZone: 'Europe/Brussels' })).join(', ');
+            return res.status(409).json({
+              error: `Impossible d'appliquer cette durée sur la variante "${v.name}" : ${_variantConflictRes.rows.length} RDV futur(s) créeraient des chevauchements (${_dates}). Déplacez ou annulez ces RDV d'abord.`
+            });
+          }
           await queryWithRLS(bid,
             `UPDATE bookings SET end_at = start_at + (interval '1 minute' * $1), updated_at = NOW()
              WHERE service_variant_id = $2 AND business_id = $3
@@ -580,6 +634,31 @@ router.patch('/:serviceId/variants/:variantId', requireOwner, async (req, res, n
       );
       if (svc.rows.length > 0) {
         const totalMin = (svc.rows[0].buffer_before_min || 0) + v.duration_min + (svc.rows[0].buffer_after_min || 0);
+        // P0-01 : pré-check chevauchements avant UPDATE bookings (même pattern PATCH /:id).
+        const _vPatchConflictRes = await queryWithRLS(bid,
+          `WITH new_durations AS (
+             SELECT b.id, b.practitioner_id, b.start_at,
+                    b.start_at + interval '1 minute' * $1 AS new_end_at
+             FROM bookings b
+             WHERE b.service_variant_id = $2 AND b.business_id = $3
+               AND b.status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')
+               AND b.start_at > NOW()
+           )
+           SELECT n.id AS conflict_booking_id, n.start_at
+           FROM new_durations n
+           JOIN bookings o ON o.practitioner_id = n.practitioner_id
+             AND o.id != n.id AND o.business_id = $3
+             AND o.status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')
+             AND tstzrange(n.start_at, n.new_end_at, '[)') && tstzrange(o.start_at, o.end_at, '[)')
+           LIMIT 5`,
+          [totalMin, variantId, bid]
+        );
+        if (_vPatchConflictRes.rows.length > 0) {
+          const _dates = _vPatchConflictRes.rows.map(r => new Date(r.start_at).toLocaleString('fr-BE', { timeZone: 'Europe/Brussels' })).join(', ');
+          return res.status(409).json({
+            error: `Impossible d'appliquer cette durée : ${_vPatchConflictRes.rows.length} RDV futur(s) créeraient des chevauchements (${_dates}). Déplacez ou annulez ces RDV d'abord.`
+          });
+        }
         await queryWithRLS(bid,
           `UPDATE bookings SET end_at = start_at + (interval '1 minute' * $1), updated_at = NOW()
            WHERE service_variant_id = $2 AND business_id = $3
