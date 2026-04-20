@@ -1,5 +1,14 @@
 const router = require('express').Router();
+const crypto = require('crypto');
 const { query, pool } = require('../../services/db');
+
+function timingSafeStrEq(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  const ab = Buffer.from(a);
+  const bb = Buffer.from(b);
+  if (ab.length !== bb.length) return false;
+  return crypto.timingSafeEqual(ab, bb);
+}
 
 /**
  * Brevo event webhook.
@@ -20,21 +29,15 @@ const { query, pool } = require('../../services/db');
 function validateBrevoSecret(req, res, next) {
   const expected = process.env.BREVO_WEBHOOK_SECRET;
   if (!expected) {
-    if (process.env.NODE_ENV === 'production') {
-      console.error('[BREVO WH] BREVO_WEBHOOK_SECRET manquant en prod — refus');
-      return res.status(503).json({ error: 'Service misconfigured' });
-    }
-    return next();
+    console.error('[BREVO WH] BREVO_WEBHOOK_SECRET manquant — refus');
+    return res.status(503).json({ error: 'Service misconfigured' });
   }
-  // Brevo envoie son "custom header" comme `Authorization: Bearer <token>`.
-  // On supporte aussi `x-brevo-secret` (futur / tests manuels) + secret dans URL path/query.
+  // Headers only — query/path accept the secret in Render/Nginx access logs, DOM history,
+  // Referer — never use URL-borne secrets.
   const authHeader = req.get('authorization') || '';
   const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
-  const provided = bearerMatch?.[1]?.trim()
-    || req.get('x-brevo-secret')
-    || req.query.secret
-    || req.params.secret;
-  if (provided !== expected) {
+  const provided = (bearerMatch?.[1]?.trim() || req.get('x-brevo-secret') || '').trim();
+  if (!timingSafeStrEq(provided, expected)) {
     console.warn('[BREVO WH] Invalid secret');
     return res.status(403).json({ error: 'Forbidden' });
   }
@@ -121,29 +124,6 @@ async function processBrevoEvent(evt) {
 }
 
 router.post('/', validateBrevoSecret, async (req, res) => {
-  try {
-    const body = req.body;
-    const events = Array.isArray(body) ? body : (Array.isArray(body?.events) ? body.events : [body]);
-    const results = [];
-    for (const evt of events) {
-      if (!evt || typeof evt !== 'object') continue;
-      try {
-        results.push(await processBrevoEvent(evt));
-      } catch (e) {
-        console.error('[BREVO WH] Event error:', e.message, evt);
-        results.push({ error: e.message });
-      }
-    }
-    res.json({ ok: true, processed: results.length, results });
-  } catch (err) {
-    console.error('[BREVO WH] Fatal error:', err.message);
-    res.status(500).json({ error: 'processing_failed' });
-  }
-});
-
-// Variante avec secret dans le path : /webhooks/brevo/s/:secret (pour Brevo qui
-// ne supporte pas les headers custom sur certains plans).
-router.post('/s/:secret', validateBrevoSecret, async (req, res) => {
   try {
     const body = req.body;
     const events = Array.isArray(body) ? body : (Array.isArray(body?.events) ? body.events : [body]);

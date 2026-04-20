@@ -5,7 +5,7 @@
 const router = require('express').Router();
 const { query, pool } = require('../../services/db');
 const { depositLimiter } = require('../../middleware/rate-limiter');
-const { BASE_URL } = require('./helpers');
+const { BASE_URL, computeApplicationFeeCents } = require('./helpers');
 
 // ============================================================
 // POST /api/public/deposit/:token/checkout
@@ -157,6 +157,7 @@ router.post('/deposit/:token/checkout', depositLimiter, async (req, res, next) =
         quantity: 1
       }],
       payment_intent_data: {
+        application_fee_amount: computeApplicationFeeCents(amountCents),
         transfer_data: { destination: bk.stripe_connect_id }
       },
       customer_email: bk.client_email || undefined,
@@ -327,6 +328,7 @@ router.get('/deposit/:token/pay', depositLimiter, async (req, res, next) => {
         quantity: 1
       }],
       payment_intent_data: {
+        application_fee_amount: computeApplicationFeeCents(amountCents),
         transfer_data: { destination: bk.stripe_connect_id }
       },
       customer_email: bk.client_email || undefined,

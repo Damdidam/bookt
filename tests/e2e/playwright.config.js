@@ -16,7 +16,9 @@ module.exports = defineConfig({
     ['json', { outputFile: 'playwright-report/results.json' }]
   ],
   use: {
-    baseURL: process.env.APP_BASE_URL || 'https://genda.be',
+    // Fallback explicitly to localhost — RULE feedback_e2e_server_local.md requires tests
+    // run against a local server (npm run dev + SKIP_* env), never against genda.be.
+    baseURL: process.env.APP_BASE_URL || 'http://localhost:3000',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',

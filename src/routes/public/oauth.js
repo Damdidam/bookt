@@ -16,6 +16,8 @@ const { query } = require('../../services/db');
 const { authLimiter } = require('../../middleware/rate-limiter');
 const oauth = require('../../services/oauth');
 
+const SLUG_RE = /^[a-zA-Z0-9_-]{1,64}$/;
+
 // DB-backed OAuth state store (same pattern as calendar.js)
 const oauthStates = {
   async set(key, val) {
@@ -55,6 +57,9 @@ router.get('/:provider', authLimiter, async (req, res) => {
 
     if (!slug) {
       return res.status(400).json({ error: 'slug requis' });
+    }
+    if (!SLUG_RE.test(slug)) {
+      return res.status(400).json({ error: 'slug invalide' });
     }
 
     if (!['google', 'apple', 'facebook'].includes(provider)) {

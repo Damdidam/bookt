@@ -70,31 +70,41 @@ const START_RE = /^(start|unstop|yes|reabonner)$/i;
 function twiml(c) { return `<?xml version="1.0" encoding="UTF-8"?><Response>${c}</Response>`; }
 
 router.post('/sms/inbound', async (req, res) => {
-  const from = (req.body.From || '').trim();
+  const rawFrom = (req.body.From || '').trim();
   const body = (req.body.Body || '').trim();
   const normalized = body.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
-  console.log(`[SMS INBOUND] From: ***${from.slice(-4)} (${body.length} chars)`);
+  // RGPD-critical: historical clients may have been stored with mixed formats
+  // ('0475…', '+32 475…', '+32475…'). Twilio always sends E.164 on `From`.
+  // We compare with both the E.164 form and its digits-only variant to avoid
+  // silently missing opt-outs on legacy rows.
+  const { normalizeE164 } = require('../../utils/phone');
+  const fromE164 = normalizeE164(rawFrom, 'BE') || rawFrom;
+  const fromDigits = fromE164.replace(/[^\d]/g, '');
+
+  console.log(`[SMS INBOUND] From: ***${fromE164.slice(-4)} (${body.length} chars)`);
 
   // Rate limit — silent response (no outbound SMS charged)
-  if (!checkSmsRate(from)) {
-    console.warn(`[SMS INBOUND] Rate limited: ***${from.slice(-4)}`);
+  if (!checkSmsRate(fromE164)) {
+    console.warn(`[SMS INBOUND] Rate limited: ***${fromE164.slice(-4)}`);
     return res.type('text/xml').send('<Response/>');
   }
 
+  // Lenient WHERE: E.164 match OR digits-only (handles legacy rows not yet normalized).
+  const phoneWhere = `(phone = $1 OR regexp_replace(COALESCE(phone, ''), '[^0-9]', '', 'g') = $2)`;
   try {
     // STOP / START — RGPD opt-out tracked locally so future sendSMS auto-skips via consent_sms.
     if (STOP_RE.test(normalized)) {
       try {
-        await query(`UPDATE clients SET consent_sms = false, updated_at = NOW() WHERE phone = $1`, [from]);
-        console.log(`[SMS INBOUND] STOP from ***${from.slice(-4)} — consent_sms set to false`);
+        await query(`UPDATE clients SET consent_sms = false, updated_at = NOW() WHERE ${phoneWhere}`, [fromE164, fromDigits]);
+        console.log(`[SMS INBOUND] STOP from ***${fromE164.slice(-4)} — consent_sms set to false`);
       } catch (e) { console.warn('[SMS INBOUND] STOP update error:', e.message); }
       return res.type('text/xml').send('<Response/>'); // Twilio answers with its own opt-out confirmation
     }
     if (START_RE.test(normalized)) {
       try {
-        await query(`UPDATE clients SET consent_sms = true, updated_at = NOW() WHERE phone = $1`, [from]);
-        console.log(`[SMS INBOUND] START from ***${from.slice(-4)} — consent_sms set to true`);
+        await query(`UPDATE clients SET consent_sms = true, updated_at = NOW() WHERE ${phoneWhere}`, [fromE164, fromDigits]);
+        console.log(`[SMS INBOUND] START from ***${fromE164.slice(-4)} — consent_sms set to true`);
       } catch (e) { console.warn('[SMS INBOUND] START update error:', e.message); }
       // Don't fall through to CONFIRM_RE — START intent is opt-in, not booking confirm
       return res.type('text/xml').send('<Response/>');
@@ -110,10 +120,11 @@ router.post('/sms/inbound', async (req, res) => {
                 b.service_id, b.practitioner_id, b.start_at, b.end_at
          FROM bookings b
          JOIN clients c ON c.id = b.client_id
-         WHERE c.phone = $1 AND b.status = 'pending'
+         WHERE (c.phone = $1 OR regexp_replace(COALESCE(c.phone, ''), '[^0-9]', '', 'g') = $2)
+           AND b.status = 'pending'
            AND b.confirmation_expires_at > NOW()
          ORDER BY b.created_at DESC LIMIT 20`,
-        [from]
+        [fromE164, fromDigits]
       );
 
       if (pending.rows.length === 0) {
@@ -124,7 +135,7 @@ router.post('/sms/inbound', async (req, res) => {
       // refuse rather than risk confirming the wrong salon.
       const _distinctBiz = new Set(pending.rows.map(r => r.business_id));
       if (_distinctBiz.size > 1) {
-        console.warn(`[SMS INBOUND] Ambiguous CONFIRM from ***${from.slice(-4)} — ${_distinctBiz.size} businesses have pending bookings; refused.`);
+        console.warn(`[SMS INBOUND] Ambiguous CONFIRM from ***${fromE164.slice(-4)} — ${_distinctBiz.size} businesses have pending bookings; refused.`);
         return res.type('text/xml').send(twiml('<Message>Plusieurs rendez-vous en attente. Confirmez depuis l\'email reçu.</Message>'));
       }
 
@@ -227,7 +238,7 @@ router.post('/sms/inbound', async (req, res) => {
         );
       } catch (_) {}
 
-      console.log(`[SMS INBOUND] Booking ${bk.id} confirmed via SMS reply from ***${from.slice(-4)}`);
+      console.log(`[SMS INBOUND] Booking ${bk.id} confirmed via SMS reply from ***${fromE164.slice(-4)}`);
       return res.type('text/xml').send(twiml('<Message>✓ RDV confirmé ! À bientôt.</Message>'));
 
     } else if (CANCEL_RE.test(normalized)) {
@@ -237,8 +248,9 @@ router.post('/sms/inbound', async (req, res) => {
       // Unknown message — check if they even have a pending booking
       const hasPending = await query(
         `SELECT 1 FROM bookings b JOIN clients c ON c.id = b.client_id
-         WHERE c.phone = $1 AND b.status = 'pending' AND b.confirmation_expires_at > NOW() LIMIT 1`,
-        [from]
+         WHERE (c.phone = $1 OR regexp_replace(COALESCE(c.phone, ''), '[^0-9]', '', 'g') = $2)
+           AND b.status = 'pending' AND b.confirmation_expires_at > NOW() LIMIT 1`,
+        [fromE164, fromDigits]
       );
       if (hasPending.rows.length > 0) {
         return res.type('text/xml').send(twiml('<Message>Vous avez un rendez-vous en attente. Confirmez via le lien dans votre SMS ou email.</Message>'));

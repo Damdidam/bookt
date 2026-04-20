@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const { queryWithRLS, transactionWithRLS } = require('../../services/db');
 const { requireAuth, requireOwner, resolvePractitionerScope } = require('../../middleware/auth');
+const { normalizeE164 } = require('../../utils/phone');
 
 router.use(requireAuth);
 router.use(resolvePractitionerScope);
@@ -149,21 +150,36 @@ router.post('/', async (req, res, next) => {
     const bid = req.businessId;
     const { full_name, phone, email } = req.body;
     if (!full_name?.trim()) return res.status(400).json({ error: 'Nom requis' });
+    if (full_name.trim().length > 200) return res.status(400).json({ error: 'Nom trop long (max 200)' });
+
+    // Normalize phone to E.164 (BUG-RGPD-phone-dedup fix): stored raw meant Twilio STOP/START
+    // match by `WHERE phone = $1` missed opt-outs, public booking created dupes, SMS send fails.
+    let normalizedPhone = null;
+    if (phone && String(phone).trim()) {
+      normalizedPhone = normalizeE164(phone, 'BE');
+      if (!normalizedPhone) {
+        return res.status(400).json({ error: 'Format téléphone invalide (BE/FR/LU)' });
+      }
+    }
+    const normalizedEmail = email ? String(email).trim() : null;
+    if (normalizedEmail && normalizedEmail.length > 320) {
+      return res.status(400).json({ error: 'Email trop long' });
+    }
 
     // Check for existing client with same phone or email
-    if (phone || email) {
+    if (normalizedPhone || normalizedEmail) {
       const existing = await queryWithRLS(bid,
         `SELECT id, full_name FROM clients WHERE business_id = $1 AND (($2::text IS NOT NULL AND phone = $2::text) OR ($3::text IS NOT NULL AND LOWER(email) = LOWER($3::text))) LIMIT 1`,
-        [bid, phone || null, email || null]
+        [bid, normalizedPhone, normalizedEmail]
       );
       if (existing.rows.length > 0) {
-        return res.status(409).json({ error: `Un client avec ce ${phone && existing.rows[0] ? 'téléphone' : 'email'} existe déjà : ${existing.rows[0].full_name}` });
+        return res.status(409).json({ error: `Un client avec ce ${normalizedPhone && existing.rows[0] ? 'téléphone' : 'email'} existe déjà : ${existing.rows[0].full_name}` });
       }
     }
     const result = await queryWithRLS(bid,
       `INSERT INTO clients (business_id, full_name, phone, email)
        VALUES ($1, $2, $3, $4) RETURNING *`,
-      [bid, full_name.trim(), phone || null, email || null]
+      [bid, full_name.trim(), normalizedPhone, normalizedEmail]
     );
     res.status(201).json({ client: result.rows[0] });
   } catch (err) {
@@ -268,11 +284,14 @@ router.get('/export', requireOwner, async (req, res, next) => {
     const fmtEur = (c) => ((c || 0) / 100).toFixed(2).replace('.', ',');
     const esc = (s) => `"${(s || '').replace(/"/g, '""')}"`;
 
-    const header = '"Nom";"Email";"Téléphone";"Langue";"Consentement SMS";"Consentement email";"Consentement marketing";"BCE";"Notes";"Remarques";"Date anniversaire";"VIP";"Créé le";"Source";"RDV total";"No-shows";"Annulations";"Dernière visite";"CA total (€)"\n';
+    // CSV column order matches the frontend CSV importer (src/frontend/views/clients.js:457)
+    // which parses positional columns as {full_name, phone, email}. Previous export put
+    // Email before Téléphone — round-trip (export → re-import) swapped the two fields.
+    const header = '"Nom";"Téléphone";"Email";"Langue";"Consentement SMS";"Consentement email";"Consentement marketing";"BCE";"Notes";"Remarques";"Date anniversaire";"VIP";"Créé le";"Source";"RDV total";"No-shows";"Annulations";"Dernière visite";"CA total (€)"\n';
     const rows = result.rows.map(r => [
       esc(r.full_name),
-      esc(r.email || ''),
       esc(r.phone || ''),
+      esc(r.email || ''),
       esc(r.language_preference || ''),
       esc(r.consent_sms ? 'Oui' : 'Non'),
       esc(r.consent_email !== false ? 'Oui' : 'Non'),
@@ -412,11 +431,22 @@ router.patch('/:id', requireOwner, async (req, res, next) => {
         return res.status(400).json({ error: 'Format email invalide' });
       }
     }
+    // Normalize phone to E.164 on edit (same reason as POST /api/clients) — prevents
+    // RGPD opt-out silent-miss, Twilio 400 errors, and public-booking dedup drift.
     if ('phone' in req.body && req.body.phone) {
       const _ph = String(req.body.phone).trim();
       if (_ph.length > 30) {
         return res.status(400).json({ error: 'Téléphone trop long' });
       }
+      const _norm = normalizeE164(_ph, 'BE');
+      if (!_norm) {
+        return res.status(400).json({ error: 'Format téléphone invalide (BE/FR/LU)' });
+      }
+      req.body.phone = _norm;
+    }
+
+    if ('full_name' in req.body && req.body.full_name && String(req.body.full_name).length > 200) {
+      return res.status(400).json({ error: 'Nom trop long (max 200)' });
     }
 
     const fieldMap = { full_name: 'full_name', phone: 'phone', email: 'email',

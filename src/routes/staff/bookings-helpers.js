@@ -175,7 +175,28 @@ async function checkPracAvailability(bid, pracId, startAt, endAt) {
   const jsDay = bxlDate.getDay(); // correct day because we're using Brussels date
   const dbDay = jsDay === 0 ? 6 : jsDay - 1;
 
-  // 0. Check staff absences (congés, maladie, formation…)
+  // 0a. Check business-wide holidays / closures (salon-level shutdown).
+  // The slot-engine already filters these at display time, but a curl direct to
+  // POST /api/public/:slug/bookings would bypass — same rationale as the Q11 fix
+  // on min_booking_notice_hours. We gate once, reused by every caller.
+  const holRes = await queryWithRLS(bid,
+    `SELECT 1 FROM business_holidays
+      WHERE business_id = $1
+        AND $2::date BETWEEN date_from AND COALESCE(date_to, date_from)
+      LIMIT 1`,
+    [bid, dateStr]
+  ).catch(() => ({ rows: [] }));
+  if (holRes.rows.length > 0) return { ok: false, reason: 'Salon fermé ce jour (jour férié / congé)' };
+  const clsRes = await queryWithRLS(bid,
+    `SELECT 1 FROM business_closures
+      WHERE business_id = $1
+        AND $2::date BETWEEN date_from AND COALESCE(date_to, date_from)
+      LIMIT 1`,
+    [bid, dateStr]
+  ).catch(() => ({ rows: [] }));
+  if (clsRes.rows.length > 0) return { ok: false, reason: 'Salon fermé ce jour (fermeture exceptionnelle)' };
+
+  // 0b. Check staff absences (congés, maladie, formation…)
   const absCheck = await queryWithRLS(bid,
     `SELECT date_from, date_to, period, period_end FROM staff_absences
      WHERE business_id = $1 AND practitioner_id = $2

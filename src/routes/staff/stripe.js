@@ -604,9 +604,12 @@ async function handleStripeWebhook(req, res) {
                   [bizId, giftCard.recipient_email]
                 );
                 if (existingClient.rows.length === 0) {
+                  // clients.source column doesn't exist — correct column is `created_from`
+                  // with CHECK ('booking' | 'manual' | 'call'). Use 'manual' (gift-card purchase
+                  // = merchant-side creation, not a real booking, closest to 'manual').
                   await query(
-                    `INSERT INTO clients (id, business_id, full_name, email, source, created_at, updated_at)
-                     VALUES (gen_random_uuid(), $1, $2, $3, 'gift_card', NOW(), NOW())`,
+                    `INSERT INTO clients (id, business_id, full_name, email, created_from, created_at, updated_at)
+                     VALUES (gen_random_uuid(), $1, $2, $3, 'manual', NOW(), NOW())`,
                     [bizId, giftCard.recipient_name || giftCard.recipient_email.split('@')[0], giftCard.recipient_email]
                   );
                   console.log(`[GIFT-CARD] Auto-created client for ${giftCard.recipient_email}`);

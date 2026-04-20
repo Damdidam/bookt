@@ -382,9 +382,29 @@ function isDisposableEmail(email) {
   return DISPOSABLE_DOMAINS.has(domain);
 }
 
+/**
+ * Compute the Genda platform application fee (in cents) for a Stripe Connect payment.
+ * Reads from env:
+ *   STRIPE_APP_FEE_PCT         — percentage of gross amount (e.g. "1.5" for 1.5%)
+ *   STRIPE_APP_FEE_FIXED_CENTS — fixed portion added on top (e.g. "25" for 25c)
+ * If neither is set, fee = 0 (legacy behavior: platform absorbs Stripe fees).
+ * Caller passes gross `amountCents` and gets the fee to forward via application_fee_amount.
+ */
+function computeApplicationFeeCents(amountCents) {
+  const gross = parseInt(amountCents) || 0;
+  if (gross <= 0) return 0;
+  const pct = parseFloat(process.env.STRIPE_APP_FEE_PCT) || 0;
+  const fixed = parseInt(process.env.STRIPE_APP_FEE_FIXED_CENTS) || 0;
+  const fee = Math.round(gross * (pct / 100)) + fixed;
+  // Clamp: Stripe rejects application_fee_amount >= amount; also never return negative.
+  if (fee <= 0) return 0;
+  if (fee >= gross) return Math.max(0, gross - 1);
+  return fee;
+}
+
 module.exports = {
   UUID_RE, escHtml, shouldRequireDeposit,
   computeDepositDeadline, isWithinLastMinuteWindow, SECTOR_PRACTITIONER,
   _nextSlotCache, _minisiteCache, invalidateMinisiteCache, BASE_URL, validateAndCalcPromo, decrementPromoUsage,
-  normalizeEmail, isDisposableEmail
+  normalizeEmail, isDisposableEmail, computeApplicationFeeCents
 };

@@ -41,6 +41,16 @@ module.exports = async () => {
   console.log('\n[GLOBAL SETUP] Starting...');
   const t0 = Date.now();
 
+  // RULE feedback_e2e_server_local.md — never run against prod unless explicitly allowed.
+  const baseUrl = process.env.APP_BASE_URL || '';
+  if (/genda\.be/.test(baseUrl) && process.env.ALLOW_REMOTE_E2E !== '1') {
+    throw new Error(
+      `[GLOBAL SETUP] APP_BASE_URL targets prod (${baseUrl}). ` +
+      `E2E must hit a local server. Set APP_BASE_URL=http://localhost:3000 or ` +
+      `override with ALLOW_REMOTE_E2E=1 (do not do this without explicit need).`
+    );
+  }
+
   if (process.env.TEST_BUSINESS_ID && process.env.TEST_BUSINESS_ID !== IDS.BUSINESS) {
     throw new Error(`TEST_BUSINESS_ID mismatch: env=${process.env.TEST_BUSINESS_ID}, ids.js=${IDS.BUSINESS}`);
   }

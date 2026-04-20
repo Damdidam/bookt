@@ -3,7 +3,8 @@
  */
 const jwt = require('jsonwebtoken');
 const IDS = require('./ids');
-const BASE_URL = process.env.APP_BASE_URL || 'https://genda.be';
+// Fallback explicitly to localhost — RULE feedback_e2e_server_local.md. Never default to prod.
+const BASE_URL = process.env.APP_BASE_URL || 'http://localhost:3000';
 
 function signTestToken(userId, businessId, role = 'owner') {
   const secret = process.env.JWT_SECRET;

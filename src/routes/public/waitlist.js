@@ -5,6 +5,7 @@ const { bookingLimiter } = require('../../middleware/rate-limiter');
 const { UUID_RE, shouldRequireDeposit, computeDepositDeadline, BASE_URL, isDisposableEmail } = require('./helpers');
 const { broadcast } = require('../../services/sse');
 const { checkBookingConflicts } = require('../staff/bookings-helpers');
+const { normalizeE164 } = require('../../utils/phone');
 
 // ============================================================
 // WAITLIST — PUBLIC ENDPOINTS
@@ -47,7 +48,13 @@ router.post('/:slug/waitlist', bookingLimiter, async (req, res, next) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(client_email)) return res.status(400).json({ error: 'Format email invalide' });
     if (isDisposableEmail(client_email)) return res.status(400).json({ error: 'Les adresses email temporaires ne sont pas acceptées' });
-    if (client_phone && !/^\+?[\d\s\-().]{6,}$/.test(client_phone)) return res.status(400).json({ error: 'Format téléphone invalide' });
+    // Normalize phone to E.164 for storage — ensures downstream match against clients.phone
+    // and Twilio STOP/START webhooks use the same format.
+    let normalizedWlPhone = null;
+    if (client_phone) {
+      normalizedWlPhone = normalizeE164(client_phone, 'BE');
+      if (!normalizedWlPhone) return res.status(400).json({ error: 'Format téléphone invalide' });
+    }
 
     if (preferred_days) {
       if (!Array.isArray(preferred_days) || preferred_days.length > 7 || !preferred_days.every(d => Number.isInteger(d) && d >= 0 && d <= 6)) {
@@ -125,7 +132,7 @@ router.post('/:slug/waitlist', bookingLimiter, async (req, res, next) => {
        )
        RETURNING id, priority, created_at`,
       [businessId, practitioner_id, service_id, client_name, client_email,
-       client_phone || null,
+       normalizedWlPhone,
        JSON.stringify(preferred_days || [0,1,2,3,4]),
        preferred_time || 'any',
        note || null,
@@ -264,23 +271,35 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
         throw Object.assign(new Error('Ce créneau vient d\'être pris'), { type: 'conflict' });
       }
 
-      // Find or create client (3-step matching: exact → phone → email)
+      // Find or create client (3-step matching: exact → phone → email).
+      // Phone matching is LENIENT: compare both the E.164 form and the digits-only form
+      // so legacy clients stored with formats like "0475…" still match against the
+      // E.164-normalized waitlist phone (prevents dupes on waitlist accept).
       let clientId;
       let existingWlClient = null;
+      const _wlPhone = e.client_phone || null;
+      const _wlPhoneDigits = _wlPhone ? _wlPhone.replace(/[^\d]/g, '') : null;
 
       // Step 1: exact match (phone AND email)
-      if (e.client_phone && e.client_email) {
+      if (_wlPhone && e.client_email) {
         const exactMatch = await client.query(
-          `SELECT id FROM clients WHERE business_id = $1 AND phone = $2 AND LOWER(email) = LOWER($3) LIMIT 1`,
-          [e.business_id, e.client_phone, e.client_email]
+          `SELECT id FROM clients
+             WHERE business_id = $1
+               AND (phone = $2 OR regexp_replace(COALESCE(phone, ''), '[^0-9]', '', 'g') = $3)
+               AND LOWER(email) = LOWER($4)
+             LIMIT 1`,
+          [e.business_id, _wlPhone, _wlPhoneDigits, e.client_email]
         );
         if (exactMatch.rows.length > 0) existingWlClient = exactMatch.rows[0];
       }
       // Step 2: match by phone
-      if (!existingWlClient && e.client_phone) {
+      if (!existingWlClient && _wlPhone) {
         const phoneMatch = await client.query(
-          `SELECT id FROM clients WHERE business_id = $1 AND phone = $2 LIMIT 1`,
-          [e.business_id, e.client_phone]
+          `SELECT id FROM clients
+             WHERE business_id = $1
+               AND (phone = $2 OR regexp_replace(COALESCE(phone, ''), '[^0-9]', '', 'g') = $3)
+             LIMIT 1`,
+          [e.business_id, _wlPhone, _wlPhoneDigits]
         );
         if (phoneMatch.rows.length > 0) existingWlClient = phoneMatch.rows[0];
       }
@@ -295,16 +314,16 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
 
       if (existingWlClient) {
         clientId = existingWlClient.id;
-        // Update client info (PUB-V12-009: preserve existing full_name if new value is empty)
+        // Normalize legacy phone on the fly so future matches go through direct equality.
         await client.query(
           `UPDATE clients SET full_name = COALESCE(NULLIF($1, ''), full_name), email = COALESCE($2, email), phone = COALESCE($3, phone), updated_at = NOW() WHERE id = $4`,
-          [e.client_name, e.client_email, e.client_phone, clientId]
+          [e.client_name, e.client_email, _wlPhone, clientId]
         );
       } else {
         const nc = await client.query(
           `INSERT INTO clients (business_id, full_name, email, phone, created_from)
-           VALUES ($1, $2, $3, $4, 'booking') RETURNING id`,
-          [e.business_id, e.client_name, e.client_email, e.client_phone]
+           VALUES ($1, $2, $3, $4, 'waitlist') RETURNING id`,
+          [e.business_id, e.client_name, e.client_email, _wlPhone]
         );
         clientId = nc.rows[0].id;
       }

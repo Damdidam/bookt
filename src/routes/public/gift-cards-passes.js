@@ -5,7 +5,7 @@
 const router = require('express').Router();
 const { query, pool } = require('../../services/db');
 const { depositLimiter } = require('../../middleware/rate-limiter');
-const { BASE_URL } = require('./helpers');
+const { BASE_URL, computeApplicationFeeCents } = require('./helpers');
 
 // ============================================================
 // GIFT CARDS
@@ -81,7 +81,10 @@ router.post('/:slug/gift-card/checkout', depositLimiter, async (req, res, next) 
       cancel_url: `${baseUrl}/${biz.slug}/gift-card`,
       locale: 'fr', expires_at: Math.floor(Date.now() / 1000) + 3600
     };
-    if (biz.stripe_connect_id) sessionOpts.payment_intent_data = { transfer_data: { destination: biz.stripe_connect_id } };
+    if (biz.stripe_connect_id) sessionOpts.payment_intent_data = {
+      application_fee_amount: computeApplicationFeeCents(amount_cents),
+      transfer_data: { destination: biz.stripe_connect_id }
+    };
     const session = await stripe.checkout.sessions.create(sessionOpts);
     res.json({ url: session.url, session_id: session.id });
   } catch (err) { console.error('[GIFT-CARD CHECKOUT] Error:', err); next(err); }
@@ -355,7 +358,10 @@ router.post('/:slug/pass/checkout', depositLimiter, async (req, res, next) => {
       cancel_url: `${baseUrl}/${biz.slug}/pass`,
       expires_at: Math.floor(Date.now() / 1000) + 60 * 60
     };
-    if (biz.stripe_connect_id) passSessionOpts.payment_intent_data = { transfer_data: { destination: biz.stripe_connect_id } };
+    if (biz.stripe_connect_id) passSessionOpts.payment_intent_data = {
+      application_fee_amount: computeApplicationFeeCents(tpl.price_cents),
+      transfer_data: { destination: biz.stripe_connect_id }
+    };
     const session = await stripe.checkout.sessions.create(passSessionOpts);
     res.json({ url: session.url, session_id: session.id });
   } catch (err) { next(err); }
