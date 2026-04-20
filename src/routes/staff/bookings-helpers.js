@@ -345,6 +345,14 @@ async function checkBookingConflicts(client, { bid, pracId, newStart, newEnd, ex
   // utilisée dans tasks.js (`${pid}_${new Date(startAt).toISOString()}`). Avant,
   // newStart brut ('2026-04-20T08:00:00' vs '2026-04-20 10:00:00+02' vs Date obj)
   // donnait des hash différents → race booking/task non sérialisée.
+  //
+  // P0-01 note : cet advisory lock + ce SELECT pré-check restent utiles pour
+  // UX (message "Créneau pris" immédiat avant tenter INSERT). Mais le lock
+  // ponctuel par (prac, exact start_at) ne couvre PAS les chevauchements
+  // décalés (10:00-10:30 vs 10:15-10:45 = 2 clés différentes). La vraie
+  // défense contre race est la contrainte EXCLUDE `bookings_no_overlap_active`
+  // posée par migration v81 — DB-level, bulletproof, retourne 23P01 qui est
+  // traduit en 409 par middleware/error-handler.js.
   const lockKey = `${pracId}_${new Date(newStart).toISOString()}`;
   await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [lockKey]);
 
