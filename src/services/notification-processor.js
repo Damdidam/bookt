@@ -175,6 +175,7 @@ async function sendReviewEmail(bk, metadata) {
       promotion_discount_cents: bk.promotion_discount_cents || 0
     },
     business: {
+      id: bk.business_id,
       name: bk.biz_name,
       email: bk.biz_email,
       address: bk.biz_address,

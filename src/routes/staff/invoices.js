@@ -540,6 +540,7 @@ router.patch('/:id/status', requireOwner, blockIfImpersonated, async (req, res, 
           await sendInvoiceEmail({
             invoice,
             business: {
+              id: bid,
               name: invoice.biz_name, email: invoice.biz_email, phone: invoice.biz_phone,
               address: invoice.biz_address, theme: invoice.biz_theme, slug: invoice.biz_slug
             },

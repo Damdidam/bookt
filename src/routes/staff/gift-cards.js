@@ -144,7 +144,7 @@ router.post('/', async (req, res, next) => {
     // Send email to recipient if provided
     if (recipient_email) {
       try {
-        const bizResult = await queryWithRLS(bid, 'SELECT name, slug, theme, email FROM businesses WHERE id = $1', [bid]);
+        const bizResult = await queryWithRLS(bid, 'SELECT id, name, slug, theme, email FROM businesses WHERE id = $1', [bid]);
         const { sendGiftCardEmail } = require('../../services/email');
         await sendGiftCardEmail({ giftCard: result, business: bizResult.rows[0] });
       } catch (emailErr) {

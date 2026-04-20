@@ -206,6 +206,7 @@ router.post('/:id/send-session-notes', blockIfImpersonated, async (req, res, nex
       date: dateStr,
       practitionerName: d.practitioner_name,
       businessName: d.business_name,
+      businessId: bid,
       primaryColor: d.primary_color || '#0D7377',
       businessAddress: d.business_address,
       businessPhone: d.business_phone,

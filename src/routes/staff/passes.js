@@ -376,7 +376,7 @@ router.post('/', async (req, res, next) => {
     // Send email to buyer if provided
     if (buyer_email) {
       try {
-        const bizResult = await queryWithRLS(bid, 'SELECT name, slug, theme, email FROM businesses WHERE id = $1', [bid]);
+        const bizResult = await queryWithRLS(bid, 'SELECT id, name, slug, theme, email FROM businesses WHERE id = $1', [bid]);
         // Fetch service name for the email
         let serviceName = '';
         if (result.service_id) {
