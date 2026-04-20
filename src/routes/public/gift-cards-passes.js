@@ -79,7 +79,7 @@ router.post('/:slug/gift-card/checkout', depositLimiter, async (req, res, next) 
       metadata: { type: 'gift_card', business_id: biz.id, amount_cents: String(amount_cents), buyer_name: (buyer_name || '').substring(0, 200), buyer_email, recipient_name: (recipient_name || '').substring(0, 200), recipient_email: recipient_email || '', message: (message || '').substring(0, 500) },
       success_url: `${baseUrl}/${biz.slug}/gift-card?success=1`,
       cancel_url: `${baseUrl}/${biz.slug}/gift-card`,
-      locale: 'fr', expires_at: Math.floor(Date.now() / 1000) + 1800
+      locale: 'fr', expires_at: Math.floor(Date.now() / 1000) + 3600
     };
     if (biz.stripe_connect_id) sessionOpts.payment_intent_data = { transfer_data: { destination: biz.stripe_connect_id } };
     const session = await stripe.checkout.sessions.create(sessionOpts);
@@ -329,12 +329,20 @@ router.post('/:slug/pass/checkout', depositLimiter, async (req, res, next) => {
       return res.status(400).json({ error: 'Téléphone trop long (max 30)' });
     }
     const tplRes = await query(
-      `SELECT pt.*, s.name AS service_name, s.quote_only AS service_quote_only FROM pass_templates pt JOIN services s ON s.id = pt.service_id AND s.is_active = true WHERE pt.id = $1 AND pt.business_id = $2 AND pt.is_active = true`,
+      `SELECT pt.*, s.name AS service_name, s.quote_only AS service_quote_only, s.bookable_online AS service_bookable_online
+         FROM pass_templates pt
+         JOIN services s ON s.id = pt.service_id AND s.is_active = true
+        WHERE pt.id = $1 AND pt.business_id = $2 AND pt.is_active = true`,
       [pass_template_id, biz.id]
     );
     if (tplRes.rows.length === 0) return res.status(404).json({ error: 'Formule introuvable' });
     if (tplRes.rows[0].service_quote_only === true) {
       return res.status(400).json({ error: 'Cette prestation est sur devis uniquement et ne peut pas être vendue sous forme de pass.' });
+    }
+    // Guard: la prestation doit être réservable en ligne, sinon le pass serait inutilisable
+    // (le client achèterait un pass qu'il ne pourrait pas consommer via le minisite).
+    if (tplRes.rows[0].service_bookable_online === false) {
+      return res.status(400).json({ error: 'Cette prestation n\'est pas réservable en ligne.' });
     }
     const tpl = tplRes.rows[0];
     const baseUrl = BASE_URL;
@@ -345,7 +353,7 @@ router.post('/:slug/pass/checkout', depositLimiter, async (req, res, next) => {
       customer_email: buyer_email,
       success_url: `${baseUrl}/${biz.slug}/pass?success=1`,
       cancel_url: `${baseUrl}/${biz.slug}/pass`,
-      expires_at: Math.floor(Date.now() / 1000) + 30 * 60
+      expires_at: Math.floor(Date.now() / 1000) + 60 * 60
     };
     if (biz.stripe_connect_id) passSessionOpts.payment_intent_data = { transfer_data: { destination: biz.stripe_connect_id } };
     const session = await stripe.checkout.sessions.create(passSessionOpts);

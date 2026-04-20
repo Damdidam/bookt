@@ -169,7 +169,7 @@ router.post('/deposit/:token/checkout', depositLimiter, async (req, res, next) =
       success_url: `${baseUrl}/deposit/${token}?paid=1`,
       cancel_url: `${baseUrl}/deposit/${token}`,
       locale: 'fr',
-      expires_at: Math.floor(Date.now() / 1000) + 1800 // 30 min from now
+      expires_at: Math.floor(Date.now() / 1000) + 3600 // 1h — UX plus safe pour abandons/reprises
     });
 
     // 6. Store checkout session ID (payment_intent is null at creation for Checkout sessions)
@@ -339,7 +339,7 @@ router.get('/deposit/:token/pay', depositLimiter, async (req, res, next) => {
       success_url: `${baseUrl}/deposit/${token}?paid=1`,
       cancel_url: depositPageUrl,
       locale: 'fr',
-      expires_at: Math.floor(Date.now() / 1000) + 1800
+      expires_at: Math.floor(Date.now() / 1000) + 3600
     });
 
     await query(

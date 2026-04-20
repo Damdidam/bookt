@@ -26,11 +26,11 @@ async function processExpiredGiftCards() {
       const primaryEmail = gc.recipient_email || gc.buyer_email;
       const primaryName = gc.recipient_name || gc.buyer_name || '';
       const bizResult = await query(
-        `SELECT name, theme, address, phone, email FROM businesses WHERE id = $1`,
+        `SELECT name, theme, address, phone, email, slug FROM businesses WHERE id = $1`,
         [gc.business_id]
       );
       if (!bizResult.rows[0]) continue;
-      const { name: biz_name, theme: biz_theme, address: biz_address, phone: biz_phone, email: biz_email } = bizResult.rows[0];
+      const { name: biz_name, theme: biz_theme, address: biz_address, phone: biz_phone, email: biz_email, slug: biz_slug } = bizResult.rows[0];
       const color = safeColor(biz_theme?.primary_color);
       const balanceStr = ((gc.balance_cents || 0) / 100).toFixed(2).replace('.', ',') + ' \u20ac';
       const amountStr = ((gc.amount_cents || 0) / 100).toFixed(2).replace('.', ',') + ' \u20ac';
@@ -45,11 +45,16 @@ async function processExpiredGiftCards() {
         </div>
         <p style="font-size:14px;color:#3D3832">N'h\u00e9sitez pas \u00e0 nous contacter pour toute question${biz_phone ? ' au ' + escHtml(biz_phone) : ''}${biz_email ? ' (' + escHtml(biz_email) + ')' : ''}.</p>`;
 
+      const _baseGC = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+      // CTA : renouveler la carte cadeau via le minisite du salon.
+      const ctaGcUrl = biz_slug ? `${_baseGC}/${biz_slug}/gift-card` : null;
       const html = buildEmailHTML({
         title: 'Carte cadeau expir\u00e9e',
         // H7 fix: preheader is escaped inside buildEmailHTML — passing pre-escaped text would double-escape
         preheader: `Votre carte cadeau ${gc.code || ''} a expir\u00e9`,
         bodyHTML,
+        ctaText: ctaGcUrl ? 'Renouveler' : null,
+        ctaUrl: ctaGcUrl,
         businessName: biz_name,
         primaryColor: color,
         footerText: `${biz_name}${biz_address ? ' \u00b7 ' + biz_address : ''} \u00b7 Via Genda.be`
@@ -118,11 +123,11 @@ async function processGiftCardExpiryWarnings() {
       const primaryEmail = gc.recipient_email || gc.buyer_email;
       const primaryName = gc.recipient_name || gc.buyer_name || '';
       const bizResult = await query(
-        `SELECT name, theme, address, phone, email FROM businesses WHERE id = $1`,
+        `SELECT name, theme, address, phone, email, slug FROM businesses WHERE id = $1`,
         [gc.business_id]
       );
       if (!bizResult.rows[0]) continue;
-      const { name: biz_name, theme: biz_theme, address: biz_address, phone: biz_phone, email: biz_email } = bizResult.rows[0];
+      const { name: biz_name, theme: biz_theme, address: biz_address, phone: biz_phone, email: biz_email, slug: biz_slug } = bizResult.rows[0];
       const color = safeColor(biz_theme?.primary_color);
       const balanceStr = ((gc.balance_cents || 0) / 100).toFixed(2).replace('.', ',') + ' \u20ac';
       const expDate = new Date(gc.expires_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Brussels' });
@@ -136,11 +141,18 @@ async function processGiftCardExpiryWarnings() {
         </div>
         <p style="font-size:14px;color:#3D3832">N'h\u00e9sitez pas \u00e0 r\u00e9server avant cette date pour utiliser votre solde${biz_phone ? ' (' + escHtml(biz_phone) + ')' : ''}${biz_email ? ' \u2014 ' + escHtml(biz_email) : ''}.</p>`;
 
+      const _baseGCw = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+      // CTA : réserver avec la carte cadeau pre-fill pour consommer le solde avant expiration.
+      const ctaGcBookUrl = biz_slug
+        ? `${_baseGCw}/${biz_slug}/book?gc=${encodeURIComponent(gc.code || '')}`
+        : null;
       const html = buildEmailHTML({
         title: 'Carte cadeau bient\u00f4t expir\u00e9e',
         // H7 fix: passed raw — buildEmailHTML escapes
         preheader: `Votre carte cadeau expire le ${expDate} \u2014 solde ${balanceStr}`,
         bodyHTML,
+        ctaText: ctaGcBookUrl ? 'R\u00e9server avant expiration' : null,
+        ctaUrl: ctaGcBookUrl,
         businessName: biz_name,
         primaryColor: color,
         footerText: `${biz_name}${biz_address ? ' \u00b7 ' + biz_address : ''} \u00b7 Via Genda.be`

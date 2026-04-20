@@ -71,7 +71,7 @@ async function fetchGroupServices(groupId, businessId) {
      LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
      LEFT JOIN practitioners p ON p.id = b.practitioner_id
      WHERE b.group_id = $1 AND b.business_id = $2
-     ORDER BY b.start_at`,
+     ORDER BY b.group_order NULLS LAST, b.start_at`,
     [groupId, businessId]
   );
   return rows.length > 1 ? rows : null;

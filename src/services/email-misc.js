@@ -288,7 +288,7 @@ async function sendPassPurchaseEmail({ pass, business }) {
     preheader: `${pass.sessions_total} séances — ${pass.name}`,
     bodyHTML,
     ctaText: business.slug ? 'Réserver maintenant' : null,
-    ctaUrl: business.slug ? `${baseUrl}/${business.slug}/book` : null,
+    ctaUrl: business.slug ? `${baseUrl}/${business.slug}/book?pass=${encodeURIComponent(pass.code || '')}` : null,
     businessName: business.name,
     primaryColor: color,
     footerText: [business.name, business.address, business.phone, business.email, 'Via Genda.be'].filter(Boolean).join(' \u00b7 ')

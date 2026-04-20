@@ -268,15 +268,21 @@ router.post('/:id/offer', async (req, res, next) => {
     }
 
     // V13-009: Add practitioner scope check
-    let offerSql = `SELECT * FROM waitlist_entries WHERE id = $1 AND business_id = $2 AND status = 'waiting'`;
+    // Parité cascades : LEFT JOIN sv + guard is_active pour refuser d'offrir à une entry
+    // dont le variant a été désactivé (cohérence avec processWaitlistForCancellation,
+    // processExpiredOffers cascade, decline cascade publique, gap-engine).
+    let offerSql = `SELECT we.* FROM waitlist_entries we
+                      LEFT JOIN service_variants sv ON sv.id = we.service_variant_id
+                    WHERE we.id = $1 AND we.business_id = $2 AND we.status = 'waiting'
+                      AND (we.service_variant_id IS NULL OR sv.is_active = true)`;
     const offerParams = [id, bid];
     if (req.practitionerFilter) {
-      offerSql += ` AND practitioner_id = $3`;
+      offerSql += ` AND we.practitioner_id = $3`;
       offerParams.push(req.practitionerFilter);
     }
     const entry = await queryWithRLS(bid, offerSql, offerParams);
     if (entry.rows.length === 0) {
-      return res.status(404).json({ error: 'Entrée introuvable ou déjà traitée' });
+      return res.status(404).json({ error: 'Entrée introuvable, déjà traitée, ou variante désactivée' });
     }
 
     // Validate dates

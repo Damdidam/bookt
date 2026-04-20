@@ -17,13 +17,13 @@ async function processExpiredPasses() {
   for (const pass of result.rows) {
     try {
       const { rows } = await pool.query(
-        `SELECT biz.name AS biz_name, biz.theme, biz.email AS biz_email, biz.address AS biz_address, biz.phone AS biz_phone
+        `SELECT biz.name AS biz_name, biz.theme, biz.email AS biz_email, biz.address AS biz_address, biz.phone AS biz_phone, biz.slug AS biz_slug
          FROM businesses biz
          WHERE biz.id = $1`,
         [pass.business_id]
       );
       if (!rows[0]) continue;
-      const { biz_name, theme, biz_email, biz_address, biz_phone } = rows[0];
+      const { biz_name, theme, biz_email, biz_address, biz_phone, biz_slug } = rows[0];
       const client_email = pass.buyer_email;
       if (!client_email) { console.warn('[PASS EXPIRY] No buyer_email for pass ' + pass.id); continue; }
       const client_name = pass.buyer_name || 'Client';
@@ -39,11 +39,14 @@ async function processExpiredPasses() {
         </div>
         <p style="font-size:14px;color:#3D3832">N'h\u00e9sitez pas \u00e0 nous contacter pour renouveler votre pass${biz_phone ? ' au ' + escHtml(biz_phone) : ''}${biz_email ? ' (' + escHtml(biz_email) + ')' : ''}.</p>`;
 
+      const _baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
       const html = buildEmailHTML({
         title: 'Pass expir\u00e9',
         // H7 fix: preheader escaped inside buildEmailHTML — pass raw
         preheader: `Votre pass "${pass.name || 'Pass'}" a expir\u00e9`,
         bodyHTML,
+        ctaText: biz_slug ? 'Renouveler mon pass' : null,
+        ctaUrl: biz_slug ? `${_baseUrl}/${biz_slug}/pass` : null,
         businessName: biz_name,
         primaryColor: color,
         footerText: `${biz_name}${biz_address ? ' \u00b7 ' + biz_address : ''} \u00b7 Via Genda.be`
@@ -72,7 +75,7 @@ async function processExpiredPasses() {
 async function processPassExpiryWarnings() {
   // Batch 12 regression fix: same pattern as GC — flag posted AFTER successful send.
   const result = await pool.query(
-    `SELECT id, business_id, buyer_email, buyer_name, name, sessions_remaining, expires_at
+    `SELECT id, business_id, buyer_email, buyer_name, name, code, sessions_remaining, expires_at
        FROM passes
       WHERE status = 'active'
         AND expires_at IS NOT NULL
@@ -92,12 +95,12 @@ async function processPassExpiryWarnings() {
         continue;
       }
       const { rows } = await pool.query(
-        `SELECT biz.name AS biz_name, biz.theme, biz.email AS biz_email, biz.address AS biz_address, biz.phone AS biz_phone
+        `SELECT biz.name AS biz_name, biz.theme, biz.email AS biz_email, biz.address AS biz_address, biz.phone AS biz_phone, biz.slug AS biz_slug
          FROM businesses biz WHERE biz.id = $1`,
         [pass.business_id]
       );
       if (!rows[0]) continue;
-      const { biz_name, theme, biz_email, biz_address, biz_phone } = rows[0];
+      const { biz_name, theme, biz_email, biz_address, biz_phone, biz_slug } = rows[0];
       const color = safeColor(theme?.primary_color);
       const remaining = pass.sessions_remaining || 0;
       const expDate = new Date(pass.expires_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Brussels' });
@@ -111,10 +114,17 @@ async function processPassExpiryWarnings() {
         </div>
         <p style="font-size:14px;color:#3D3832">N'h\u00e9sitez pas \u00e0 r\u00e9server avant cette date pour profiter de votre pass${biz_phone ? ' (' + escHtml(biz_phone) + ')' : ''}${biz_email ? ' \u2014 ' + escHtml(biz_email) : ''}.</p>`;
 
+      const _baseUrl2 = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+      // CTA : réserver maintenant avec pre-fill du pass code pour utiliser les séances restantes.
+      const ctaPassUrl = biz_slug
+        ? `${_baseUrl2}/${biz_slug}/book?pass=${encodeURIComponent(pass.code || '')}`
+        : null;
       const html = buildEmailHTML({
         title: 'Pass bient\u00f4t expir\u00e9',
         preheader: `Votre pass expire le ${expDate} \u2014 ${remaining} s\u00e9ance(s)`,
         bodyHTML,
+        ctaText: ctaPassUrl ? 'R\u00e9server avec mon pass' : null,
+        ctaUrl: ctaPassUrl,
         businessName: biz_name,
         primaryColor: color,
         footerText: `${biz_name}${biz_address ? ' \u00b7 ' + biz_address : ''} \u00b7 Via Genda.be`

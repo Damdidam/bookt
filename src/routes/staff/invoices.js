@@ -223,12 +223,16 @@ router.post('/', requireOwner, blockIfImpersonated, async (req, res, next) => {
         } catch (_) {}
 
         // Build line items for each service in the group (pass-covered = 0€)
+        // LM trace : si discount_pct appliqué (Last Minute), on annote la description
+        // pour que le client/compta voit la réduction dans le PDF.
         invoiceItems = allBookings.map(sib => {
           const svcLabel = sib.service_category ? `${sib.service_category} - ${sib.service_name}${sib.variant_name ? ' \u2014 ' + sib.variant_name : ''}` : (sib.variant_name ? `${sib.service_name} \u2014 ${sib.variant_name}` : sib.service_name);
           const isPassCovered = passBookingIds.has(sib.id) || (sib.deposit_payment_intent_id && sib.deposit_payment_intent_id.startsWith('pass_'));
+          const lmPct = sib.discount_pct;
+          const lmSuffix = (!isPassCovered && lmPct && lmPct > 0 && lmPct < 100) ? ` (Last Minute -${lmPct}%)` : '';
           return {
             booking_id: sib.id,
-            description: `${svcLabel} — ${new Date(sib.start_at).toLocaleDateString('fr-BE', { timeZone: 'Europe/Brussels' })}${isPassCovered ? ' (pass)' : ''}`,
+            description: `${svcLabel} — ${new Date(sib.start_at).toLocaleDateString('fr-BE', { timeZone: 'Europe/Brussels' })}${isPassCovered ? ' (pass)' : ''}${lmSuffix}`,
             quantity: 1,
             unit_price_cents: isPassCovered ? 0 : (sib.booked_price_cents ?? sib.variant_price_cents ?? sib.price_cents ?? 0),
             vat_rate: vat_rate || 21

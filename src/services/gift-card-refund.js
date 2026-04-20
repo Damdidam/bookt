@@ -27,6 +27,16 @@ async function refundGiftCardForBooking(bookingId, dbClient) {
 
   if (debits.rows.length === 0) return { refunded: 0, cards: [] };
 
+  // Business settings — pour l'extension de validité sur GC expirée (configurable).
+  // Default 30 jours, override via settings.gift_card_refund_extension_days.
+  const bizId = debits.rows[0].business_id;
+  let extensionDays = 30;
+  try {
+    const bizRes = await q(`SELECT settings FROM businesses WHERE id = $1`, [bizId]);
+    const parsed = parseInt(bizRes.rows[0]?.settings?.gift_card_refund_extension_days);
+    if (Number.isFinite(parsed) && parsed >= 1 && parsed <= 365) extensionDays = parsed;
+  } catch (_) { /* fall back to 30 default */ }
+
   let totalRefunded = 0;
   const cards = [];
 
@@ -72,12 +82,12 @@ async function refundGiftCardForBooking(bookingId, dbClient) {
        status = CASE WHEN status IN ('used', 'expired') THEN 'active' ELSE status END,
        expires_at = CASE
          WHEN status = 'expired' OR (expires_at IS NOT NULL AND expires_at <= NOW())
-           THEN GREATEST(NOW() + INTERVAL '30 days', COALESCE(expires_at, NOW() + INTERVAL '30 days'))
+           THEN GREATEST(NOW() + ($3 || ' days')::interval, COALESCE(expires_at, NOW() + ($3 || ' days')::interval))
          ELSE expires_at
        END,
        updated_at = NOW()
        WHERE id = $2`,
-      [refundAmount, debit.gift_card_id]
+      [refundAmount, debit.gift_card_id, String(extensionDays)]
     );
 
     // Create refund transaction
