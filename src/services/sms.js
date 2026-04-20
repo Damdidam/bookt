@@ -31,7 +31,13 @@ async function sendSMS(opts) {
   }
   if (clientId && consentSms === undefined) {
     try {
-      const r = await query(`SELECT consent_sms FROM clients WHERE id = $1`, [clientId]);
+      // RULE RLS: scope by business_id when available (defense in depth, pas un leak
+      // direct car clientId est UUID globalement unique — mais respecte la convention
+      // "tous les SELECT clients/bookings/services doivent porter business_id").
+      const params = [clientId];
+      let sql = `SELECT consent_sms FROM clients WHERE id = $1`;
+      if (businessId) { sql += ` AND business_id = $2`; params.push(businessId); }
+      const r = await query(sql, params);
       if (r.rows[0]?.consent_sms === false) {
         return { success: false, skipped: true, error: 'consent_sms=false (auto-check)' };
       }
