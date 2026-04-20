@@ -86,12 +86,12 @@ async function sendDepositConfirmationSideEffects(bookingId) {
         };
         await sendDepositPaidEmail({
           booking: _emailBooking,
-          business: { name: row.biz_name, slug: row.biz_slug, email: row.biz_email, phone: row.biz_phone, address: row.biz_address, theme: row.biz_theme, settings: row.biz_settings },
+          business: { id: row.business_id, name: row.biz_name, slug: row.biz_slug, email: row.biz_email, phone: row.biz_phone, address: row.biz_address, theme: row.biz_theme, settings: row.biz_settings },
           groupServices
         });
         sendDepositPaidProEmail({
           booking: _emailBooking,
-          business: { name: row.biz_name, email: row.biz_email, theme: row.biz_theme }
+          business: { id: row.business_id, name: row.biz_name, email: row.biz_email, theme: row.biz_theme }
         }).catch(e => console.warn('[DEPOSIT SIDE EFFECTS] Pro email error:', e.message));
       } catch (e) { console.warn('[DEPOSIT SIDE EFFECTS] Client email error:', e.message); }
     }
