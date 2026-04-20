@@ -5,7 +5,7 @@
 const { escHtml, fmtSvcLabel, sanitizeRichText, safeColor, _ic, sendEmail, buildEmailHTML } = require('./email-utils');
 
 // ── Session notes email ──
-async function sendSessionNotesEmail({ to, toName, sessionHTML, serviceName, date, practitionerName, businessName, primaryColor, businessAddress, businessPhone, businessEmail }) {
+async function sendSessionNotesEmail({ to, toName, sessionHTML, serviceName, date, practitionerName, businessName, primaryColor, businessAddress, businessPhone, businessEmail, businessId }) {
   const safeSvcName = (serviceName || 'Rendez-vous').slice(0, 100).replace(/[\r\n]/g, ' ');
   const svcLower = escHtml((safeSvcName || 'rendez-vous').toLowerCase());
   const safeFirstName = escHtml(toName ? toName.split(' ')[0] : '');
@@ -43,6 +43,7 @@ async function sendSessionNotesEmail({ to, toName, sessionHTML, serviceName, dat
   return sendEmail({
     to,
     toName,
+    businessId,
     subject: `Notes — ${safeSvcName} du ${date}`,
     html,
     fromName: businessName,
@@ -141,6 +142,7 @@ async function sendReviewRequestEmail({ booking, business }) {
   return sendEmail({
     to: booking.client_email,
     toName: booking.client_name,
+    businessId: business.id,
     subject: `Votre avis compte — ${business.name}`,
     html,
     fromName: business.name,
@@ -194,6 +196,7 @@ async function sendGiftCardEmail({ giftCard, business }) {
   return sendEmail({
     to: giftCard.recipient_email,
     toName: recipientName,
+    businessId: business.id,
     subject: `🎁 Vous avez reçu une carte cadeau — ${business.name}`,
     html,
     fromName: business.name,
@@ -236,6 +239,7 @@ async function sendGiftCardReceiptEmail({ giftCard, business }) {
   return sendEmail({
     to: giftCard.buyer_email,
     toName: giftCard.buyer_name,
+    businessId: business.id,
     subject: `Carte cadeau envoyée — ${business.name}`,
     html,
     fromName: business.name,
@@ -297,6 +301,7 @@ async function sendPassPurchaseEmail({ pass, business }) {
   return sendEmail({
     to: pass.buyer_email,
     toName: pass.buyer_name,
+    businessId: business.id,
     subject: `Votre pass ${pass.name} — ${business.name}`,
     html,
     fromName: business.name,
@@ -330,7 +335,7 @@ async function sendGiftCardPurchaseProEmail({ giftCard, business }) {
     primaryColor: color,
     footerText: `${business.name} · Via Genda.be`
   });
-  return sendEmail({ to: business.email, toName: business.name, subject: `Carte cadeau achetée — ${amtStr} € — ${buyerNameRaw}`, html, fromName: 'Genda' });
+  return sendEmail({ to: business.email, toName: business.name, businessId: business.id, subject: `Carte cadeau achetée — ${amtStr} € — ${buyerNameRaw}`, html, fromName: 'Genda' });
 }
 
 // ── Merchant notification: Pass purchased ──
@@ -358,7 +363,7 @@ async function sendPassPurchaseProEmail({ pass, business }) {
     primaryColor: color,
     footerText: `${business.name} · Via Genda.be`
   });
-  return sendEmail({ to: business.email, toName: business.name, subject: `Pass acheté — ${passNameRaw} — ${buyerNameRaw}`, html, fromName: 'Genda' });
+  return sendEmail({ to: business.email, toName: business.name, businessId: business.id, subject: `Pass acheté — ${passNameRaw} — ${buyerNameRaw}`, html, fromName: 'Genda' });
 }
 
 // ── "Retrouver mon RDV" — send list of upcoming bookings to client ──
@@ -425,6 +430,7 @@ async function sendBookingLookupEmail({ email, bookings, business }) {
 
   return sendEmail({
     to: email,
+    businessId: business.id,
     subject: `Vos rendez-vous chez ${business.name}`,
     html,
     fromName: business.name,
@@ -477,6 +483,7 @@ async function sendInvoiceEmail({ invoice, business, pdfBuffer }) {
   return sendEmail({
     to: invoice.client_email,
     toName: invoice.client_name || invoice.client_email,
+    businessId: business.id,
     subject: `${title} ${invoice.invoice_number} \u2014 ${business.name}`,
     html,
     fromName: business.name,

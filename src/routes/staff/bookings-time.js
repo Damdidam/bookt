@@ -908,6 +908,7 @@ let sql = `UPDATE bookings SET start_at = $1, end_at = $2, reminder_24h_sent_at 
                   new_end_at: bk.end_at
                 },
                 business: {
+                  id: bid,
                   name: bk.business_name,
                   email: bk.business_email,
                   phone: bk.business_phone,
