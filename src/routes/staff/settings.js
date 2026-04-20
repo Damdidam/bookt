@@ -874,12 +874,9 @@ router.post('/close', requireOwner, blockIfImpersonated, async (req, res, next) 
         }
         if (!piId || !piId.startsWith('pi_')) return { ok: false, reason: 'invalid_pi' };
         if (amount < 50) return { ok: false, reason: 'below_stripe_min' };
-        // P0-02: idempotencyKey empêche double-refund sur retry (network failure,
-        // close_account rejoué après crash pod entre refund et UPDATE DB).
-        await stripe.refunds.create(
-          { payment_intent: piId, amount },
-          idemKey ? { idempotencyKey: idemKey } : undefined
-        );
+        // P0 Connect: reverse_transfer via helper — sinon Genda paye 100% du refund.
+        const { createRefund } = require('../../services/stripe-refund');
+        await createRefund(stripe, { payment_intent: piId, amount }, idemKey);
         console.log(`[CLOSE REFUND ${label}] ${amount}c OK pour PI ${piId}`);
         return { ok: true };
       } catch (e) {

@@ -184,10 +184,8 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
                   publicCancelNetRefundCents = _netRefund;
                   // D-12 fix: Stripe min 50c — traiter net<50 comme fees_exceed_charge
                   if (_netRefund >= 50) {
-                    await _stripe.refunds.create(
-                      { payment_intent: _piId, amount: _netRefund },
-                      { idempotencyKey: `pub-cancel-net-${postCancelBkFinal.id}` }
-                    );
+                    const { createRefund: _cr } = require('../../services/stripe-refund');
+                    await _cr(_stripe, { payment_intent: _piId, amount: _netRefund }, `pub-cancel-net-${postCancelBkFinal.id}`);
                   } else {
                     // Fees ≥ charge OU net trop petit pour Stripe — deposit retenu (même UX).
                     console.warn(`[PUBLIC CANCEL] netRefund=${_netRefund}c <50c (fees ${_fees}c, charge ${_actualCharge}c) — deposit retained for PI ${_piId}`);
@@ -203,10 +201,8 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
                     cancelResult = await txClient.query(`SELECT * FROM bookings WHERE id = $1`, [postCancelBkFinal.id]);
                   }
                 } else {
-                  await _stripe.refunds.create(
-                    { payment_intent: _piId },
-                    { idempotencyKey: `pub-cancel-full-${postCancelBkFinal.id}` }
-                  );
+                  const { createRefund: _cr } = require('../../services/stripe-refund');
+                  await _cr(_stripe, { payment_intent: _piId }, `pub-cancel-full-${postCancelBkFinal.id}`);
                 }
               }
             } catch (_stripeErr) {
@@ -743,10 +739,8 @@ router.post('/booking/:token/reject', async (req, res, next) => {
                 // B1 fix: reject = staff-initiated modification refused by client. Per commit L498-501
                 // comment "must NOT apply here. Always refund a paid deposit on reject". refund_policy='net'
                 // is for CLIENT-initiated cancel near deadline, not applicable to rejections.
-                await _stripe.refunds.create(
-                  { payment_intent: _piId },
-                  { idempotencyKey: `pub-reject-${rejBkFinal.id}` }
-                );
+                const { createRefund: _cr } = require('../../services/stripe-refund');
+                await _cr(_stripe, { payment_intent: _piId }, `pub-reject-${rejBkFinal.id}`);
               }
             } catch (_e) {
               if (_e.code !== 'charge_already_refunded') {
@@ -1312,10 +1306,8 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
                   cancelBookingNetRefundCents = _net;
                   // D-12 fix: Stripe min 50c — traiter net<50 comme fees_exceed_charge
                   if (_net >= 50) {
-                    await _stripe.refunds.create(
-                      { payment_intent: _piId, amount: _net },
-                      { idempotencyKey: `pub-cancelbk-net-${cancelBkFinal.id}` }
-                    );
+                    const { createRefund: _cr } = require('../../services/stripe-refund');
+                    await _cr(_stripe, { payment_intent: _piId, amount: _net }, `pub-cancelbk-net-${cancelBkFinal.id}`);
                   } else {
                     // B-02 fix: Fees ≥ charge OU net trop petit pour Stripe — rollback deposit_status
                     // primary + siblings + re-SELECT (parité /cancel L177-189)
@@ -1332,10 +1324,8 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
                     cancelResult = await txClient2.query(`SELECT * FROM bookings WHERE id = $1`, [cancelBkFinal.id]);
                   }
                 } else {
-                  await _stripe.refunds.create(
-                    { payment_intent: _piId },
-                    { idempotencyKey: `pub-cancelbk-full-${cancelBkFinal.id}` }
-                  );
+                  const { createRefund: _cr } = require('../../services/stripe-refund');
+                  await _cr(_stripe, { payment_intent: _piId }, `pub-cancelbk-full-${cancelBkFinal.id}`);
                 }
               }
             } catch (_e) {

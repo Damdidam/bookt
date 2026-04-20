@@ -559,10 +559,8 @@ router.patch('/:id/status', blockIfImpersonated, async (req, res, next) => {
                   // "50€ remboursés par CB" alors que Stripe n'a rendu que 30€).
                   // On laisse `null` → email retombe sur calcul correct = charge - GC.
                   // Parité avec reject public (booking-actions.js:607 rejectNetRefundCents=null).
-                  await stripe.refunds.create(
-                    { payment_intent: piId },
-                    { idempotencyKey: `staff-cancel-refund-${id}` }
-                  );
+                  const { createRefund: _cr } = require('../../services/stripe-refund');
+                  await _cr(stripe, { payment_intent: piId }, `staff-cancel-refund-${id}`);
                 }
               } catch (stripeErr) {
                 if (stripeErr.code !== 'charge_already_refunded') {
@@ -1316,10 +1314,8 @@ router.patch('/:id/deposit-refund', blockIfImpersonated, async (req, res, next) 
               // B-04 fix: D-12 pattern parity — Stripe refund min = 50c. net<50 → retention + reset net=0
               // (avant: > 0 → Stripe rejette "Amount too small" → catch 500 au pro, flow cassé)
               if (netRefundCentsManual >= 50) {
-                await stripe.refunds.create(
-                  { payment_intent: piId, amount: netRefundCentsManual },
-                  { idempotencyKey: `staff-deposit-refund-net-${id}` }
-                );
+                const { createRefund: _cr } = require('../../services/stripe-refund');
+                await _cr(stripe, { payment_intent: piId, amount: netRefundCentsManual }, `staff-deposit-refund-net-${id}`);
                 console.log(`[DEPOSIT REFUND] Net refund: ${netRefundCentsManual}c (fees ${stripeFees}c, gc ${gcPaidForRefundManual}c) for PI ${piId}`);
               } else {
                 console.warn(`[DEPOSIT REFUND] netRefund=${netRefundCentsManual}c <50c Stripe min (fees ${stripeFees}c, charge ${actualStripeCharge}c) — deposit retained for PI ${piId}`);
@@ -1328,10 +1324,8 @@ router.patch('/:id/deposit-refund', blockIfImpersonated, async (req, res, next) 
                 netRefundCentsManual = 0;
               }
             } else {
-              await stripe.refunds.create(
-                { payment_intent: piId },
-                { idempotencyKey: `staff-deposit-refund-full-${id}` }
-              );
+              const { createRefund: _cr } = require('../../services/stripe-refund');
+              await _cr(stripe, { payment_intent: piId }, `staff-deposit-refund-full-${id}`);
             }
           }
         } catch (stripeErr) {

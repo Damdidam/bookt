@@ -536,10 +536,8 @@ router.delete('/:id/group-remove', blockIfImpersonated, async (req, res, next) =
                       // D-12 parity: Stripe min 50c. Overpayment <50c → log + skip (trop-perçu résiduel marginal,
                       // Stripe rejetterait "Amount too small" de toute façon).
                       if (_stripeRefundAmt >= 50) {
-                        await _stripe.refunds.create(
-                          { payment_intent: _piId, amount: _stripeRefundAmt },
-                          { idempotencyKey: `group-remove-refund-${id}` }
-                        );
+                        const { createRefund: _cr } = require('../../services/stripe-refund');
+                        await _cr(_stripe, { payment_intent: _piId, amount: _stripeRefundAmt }, `group-remove-refund-${id}`);
                         console.log(`[GROUP-REMOVE] Partial refund: ${_stripeRefundAmt}c for PI ${_piId}`);
                       } else if (_stripeRefundAmt > 0) {
                         console.warn(`[GROUP-REMOVE] Overpayment ${_stripeRefundAmt}c <50c Stripe min — not refunded`);
