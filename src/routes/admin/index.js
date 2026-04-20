@@ -184,6 +184,13 @@ router.patch('/businesses/:id', async (req, res, next) => {
     const params = [];
     let idx = 1;
 
+    // P1-03 audit : capture before state pour traçabilité persistante en DB.
+    const beforeRes = await query(
+      `SELECT is_active, plan FROM businesses WHERE id = $1`,
+      [req.params.id]
+    );
+    const beforeRow = beforeRes.rows[0] || null;
+
     if (typeof is_active === 'boolean') {
       // ST-9: Warn about active bookings/deposits when deactivating
       if (is_active === false) {
@@ -232,7 +239,22 @@ router.patch('/businesses/:id', async (req, res, next) => {
     );
 
     if (result.rows.length === 0) return res.status(404).json({ error: 'Business not found' });
-    // ST-12: Audit trail — log only the field names, not values, to avoid leaking secrets/PII into logs.
+    // P1-03: persistent audit trail (audit_logs, not just console.log qui disparaît au redeploy).
+    // Cohérence avec le pattern impersonate L286 et les audit_logs clients (P1-04).
+    try {
+      await query(
+        `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
+         VALUES ($1, $2, 'business', $1, 'admin_business_update', $3, $4)`,
+        [req.params.id, req.user.id,
+         JSON.stringify(beforeRow || {}),
+         JSON.stringify({
+           is_active: typeof is_active === 'boolean' ? is_active : undefined,
+           plan: plan && ['free', 'pro'].includes(plan) ? plan : undefined,
+           actor_email: req.user.email,
+           impersonated_by: req.user.impersonatedBy || null
+         })]
+      );
+    } catch (e) { console.error('[AUDIT] admin_business_update audit insert failed:', e.message); }
     console.log(`[ADMIN AUDIT] User ${req.user.id} updated business ${req.params.id}: fields=${Object.keys(req.body || {}).join(',')}`);
     res.json(result.rows[0]);
   } catch (err) { next(err); }
