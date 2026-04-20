@@ -73,8 +73,8 @@ export function initSSE() {
         const expired = await _checkTokenExpired();
         if (expired) {
           try { window.fcEventSource.close(); } catch (_) {}
+          // api.clearToken does the real cleanup (real localStorage key is `genda_token`).
           try { api.clearToken && api.clearToken(); } catch (_) {}
-          try { localStorage.removeItem('token'); } catch (_) {}
           window.location.href = '/login.html?expired=1';
         }
       }
