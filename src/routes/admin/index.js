@@ -2,7 +2,9 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const { query } = require('../../services/db');
 const { requireAuth, requireSuperadmin } = require('../../middleware/auth');
-const { adminLimiter } = require('../../middleware/rate-limiter');
+const { adminLimiter, impersonateLimiter } = require('../../middleware/rate-limiter');
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const router = express.Router();
 
@@ -237,8 +239,17 @@ router.patch('/businesses/:id', async (req, res, next) => {
 });
 
 // ─── POST /api/admin/impersonate/:businessId ─────────────────────
-router.post('/impersonate/:businessId', async (req, res, next) => {
+// H#9 fix: impersonateLimiter (10/15min) + UUID validation + audit_logs INSERT.
+// Previously the only rate limit was `adminLimiter` (60/min) — a compromised
+// superadmin token could mint 3600 impersonation JWTs per hour. The stricter
+// 10/15min caps legitimate support work without enabling bulk takeover.
+router.post('/impersonate/:businessId', impersonateLimiter, async (req, res, next) => {
   try {
+    // H#9: reject non-UUID params before touching DB.
+    if (!UUID_RE.test(req.params.businessId || '')) {
+      return res.status(400).json({ error: 'Invalid business ID' });
+    }
+
     // Find the owner of the target business
     const ownerResult = await query(
       `SELECT u.id, u.email, u.role, u.business_id, u.token_version, b.name AS business_name, b.slug
@@ -268,7 +279,19 @@ router.post('/impersonate/:businessId', async (req, res, next) => {
       { expiresIn: '1h' }
     );
 
-    // ST-12: Audit trail for impersonation
+    // ST-12 + H#9: Audit trail — persist to audit_logs (survives redeploy) + console.
+    // Real schema: (business_id, actor_user_id, entity_type, entity_id, action, new_data)
+    try {
+      await query(
+        `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, new_data)
+         VALUES ($1, $2, 'user', $3, 'admin_impersonate_start', $4)`,
+        [owner.business_id, req.user.id, owner.id, JSON.stringify({
+          impersonated_email: owner.email,
+          ip: req.ip,
+          user_agent: req.get('user-agent') || null
+        })]
+      );
+    } catch (e) { console.warn('[ADMIN AUDIT] audit_logs insert failed:', e.message); }
     console.log(`[ADMIN AUDIT] User ${req.user.id} impersonated business ${req.params.businessId} (owner: ${owner.email})`);
     res.json({
       token,

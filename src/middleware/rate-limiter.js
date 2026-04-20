@@ -125,4 +125,34 @@ const lookupLimiter = rateLimit({
   skip: e2eBypass
 });
 
-module.exports = { bookingLimiter, slotsLimiter, authLimiter, clientPhoneLimiter, depositLimiter, bookingActionLimiter, adminLimiter, staffLimiter, lookupLimiter };
+/**
+ * Rate limiter for admin impersonation (H#9 fix).
+ * 10 requests per 15 minutes — impersonation mints a 1h-valid JWT per call,
+ * so we keep a stricter cap than `adminLimiter` (60/min → 3600/h of potential
+ * tokens). 10 per 15min = 40/h max, plenty for legitimate support work.
+ */
+const impersonateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { error: 'Trop de tentatives d\'impersonation.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: e2eBypass
+});
+
+/**
+ * Rate limiter for iCal subscription feed (H#10 fix).
+ * 30 requests per minute per IP — legitimate calendar clients poll the feed
+ * on ~15 min intervals, 30/min/IP leaves room for shared-NAT offices while
+ * blocking brute-force of the 192-bit secret token.
+ */
+const icalLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  message: { error: 'Too many feed requests.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: e2eBypass
+});
+
+module.exports = { bookingLimiter, slotsLimiter, authLimiter, clientPhoneLimiter, depositLimiter, bookingActionLimiter, adminLimiter, staffLimiter, lookupLimiter, impersonateLimiter, icalLimiter };

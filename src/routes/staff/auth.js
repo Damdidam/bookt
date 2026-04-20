@@ -43,6 +43,12 @@ router.post('/login', authLimiter, async (req, res, next) => {
         await bcrypt.compare(password, '$2b$12$K4z0Bx0dQ5xP0xP0xP0xP.0xP0xP0xP0xP0xP0xP0xP0xP0xP0x');
         return res.status(401).json({ error: 'Email ou mot de passe incorrect' });
       }
+      // H#16 fix: magic-link branch — if email doesn't exist, the work above
+      // (INSERT magic_links + send email) doesn't run, so the response lands
+      // much faster than for a real account. Timing side-channel reveals
+      // account existence despite the unified message. Add a ~400ms random
+      // delay that approximates the INSERT + Brevo call latency.
+      await new Promise((r) => setTimeout(r, 350 + Math.floor(Math.random() * 100)));
       return res.json({ message: 'Si ce compte existe, un lien de connexion a été envoyé.' });
     }
 

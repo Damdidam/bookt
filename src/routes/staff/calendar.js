@@ -2,6 +2,7 @@ const router = require('express').Router();
 const crypto = require('crypto');
 const { query, queryWithRLS, transactionWithRLS } = require('../../services/db');
 const { requireAuth, requireOwner, requirePro, blockIfImpersonated } = require('../../middleware/auth');
+const { icalLimiter } = require('../../middleware/rate-limiter');
 const cal = require('../../services/calendar-sync');
 const { encryptToken } = require('../../utils/crypto');
 
@@ -427,7 +428,7 @@ setInterval(async () => {
  * Token = base64(businessId:practitionerId:secret)
  * Add as webcal:// URL in Apple Calendar, Thunderbird, etc.
  */
-router.get('/ical/:token', async (req, res) => {
+router.get('/ical/:token', icalLimiter, async (req, res) => {
   try {
     const decoded = Buffer.from(req.params.token, 'base64url').toString();
     const [businessId, practitionerId, secret] = decoded.split(':');

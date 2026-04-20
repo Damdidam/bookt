@@ -61,6 +61,9 @@ const PORT = process.env.PORT || 3000;
 app.set('trust proxy', 1);
 
 // H1: CSP enabled — restrict script/style sources
+// H#19 fix: reportUri pour monitorer les violations (injections JS tierces,
+// inline styles non-whitelisted, etc.). Les violations POSTent vers /api/csp-report
+// et sont loguées server-side (visible dans Render logs / Sentry).
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -74,7 +77,8 @@ app.use(helmet({
       frameSrc: ["https://js.stripe.com", "https://maps.google.com", "https://www.google.com"],
       objectSrc: ["'none'"],
       baseUri: ["'self'"],
-      frameAncestors: ["'self'"]
+      frameAncestors: ["'self'"],
+      reportUri: ['/api/csp-report']
     }
   },
   crossOriginEmbedderPolicy: false
@@ -105,6 +109,28 @@ app.use(express.urlencoded({ extended: false }));
 
 // Health check for Render zero-downtime deploys
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
+
+// H#19 fix: CSP violation reports (helmet reportUri points here). Browsers POST
+// JSON describing any CSP violation (blocked inline script, style, frame, etc).
+// We log (throttled by IP via Sentry/console) — in dev/ops helps catch XSS early.
+// Body parser accepts application/csp-report + application/json (some browsers use either).
+app.post('/api/csp-report', express.json({ type: ['application/csp-report', 'application/json'], limit: '64kb' }), (req, res) => {
+  try {
+    const report = req.body['csp-report'] || req.body || {};
+    // Compact log: directive + blocked-uri + source-file + line
+    console.warn('[CSP]', JSON.stringify({
+      directive: report['violated-directive'] || report.effectiveDirective,
+      blocked: report['blocked-uri'] || report.blockedURL,
+      source: report['source-file'] || report.sourceFile,
+      line: report['line-number'] || report.lineNumber,
+      doc: report['document-uri'] || report.documentURL
+    }));
+    if (typeof Sentry !== 'undefined' && Sentry.captureMessage) {
+      Sentry.captureMessage('CSP violation', { level: 'warning', extra: report });
+    }
+  } catch (_) { /* report body malformed — ignore */ }
+  res.status(204).end();
+});
 
 // Serve api-client ES module (single source of truth for all pages)
 app.get('/js/api-client.js', (req, res) => {

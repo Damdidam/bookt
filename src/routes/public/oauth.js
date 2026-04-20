@@ -13,7 +13,7 @@
 const router = require('express').Router();
 const crypto = require('crypto');
 const { query } = require('../../services/db');
-const { authLimiter } = require('../../middleware/rate-limiter');
+const { authLimiter, slotsLimiter } = require('../../middleware/rate-limiter');
 const oauth = require('../../services/oauth');
 
 const SLUG_RE = /^[a-zA-Z0-9_-]{1,64}$/;
@@ -42,7 +42,9 @@ const oauthStates = {
 // GET /api/public/auth/providers
 // Returns list of configured providers (for frontend to show/hide buttons)
 // ============================================================
-router.get('/providers', (req, res) => {
+// H#13 fix: limiter slotsLimiter (60/min) pour éviter l'énumération des providers
+// configurés côté serveur. Un endpoint ouvert sans limit est inutilement scanable.
+router.get('/providers', slotsLimiter, (req, res) => {
   res.json({ providers: oauth.getConfiguredProviders() });
 });
 
@@ -199,12 +201,15 @@ async function handleCallback(provider, params, appleUserObj, req, res) {
 
     slug = sanitizeSlug(session.slug);
     returnPage = session.page || 'book';
-    await oauthStates.delete(state);
 
-    // Check expiration
+    // H#17 fix: check expiration BEFORE consuming state — if the state is expired
+    // we don't need to delete it (oauthStates.get already filters expired rows),
+    // and keeping delete post-check means a legitimate retry on expiration doesn't
+    // burn the state. Consumption stays one-shot via the delete after the check.
     if (Date.now() > session.expiresAt) {
       return res.redirect(bookUrl(`oauth_error=${encodeURIComponent('Session expirée, réessayez')}`));
     }
+    await oauthStates.delete(state);
 
     // Exchange code for tokens
     const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
@@ -250,10 +255,28 @@ async function handleCallback(provider, params, appleUserObj, req, res) {
       expiresAt: Date.now() + 5 * 60000 // 5 min
     });
 
+    // H#18 fix: la clé pickup était dans l'URL (`?oauth_pickup=KEY`) → apparaît
+    // dans access logs Nginx/Render, Referer des scripts tiers (GA/FB Pixel
+    // éventuellement), history navigateur. Passer par un cookie httpOnly scopé
+    // au chemin du minisite élimine cette fuite. La clé reste one-shot + 5 min
+    // TTL, le frontend lit le cookie au load puis appelle /api/public/auth/pickup.
+    res.cookie('oauth_pickup', pickupKey, {
+      maxAge: 5 * 60 * 1000,
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      path: `/${slug}`
+    });
+    // Query param conservé en fallback backward-compat (frontend pas encore migré)
+    // — sera retiré quand le frontend consommera exclusivement le cookie.
     res.redirect(`/${slug}/${returnPage}?oauth_pickup=${pickupKey}`);
   } catch (err) {
-    console.error(`[OAUTH] ${provider} callback error:`, err.message);
-    res.redirect(bookUrl(`oauth_error=${encodeURIComponent('Erreur d\'authentification, réessayez')}`));
+    // H#11 fix: err.message peut contenir détails providers (Google response
+    // structure, tokens partiels, IDs internes) → apparaît dans URL → logs
+    // Nginx/Render + Referer + history. On log server-side et renvoie un code
+    // générique côté client.
+    console.error(`[OAUTH] ${provider} callback error:`, err.message, err.stack);
+    res.redirect(bookUrl(`oauth_error=oauth_exchange_failed`));
   }
 }
 
