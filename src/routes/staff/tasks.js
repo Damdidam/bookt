@@ -97,42 +97,64 @@ router.post('/', async (req, res, next) => {
       return res.status(400).json({ error: 'Un ou plusieurs praticiens sont invalides' });
     }
 
-    // ── Conflict check: reject if any practitioner has an active booking ──
-    const conflicts = await _checkBookingConflicts(bid, pracIds, start_at, end_at);
-    if (conflicts.length > 0) {
-      const names = conflicts.map(c => `${c.client_name} (${c.service_name})`);
-      return res.status(409).json({ error: `Conflit avec ${[...new Set(names)].join(', ')}` });
-    }
-
-    if (pracIds.length === 1) {
-      // Single practitioner — no group_id (backward compatible)
-      const result = await queryWithRLS(bid,
-        `INSERT INTO internal_tasks (business_id, practitioner_id, title, start_at, end_at, color, note, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-         RETURNING *`,
-        [bid, pracIds[0], title.trim(), start_at, end_at, color || null, note || null, req.userId]
-      );
-      broadcast(bid, 'booking_update', { action: 'task_created' });
-      return res.status(201).json(result.rows[0]);
-    }
-
-    // Multiple practitioners — shared group_id (atomic transaction)
-    const groupId = crypto.randomUUID();
-    const tasks = await transactionWithRLS(bid, async (txClient) => {
-      const results = [];
-      for (const pid of pracIds) {
-        const result = await txClient.query(
-          `INSERT INTO internal_tasks (business_id, practitioner_id, title, start_at, end_at, color, note, created_by, group_id)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-           RETURNING *`,
-          [bid, pid, title.trim(), start_at, end_at, color || null, note || null, req.userId, groupId]
+    // BUG-TASK-CONFLICT-RACE fix : conflict check + INSERT dans une transaction avec
+    // pg_advisory_xact_lock par (practitioner, slot_start). Sort pour deadlock-free ordering.
+    // Empêche qu'une tâche et un booking soient créés concurremment sur le même slot.
+    const sortedPracIds = [...pracIds].sort();
+    const startAtISO = new Date(start_at).toISOString();
+    const groupId = pracIds.length > 1 ? crypto.randomUUID() : null;
+    let created;
+    try {
+      created = await transactionWithRLS(bid, async (txClient) => {
+        for (const pid of sortedPracIds) {
+          await txClient.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [`${pid}_${startAtISO}`]);
+        }
+        // Re-check conflict dans la tx après lock acquisition
+        const conflictRes = await txClient.query(
+          `SELECT b.id, b.practitioner_id, b.start_at, b.end_at,
+                  COALESCE(c.full_name, 'Client') AS client_name,
+                  COALESCE(s.name, b.custom_label, 'RDV') AS service_name
+             FROM bookings b
+             LEFT JOIN clients c ON c.id = b.client_id
+             LEFT JOIN services s ON s.id = b.service_id
+            WHERE b.business_id = $1
+              AND b.practitioner_id = ANY($2::uuid[])
+              AND b.status IN ('pending','confirmed','modified_pending','pending_deposit')
+              AND b.start_at < $4 AND b.end_at > $3
+              AND NOT (b.processing_time > 0
+                AND date_trunc('minute', $3::timestamptz) >= date_trunc('minute', b.start_at) + (COALESCE(s.buffer_before_min,0) + b.processing_start) * interval '1 minute'
+                AND date_trunc('minute', $4::timestamptz) <= date_trunc('minute', b.start_at) + (COALESCE(s.buffer_before_min,0) + b.processing_start + b.processing_time) * interval '1 minute')`,
+          [bid, pracIds, start_at, end_at]
         );
-        results.push(result.rows[0]);
-      }
-      return results;
-    });
+        if (conflictRes.rows.length > 0) {
+          const names = conflictRes.rows.map(c => `${c.client_name} (${c.service_name})`);
+          const err = new Error(`Conflit avec ${[...new Set(names)].join(', ')}`);
+          err._conflict = true;
+          throw err;
+        }
+        const results = [];
+        for (const pid of pracIds) {
+          const r = await txClient.query(
+            groupId
+              ? `INSERT INTO internal_tasks (business_id, practitioner_id, title, start_at, end_at, color, note, created_by, group_id)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`
+              : `INSERT INTO internal_tasks (business_id, practitioner_id, title, start_at, end_at, color, note, created_by)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+            groupId
+              ? [bid, pid, title.trim(), start_at, end_at, color || null, note || null, req.userId, groupId]
+              : [bid, pid, title.trim(), start_at, end_at, color || null, note || null, req.userId]
+          );
+          results.push(r.rows[0]);
+        }
+        return results;
+      });
+    } catch (err) {
+      if (err._conflict) return res.status(409).json({ error: err.message });
+      throw err;
+    }
     broadcast(bid, 'booking_update', { action: 'task_created' });
-    res.status(201).json({ tasks, group_id: groupId });
+    if (groupId) return res.status(201).json({ tasks: created, group_id: groupId });
+    return res.status(201).json(created[0]);
   } catch (err) { next(err); }
 });
 

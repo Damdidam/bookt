@@ -70,6 +70,13 @@ export async function closeModal(id) {
   if (!document.querySelector('.m-overlay.open')) document.body.classList.remove('has-modal');
 }
 
+// ── Trap focus inside modal — a11y clavier (wrap Tab/Shift+Tab, focus first) ──
+// Applied automatically to every modal guarded via guardModal(). Opt-out via { trapFocus: false }.
+const FOCUSABLE_SEL = 'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+function _getFocusable(el) {
+  return Array.from(el.querySelectorAll(FOCUSABLE_SEL)).filter(n => n.offsetParent !== null || n === document.activeElement);
+}
+
 // ── Attach guard to a modal ──
 export function guardModal(overlayEl, opts = {}) {
   // Cleanup previous guard if any
@@ -94,6 +101,32 @@ export function guardModal(overlayEl, opts = {}) {
     overlayEl.addEventListener('click', _backdrop);
   }
 
+  // Focus trap — a11y clavier (default: enabled). Handle Tab/Shift+Tab + ESC close.
+  let _trap = null, _prevActive = null, _firstFocusTimer = null;
+  if (opts.trapFocus !== false) {
+    _prevActive = document.activeElement;
+    const dialog = overlayEl.querySelector('.m-dialog') || overlayEl;
+    _trap = function (e) {
+      if (e.key === 'Tab') {
+        const focusable = _getFocusable(dialog);
+        if (focusable.length === 0) { e.preventDefault(); return; }
+        const first = focusable[0], last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault(); last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault(); first.focus();
+        }
+      } else if (e.key === 'Escape') {
+        closeModal(overlayEl.id);
+      }
+    };
+    overlayEl.addEventListener('keydown', _trap);
+    _firstFocusTimer = setTimeout(() => {
+      const focusable = _getFocusable(dialog);
+      if (focusable[0]) focusable[0].focus();
+    }, 50);
+  }
+
   const guard = {
     markClean: () => { _dirty = false; },
     isDirty: () => _dirty,
@@ -101,6 +134,9 @@ export function guardModal(overlayEl, opts = {}) {
       overlayEl.removeEventListener('input', handler, true);
       overlayEl.removeEventListener('change', handler, true);
       if (_backdrop) overlayEl.removeEventListener('click', _backdrop);
+      if (_trap) overlayEl.removeEventListener('keydown', _trap);
+      if (_firstFocusTimer) clearTimeout(_firstFocusTimer);
+      if (_prevActive && typeof _prevActive.focus === 'function') { try { _prevActive.focus(); } catch (_) {} }
       activeGuards.delete(guard);
       overlayEl._dirtyGuard = null;
     }
