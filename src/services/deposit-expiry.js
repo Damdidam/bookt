@@ -360,7 +360,7 @@ async function processExpiredDeposits() {
             await sendCancellationEmail({
               // H7 fix: forward custom_label so sibling email shows personalised service label
               booking: { start_at: sib.start_at, end_at: sib.end_at, client_name: sib.client_name, client_email: sib.client_email, service_name: sib.service_name, service_category: sib.service_category, custom_label: sib.custom_label, comment_client: sib.comment_client, service_price_cents: sib.service_price_cents, booked_price_cents: sib.booked_price_cents, discount_pct: sib.discount_pct, duration_min: sib.duration_min, practitioner_name: sib.practitioner_name, deposit_required: sib.deposit_required, deposit_status: sib.deposit_status, deposit_amount_cents: sib.deposit_amount_cents, deposit_paid_at: sib.deposit_paid_at, deposit_payment_intent_id: sib.deposit_payment_intent_id, gc_paid_cents: gcPaidSib, gc_refunded_cents: _gcRefSibExp.rows[0]?.amt || 0, pass_refunded: _passRefSibExp.rows.length > 0, promotion_label: sib.promotion_label, promotion_discount_cents: sib.promotion_discount_cents, promotion_discount_pct: sib.promotion_discount_pct, cancel_reason: 'Acompte non payé dans le délai imparti' },
-              business: { name: sib.biz_name, slug: sib.biz_slug, email: sib.biz_email, phone: sib.biz_phone, address: sib.biz_address, theme: sib.biz_theme, settings: sib.biz_settings },
+              business: { id: cancelled.business_id, name: sib.biz_name, slug: sib.biz_slug, email: sib.biz_email, phone: sib.biz_phone, address: sib.biz_address, theme: sib.biz_theme, settings: sib.biz_settings },
               groupServices: _sibGroupServicesExp
             });
             // Batch 12 regression fix: mark sibling sent flag so sweep won't duplicate next tick

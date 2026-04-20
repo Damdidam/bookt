@@ -264,6 +264,7 @@ async function process24hReminders(stats) {
         const result = await sendEmail({
           to: bk.client_email,
           toName: bk.client_name,
+          businessId: bk.business_id,
           subject: `Rappel : votre RDV du ${dateShort} à ${timeShort} — ${bk.business_name}`,
           html,
           fromName: bk.business_name,
@@ -568,6 +569,7 @@ async function process2hReminders(stats) {
         const result = await sendEmail({
           to: bk.client_email,
           toName: bk.client_name,
+          businessId: bk.business_id,
           subject: `Votre RDV est dans 2h — ${bk.business_name}`,
           html: buildEmailHTML({
             title: 'Votre rendez-vous approche',

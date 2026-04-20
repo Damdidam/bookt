@@ -330,7 +330,7 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
           await sendCancellationEmail({
             // B2 fix: propagate net_refund_cents + retention_reason so email shows actual Stripe amount
             booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, service_category: row.service_category, custom_label: row.custom_label, comment_client: row.comment_client, practitioner_name: row.practitioner_name, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_paid_at: row.deposit_paid_at, deposit_payment_intent_id: row.deposit_payment_intent_id, gc_paid_cents: gcPaidCancel, gc_refunded_cents: gcRefundResult.refunded || 0, pass_refunded: (passRefundResult.refunded || 0) !== 0, net_refund_cents: publicCancelNetRefundCents, deposit_retention_reason: publicCancelRetentionReason, promotion_label: row.promotion_label, promotion_discount_cents: row.promotion_discount_cents, promotion_discount_pct: row.promotion_discount_pct, service_price_cents: row.service_price_cents, booked_price_cents: row.booked_price_cents, discount_pct: row.discount_pct, duration_min: row.duration_min, cancel_reason: row.cancel_reason },
-            business: { name: row.biz_name, email: row.biz_email, phone: row.biz_phone, address: row.biz_address, theme: row.biz_theme, slug: row.biz_slug, settings: bk.business_settings },
+            business: { id: bk.business_id, name: row.biz_name, email: row.biz_email, phone: row.biz_phone, address: row.biz_address, theme: row.biz_theme, slug: row.biz_slug, settings: bk.business_settings },
             groupServices
           });
 
@@ -374,7 +374,7 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
                   const _sibPassRef = await query(`SELECT 1 FROM pass_transactions WHERE booking_id = $1 AND type = 'refund' LIMIT 1`, [_sib.id]);
                   await sendCancellationEmail({
                     booking: { start_at: _sib.start_at, end_at: _sib.end_at, client_name: _sib.client_name, client_email: _sib.client_email, service_name: _sib.service_name, service_category: _sib.service_category, custom_label: _sib.custom_label, comment_client: _sib.comment_client, practitioner_name: _sib.practitioner_name, deposit_required: _sib.deposit_required, deposit_status: _sib.deposit_status, deposit_amount_cents: _sib.deposit_amount_cents, deposit_paid_at: _sib.deposit_paid_at, deposit_payment_intent_id: _sib.deposit_payment_intent_id, gc_paid_cents: _sibGc, gc_refunded_cents: _sibGcRef.rows[0]?.amt || 0, pass_refunded: _sibPassRef.rows.length > 0, net_refund_cents: publicCancelNetRefundCents, deposit_retention_reason: publicCancelRetentionReason, service_price_cents: _sib.service_price_cents, booked_price_cents: _sib.booked_price_cents, discount_pct: _sib.discount_pct, duration_min: _sib.duration_min, promotion_label: _sib.promotion_label, promotion_discount_cents: _sib.promotion_discount_cents, promotion_discount_pct: _sib.promotion_discount_pct, cancel_reason: _sib.cancel_reason || 'Annulé par le client' },
-                    business: { name: row.biz_name, email: row.biz_email, phone: row.biz_phone, address: row.biz_address, theme: row.biz_theme, slug: row.biz_slug, settings: bk.business_settings },
+                    business: { id: bk.business_id, name: row.biz_name, email: row.biz_email, phone: row.biz_phone, address: row.biz_address, theme: row.biz_theme, slug: row.biz_slug, settings: bk.business_settings },
                     groupServices
                   });
                 } catch (_sibErr) { console.warn('[EMAIL] Multi-client sibling cancel email error:', _sibErr.message); }
@@ -821,7 +821,7 @@ router.post('/booking/:token/reject', async (req, res, next) => {
             // Batch 13 REG1 fix: forward deposit_retention_reason so email shows accurate status
             // X3C-04 fix: propage net_refund_cents pour symétrie avec /cancel + /cancel-booking
             booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, service_category: row.service_category, custom_label: row.custom_label, comment_client: row.comment_client, practitioner_name: row.practitioner_name, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_paid_at: row.deposit_paid_at, deposit_payment_intent_id: row.deposit_payment_intent_id, gc_paid_cents: gcPaidReject, gc_refunded_cents: gcRefundReject.refunded || 0, pass_refunded: (passRefundReject.refunded || 0) !== 0, net_refund_cents: rejectNetRefundCents, deposit_retention_reason: rejectRetentionReason, promotion_label: row.promotion_label, promotion_discount_cents: row.promotion_discount_cents, promotion_discount_pct: row.promotion_discount_pct, service_price_cents: row.service_price_cents, booked_price_cents: row.booked_price_cents, discount_pct: row.discount_pct, duration_min: row.duration_min, cancel_reason: 'Nouveau créneau proposé refusé par le client' },
-            business: { name: row.biz_name, email: row.biz_email, phone: row.biz_phone, address: row.biz_address, theme: row.biz_theme, slug: row.biz_slug, settings: row.biz_settings },
+            business: { id: bk.business_id, name: row.biz_name, email: row.biz_email, phone: row.biz_phone, address: row.biz_address, theme: row.biz_theme, slug: row.biz_slug, settings: row.biz_settings },
             groupServices
           });
         }
@@ -1414,7 +1414,7 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
           // B4 fix: propagate net_refund_cents + deposit_retention_reason so email shows real Stripe amount + cause banner
           await sendCancellationEmail({
             booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, service_category: row.service_category, custom_label: row.custom_label, comment_client: row.comment_client, practitioner_name: row.practitioner_name, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_paid_at: row.deposit_paid_at, deposit_payment_intent_id: row.deposit_payment_intent_id, gc_paid_cents: gcPaidCancel2, gc_refunded_cents: gcRefundResult2.refunded || 0, pass_refunded: (passRefundResult2.refunded || 0) !== 0, net_refund_cents: cancelBookingNetRefundCents, deposit_retention_reason: cancelBookingRetentionReason, promotion_label: row.promotion_label, promotion_discount_cents: row.promotion_discount_cents, promotion_discount_pct: row.promotion_discount_pct, service_price_cents: row.service_price_cents, booked_price_cents: row.booked_price_cents, discount_pct: row.discount_pct, duration_min: row.duration_min, cancel_reason: row.cancel_reason },
-            business: { name: row.biz_name, email: row.biz_email, phone: row.biz_phone, address: row.biz_address, theme: row.biz_theme, slug: row.biz_slug, settings: row.biz_settings },
+            business: { id: bk.business_id, name: row.biz_name, email: row.biz_email, phone: row.biz_phone, address: row.biz_address, theme: row.biz_theme, slug: row.biz_slug, settings: row.biz_settings },
             groupServices
           });
 
@@ -1450,7 +1450,7 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
                   const _sibPassRef2 = await query(`SELECT 1 FROM pass_transactions WHERE booking_id = $1 AND type = 'refund' LIMIT 1`, [_sib2.id]);
                   await sendCancellationEmail({
                     booking: { start_at: _sib2.start_at, end_at: _sib2.end_at, client_name: _sib2.client_name, client_email: _sib2.client_email, service_name: _sib2.service_name, service_category: _sib2.service_category, custom_label: _sib2.custom_label, comment_client: _sib2.comment_client, practitioner_name: _sib2.practitioner_name, deposit_required: _sib2.deposit_required, deposit_status: _sib2.deposit_status, deposit_amount_cents: _sib2.deposit_amount_cents, deposit_paid_at: _sib2.deposit_paid_at, deposit_payment_intent_id: _sib2.deposit_payment_intent_id, gc_paid_cents: _sibGc2, gc_refunded_cents: _sibGcRef2.rows[0]?.amt || 0, pass_refunded: _sibPassRef2.rows.length > 0, net_refund_cents: cancelBookingNetRefundCents, deposit_retention_reason: cancelBookingRetentionReason, service_price_cents: _sib2.service_price_cents, booked_price_cents: _sib2.booked_price_cents, discount_pct: _sib2.discount_pct, duration_min: _sib2.duration_min, promotion_label: _sib2.promotion_label, promotion_discount_cents: _sib2.promotion_discount_cents, promotion_discount_pct: _sib2.promotion_discount_pct, cancel_reason: _sib2.cancel_reason || 'Annulé par le client' },
-                    business: { name: row.biz_name, email: row.biz_email, phone: row.biz_phone, address: row.biz_address, theme: row.biz_theme, slug: row.biz_slug, settings: row.biz_settings },
+                    business: { id: bk.business_id, name: row.biz_name, email: row.biz_email, phone: row.biz_phone, address: row.biz_address, theme: row.biz_theme, slug: row.biz_slug, settings: row.biz_settings },
                     groupServices
                   });
                 } catch (_sibErr2) { console.warn('[EMAIL] Multi-client cancel-booking sibling email error:', _sibErr2.message); }
@@ -1613,7 +1613,7 @@ router.post('/booking/:token/confirm-booking', async (req, res, next) => {
               deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_payment_intent_id: row.deposit_payment_intent_id,
               promotion_label: row.promotion_label, promotion_discount_cents: row.promotion_discount_cents, promotion_discount_pct: row.promotion_discount_pct
             },
-            business: { name: row.biz_name, email: row.biz_email, phone: row.biz_phone, address: row.biz_address, theme: row.biz_theme, settings: row.biz_settings },
+            business: { id: bk.business_id, name: row.biz_name, email: row.biz_email, phone: row.biz_phone, address: row.biz_address, theme: row.biz_theme, settings: row.biz_settings },
             groupServices
           });
           // R1 fix: audit email_confirmation='sent' après send (public /confirm-booking)

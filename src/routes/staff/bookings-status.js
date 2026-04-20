@@ -800,7 +800,7 @@ router.patch('/:id/status', blockIfImpersonated, async (req, res, next) => {
             // amount refunded by Stripe (net of fees if policy='net'), matching the separate
             // sendDepositRefundEmail instead of contradicting it.
             booking: { start_at: d.start_at, end_at: groupEndAt || d.end_at, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name, service_category: d.service_category, custom_label: d.custom_label, comment_client: d.comment_client, practitioner_name: d.practitioner_name, deposit_required: d.deposit_required, deposit_status: d.deposit_status, deposit_amount_cents: d.deposit_amount_cents, deposit_paid_at: d.deposit_paid_at, deposit_payment_intent_id: d.deposit_payment_intent_id, gc_paid_cents: gcPaidForEmail, gc_refunded_cents: txResult.gcRefundForEmail?.refunded || 0, pass_refunded: !!(txResult.passRefundForEmail?.refunded), net_refund_cents: txResult.netRefundCentsForEmail, promotion_label: d.promotion_label, promotion_discount_cents: d.promotion_discount_cents, promotion_discount_pct: d.promotion_discount_pct, service_price_cents: d.service_price_cents, booked_price_cents: d.booked_price_cents, discount_pct: d.discount_pct, duration_min: d.duration_min, cancel_reason: d.cancel_reason, deposit_retention_reason: txResult.depRetentionReason },
-            business: { name: d.biz_name, slug: d.slug, email: d.biz_email, phone: d.biz_phone, address: d.address, theme: d.theme, settings: d.biz_settings },
+            business: { id: bid, name: d.biz_name, slug: d.slug, email: d.biz_email, phone: d.biz_phone, address: d.address, theme: d.theme, settings: d.biz_settings },
             groupServices
           }).catch(e => console.warn('[EMAIL] Cancellation email error:', e.message));
 
@@ -836,7 +836,7 @@ router.patch('/:id/status', blockIfImpersonated, async (req, res, next) => {
                   const _sibPassRefS = await queryWithRLS(bid, `SELECT 1 FROM pass_transactions WHERE booking_id = $1 AND type = 'refund' LIMIT 1`, [_sibS.id]);
                   sendCancellationEmail({
                     booking: { start_at: _sibS.start_at, end_at: _sibS.end_at, client_name: _sibS.client_name, client_email: _sibS.client_email, service_name: _sibS.service_name, service_category: _sibS.service_category, custom_label: _sibS.custom_label, comment_client: _sibS.comment_client, practitioner_name: _sibS.practitioner_name, deposit_required: _sibS.deposit_required, deposit_status: _sibS.deposit_status, deposit_amount_cents: _sibS.deposit_amount_cents, deposit_paid_at: _sibS.deposit_paid_at, deposit_payment_intent_id: _sibS.deposit_payment_intent_id, gc_paid_cents: _sibGcS, gc_refunded_cents: _sibGcRefS.rows[0]?.amt || 0, pass_refunded: _sibPassRefS.rows.length > 0, net_refund_cents: txResult.netRefundCentsForEmail, deposit_retention_reason: txResult.depRetentionReason, service_price_cents: _sibS.service_price_cents, booked_price_cents: _sibS.booked_price_cents, discount_pct: _sibS.discount_pct, duration_min: _sibS.duration_min, promotion_label: _sibS.promotion_label, promotion_discount_cents: _sibS.promotion_discount_cents, promotion_discount_pct: _sibS.promotion_discount_pct, cancel_reason: _sibS.cancel_reason || 'Annulé par le salon' },
-                    business: { name: d.biz_name, slug: d.slug, email: d.biz_email, phone: d.biz_phone, address: d.address, theme: d.theme, settings: d.biz_settings },
+                    business: { id: bid, name: d.biz_name, slug: d.slug, email: d.biz_email, phone: d.biz_phone, address: d.address, theme: d.theme, settings: d.biz_settings },
                     groupServices
                   }).catch(e => console.warn('[EMAIL] Multi-client staff cancel sibling email error:', e.message));
                 } catch (_sibErrS) { console.warn('[EMAIL] Multi-client staff cancel sibling error:', _sibErrS.message); }
@@ -894,12 +894,12 @@ router.patch('/:id/status', blockIfImpersonated, async (req, res, next) => {
           const _refundBooking = { start_at: d.start_at, end_at: groupEndAt || d.end_at, deposit_amount_cents: d.deposit_amount_cents, deposit_payment_intent_id: d.deposit_payment_intent_id, gc_paid_cents: gcPaidRefund, net_refund_cents: txResult.netRefundCentsForEmail, gc_refunded_cents: txResult.gcPaidForRefundEmail || 0, client_name: d.client_name, client_email: d.client_email, client_phone: d.client_phone, comment_client: d.comment_client, service_name: d.service_name, service_category: d.service_category, practitioner_name: d.practitioner_name, promotion_label: d.promotion_label, promotion_discount_cents: d.promotion_discount_cents, promotion_discount_pct: d.promotion_discount_pct, service_price_cents: d.service_price_cents, booked_price_cents: d.booked_price_cents, discount_pct: d.discount_pct, duration_min: d.duration_min };
           sendDepositRefundEmail({
             booking: _refundBooking,
-            business: { name: d.biz_name, slug: d.slug, email: d.biz_email, phone: d.biz_phone, address: d.address, settings: d.settings, theme: d.theme },
+            business: { id: bid, name: d.biz_name, slug: d.slug, email: d.biz_email, phone: d.biz_phone, address: d.address, settings: d.settings, theme: d.theme },
             groupServices
           }).catch(e => console.warn('[EMAIL] Deposit refund email error:', e.message));
           sendDepositRefundProEmail({
             booking: _refundBooking,
-            business: { name: d.biz_name, email: d.biz_email, theme: d.theme }
+            business: { id: bid, name: d.biz_name, email: d.biz_email, theme: d.theme }
           }).catch(e => console.warn('[EMAIL] Deposit refund pro email error:', e.message));
         }
       } catch (e) { console.warn('[EMAIL] Deposit refund email fetch error:', e.message); }
@@ -958,7 +958,7 @@ router.patch('/:id/status', blockIfImpersonated, async (req, res, next) => {
           const { sendDepositPaidEmail } = require('../../services/email');
           sendDepositPaidEmail({
             booking: d,
-            business: { name: d.business_name, email: d.business_email, phone: d.business_phone, address: d.business_address, theme: d.theme, slug: d.slug, settings: d.business_settings },
+            business: { id: bid, name: d.business_name, email: d.business_email, phone: d.business_phone, address: d.business_address, theme: d.theme, slug: d.slug, settings: d.business_settings },
             groupServices
           }).catch(e => console.warn('[EMAIL] Deposit paid email error:', e.message));
         }
@@ -1017,7 +1017,7 @@ router.patch('/:id/status', blockIfImpersonated, async (req, res, next) => {
           const { sendDepositRequestEmail } = require('../../services/email');
           sendDepositRequestEmail({
             booking: { ...d, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name, service_category: d.service_category },
-            business: { name: d.business_name, slug: d.business_slug, email: d.business_email, phone: d.business_phone, address: d.business_address, theme: d.theme, settings: d.settings },
+            business: { id: bid, name: d.business_name, slug: d.business_slug, email: d.business_email, phone: d.business_phone, address: d.business_address, theme: d.theme, settings: d.settings },
             depositUrl,
             payUrl,
             groupServices
@@ -1086,7 +1086,7 @@ router.patch('/:id/status', blockIfImpersonated, async (req, res, next) => {
               deposit_required: d.deposit_required, deposit_status: d.deposit_status, deposit_amount_cents: d.deposit_amount_cents, deposit_payment_intent_id: d.deposit_payment_intent_id,
               promotion_label: d.promotion_label, promotion_discount_cents: d.promotion_discount_cents, promotion_discount_pct: d.promotion_discount_pct
             },
-            business: { name: d.business_name, email: d.business_email, phone: d.business_phone, address: d.business_address, theme: d.theme, settings: d.settings },
+            business: { id: bid, name: d.business_name, email: d.business_email, phone: d.business_phone, address: d.business_address, theme: d.theme, settings: d.settings },
             groupServices
           }).then(() => {
             // R1 fix: audit email_confirmation='sent' (parité avec booking-notifications.js:213)
@@ -1414,19 +1414,19 @@ router.patch('/:id/deposit-refund', blockIfImpersonated, async (req, res, next) 
           const { sendCancellationEmail } = require('../../services/email');
           sendCancellationEmail({
             booking: _manualRefBk,
-            business: { name: d.biz_name, slug: d.slug, email: d.biz_email, phone: d.biz_phone, address: d.address, settings: d.settings, theme: d.theme },
+            business: { id: bid, name: d.biz_name, slug: d.slug, email: d.biz_email, phone: d.biz_phone, address: d.address, settings: d.settings, theme: d.theme },
             groupServices
           }).catch(e => console.warn('[EMAIL] Manual retention cancel email error:', e.message));
         } else {
           const { sendDepositRefundEmail, sendDepositRefundProEmail } = require('../../services/email');
           sendDepositRefundEmail({
             booking: _manualRefBk,
-            business: { name: d.biz_name, slug: d.slug, email: d.biz_email, phone: d.biz_phone, address: d.address, settings: d.settings, theme: d.theme },
+            business: { id: bid, name: d.biz_name, slug: d.slug, email: d.biz_email, phone: d.biz_phone, address: d.address, settings: d.settings, theme: d.theme },
             groupServices
           }).catch(e => console.warn('[EMAIL] Deposit refund email error:', e.message));
           sendDepositRefundProEmail({
             booking: _manualRefBk,
-            business: { name: d.biz_name, email: d.biz_email, theme: d.theme }
+            business: { id: bid, name: d.biz_name, email: d.biz_email, theme: d.theme }
           }).catch(e => console.warn('[EMAIL] Deposit refund pro email error:', e.message));
         }
 
@@ -1467,7 +1467,7 @@ router.patch('/:id/deposit-refund', blockIfImpersonated, async (req, res, next) 
                 const _sibPassRefD = await queryWithRLS(bid, `SELECT 1 FROM pass_transactions WHERE booking_id = $1 AND type = 'refund' LIMIT 1`, [_sibD.id]);
                 _sendCancelD({
                   booking: { start_at: _sibD.start_at, end_at: _sibD.end_at, client_name: _sibD.client_name, client_email: _sibD.client_email, service_name: _sibD.service_name, service_category: _sibD.service_category, custom_label: _sibD.custom_label, comment_client: _sibD.comment_client, practitioner_name: _sibD.practitioner_name, deposit_required: _sibD.deposit_required, deposit_status: _sibD.deposit_status, deposit_amount_cents: _sibD.deposit_amount_cents, deposit_paid_at: _sibD.deposit_paid_at, deposit_payment_intent_id: _sibD.deposit_payment_intent_id, gc_paid_cents: _sibGcD, gc_refunded_cents: _sibGcRefD.rows[0]?.amt || 0, pass_refunded: _sibPassRefD.rows.length > 0, net_refund_cents: txResult.netRefundCentsManual, deposit_retention_reason: txResult.depRetentionReasonManual, service_price_cents: _sibD.service_price_cents, booked_price_cents: _sibD.booked_price_cents, discount_pct: _sibD.discount_pct, duration_min: _sibD.duration_min, promotion_label: _sibD.promotion_label, promotion_discount_cents: _sibD.promotion_discount_cents, promotion_discount_pct: _sibD.promotion_discount_pct, cancel_reason: _sibD.cancel_reason || 'Acompte remboursé — RDV annulé' },
-                  business: { name: d.biz_name, slug: d.slug, email: d.biz_email, phone: d.biz_phone, address: d.address, settings: d.settings, theme: d.theme },
+                  business: { id: bid, name: d.biz_name, slug: d.slug, email: d.biz_email, phone: d.biz_phone, address: d.address, settings: d.settings, theme: d.theme },
                   groupServices
                 }).catch(e => console.warn('[EMAIL] Multi-client deposit-refund sibling cancel error:', e.message));
               } catch (_sibErrD) { console.warn('[EMAIL] Multi-client deposit-refund sibling error:', _sibErrD.message); }
@@ -1631,7 +1631,7 @@ router.patch('/:id/waive-deposit', blockIfImpersonated, async (req, res, next) =
             public_token: b.public_token,
             promotion_label: b.promotion_label, promotion_discount_cents: b.promotion_discount_cents, promotion_discount_pct: b.promotion_discount_pct
           },
-          business: { name: b.business_name, email: b.business_email, address: b.business_address, phone: b.business_phone, theme: b.theme, settings: b.settings },
+          business: { id: bid, name: b.business_name, email: b.business_email, address: b.business_address, phone: b.business_phone, theme: b.theme, settings: b.settings },
           groupServices
         });
         // R1 fix: audit email_confirmation='sent' après waive-deposit send
@@ -1812,7 +1812,7 @@ router.post('/:id/send-deposit-request', blockIfImpersonated, async (req, res, n
           const payUrl = `${baseUrl}/api/public/deposit/${bk.public_token}/pay`;
           const r = await sendDepositRequestEmail({
             booking: bk,
-            business: { name: bk.business_name, email: bk.business_email, phone: bk.business_phone, address: bk.business_address, theme: bk.theme, settings: bk.settings },
+            business: { id: bid, name: bk.business_name, email: bk.business_email, phone: bk.business_phone, address: bk.business_address, theme: bk.theme, settings: bk.settings },
             depositUrl, payUrl, groupServices
           });
           results[ch] = r;
@@ -2034,7 +2034,7 @@ router.post('/:id/require-deposit', blockIfImpersonated, async (req, res, next) 
         const { sendDepositRequestEmail } = require('../../services/email');
         const sendResult = await sendDepositRequestEmail({
           booking: bookingForEmail,
-          business: { name: b.business_name, email: b.business_email, phone: b.business_phone, address: b.business_address, theme: b.theme, settings: b.settings },
+          business: { id: bid, name: b.business_name, email: b.business_email, phone: b.business_phone, address: b.business_address, theme: b.theme, settings: b.settings },
           depositUrl: txResult.depositUrl,
           payUrl,
           groupServices

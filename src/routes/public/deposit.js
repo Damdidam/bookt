@@ -543,12 +543,12 @@ router.post('/deposit/:token/verify', depositLimiter, async (req, res, next) => 
           const { sendDepositPaidEmail, sendDepositPaidProEmail } = require('../../services/email');
           sendDepositPaidEmail({
             booking: d,
-            business: { name: d.business_name, email: d.business_email, phone: d.business_phone, address: d.business_address, theme: d.theme, slug: d.slug, settings: d.business_settings },
+            business: { id: d.business_id, name: d.business_name, email: d.business_email, phone: d.business_phone, address: d.business_address, theme: d.theme, slug: d.slug, settings: d.business_settings },
             groupServices
           }).catch(e => console.warn('[DEPOSIT VERIFY] Email error:', e.message));
           sendDepositPaidProEmail({
             booking: d,
-            business: { name: d.business_name, email: d.business_email, theme: d.theme }
+            business: { id: d.business_id, name: d.business_name, email: d.business_email, theme: d.theme }
           }).catch(e => console.warn('[DEPOSIT VERIFY] Pro email error:', e.message));
         }
       } catch (emailErr) {
