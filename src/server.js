@@ -129,7 +129,49 @@ if (fs.existsSync(distDir)) {
   app.use('/assets', express.static(path.join(distDir, 'assets'), { maxAge: '1y', immutable: true }));
   app.use(express.static(distDir, { maxAge: '1h' }));
 }
+// Uploads (logos, covers, practitioner photos, realisations, gallery, quote attachments).
+// Served from UPLOADS_BASE — configurable via UPLOADS_DIR env (default: public/uploads).
+// On Render prod, set UPLOADS_DIR to a mounted persistent disk so files survive deploys.
+const { UPLOADS_BASE } = require('./services/uploads');
+app.use('/uploads', express.static(UPLOADS_BASE, { maxAge: '30d' }));
+
 app.use(express.static(path.join(__dirname, '../public'), { maxAge: '1h' }));
+
+// ===== CUSTOM DOMAIN RESOLVER =====
+// Premium businesses can connect salon-x.be to their minisite via custom_domains.
+// When a request arrives on a verified custom domain and the path is a minisite entry
+// (/, /book, /gift-card, /pass, /guide), rewrite it to /{slug}/... so the existing
+// /:slug[/page] handlers render normally. Without this, salon-x.be/ returns the
+// Genda landing page instead of the pro's minisite.
+const MINISITE_ENTRY_PATHS = new Set(['/', '/book', '/gift-card', '/pass', '/guide', '/manage-booking']);
+app.use(async (req, res, next) => {
+  if (req.method !== 'GET') return next();
+  if (!MINISITE_ENTRY_PATHS.has(req.path)) return next();
+  const host = (req.hostname || '').toLowerCase();
+  if (!host || /^(www\.)?genda\.be$/i.test(host) || host === 'localhost' ||
+      host.startsWith('127.0.0.1') || host.endsWith('.onrender.com')) {
+    return next();
+  }
+  try {
+    const r = await pool.query(
+      `SELECT b.slug FROM custom_domains cd
+       JOIN businesses b ON b.id = cd.business_id
+       WHERE cd.domain = $1
+         AND cd.verification_status IN ('dns_verified','ssl_active')
+         AND b.is_active = true
+       LIMIT 1`,
+      [host]
+    );
+    if (r.rows.length > 0) {
+      const slug = r.rows[0].slug;
+      const newPath = req.path === '/' ? `/${slug}` : `/${slug}${req.path}`;
+      req.url = newPath + (req._parsedUrl?.search || '');
+    }
+  } catch (e) {
+    console.warn('[custom-domain] resolver error:', e.message);
+  }
+  next();
+});
 
 // ===== FRONTEND PAGE ROUTES =====
 // Serve HTML pages for direct URL access

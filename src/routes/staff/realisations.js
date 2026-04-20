@@ -88,8 +88,8 @@ router.post('/upload', requireAuth, requireOwner, async (req, res, next) => {
     const quota = await checkQuota(req.businessId, buffer.length, queryWithRLS);
     if (!quota.allowed) return res.status(413).json({ error: quota.message });
 
-    const uploadDir = path.join(__dirname, '../../../public/uploads/realisations');
-    fs.mkdirSync(uploadDir, { recursive: true });
+    const { ensureSubdir } = require('../../services/uploads');
+    const uploadDir = ensureSubdir('realisations');
 
     const fileId = require('crypto').randomUUID();
     const filename = `${fileId}.${ext}`;
@@ -122,11 +122,12 @@ router.delete('/:id', requireAuth, requireOwner, async (req, res, next) => {
     // Clean up files
     if (existing.rows.length > 0) {
       const row = existing.rows[0];
-      const uploadBase = path.resolve(__dirname, '../../../public/uploads');
+      const { UPLOADS_BASE } = require('../../services/uploads');
       for (const url of [row.image_url, row.before_url, row.after_url]) {
         if (url && url.startsWith('/uploads/realisations/')) {
-          const filePath = path.resolve(__dirname, '../../../public', url.split('?')[0]);
-          if (filePath.startsWith(uploadBase)) {
+          const rel = url.split('?')[0].replace(/^\/uploads\//, '');
+          const filePath = path.resolve(UPLOADS_BASE, rel);
+          if (filePath.startsWith(UPLOADS_BASE)) {
             try { fs.unlinkSync(filePath); } catch (e) { /* ignore */ }
           }
         }

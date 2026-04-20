@@ -438,8 +438,8 @@ router.post('/upload-image', requireOwner, async (req, res, next) => {
 
     const fs = require('fs');
     const path = require('path');
-    const uploadDir = path.join(__dirname, '../../../public/uploads/branding');
-    fs.mkdirSync(uploadDir, { recursive: true });
+    const { UPLOADS_BASE, ensureSubdir } = require('../../services/uploads');
+    const uploadDir = ensureSubdir('branding');
 
     // Delete old file if local — static map prevents any SQL interpolation risk
     const FIELD_MAP = { logo: 'logo_url', cover: 'cover_image_url', about: null };
@@ -447,18 +447,18 @@ router.post('/upload-image', requireOwner, async (req, res, next) => {
     if (field) {
       const existing = await queryWithRLS(req.businessId, `SELECT ${field} FROM businesses WHERE id = $1`, [req.businessId]);
       if (existing.rows[0]?.[field]?.startsWith('/uploads/branding/')) {
-        const oldPath = path.resolve(__dirname, '../../../public', existing.rows[0][field].split('?')[0]);
-        const uploadBase = path.resolve(__dirname, '../../../public/uploads');
-        if (oldPath.startsWith(uploadBase)) try { fs.unlinkSync(oldPath); } catch (e) { /* ignore */ }
+        const rel = existing.rows[0][field].split('?')[0].replace(/^\/uploads\//, '');
+        const oldPath = path.resolve(UPLOADS_BASE, rel);
+        if (oldPath.startsWith(UPLOADS_BASE)) try { fs.unlinkSync(oldPath); } catch (e) { /* ignore */ }
       }
     } else {
       // about image — stored in settings JSONB
       const existing = await queryWithRLS(req.businessId, `SELECT settings FROM businesses WHERE id = $1`, [req.businessId]);
       const oldUrl = existing.rows[0]?.settings?.about_image_url;
       if (oldUrl?.startsWith('/uploads/branding/')) {
-        const oldPath = path.resolve(__dirname, '../../../public', oldUrl.split('?')[0]);
-        const uploadBase = path.resolve(__dirname, '../../../public/uploads');
-        if (oldPath.startsWith(uploadBase)) try { fs.unlinkSync(oldPath); } catch (e) { /* ignore */ }
+        const rel = oldUrl.split('?')[0].replace(/^\/uploads\//, '');
+        const oldPath = path.resolve(UPLOADS_BASE, rel);
+        if (oldPath.startsWith(UPLOADS_BASE)) try { fs.unlinkSync(oldPath); } catch (e) { /* ignore */ }
       }
     }
 
@@ -487,22 +487,23 @@ router.delete('/delete-image/:type', requireOwner, async (req, res, next) => {
     const field = type === 'about' ? null : (type === 'logo' ? 'logo_url' : 'cover_image_url');
     const fs = require('fs');
     const path = require('path');
+    const { UPLOADS_BASE } = require('../../services/uploads');
 
     if (field) {
       const existing = await queryWithRLS(req.businessId, `SELECT ${field} FROM businesses WHERE id = $1`, [req.businessId]);
       if (existing.rows[0]?.[field]?.startsWith('/uploads/branding/')) {
-        const filePath = path.resolve(__dirname, '../../../public', existing.rows[0][field].split('?')[0]);
-        const uploadBase = path.resolve(__dirname, '../../../public/uploads');
-        if (filePath.startsWith(uploadBase)) try { fs.unlinkSync(filePath); } catch (e) { /* ignore */ }
+        const rel = existing.rows[0][field].split('?')[0].replace(/^\/uploads\//, '');
+        const filePath = path.resolve(UPLOADS_BASE, rel);
+        if (filePath.startsWith(UPLOADS_BASE)) try { fs.unlinkSync(filePath); } catch (e) { /* ignore */ }
       }
       await queryWithRLS(req.businessId, `UPDATE businesses SET ${field} = NULL WHERE id = $1`, [req.businessId]);
     } else {
       const existing = await queryWithRLS(req.businessId, `SELECT settings FROM businesses WHERE id = $1`, [req.businessId]);
       const oldUrl = existing.rows[0]?.settings?.about_image_url;
       if (oldUrl?.startsWith('/uploads/branding/')) {
-        const filePath = path.resolve(__dirname, '../../../public', oldUrl.split('?')[0]);
-        const uploadBase = path.resolve(__dirname, '../../../public/uploads');
-        if (filePath.startsWith(uploadBase)) try { fs.unlinkSync(filePath); } catch (e) { /* ignore */ }
+        const rel = oldUrl.split('?')[0].replace(/^\/uploads\//, '');
+        const filePath = path.resolve(UPLOADS_BASE, rel);
+        if (filePath.startsWith(UPLOADS_BASE)) try { fs.unlinkSync(filePath); } catch (e) { /* ignore */ }
       }
       await queryWithRLS(req.businessId, `UPDATE businesses SET settings = settings - 'about_image_url' WHERE id = $1`, [req.businessId]);
     }

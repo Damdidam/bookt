@@ -198,16 +198,16 @@ router.post('/:id/photo', requireOwner, async (req, res, next) => {
       return res.status(400).json({ error: 'Photo trop lourde (max 2 Mo)' });
     }
 
-    const uploadDir = path.join(__dirname, '../../../public/uploads/practitioners');
-    fs.mkdirSync(uploadDir, { recursive: true });
+    const { UPLOADS_BASE, ensureSubdir } = require('../../services/uploads');
+    const uploadDir = ensureSubdir('practitioners');
 
     const old = await queryWithRLS(bid,
       `SELECT photo_url FROM practitioners WHERE id = $1 AND business_id = $2`, [id, bid]
     );
     if (old.rows[0]?.photo_url) {
-      const resolved = path.resolve(__dirname, '../../../public', old.rows[0].photo_url);
-      const uploadBase = path.resolve(__dirname, '../../../public/uploads');
-      if (resolved.startsWith(uploadBase)) {
+      const rel = old.rows[0].photo_url.split('?')[0].replace(/^\/uploads\//, '');
+      const resolved = path.resolve(UPLOADS_BASE, rel);
+      if (resolved.startsWith(UPLOADS_BASE)) {
         try { fs.unlinkSync(resolved); } catch (e) { /* ignore */ }
       }
     }
@@ -234,13 +234,14 @@ router.delete('/:id/photo', requireOwner, async (req, res, next) => {
     const bid = req.businessId;
     const { id } = req.params;
 
+    const { UPLOADS_BASE } = require('../../services/uploads');
     const old = await queryWithRLS(bid,
       `SELECT photo_url FROM practitioners WHERE id = $1 AND business_id = $2`, [id, bid]
     );
     if (old.rows[0]?.photo_url) {
-      const resolved = path.resolve(__dirname, '../../../public', old.rows[0].photo_url.split('?')[0]);
-      const uploadBase = path.resolve(__dirname, '../../../public/uploads');
-      if (resolved.startsWith(uploadBase)) {
+      const rel = old.rows[0].photo_url.split('?')[0].replace(/^\/uploads\//, '');
+      const resolved = path.resolve(UPLOADS_BASE, rel);
+      if (resolved.startsWith(UPLOADS_BASE)) {
         try { fs.unlinkSync(resolved); } catch (e) { /* ignore */ }
       }
     }

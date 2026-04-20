@@ -75,8 +75,8 @@ router.post('/:slug/quote-request', bookingLimiter, async (req, res, next) => {
     const savedImages = [];
     if (Array.isArray(images) && images.length > 0) {
       const toProcess = images.slice(0, MAX_IMAGES);
-      const uploadDir = path.join(__dirname, '../../../public/uploads/quotes');
-      fs.mkdirSync(uploadDir, { recursive: true });
+      const { ensureSubdir } = require('../../services/uploads');
+      const uploadDir = ensureSubdir('quotes');
 
       for (let i = 0; i < toProcess.length; i++) {
         const img = toProcess[i];

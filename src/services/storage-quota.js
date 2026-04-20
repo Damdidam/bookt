@@ -4,9 +4,9 @@
  */
 const fs = require('fs');
 const path = require('path');
+const { UPLOADS_BASE } = require('./uploads');
 
 const QUOTA_BYTES = 500 * 1024 * 1024; // 500 MB
-const UPLOADS_BASE = path.resolve(__dirname, '../../public/uploads');
 
 /**
  * Calculate total disk usage for a business across all upload folders
@@ -37,7 +37,8 @@ async function getBusinessUsage(businessId, queryWithRLS) {
 
   for (const url of urls) {
     if (url && url.startsWith('/uploads/')) {
-      const filePath = path.resolve(__dirname, '../../public', url.split('?')[0]);
+      const rel = url.split('?')[0].replace(/^\/uploads\//, '');
+      const filePath = path.resolve(UPLOADS_BASE, rel);
       if (filePath.startsWith(UPLOADS_BASE)) {
         try {
           const stat = fs.statSync(filePath);

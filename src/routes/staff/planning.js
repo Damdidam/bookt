@@ -3,7 +3,7 @@ const { queryWithRLS, transactionWithRLS } = require('../../services/db');
 const { requireAuth, requireOwner, blockIfImpersonated } = require('../../middleware/auth');
 const { sendEmail, buildEmailHTML, escHtml } = require('../../services/email');
 const { sendSMS } = require('../../services/sms');
-const { checkPracAvailability, calSyncPush } = require('./bookings-helpers');
+const { checkPracAvailability, calSyncPush, checkBookingConflicts, getMaxConcurrent } = require('./bookings-helpers');
 
 router.use(requireAuth);
 
@@ -1283,30 +1283,42 @@ router.post('/reassign', requireOwner, async (req, res, next) => {
       }
     }
 
-    // 3. Check availability
+    // 3. Check availability (holidays/closures/absences/weekly schedule)
     const availCheck = await checkPracAvailability(bid, new_practitioner_id, bk.start_at, bk.end_at);
     if (!availCheck.ok) {
       return res.status(400).json({ error: 'Praticien non disponible: ' + availCheck.reason });
     }
 
-    // 4. Check booking overlap for the new practitioner
-    const overlapCheck = await queryWithRLS(bid,
-      `SELECT id FROM bookings
-       WHERE business_id = $1 AND practitioner_id = $2
-         AND status IN ('confirmed','pending','modified_pending','pending_deposit')
-         AND start_at < $4::timestamptz AND end_at > $3::timestamptz
-         AND id != $5`,
-      [bid, new_practitioner_id, bk.start_at, bk.end_at, booking_id]
-    );
-    if (overlapCheck.rows.length > 0) {
-      return res.status(400).json({ error: 'Créneau occupé pour ce praticien' });
+    // 4. Check booking overlap + update in a single transaction with advisory lock.
+    // Previous implementation: SELECT overlap (queryWithRLS, no tx, no lock) then UPDATE
+    // (queryWithRLS, no tx). Between the two queries, a concurrent POST /bookings on the
+    // same practitioner/slot could insert a conflicting booking → double-booking.
+    // checkBookingConflicts() acquires pg_advisory_xact_lock(pracId, newStartISO) and
+    // runs SELECT ... FOR UPDATE OF bookings, also covering internal_tasks overlap.
+    const maxConcurrent = await getMaxConcurrent(bid, new_practitioner_id);
+    try {
+      await transactionWithRLS(bid, async (txClient) => {
+        const conflicts = await checkBookingConflicts(txClient, {
+          bid,
+          pracId: new_practitioner_id,
+          newStart: bk.start_at,
+          newEnd: bk.end_at,
+          excludeIds: booking_id
+        });
+        if (conflicts.length >= maxConcurrent) {
+          const e = new Error('Créneau occupé pour ce praticien');
+          e.statusCode = 400;
+          throw e;
+        }
+        await txClient.query(
+          `UPDATE bookings SET practitioner_id = $1, updated_at = NOW() WHERE id = $2 AND business_id = $3`,
+          [new_practitioner_id, booking_id, bid]
+        );
+      });
+    } catch (e) {
+      if (e.statusCode === 400) return res.status(400).json({ error: e.message });
+      throw e;
     }
-
-    // 5. Update the booking
-    await queryWithRLS(bid,
-      `UPDATE bookings SET practitioner_id = $1, updated_at = NOW() WHERE id = $2 AND business_id = $3`,
-      [new_practitioner_id, booking_id, bid]
-    );
 
     // 6. Calendar sync
     try { await calSyncPush(bid, booking_id); } catch (e) {
