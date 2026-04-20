@@ -463,12 +463,20 @@ router.patch('/:id/status', blockIfImpersonated, async (req, res, next) => {
       let gcPaidForRefundEmail = 0;       // GC portion that goes back to the GC balance
       if (status === 'cancelled') {
         const depInfo = await client.query(
-          `SELECT b.deposit_required, b.deposit_status, b.deposit_amount_cents, b.deposit_payment_intent_id, b.start_at, b.created_at, biz.settings
+          // P1-07: SELECT disputed_at pour bloquer le refund si contentieux Stripe.
+          `SELECT b.deposit_required, b.deposit_status, b.deposit_amount_cents, b.deposit_payment_intent_id, b.start_at, b.created_at, b.disputed_at, biz.settings
            FROM bookings b JOIN businesses biz ON biz.id = b.business_id
            WHERE b.id = $1 AND b.business_id = $2`,
           [id, bid]
         );
         const dep = depInfo.rows[0];
+        // P1-07: dispute Stripe en cours → pattern { error, message } remonté
+        // comme les autres early-returns (voir L142, L148). Le pro peut
+        // toujours annuler commercialement (marquer no_show ou no-refund)
+        // mais le refund auto via cancel est bloqué jusqu'à résolution Stripe.
+        if (dep?.disputed_at && dep?.deposit_status === 'paid') {
+          return { error: 409, message: 'Litige Stripe en cours sur ce paiement. Attendez la résolution (dashboard Stripe) avant d\'annuler ce RDV.' };
+        }
         if (dep?.deposit_required) {
           let newDepStatus;
           if (dep.deposit_status === 'paid') {
@@ -1202,7 +1210,8 @@ router.patch('/:id/deposit-refund', blockIfImpersonated, async (req, res, next) 
       const bk = await client.query(
         // BUG-FOR-UPDATE-OF fix: explicit OF b (both tables would be locked otherwise).
         // Parity with other SELECT+join+FOR UPDATE patterns in this file.
-        `SELECT b.deposit_required, b.deposit_status, b.deposit_amount_cents, b.deposit_payment_intent_id, b.status, b.practitioner_id, b.group_id, biz.settings AS biz_settings
+        // P1-07: SELECT b.disputed_at pour bloquer refund si contentieux Stripe ouvert.
+        `SELECT b.deposit_required, b.deposit_status, b.deposit_amount_cents, b.deposit_payment_intent_id, b.status, b.practitioner_id, b.group_id, b.disputed_at, biz.settings AS biz_settings
            FROM bookings b JOIN businesses biz ON biz.id = b.business_id
           WHERE b.id = $1 AND b.business_id = $2 FOR UPDATE OF b`,
         [id, bid]
@@ -1212,6 +1221,12 @@ router.patch('/:id/deposit-refund', blockIfImpersonated, async (req, res, next) 
       // Practitioner scope: can only modify own bookings
       if (req.practitionerFilter && String(bk.rows[0].practitioner_id) !== String(req.practitionerFilter)) {
         return { error: 403, message: 'Accès interdit' };
+      }
+
+      // P1-07: bloquer refund si dispute Stripe en cours (évite double-loss :
+      // refund émis + dispute perdue par la suite = 2× la somme + fees Stripe).
+      if (bk.rows[0].disputed_at) {
+        return { error: 409, message: 'Impossible de rembourser : un litige Stripe est en cours sur ce paiement. Attendez la résolution (dashboard Stripe).' };
       }
 
       if (!bk.rows[0].deposit_required) return { error: 400, message: 'Pas d\'acompte sur ce RDV' };

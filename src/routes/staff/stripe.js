@@ -1249,6 +1249,15 @@ async function handleStripeWebhook(req, res) {
             );
             if (bookings.rows.length > 0) {
               const bk = bookings.rows[0];
+              // P1-07: marque le booking en dispute pour bloquer les futurs refunds
+              // staff — empêche le double-loss (refund + dispute perdue).
+              // Idempotent (COALESCE) : si déjà disputed, garde le 1er timestamp.
+              await query(
+                `UPDATE bookings
+                 SET disputed_at = COALESCE(disputed_at, NOW()), updated_at = NOW()
+                 WHERE id = $1`,
+                [bk.id]
+              ).catch(e => console.warn('[STRIPE WH] Dispute flag update error:', e.message));
               // Queue notification for business owner
               await query(
                 `INSERT INTO notifications (business_id, booking_id, type, status, metadata)
