@@ -7,6 +7,14 @@ const { authLimiter } = require('../../middleware/rate-limiter');
 const { requireAuth } = require('../../middleware/auth');
 const { sendEmail, buildEmailHTML, escHtml } = require('../../services/email');
 
+// H#16 v3: REAL dummy bcrypt hash (60 chars, valid base64 alphabet).
+// The previous const `'$2b$12$K4z0...x...'` was 58 chars + contained `x` (hors
+// alphabet `./A-Za-z0-9`), donc bcrypt.compare rejetait en 1ms au lieu des
+// ~400ms d'un vrai hash — signal timing direct "email absent" via la branche
+// password. On génère un vrai hash au load du module (random secret, jamais
+// utilisable) pour que bcrypt.compare tourne ses 2^12 rounds normalement.
+const DUMMY_PASSWORD_HASH = bcrypt.hashSync(crypto.randomBytes(24).toString('hex'), 12);
+
 // ============================================================
 // POST /api/auth/login
 // Request a magic link (or password login fallback)
@@ -52,9 +60,9 @@ router.post('/login', authLimiter, async (req, res, next) => {
     );
 
     if (result.rows.length === 0) {
-      // Don't reveal whether email exists — dummy bcrypt to normalize timing
+      // Don't reveal whether email exists — dummy bcrypt (real hash) to normalize timing
       if (password) {
-        await bcrypt.compare(password, '$2b$12$K4z0Bx0dQ5xP0xP0xP0xP.0xP0xP0xP0xP0xP0xP0xP0xP0xP0x');
+        await bcrypt.compare(password, DUMMY_PASSWORD_HASH);
         return res.status(401).json({ error: 'Email ou mot de passe incorrect' });
       }
       // H#16 v2: bounded() ci-dessus aligne la réponse sur minMagicLinkMs (400-500ms)
@@ -97,7 +105,11 @@ router.post('/login', authLimiter, async (req, res, next) => {
     }
 
     if (password && !user.password_hash) {
-      return res.status(401).json({ error: 'Aucun mot de passe configuré. Utilisez le lien magique.' });
+      // H#16 v3: message générique identique aux autres 401 pour ne pas révéler
+      // l'existence d'un compte sans password_hash (content leak). Timing aussi
+      // normalisé via bcrypt dummy ci-dessus — on refait compare pour s'aligner.
+      await bcrypt.compare(password, DUMMY_PASSWORD_HASH);
+      return res.status(401).json({ error: 'Email ou mot de passe incorrect' });
     }
 
     // Magic link flow
