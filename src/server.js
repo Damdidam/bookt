@@ -114,7 +114,8 @@ app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 // JSON describing any CSP violation (blocked inline script, style, frame, etc).
 // We log (throttled by IP via Sentry/console) — in dev/ops helps catch XSS early.
 // Body parser accepts application/csp-report + application/json (some browsers use either).
-app.post('/api/csp-report', express.json({ type: ['application/csp-report', 'application/json'], limit: '64kb' }), (req, res) => {
+const { slotsLimiter: _cspLimiter } = require('./middleware/rate-limiter');
+app.post('/api/csp-report', _cspLimiter, express.json({ type: ['application/csp-report', 'application/json'], limit: '64kb' }), (req, res) => {
   try {
     const report = req.body['csp-report'] || req.body || {};
     // Compact log: directive + blocked-uri + source-file + line
