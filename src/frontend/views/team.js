@@ -1208,7 +1208,7 @@ async function loadPracCalSync(pracId){
       </div>
       <div style="display:flex;gap:4px">
         ${gConn?`
-          <button onclick="syncCalendar('${gConn.id}')" class="btn-outline btn-sm" style="font-size:.72rem;padding:4px 10px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button>
+          <button onclick="syncCalendar('${gConn.id}')" class="btn-outline btn-sm" aria-label="Synchroniser le calendrier" title="Synchroniser" style="font-size:.72rem;padding:4px 10px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button>
           <button onclick="disconnectCalendar('${gConn.id}','google','${pracId}')" class="btn-outline btn-sm btn-danger" style="font-size:.72rem;padding:4px 10px">${IC.x}</button>
         `:`<button onclick="connectCalendar('google','${pracId}')" class="btn-outline btn-sm" style="font-size:.72rem;padding:4px 10px;color:var(--primary);border-color:var(--primary)">Connecter</button>`}
       </div>

@@ -174,7 +174,7 @@ async function loadDashboard(){
               <div class="dash-todo-text">${esc(t.content)}</div>
               ${ctx?`<div class="dash-todo-ctx">${ctx}${dt?' · '+dt:''}</div>`:''}
             </div>
-            ${t.booking_id?`<button class="dash-todo-open" onclick="openBookingDetail('${t.booking_id}')" title="Ouvrir le RDV"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></button>`:''}
+            ${t.booking_id?`<button class="dash-todo-open" onclick="openBookingDetail('${t.booking_id}')" title="Ouvrir le RDV" aria-label="Ouvrir le rendez-vous"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></button>`:''}
           </div>`;
         });
       }else{

@@ -303,7 +303,11 @@ async function checkBookingConflicts(client, { bid, pracId, newStart, newEnd, ex
   // Advisory lock on (practitioner, timeslot) to prevent double-booking on empty slots.
   // FOR UPDATE only locks existing rows — if no booking exists yet, two concurrent
   // transactions both see 0 conflicts and insert. This lock serializes them.
-  const lockKey = `${pracId}_${newStart}`;
+  // BUG-LOCK-KEY-MISMATCH fix : normaliser newStart en ISO pour matcher la clé
+  // utilisée dans tasks.js (`${pid}_${new Date(startAt).toISOString()}`). Avant,
+  // newStart brut ('2026-04-20T08:00:00' vs '2026-04-20 10:00:00+02' vs Date obj)
+  // donnait des hash différents → race booking/task non sérialisée.
+  const lockKey = `${pracId}_${new Date(newStart).toISOString()}`;
   await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [lockKey]);
 
   let excludeClause = '';

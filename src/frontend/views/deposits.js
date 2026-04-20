@@ -90,7 +90,7 @@ async function loadDeposits(){
           <td style="padding:10px;text-align:center"><span style="font-size:.72rem;padding:3px 10px;border-radius:10px;background:${dc}12;color:${dc};font-weight:600">${depStatusLabels[d.deposit_status]||d.deposit_status||'\u2014'}</span></td>
           <td style="padding:10px;color:var(--text-3);font-size:.78rem">${paidDate}${d.deposit_payment_intent_id?(d.deposit_payment_intent_id.startsWith('gc_')?'<div style="font-size:.65rem;color:var(--amber-dark)">'+IC.gift+' Carte cadeau</div>':'<div style="font-size:.65rem;color:var(--text-4);font-family:monospace">'+esc(d.deposit_payment_intent_id.slice(-8))+'</div>'):''}</td>
           <td style="padding:10px;text-align:center"><span style="font-size:.72rem;padding:3px 10px;border-radius:10px;background:${bc}12;color:${bc};font-weight:600">${bkStatusLabels[d.booking_status]||d.booking_status}</span></td>
-          <td style="padding:10px;text-align:center">${hasAudit?`<button onclick="showDepositAudit('${d.id}')" title="Voir l'historique" style="background:none;border:none;cursor:pointer;font-size:.85rem;color:var(--primary)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></button>`:'<span style="color:var(--text-4)">\u2014</span>'}</td>
+          <td style="padding:10px;text-align:center">${hasAudit?`<button onclick="showDepositAudit('${d.id}')" title="Voir l'historique" aria-label="Voir l'historique de l'acompte" style="background:none;border:none;cursor:pointer;font-size:.85rem;color:var(--primary)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></button>`:'<span style="color:var(--text-4)">\u2014</span>'}</td>
         </tr>`;
       });
       h+=`</tbody></table></div>`;
@@ -137,7 +137,7 @@ function showDepositAudit(bookingId){
   modal.innerHTML=`<div class="m-dialog m-md">
     <div class="m-header-simple">
       <h3>Historique acompte</h3>
-      <button class="m-close" onclick="closeModal('depAuditModal')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      <button class="m-close" onclick="closeModal('depAuditModal')" aria-label="Fermer"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="m-body">
       <div style="margin-bottom:14px;padding:12px;background:var(--surface);border-radius:var(--radius-xs)">
