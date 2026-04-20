@@ -137,6 +137,11 @@ router.post(['/manage/:token/reschedule', '/booking/:token/reschedule'], booking
     if (newStart <= new Date()) return res.status(400).json({ error: 'Le créneau doit être dans le futur' });
 
     await client.query('BEGIN');
+    // P0-01 : DEFER la contrainte EXCLUDE bookings_no_overlap_active pour permettre
+    // les reschedule multi-bookings (split group + same-prac shift) sans 23P01
+    // faux-positif causé par chevauchement temporaire entre UPDATEs en série.
+    // La check s'effectue au COMMIT — si le résultat final est valid, OK ; sinon 23P01.
+    await client.query('SET CONSTRAINTS bookings_no_overlap_active DEFERRED');
 
     // Lock booking
     const result = await client.query(

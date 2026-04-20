@@ -233,6 +233,11 @@ router.patch('/:id/move', async (req, res, next) => {
       // Atomic group move: conflict check + updates in one transaction
       try {
         await transactionWithRLS(bid, async (client) => {
+          // P0-01 : DEFER la contrainte EXCLUDE pour permettre le shift atomique
+          // de plusieurs bookings consécutifs (UPDATE en série peut créer un
+          // chevauchement temporaire avec l'ancien état d'un sibling). Check
+          // différée jusqu'au COMMIT : si résultat final est valid, OK.
+          await client.query('SET CONSTRAINTS bookings_no_overlap_active DEFERRED');
           // Bug H8 fix: Lock ALL group members, not just the dragged booking
           const groupLock = await client.query(
             `SELECT id, status FROM bookings
@@ -1849,6 +1854,10 @@ router.patch('/:id/reorder-group', async (req, res, next) => {
     });
 
     await transactionWithRLS(bid, async (client) => {
+      // P0-01 : DEFER contrainte EXCLUDE pour reorder atomique des membres
+      // du groupe (chaque UPDATE start_at peut chevaucher un sibling old position
+      // pendant la série — valid final uniquement).
+      await client.query('SET CONSTRAINTS bookings_no_overlap_active DEFERRED');
       // Lock group members
       const lockRes = await client.query(
         `SELECT id, status FROM bookings WHERE group_id = $1 AND business_id = $2 FOR UPDATE`,
