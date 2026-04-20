@@ -110,7 +110,9 @@ router.post('/signup', authLimiter, async (req, res, next) => {
         [domainsToScan]
       );
       if (sameDomainUsers.rows.some(u => normalizeEmail(u.email) === normalizedEmail)) {
-        return bounded(409, { error: 'Un compte existe déjà avec cet email (alias détecté)' });
+        // H#16 v5 content leak fix: message unifié avec L79 pour ne pas révéler
+        // qu'un alias (+tag ou gmail dots) du même email canonique existe déjà.
+        return bounded(409, { error: 'Un compte existe déjà avec cet email' });
       }
     }
 
