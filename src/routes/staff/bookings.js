@@ -76,8 +76,13 @@ router.get('/', async (req, res, next) => {
       idx++;
     }
 
+    // D#4 fix: clamp limit. Calendar views legitimately need up to ~2000 rows
+    // (busy salons, multi-week ranges) but 1_000_000 is DoS — the full booking
+    // row JOINs 5 tables + 2 correlated sub-queries per row.
+    const _limRaw = parseInt(req.query.limit);
+    const _lim = Number.isFinite(_limRaw) ? Math.min(Math.max(_limRaw, 1), 2000) : 500;
     sql += ` ORDER BY b.start_at LIMIT $${idx}`;
-    params.push(parseInt(req.query.limit) || 500);
+    params.push(_lim);
 
     const result = await queryWithRLS(bid, sql, params);
 

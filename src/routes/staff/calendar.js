@@ -468,7 +468,10 @@ router.get('/ical/:token', async (req, res) => {
       bkSql += ` AND b.practitioner_id = $4`;
       bkParams.push(practitionerId);
     }
-    bkSql += ' ORDER BY b.start_at';
+    // D#5 fix: hard cap iCal feed size — 120 days × 30 RDV/day ≈ 3600 rows
+    // for a very busy salon. 5000 leaves headroom without letting a misuse
+    // pull unbounded rows.
+    bkSql += ' ORDER BY b.start_at LIMIT 5000';
 
     const bookings = await queryWithRLS(businessId, bkSql, bkParams);
     const bizName = conn.rows[0].business_name || 'Genda';

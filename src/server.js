@@ -689,6 +689,12 @@ app.listen(PORT, async () => {
     }
   }, reminderInterval);
 
+  // D#1 fix: cross-worker advisory lock (pg_try_advisory_lock) wraps each cron.
+  // Previously only a `let xRunning = false` in-process flag protected these, which
+  // means scaling to 2+ Node workers (cluster, replicas, deploy overlap) fired them
+  // in parallel → double Stripe refunds, double emails, double SMS.
+  const { withCronLock } = require('./services/cron-lock');
+
   // ===== BOOKING CONFIRMATION CRON — auto-cancel unconfirmed bookings every 2 min =====
   const confirmInterval = parseInt(process.env.BOOKING_CONFIRM_CRON_INTERVAL_MS, 10) || 2 * 60 * 1000;
   let confirmRunning = false;
@@ -696,18 +702,20 @@ app.listen(PORT, async () => {
     if (confirmRunning) return;
     confirmRunning = true;
     try {
-      const { processExpiredPendingBookings, processAutoConfirmModifiedPending } = require('./services/booking-confirmation');
-      const result = await processExpiredPendingBookings();
-      if (result.processed > 0) {
-        console.log(`[CONFIRM CRON] ${result.processed} unconfirmed booking(s) auto-cancelled`);
-      }
-      // BUG-D fix: auto-confirm modified_pending bookings ≤ 2h before start_at.
-      // Staff /modify email promises "sera automatiquement confirmé" — without this,
-      // modified_pending bookings stay zombie forever (reminders filter confirmed only).
-      const autoConfRes = await processAutoConfirmModifiedPending();
-      if (autoConfRes.confirmed > 0) {
-        console.log(`[CONFIRM CRON] ${autoConfRes.confirmed} modified_pending booking(s) auto-confirmed`);
-      }
+      await withCronLock('confirm_cron', async () => {
+        const { processExpiredPendingBookings, processAutoConfirmModifiedPending } = require('./services/booking-confirmation');
+        const result = await processExpiredPendingBookings();
+        if (result.processed > 0) {
+          console.log(`[CONFIRM CRON] ${result.processed} unconfirmed booking(s) auto-cancelled`);
+        }
+        // BUG-D fix: auto-confirm modified_pending bookings ≤ 2h before start_at.
+        // Staff /modify email promises "sera automatiquement confirmé" — without this,
+        // modified_pending bookings stay zombie forever (reminders filter confirmed only).
+        const autoConfRes = await processAutoConfirmModifiedPending();
+        if (autoConfRes.confirmed > 0) {
+          console.log(`[CONFIRM CRON] ${autoConfRes.confirmed} modified_pending booking(s) auto-confirmed`);
+        }
+      });
     } catch (e) {
       console.error('[CONFIRM CRON] Error:', e.message); Sentry.captureException(e);
     } finally {
@@ -722,11 +730,13 @@ app.listen(PORT, async () => {
     if (depositRunning) return;
     depositRunning = true;
     try {
-      const { processExpiredDeposits } = require('./services/deposit-expiry');
-      const result = await processExpiredDeposits();
-      if (result.processed > 0) {
-        console.log(`[DEPOSIT CRON] ${result.processed} expired deposit booking(s) auto-cancelled`);
-      }
+      await withCronLock('deposit_expiry_cron', async () => {
+        const { processExpiredDeposits } = require('./services/deposit-expiry');
+        const result = await processExpiredDeposits();
+        if (result.processed > 0) {
+          console.log(`[DEPOSIT CRON] ${result.processed} expired deposit booking(s) auto-cancelled`);
+        }
+      });
     } catch (e) {
       console.error('[DEPOSIT CRON] Error:', e.message); Sentry.captureException(e);
     } finally {
@@ -743,11 +753,13 @@ app.listen(PORT, async () => {
     if (depositReminderRunning) return;
     depositReminderRunning = true;
     try {
-      const { processDepositReminders } = require('./services/deposit-expiry');
-      const result = await processDepositReminders();
-      if (result.sent > 0) {
-        console.log(`[DEPOSIT REMINDER CRON] ${result.sent} reminder(s) sent`);
-      }
+      await withCronLock('deposit_reminder_cron', async () => {
+        const { processDepositReminders } = require('./services/deposit-expiry');
+        const result = await processDepositReminders();
+        if (result.sent > 0) {
+          console.log(`[DEPOSIT REMINDER CRON] ${result.sent} reminder(s) sent`);
+        }
+      });
     } catch (e) {
       console.error('[DEPOSIT REMINDER CRON] Error:', e.message); Sentry.captureException(e);
     } finally {
@@ -761,15 +773,17 @@ app.listen(PORT, async () => {
     if (gcRunning) return;
     gcRunning = true;
     try {
-      const { processExpiredGiftCards, processGiftCardExpiryWarnings } = require('./services/giftcard-expiry');
-      const result = await processExpiredGiftCards();
-      if (result.processed > 0) {
-        console.log(`[GC CRON] ${result.processed} gift card(s) expired`);
-      }
-      const warnResult = await processGiftCardExpiryWarnings();
-      if (warnResult.processed > 0) {
-        console.log(`[GC CRON] ${warnResult.processed} J-7 expiry warning(s) sent`);
-      }
+      await withCronLock('giftcard_expiry_cron', async () => {
+        const { processExpiredGiftCards, processGiftCardExpiryWarnings } = require('./services/giftcard-expiry');
+        const result = await processExpiredGiftCards();
+        if (result.processed > 0) {
+          console.log(`[GC CRON] ${result.processed} gift card(s) expired`);
+        }
+        const warnResult = await processGiftCardExpiryWarnings();
+        if (warnResult.processed > 0) {
+          console.log(`[GC CRON] ${warnResult.processed} J-7 expiry warning(s) sent`);
+        }
+      });
     } catch (e) {
       console.error('[GC CRON] Error:', e.message); Sentry.captureException(e);
     } finally {
@@ -783,11 +797,13 @@ app.listen(PORT, async () => {
     if (passExpiryRunning) return;
     passExpiryRunning = true;
     try {
-      const { processExpiredPasses, processPassExpiryWarnings } = require('./services/pass-expiry');
-      const result = await processExpiredPasses();
-      if (result.processed > 0) console.log(`[PASS CRON] ${result.processed} pass(es) expired`);
-      const warnResult = await processPassExpiryWarnings();
-      if (warnResult.processed > 0) console.log(`[PASS CRON] ${warnResult.processed} J-7 expiry warning(s) sent`);
+      await withCronLock('pass_expiry_cron', async () => {
+        const { processExpiredPasses, processPassExpiryWarnings } = require('./services/pass-expiry');
+        const result = await processExpiredPasses();
+        if (result.processed > 0) console.log(`[PASS CRON] ${result.processed} pass(es) expired`);
+        const warnResult = await processPassExpiryWarnings();
+        if (warnResult.processed > 0) console.log(`[PASS CRON] ${warnResult.processed} J-7 expiry warning(s) sent`);
+      });
     } catch (e) { console.error('[PASS CRON] Error:', e.message); Sentry.captureException(e); }
     finally { passExpiryRunning = false; }
   }, 60 * 60 * 1000);
@@ -799,11 +815,13 @@ app.listen(PORT, async () => {
     if (notifRunning) return;
     notifRunning = true;
     try {
-      const { processNotifications } = require('./services/notification-processor');
-      const stats = await processNotifications();
-      if (stats.processed > 0) {
-        console.log(`[NOTIF CRON] ${stats.sent} sent, ${stats.failed} failed, ${stats.errors} errors (${stats.processed} processed)`);
-      }
+      await withCronLock('notif_processor_cron', async () => {
+        const { processNotifications } = require('./services/notification-processor');
+        const stats = await processNotifications();
+        if (stats.processed > 0) {
+          console.log(`[NOTIF CRON] ${stats.sent} sent, ${stats.failed} failed, ${stats.errors} errors (${stats.processed} processed)`);
+        }
+      });
     } catch (e) {
       console.error('[NOTIF CRON] Error:', e.message); Sentry.captureException(e);
     } finally {

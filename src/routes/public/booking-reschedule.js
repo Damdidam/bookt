@@ -10,7 +10,7 @@ const { getAvailableSlots, getAvailableSlotsMultiPractitioner } = require('../..
 const { UUID_RE, isWithinLastMinuteWindow, invalidateMinisiteCache } = require('./helpers');
 
 const { pool } = require('../../services/db');
-const { calSyncPush, checkPracAvailability, checkBookingConflicts } = require('../staff/bookings-helpers');
+const { calSyncPush, checkPracAvailability, checkBookingConflicts, getMaxConcurrent, businessAllowsOverlap } = require('../staff/bookings-helpers');
 const { computeDepositDeadline } = require('./helpers');
 
 // ============================================================
@@ -281,7 +281,11 @@ router.post(['/manage/:token/reschedule', '/booking/:token/reschedule'], booking
           return res.status(400).json({ error: 'Ce praticien ne pratique pas cette prestation.' });
         }
 
-        // Conflict check per member (exclude self)
+        // Conflict check per member (exclude self).
+        // D#3 fix: honour practitioner.max_concurrent and business-level overlap flag
+        // so salons with 2+ chairs/cabins don't see 409 for a legit slot. Previously
+        // any single existing booking (conflicts.length > 0) blocked the reschedule,
+        // even when the practitioner had max_concurrent = 2.
         const conflicts = await checkBookingConflicts(client, {
           bid: bk.business_id,
           pracId: sp.practitioner_id,
@@ -289,7 +293,9 @@ router.post(['/manage/:token/reschedule', '/booking/:token/reschedule'], booking
           newEnd: sp.end_at,
           excludeIds: m.id
         });
-        if (conflicts.length > 0) { await client.query('ROLLBACK'); return res.status(409).json({ error: 'Ce créneau n\'est plus disponible.' }); }
+        const _globalOverlap = await businessAllowsOverlap(bk.business_id).catch(() => false);
+        const _maxConc = _globalOverlap ? Infinity : await getMaxConcurrent(bk.business_id, sp.practitioner_id);
+        if (conflicts.length >= _maxConc) { await client.query('ROLLBACK'); return res.status(409).json({ error: 'Ce créneau n\'est plus disponible.' }); }
 
         await client.query(
           `UPDATE bookings SET start_at = $1, end_at = $2, practitioner_id = $3, ${i === 0 ? 'reschedule_count = reschedule_count + 1, ' : ''}reminder_24h_sent_at = NULL, reminder_2h_sent_at = NULL, confirmation_expires_at = CASE WHEN status = 'pending' THEN NULL ELSE confirmation_expires_at END, status = CASE WHEN status = 'modified_pending' THEN 'confirmed' ELSE status END, updated_at = NOW()
@@ -307,7 +313,8 @@ router.post(['/manage/:token/reschedule', '/booking/:token/reschedule'], booking
       const avail = await checkPracAvailability(bk.business_id, bk.practitioner_id, start_at, groupEndAfterShift);
       if (!avail.ok) { await client.query('ROLLBACK'); return res.status(409).json({ error: 'Le praticien n\'est pas disponible à cet horaire.' }); }
 
-      // Conflict check covers the ENTIRE group range, not just the first member
+      // Conflict check covers the ENTIRE group range, not just the first member.
+      // D#3 fix: same max_concurrent treatment as the split branch above.
       const conflicts = await checkBookingConflicts(client, {
         bid: bk.business_id,
         pracId: bk.practitioner_id,
@@ -315,7 +322,9 @@ router.post(['/manage/:token/reschedule', '/booking/:token/reschedule'], booking
         newEnd: groupEndAfterShift,
         excludeIds: groupMembers.map(m => m.id)
       });
-      if (conflicts.length > 0) { await client.query('ROLLBACK'); return res.status(409).json({ error: 'Ce créneau n\'est plus disponible.' }); }
+      const _globalOverlapGrp = await businessAllowsOverlap(bk.business_id).catch(() => false);
+      const _maxConcGrp = _globalOverlapGrp ? Infinity : await getMaxConcurrent(bk.business_id, bk.practitioner_id);
+      if (conflicts.length >= _maxConcGrp) { await client.query('ROLLBACK'); return res.status(409).json({ error: 'Ce créneau n\'est plus disponible.' }); }
 
       // Increment reschedule_count only on the primary booking (first member)
       for (let gi = 0; gi < groupMembers.length; gi++) {
@@ -340,7 +349,10 @@ router.post(['/manage/:token/reschedule', '/booking/:token/reschedule'], booking
         newEnd: end_at,
         excludeIds: bk.id
       });
-      if (conflicts.length > 0) { await client.query('ROLLBACK'); return res.status(409).json({ error: 'Ce créneau n\'est plus disponible.' }); }
+      // D#3 fix: max_concurrent honoured on single reschedule too.
+      const _globalOverlapSingle = await businessAllowsOverlap(bk.business_id).catch(() => false);
+      const _maxConcSingle = _globalOverlapSingle ? Infinity : await getMaxConcurrent(bk.business_id, bk.practitioner_id);
+      if (conflicts.length >= _maxConcSingle) { await client.query('ROLLBACK'); return res.status(409).json({ error: 'Ce créneau n\'est plus disponible.' }); }
 
       await client.query(
         `UPDATE bookings SET start_at = $1, end_at = $2, reschedule_count = reschedule_count + 1, reminder_24h_sent_at = NULL, reminder_2h_sent_at = NULL, confirmation_expires_at = CASE WHEN status = 'pending' THEN NULL ELSE confirmation_expires_at END, status = CASE WHEN status = 'modified_pending' THEN 'confirmed' ELSE status END, updated_at = NOW()
