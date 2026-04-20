@@ -506,10 +506,18 @@ router.delete('/:id/group-remove', blockIfImpersonated, async (req, res, next) =
             if (overpayment > 0) {
               try {
                 const _depPiRes = await client.query(
-                  `SELECT deposit_payment_intent_id FROM bookings WHERE group_id = $1 AND business_id = $2 AND deposit_payment_intent_id IS NOT NULL LIMIT 1`,
+                  // P1-07 v3 : inclure disputed_at pour bloquer refund si dispute Stripe en cours.
+                  `SELECT deposit_payment_intent_id, disputed_at FROM bookings
+                   WHERE group_id = $1 AND business_id = $2 AND deposit_payment_intent_id IS NOT NULL LIMIT 1`,
                   [groupId, bid]
                 );
-                if (_depPiRes.rows.length > 0 && _depPiRes.rows[0].deposit_payment_intent_id) {
+                // P1-07 v3 : si le booking leader est en dispute, on SKIP le refund overpayment
+                // (évite double-loss). L'audit L496-504 a déjà enregistré le deposit_overpayment
+                // côté DB ; le staff verra l'overpayment dans le dashboard et pourra refund
+                // manuellement une fois la dispute résolue.
+                if (_depPiRes.rows[0]?.disputed_at) {
+                  console.warn(`[GROUP-REMOVE] Overpayment ${overpayment}c NOT refunded — dispute en cours sur PI ${_depPiRes.rows[0].deposit_payment_intent_id}`);
+                } else if (_depPiRes.rows.length > 0 && _depPiRes.rows[0].deposit_payment_intent_id) {
                   const _stripeKey = process.env.STRIPE_SECRET_KEY;
                   if (_stripeKey) {
                     const _stripe = require('stripe')(_stripeKey);

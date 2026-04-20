@@ -94,17 +94,52 @@ router.post('/sms/inbound', async (req, res) => {
   const phoneWhere = `(phone = $1 OR regexp_replace(COALESCE(phone, ''), '[^0-9]', '', 'g') = $2)`;
   try {
     // STOP / START — RGPD opt-out tracked locally so future sendSMS auto-skips via consent_sms.
+    // P1-04 RGPD : audit_logs sur opt-out/opt-in — preuve vitale art.7(3) "le consentement
+    // doit être aussi facile à retirer qu'à donner" + art.30 traçabilité des consentements.
     if (STOP_RE.test(normalized)) {
       try {
-        await query(`UPDATE clients SET consent_sms = false, updated_at = NOW() WHERE ${phoneWhere}`, [fromE164, fromDigits]);
-        console.log(`[SMS INBOUND] STOP from ***${fromE164.slice(-4)} — consent_sms set to false`);
+        // RETURNING pour capturer les rows modifiées (une ligne par client matching ce phone,
+        // potentiellement dans plusieurs businesses si même numéro partagé).
+        const upd = await query(
+          `UPDATE clients SET consent_sms = false, updated_at = NOW() WHERE ${phoneWhere}
+           RETURNING id, business_id`,
+          [fromE164, fromDigits]
+        );
+        console.log(`[SMS INBOUND] STOP from ***${fromE164.slice(-4)} — consent_sms set to false on ${upd.rowCount} client(s)`);
+        // Audit log par row (1 row = 1 client dans 1 biz = 1 entry audit)
+        for (const r of upd.rows) {
+          try {
+            await query(
+              `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
+               VALUES ($1, NULL, 'client', $2, 'client_consent_sms_stop', $3, $4)`,
+              [r.business_id, r.id,
+               JSON.stringify({ consent_sms: true }),
+               JSON.stringify({ consent_sms: false, source: 'sms_stop_webhook', phone_last4: fromE164.slice(-4) })]
+            );
+          } catch (e) { console.error('[AUDIT] STOP audit insert failed:', e.message); }
+        }
       } catch (e) { console.warn('[SMS INBOUND] STOP update error:', e.message); }
       return res.type('text/xml').send('<Response/>'); // Twilio answers with its own opt-out confirmation
     }
     if (START_RE.test(normalized)) {
       try {
-        await query(`UPDATE clients SET consent_sms = true, updated_at = NOW() WHERE ${phoneWhere}`, [fromE164, fromDigits]);
-        console.log(`[SMS INBOUND] START from ***${fromE164.slice(-4)} — consent_sms set to true`);
+        const upd = await query(
+          `UPDATE clients SET consent_sms = true, updated_at = NOW() WHERE ${phoneWhere}
+           RETURNING id, business_id`,
+          [fromE164, fromDigits]
+        );
+        console.log(`[SMS INBOUND] START from ***${fromE164.slice(-4)} — consent_sms set to true on ${upd.rowCount} client(s)`);
+        for (const r of upd.rows) {
+          try {
+            await query(
+              `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
+               VALUES ($1, NULL, 'client', $2, 'client_consent_sms_start', $3, $4)`,
+              [r.business_id, r.id,
+               JSON.stringify({ consent_sms: false }),
+               JSON.stringify({ consent_sms: true, source: 'sms_start_webhook', phone_last4: fromE164.slice(-4) })]
+            );
+          } catch (e) { console.error('[AUDIT] START audit insert failed:', e.message); }
+        }
       } catch (e) { console.warn('[SMS INBOUND] START update error:', e.message); }
       // Don't fall through to CONFIRM_RE — START intent is opt-in, not booking confirm
       return res.type('text/xml').send('<Response/>');
