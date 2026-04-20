@@ -3,6 +3,7 @@
  * Category > Service > Variant — each with descriptions.
  */
 import { api, userSector, categoryLabels, GendaUI } from '../state.js';
+import { trapFocus, releaseFocus } from '../utils/focus-trap.js';
 import { esc } from '../utils/dom.js';
 import { bridge } from '../utils/window-bridge.js';
 import { cswHTML } from './agenda/color-swatches.js';
@@ -269,6 +270,7 @@ function openCategoryModal(catLabel){
   m+=`</div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('catModalOverlay')">Annuler</button><button id="cat_save_btn" class="m-btn m-btn-primary" onclick="saveCategory('${jsAttr(catId)}','${jsAttr(label)}')">${isEdit?'Enregistrer':'Créer'}</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend',m);
   guardModal(document.getElementById('catModalOverlay'), { noBackdropClose: true });
+  trapFocus(document.getElementById('catModalOverlay'), () => closeModal('catModalOverlay'));
   document.getElementById('cat_color_wrap').innerHTML=cswHTML('cat_color',color,true);
   document.getElementById('cat_modal_name').focus();
 }
@@ -763,6 +765,7 @@ function renderServiceModal(svc,sectorCats,prefill,existingPromo){
   const qoEl=document.getElementById('svc_quote_only');
   if(qoEl) qoEl.addEventListener('change',function(){const plabelEl=document.getElementById('svc_plabel');if(this.checked&&plabelEl&&!plabelEl.value.trim()){plabelEl.value='Sur devis';}});
   guardModal(document.getElementById('svcModalOverlay'), { noBackdropClose: true });
+  trapFocus(document.getElementById('svcModalOverlay'), () => closeModal('svcModalOverlay'));
 }
 
 // ===== PRACTITIONER PRIORITY =====
@@ -1103,6 +1106,7 @@ function qsRenderStep1(){
   document.body.insertAdjacentHTML('beforeend',m);
   qsOverlay=document.querySelector('.qs-overlay');
   guardModal(qsOverlay, { noBackdropClose: true });
+  trapFocus(qsOverlay, () => closeModal(qsOverlay.id));
 }
 
 function qsToggleCat(el){

@@ -5,6 +5,7 @@
  * modal, activity logs, email notification, per-practitioner counters.
  */
 import { api, GendaUI, sectorLabels } from '../state.js';
+import { trapFocus, releaseFocus } from '../utils/focus-trap.js';
 import { esc } from '../utils/dom.js';
 import { bridge } from '../utils/window-bridge.js';
 import { IC } from '../utils/icons.js';
@@ -421,6 +422,7 @@ function planOpenSendModal() {
 
   document.body.appendChild(overlay);
   guardModal(overlay, { noBackdropClose: true });
+  trapFocus(overlay, () => closeModal(overlay.id));
 }
 
 async function planDoSendPlanning() {
@@ -623,6 +625,7 @@ function planOpenModal(pracId, dateStr, absId) {
 
   document.body.appendChild(overlay);
   guardModal(overlay, { noBackdropClose: true });
+  trapFocus(overlay, () => closeModal(overlay.id));
   planUpdateSubtitle();
   if (pracId || absData) setTimeout(planCheckImpact, 100);
 }

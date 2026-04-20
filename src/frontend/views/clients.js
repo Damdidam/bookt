@@ -2,6 +2,7 @@
  * Clients view module.
  */
 import { api, categoryLabels, GendaUI } from '../state.js';
+import { trapFocus, releaseFocus } from '../utils/focus-trap.js';
 import { esc, sanitizeRichText } from '../utils/dom.js';
 import { bridge } from '../utils/window-bridge.js';
 import { IC } from '../utils/icons.js';
@@ -285,6 +286,7 @@ async function openClientDetail(id){
     m+=`</div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('clientModal')">Fermer</button><button class="m-btn m-btn-primary" onclick="saveClient('${id}')">Enregistrer</button></div></div></div>`;
     document.body.insertAdjacentHTML('beforeend',m);
     guardModal(document.getElementById('clientModal'), { noBackdropClose: true });
+    trapFocus(document.getElementById('clientModal'), () => closeModal('clientModal'));
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 
@@ -363,6 +365,7 @@ function openNewClientModal(){
   m+=`</div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('newClientModal')">Annuler</button><button class="m-btn m-btn-primary" onclick="createClient()">Créer</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend',m);
   guardModal(document.getElementById('newClientModal'), { noBackdropClose: true });
+  trapFocus(document.getElementById('newClientModal'), () => closeModal('newClientModal'));
   document.getElementById('nc_name').focus();
 }
 
@@ -398,6 +401,7 @@ function openCsvImportModal(){
   m+=`</div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('csvImportModal')">Annuler</button><button class="m-btn m-btn-primary" id="csvImportBtn" onclick="csvDoImport()" style="display:none">Importer</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend',m);
   guardModal(document.getElementById('csvImportModal'), { noBackdropClose: true });
+  trapFocus(document.getElementById('csvImportModal'), () => closeModal('csvImportModal'));
 }
 
 function csvHandleFile(file){

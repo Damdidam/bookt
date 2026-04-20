@@ -2,6 +2,7 @@
  * Gift Cards (Cartes cadeau) view module — staff dashboard management.
  */
 import { api, GendaUI } from '../state.js';
+import { trapFocus, releaseFocus } from '../utils/focus-trap.js';
 import { bridge } from '../utils/window-bridge.js';
 import { guardModal, closeModal, showConfirmDialog } from '../utils/dirty-guard.js';
 import { isPro, showProGate } from '../utils/plan-gate.js';
@@ -187,6 +188,7 @@ function openCreateGiftCardModal(){
   </div>`;
   document.body.appendChild(modal);
   guardModal(modal, { noBackdropClose: true });
+  trapFocus(modal, () => closeModal(modal.id));
 }
 
 function selectGcAmount(cents){
@@ -309,6 +311,7 @@ function openDebitGiftCard(id){
   </div>`;
   document.body.appendChild(modal);
   guardModal(modal, { noBackdropClose: true });
+  trapFocus(modal, () => closeModal(modal.id));
 }
 
 async function submitDebitGiftCard(id){
@@ -383,6 +386,7 @@ async function refundGiftCard(id){
   </div>`;
   document.body.appendChild(modal);
   guardModal(modal, { noBackdropClose: true });
+  trapFocus(modal, () => closeModal(modal.id));
 }
 
 async function submitRefundGiftCard(id){

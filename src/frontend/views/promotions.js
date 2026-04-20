@@ -2,6 +2,7 @@
  * Promotions view module — staff dashboard management.
  */
 import { api, GendaUI } from '../state.js';
+import { trapFocus, releaseFocus } from '../utils/focus-trap.js';
 import { isPro } from '../utils/plan-gate.js';
 import { esc } from '../utils/dom.js';
 import { bridge } from '../utils/window-bridge.js';
@@ -221,6 +222,7 @@ async function openPromoModal(id) {
 
   document.body.appendChild(modal);
   guardModal(document.getElementById('promoModal'), { noBackdropClose: true });
+  trapFocus(document.getElementById('promoModal'), () => closeModal('promoModal'));
 }
 
 function buildConditionFields(type, promo, serviceOpts) {

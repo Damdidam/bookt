@@ -2,6 +2,7 @@
  * Site / Mini-site management view module.
  */
 import { api, GendaUI } from '../state.js';
+import { trapFocus, releaseFocus } from '../utils/focus-trap.js';
 import { isPro, proInlineHint } from '../utils/plan-gate.js';
 import { bridge } from '../utils/window-bridge.js';
 import { cswHTML } from './agenda/color-swatches.js';
@@ -594,6 +595,7 @@ function openGalleryModal(item){
   </div>`;
   document.body.appendChild(ov);
   guardModal(document.getElementById('galModal'), { noBackdropClose: true });
+  trapFocus(document.getElementById('galModal'), () => closeModal('galModal'));
 
   // File input + drop zone
   const dropZone=document.getElementById('galDropZone');
@@ -737,6 +739,7 @@ function openNewsModal(item){
   </div>`;
   document.body.appendChild(ov);
   guardModal(document.getElementById('newsModal'), { noBackdropClose: true });
+  trapFocus(document.getElementById('newsModal'), () => closeModal('newsModal'));
   document.getElementById('newsTitle').focus();
 }
 
@@ -948,6 +951,7 @@ function openTestimonialModal(item){
   </div>`;
   document.body.appendChild(ov);
   guardModal(document.getElementById('testModal'), { noBackdropClose: true });
+  trapFocus(document.getElementById('testModal'), () => closeModal('testModal'));
   document.getElementById('testAuthor').focus();
 }
 
@@ -1012,6 +1016,7 @@ function openValueModal(item){
   </div>`;
   document.body.appendChild(ov);
   guardModal(document.getElementById('valModal'), { noBackdropClose: true });
+  trapFocus(document.getElementById('valModal'), () => closeModal('valModal'));
   document.getElementById('valTitle').focus();
 }
 

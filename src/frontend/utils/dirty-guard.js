@@ -66,6 +66,11 @@ export async function closeModal(id) {
     if (!leave) return;
   }
   el._dirtyGuard?.destroy();
+  // Release focus trap (a11y) if this element was trapped — no-op if not.
+  try {
+    const { releaseFocus } = await import('./focus-trap.js');
+    releaseFocus(el);
+  } catch (_) { /* utility missing — ignore */ }
   el.remove();
   if (!document.querySelector('.m-overlay.open')) document.body.classList.remove('has-modal');
 }

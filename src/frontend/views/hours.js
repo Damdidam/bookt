@@ -3,6 +3,7 @@
  * Replaced the old per-practitioner Disponibilités view (now in team modal).
  */
 import { api, GendaUI } from '../state.js';
+import { trapFocus, releaseFocus } from '../utils/focus-trap.js';
 import { bridge } from '../utils/window-bridge.js';
 import { guardModal, showConfirmDialog } from '../utils/dirty-guard.js';
 import { IC } from '../utils/icons.js';
@@ -310,6 +311,7 @@ function addBizSlot(day) {
   </div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('bizSlotModal')">Annuler</button><button class="m-btn m-btn-primary" onclick="confirmAddBizSlot(${day})">Ajouter</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend', m);
   guardModal(document.getElementById('bizSlotModal'), { noBackdropClose: true });
+  trapFocus(document.getElementById('bizSlotModal'), () => closeModal('bizSlotModal'));
 }
 
 function confirmAddBizSlot(day) {
@@ -375,6 +377,7 @@ function openClosureModal() {
   </div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('closureModal')">Annuler</button><button class="m-btn m-btn-primary" onclick="saveClosure()">Enregistrer</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend', m);
   guardModal(document.getElementById('closureModal'), { noBackdropClose: true });
+  trapFocus(document.getElementById('closureModal'), () => closeModal('closureModal'));
 }
 
 async function saveClosure() {
@@ -420,6 +423,7 @@ function openHolidayModal() {
   </div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('holidayModal')">Annuler</button><button class="m-btn m-btn-primary" onclick="saveHoliday()">Enregistrer</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend', m);
   guardModal(document.getElementById('holidayModal'), { noBackdropClose: true });
+  trapFocus(document.getElementById('holidayModal'), () => closeModal('holidayModal'));
 }
 
 async function saveHoliday() {

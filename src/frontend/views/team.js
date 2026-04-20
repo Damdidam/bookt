@@ -599,6 +599,7 @@ function teamAddSlot(day) {
   </div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('teamSlotModal')">Annuler</button><button class="m-btn m-btn-primary" onclick="teamConfirmAddSlot(${day})">Ajouter</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend', m);
   guardModal(document.getElementById('teamSlotModal'), { noBackdropClose: true });
+  trapFocus(document.getElementById('teamSlotModal'), () => closeModal('teamSlotModal'));
   initTimeInputs(document.getElementById('teamSlotModal'));
 }
 
@@ -630,6 +631,7 @@ function teamEditSlot(day, idx) {
   </div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('teamSlotModal')">Annuler</button><button class="m-btn m-btn-danger" onclick="teamRemoveSlot(${day},${idx});closeModal('teamSlotModal')" style="margin-right:auto">Supprimer</button><button class="m-btn m-btn-primary" onclick="teamConfirmEditSlot(${day},${idx})">Enregistrer</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend', m);
   guardModal(document.getElementById('teamSlotModal'), { noBackdropClose: true });
+  trapFocus(document.getElementById('teamSlotModal'), () => closeModal('teamSlotModal'));
   initTimeInputs(document.getElementById('teamSlotModal'));
 }
 

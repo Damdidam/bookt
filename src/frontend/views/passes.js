@@ -205,6 +205,7 @@ async function openCreatePass(){
   </div>`;
   document.body.appendChild(modal);
   guardModal(modal, { noBackdropClose: true });
+  trapFocus(modal, () => closeModal(modal.id));
 }
 
 function passServiceChanged(){
@@ -283,6 +284,7 @@ function openDebitPass(id){
   </div>`;
   document.body.appendChild(modal);
   guardModal(modal, { noBackdropClose: true });
+  trapFocus(modal, () => closeModal(modal.id));
 }
 
 async function debitPass(id){
@@ -339,6 +341,7 @@ async function refundPass(id){
   </div>`;
   document.body.appendChild(modal);
   guardModal(modal, { noBackdropClose: true });
+  trapFocus(modal, () => closeModal(modal.id));
 }
 
 async function submitRefundPass(id){

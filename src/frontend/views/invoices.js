@@ -179,6 +179,7 @@ async function openInvoiceModal(type='invoice',prefill={}){
   </div>`;
   document.body.appendChild(modal);
   guardModal(document.getElementById('invModal'), { noBackdropClose: true });
+  trapFocus(document.getElementById('invModal'), () => closeModal('invModal'));
   addInvoiceLine();
   updateInvTotals();
   // Pre-select client if provided

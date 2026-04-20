@@ -2,6 +2,7 @@
  * Waitlist (Liste d'attente) view module.
  */
 import { api, GendaUI, viewState } from '../state.js';
+import { trapFocus, releaseFocus } from '../utils/focus-trap.js';
 import { esc, escJs } from '../utils/dom.js';
 import { bridge } from '../utils/window-bridge.js';
 import { IC } from '../utils/icons.js';
@@ -126,6 +127,7 @@ function wlOpenAdd(){
     m+=`</div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('wlAddModal')">Annuler</button><button class="m-btn m-btn-primary" onclick="wlSaveAdd()">Ajouter</button></div></div></div>`;
     document.body.insertAdjacentHTML('beforeend',m);
     guardModal(document.getElementById('wlAddModal'), { noBackdropClose: true });
+    trapFocus(document.getElementById('wlAddModal'), () => closeModal('wlAddModal'));
     wlOnSvcChange(); // init variant picker visibility for preselected service
   });
 }
@@ -180,6 +182,7 @@ function wlOffer(entryId,clientName,pracId,svcId){
   m+=`</div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('wlOfferModal')">Annuler</button><button class="m-btn m-btn-primary" onclick="wlSendOffer('${entryId}')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Envoyer l'offre</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend',m);
   guardModal(document.getElementById('wlOfferModal'), { noBackdropClose: true });
+  trapFocus(document.getElementById('wlOfferModal'), () => closeModal('wlOfferModal'));
 }
 
 async function wlSendOffer(entryId){
@@ -286,6 +289,7 @@ function wlDetail(idx){
   m+=`</div></div></div>`;
   document.body.insertAdjacentHTML('beforeend',m);
   guardModal(document.getElementById('wlDetailModal'), { noBackdropClose: true });
+  trapFocus(document.getElementById('wlDetailModal'), () => closeModal('wlDetailModal'));
 
   // Auto-save notes on blur
   document.getElementById('wlStaffNotes')?.addEventListener('blur',function(){

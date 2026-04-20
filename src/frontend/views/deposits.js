@@ -2,6 +2,7 @@
  * Deposits (Acomptes) view module — transaction reconciliation & dispute.
  */
 import { api, GendaUI } from '../state.js';
+import { trapFocus, releaseFocus } from '../utils/focus-trap.js';
 import { bridge } from '../utils/window-bridge.js';
 import { IC } from '../utils/icons.js';
 import { guardModal } from '../utils/dirty-guard.js';
@@ -149,6 +150,7 @@ function showDepositAudit(bookingId){
   </div>`;
   document.body.appendChild(modal);
   guardModal(modal, { noBackdropClose: true });
+  trapFocus(modal, () => closeModal(modal.id));
 }
 
 // ── CSV export ──
