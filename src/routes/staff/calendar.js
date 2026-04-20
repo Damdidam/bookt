@@ -507,7 +507,7 @@ router.get('/ical/:token', icalLimiter, async (req, res) => {
  * POST /api/calendar/ical/generate — generate iCal feed URL
  * Creates a persistent "ical" connection with a secret token
  */
-router.post('/ical/generate', requireAuth, requirePro, async (req, res, next) => {
+router.post('/ical/generate', requireAuth, requirePro, blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { practitioner_id } = req.body; // null = all practitioners

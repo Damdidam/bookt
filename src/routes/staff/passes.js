@@ -293,7 +293,7 @@ router.get('/', async (req, res, next) => {
 // ============================================================
 // POST /api/passes — create pass manually (staff)
 // ============================================================
-router.post('/', async (req, res, next) => {
+router.post('/', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     if (!(await isPassesFeatureEnabled(bid))) {

@@ -95,7 +95,7 @@ router.get('/', async (req, res, next) => {
 // ============================================================
 // POST /api/gift-cards — create manually (staff)
 // ============================================================
-router.post('/', async (req, res, next) => {
+router.post('/', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     // Gate: the feature must be enabled in settings. Staff-created GCs were

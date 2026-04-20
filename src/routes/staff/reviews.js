@@ -91,7 +91,7 @@ router.get('/', async (req, res, next) => {
 // ============================================================
 // PATCH /api/reviews/:id/reply — owner replies to a review
 // ============================================================
-router.patch('/:id/reply', requireOwner, async (req, res, next) => {
+router.patch('/:id/reply', requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'ID invalide' });
 
@@ -132,7 +132,7 @@ router.patch('/:id/reply', requireOwner, async (req, res, next) => {
 // ============================================================
 // DELETE /api/reviews/:id/reply — owner deletes their reply
 // ============================================================
-router.delete('/:id/reply', requireOwner, async (req, res, next) => {
+router.delete('/:id/reply', requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'ID invalide' });
 
@@ -155,7 +155,7 @@ router.delete('/:id/reply', requireOwner, async (req, res, next) => {
 // ============================================================
 // PATCH /api/reviews/:id/flag — flag/hide an abusive review
 // ============================================================
-router.patch('/:id/flag', requireOwner, async (req, res, next) => {
+router.patch('/:id/flag', requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'ID invalide' });
 
