@@ -50,7 +50,7 @@ router.get('/', async (req, res, next) => {
 
 // PATCH /api/business — update business info
 // UI: Settings > Salon form + Onboarding bio step
-router.patch('/', requireOwner, async (req, res, next) => {
+router.patch('/', requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const {
@@ -417,7 +417,7 @@ router.get('/public-link', async (req, res, next) => {
 // ============================================================
 // POST /api/business/upload-image — Upload logo or cover image
 // ============================================================
-router.post('/upload-image', requireOwner, async (req, res, next) => {
+router.post('/upload-image', requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     const { photo, type } = req.body; // type: 'logo' | 'cover'
     if (!photo) return res.status(400).json({ error: 'Photo requise' });
@@ -479,7 +479,7 @@ router.post('/upload-image', requireOwner, async (req, res, next) => {
 // ============================================================
 // DELETE /api/business/delete-image — Remove logo or cover image
 // ============================================================
-router.delete('/delete-image/:type', requireOwner, async (req, res, next) => {
+router.delete('/delete-image/:type', requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     const { type } = req.params;
     if (!['logo', 'cover', 'about'].includes(type)) return res.status(400).json({ error: 'Type invalide' });
@@ -645,7 +645,7 @@ router.get('/sector-categories', requireAuth, async (req, res) => {
 });
 
 // POST /api/business/categories — create a custom category
-router.post('/categories', requireOwner, async (req, res, next) => {
+router.post('/categories', requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { label, description, icon_svg, color } = req.body;
@@ -679,7 +679,7 @@ router.post('/categories', requireOwner, async (req, res, next) => {
 });
 
 // PATCH /api/business/categories/reorder — batch update sort_order (MUST be before /:id)
-router.patch('/categories/reorder', requireOwner, async (req, res, next) => {
+router.patch('/categories/reorder', requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { order } = req.body;
@@ -695,7 +695,7 @@ router.patch('/categories/reorder', requireOwner, async (req, res, next) => {
 });
 
 // PATCH /api/business/categories/:id — update a custom category
-router.patch('/categories/:id', requireOwner, async (req, res, next) => {
+router.patch('/categories/:id', requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const allowed = ['label', 'description', 'icon_svg', 'sort_order', 'color'];
@@ -718,7 +718,7 @@ router.patch('/categories/:id', requireOwner, async (req, res, next) => {
 });
 
 // DELETE /api/business/categories/:id — delete a custom category
-router.delete('/categories/:id', requireOwner, async (req, res, next) => {
+router.delete('/categories/:id', requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const result = await queryWithRLS(bid,

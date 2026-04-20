@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const { queryWithRLS, transactionWithRLS } = require('../../services/db');
-const { requireAuth, requireOwner, resolvePractitionerScope } = require('../../middleware/auth');
+const { requireAuth, requireOwner, resolvePractitionerScope, blockIfImpersonated } = require('../../middleware/auth');
 const { normalizeE164 } = require('../../utils/phone');
 
 router.use(requireAuth);
@@ -145,7 +145,7 @@ router.get('/', async (req, res, next) => {
 });
 
 // POST /api/clients — quick create client (from calendar quick-create)
-router.post('/', async (req, res, next) => {
+router.post('/', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { full_name, phone, email } = req.body;
@@ -189,7 +189,7 @@ router.post('/', async (req, res, next) => {
 });
 
 // POST /api/clients/import — bulk import from CSV data
-router.post('/import', requireOwner, async (req, res, next) => {
+router.post('/import', requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { clients } = req.body;
@@ -415,7 +415,7 @@ router.get('/:id', async (req, res, next) => {
 
 // PATCH /api/clients/:id — update client
 // V11-013: Only owner can edit client details
-router.patch('/:id', requireOwner, async (req, res, next) => {
+router.patch('/:id', requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const sets = [];
@@ -514,7 +514,7 @@ router.patch('/:id', requireOwner, async (req, res, next) => {
 // ============================================================
 // POST /api/clients/:id/block — block client from online booking
 // ============================================================
-router.post('/:id/block', requireOwner, async (req, res, next) => {
+router.post('/:id/block', requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { reason } = req.body;
@@ -558,7 +558,7 @@ router.post('/:id/block', requireOwner, async (req, res, next) => {
 // ============================================================
 // POST /api/clients/:id/unblock — unblock client
 // ============================================================
-router.post('/:id/unblock', requireOwner, async (req, res, next) => {
+router.post('/:id/unblock', requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
 
@@ -598,7 +598,7 @@ router.post('/:id/unblock', requireOwner, async (req, res, next) => {
 // ============================================================
 // POST /api/clients/:id/reset-noshow — reset no-show counter
 // ============================================================
-router.post('/:id/reset-noshow', requireOwner, async (req, res, next) => {
+router.post('/:id/reset-noshow', requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
 
@@ -641,7 +641,7 @@ router.post('/:id/reset-noshow', requireOwner, async (req, res, next) => {
 // ============================================================
 // POST /api/clients/:id/reset-expired — reset expired pending counter
 // ============================================================
-router.post('/:id/reset-expired', requireOwner, async (req, res, next) => {
+router.post('/:id/reset-expired', requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
 

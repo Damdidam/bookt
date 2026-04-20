@@ -140,7 +140,7 @@ router.get('/me', async (req, res, next) => {
 // ============================================================
 // PATCH /api/practitioners/me — update own profile (limited fields)
 // ============================================================
-router.patch('/me', async (req, res, next) => {
+router.patch('/me', blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const pracId = req.user.practitionerId;
@@ -177,7 +177,7 @@ router.patch('/me', async (req, res, next) => {
 // Accepts: { photo: "data:image/jpeg;base64,..." }
 // Saves to UPLOADS_BASE/practitioners/<id>.<ext> (env UPLOADS_DIR or default public/uploads)
 // ============================================================
-router.post('/:id/photo', requireOwner, async (req, res, next) => {
+router.post('/:id/photo', requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
@@ -229,7 +229,7 @@ router.post('/:id/photo', requireOwner, async (req, res, next) => {
 });
 
 // DELETE photo
-router.delete('/:id/photo', requireOwner, async (req, res, next) => {
+router.delete('/:id/photo', requireOwner, blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
