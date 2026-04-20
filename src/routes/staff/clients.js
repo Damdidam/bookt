@@ -462,6 +462,20 @@ router.patch('/:id', requireOwner, async (req, res, next) => {
 
     if (sets.length === 0) return res.status(400).json({ error: 'Aucun champ à modifier' });
 
+    // P1-04 RGPD art.30 : capturer l'état avant UPDATE pour tracer exactement
+    // quels champs ont été modifiés (email/phone/notes/consent_*/is_vip/birthday).
+    // Sans ça, aucune preuve que le pro a bien eu le consentement avant d'éditer
+    // les données client.
+    const auditKeys = Object.keys(req.body).filter(k => k in fieldMap);
+    let beforeRow = null;
+    if (auditKeys.length > 0) {
+      const beforeRes = await queryWithRLS(bid,
+        `SELECT ${auditKeys.map(k => fieldMap[k]).join(', ')} FROM clients WHERE id = $1 AND business_id = $2`,
+        [req.params.id, bid]
+      );
+      beforeRow = beforeRes.rows[0] || null;
+    }
+
     sets.push('updated_at = NOW()');
     params.push(req.params.id, bid);
 
@@ -473,6 +487,24 @@ router.patch('/:id', requireOwner, async (req, res, next) => {
     );
 
     if (result.rows.length === 0) return res.status(404).json({ error: 'Client introuvable' });
+
+    // P1-04 RGPD : audit log de chaque modification client.
+    if (beforeRow && auditKeys.length > 0) {
+      try {
+        const oldData = {};
+        const newData = { actor_email: req.user.email, impersonated_by: req.user.impersonatedBy || null };
+        for (const k of auditKeys) {
+          oldData[k] = beforeRow[fieldMap[k]];
+          newData[k] = req.body[k];
+        }
+        await queryWithRLS(bid,
+          `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
+           VALUES ($1, $2, 'client', $3, 'client_update', $4, $5)`,
+          [bid, req.user.id, req.params.id, JSON.stringify(oldData), JSON.stringify(newData)]
+        );
+      } catch (e) { console.error('[AUDIT] client_update audit insert failed:', e.message); }
+    }
+
     res.json({ client: result.rows[0] });
   } catch (err) {
     next(err);
@@ -515,9 +547,9 @@ router.post('/:id/block', requireOwner, async (req, res, next) => {
          VALUES ($1, $2, 'client', $3, 'client_blocked', $4, $5)`,
         [bid, req.user.id, req.params.id,
          JSON.stringify({ is_blocked: before.rows[0]?.is_blocked || false, blocked_reason: before.rows[0]?.blocked_reason || null }),
-         JSON.stringify({ is_blocked: true, blocked_reason: finalReason, actor_email: req.user.email })]
+         JSON.stringify({ is_blocked: true, blocked_reason: finalReason, actor_email: req.user.email, impersonated_by: req.user.impersonatedBy || null })]
       );
-    } catch (_) {}
+    } catch (e) { console.error('[AUDIT] client action audit insert failed:', e.message); }
 
     res.json({ blocked: true, client: result.rows[0] });
   } catch (err) { next(err); }
@@ -555,9 +587,9 @@ router.post('/:id/unblock', requireOwner, async (req, res, next) => {
          VALUES ($1, $2, 'client', $3, 'client_unblocked', $4, $5)`,
         [bid, req.user.id, req.params.id,
          JSON.stringify({ is_blocked: before.rows[0]?.is_blocked || false, blocked_reason: before.rows[0]?.blocked_reason || null }),
-         JSON.stringify({ is_blocked: false, actor_email: req.user.email })]
+         JSON.stringify({ is_blocked: false, actor_email: req.user.email, impersonated_by: req.user.impersonatedBy || null })]
       );
-    } catch (_) {}
+    } catch (e) { console.error('[AUDIT] client action audit insert failed:', e.message); }
 
     res.json({ unblocked: true, client: result.rows[0] });
   } catch (err) { next(err); }
@@ -598,9 +630,9 @@ router.post('/:id/reset-noshow', requireOwner, async (req, res, next) => {
          VALUES ($1, $2, 'client', $3, 'client_reset_noshow', $4, $5)`,
         [bid, req.user.id, req.params.id,
          JSON.stringify({ no_show_count: before.rows[0]?.no_show_count || 0, is_blocked: before.rows[0]?.is_blocked || false }),
-         JSON.stringify({ no_show_count: 0, is_blocked: false, actor_email: req.user.email })]
+         JSON.stringify({ no_show_count: 0, is_blocked: false, actor_email: req.user.email, impersonated_by: req.user.impersonatedBy || null })]
       );
-    } catch (_) {}
+    } catch (e) { console.error('[AUDIT] client action audit insert failed:', e.message); }
 
     res.json({ reset: true, client: result.rows[0] });
   } catch (err) { next(err); }
@@ -637,9 +669,9 @@ router.post('/:id/reset-expired', requireOwner, async (req, res, next) => {
          VALUES ($1, $2, 'client', $3, 'client_reset_expired', $4, $5)`,
         [bid, req.user.id, req.params.id,
          JSON.stringify({ expired_pending_count: before.rows[0]?.expired_pending_count || 0 }),
-         JSON.stringify({ expired_pending_count: 0, actor_email: req.user.email })]
+         JSON.stringify({ expired_pending_count: 0, actor_email: req.user.email, impersonated_by: req.user.impersonatedBy || null })]
       );
-    } catch (_) {}
+    } catch (e) { console.error('[AUDIT] client action audit insert failed:', e.message); }
 
     res.json({ reset: true, client: result.rows[0] });
   } catch (err) { next(err); }
