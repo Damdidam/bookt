@@ -519,22 +519,37 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         }
 
         // Pre-compute per-slot LM discount eligibility + prices after LM (needed for promo + deposit)
+        // P2-04 perf : batch SELECT service_variants + services.promo_eligible en UNE query
+        // au lieu de 2×N round-trips dans la loop (hot path public, N=chainedSlots.length).
+        const variantIds = [...new Set(chainedSlots.map(s => s.service_variant_id).filter(Boolean))];
+        const serviceIdsForPromo = [...new Set(chainedSlots.map(s => s.service_id))];
+        const [variantPricesRes, servicePromoElgRes] = await Promise.all([
+          variantIds.length > 0
+            ? client.query(`SELECT id, price_cents FROM service_variants WHERE id = ANY($1::uuid[])`, [variantIds])
+            : Promise.resolve({ rows: [] }),
+          multiDiscountPct
+            ? client.query(`SELECT id, promo_eligible FROM services WHERE id = ANY($1::uuid[])`, [serviceIdsForPromo])
+            : Promise.resolve({ rows: [] })
+        ]);
+        const variantPriceMap = new Map(variantPricesRes.rows.map(r => [r.id, r.price_cents]));
+        const servicePromoMap = new Map(servicePromoElgRes.rows.map(r => [r.id, r.promo_eligible]));
+
         const slotDiscounts = []; // one per chainedSlot
         const slotBookedPrices = []; // effective price per slot (after LM discount)
         let totalPriceAfterLm = 0;
         const servicePricesAfterLm = {};
         for (const slot of chainedSlots) {
           let slotDiscount = null;
-          // Resolve effective price for this slot (variant or service)
+          // Resolve effective price for this slot (variant or service) — via Map cache.
           const svcMatch = multiServices.find(s => s.id === slot.service_id);
           let effPrice = svcMatch?.price_cents || 0;
-          if (slot.service_variant_id) {
-            const _vp = await client.query(`SELECT price_cents FROM service_variants WHERE id = $1`, [slot.service_variant_id]);
-            if (_vp.rows[0]?.price_cents != null) effPrice = _vp.rows[0].price_cents;
+          if (slot.service_variant_id && variantPriceMap.has(slot.service_variant_id)) {
+            const vp = variantPriceMap.get(slot.service_variant_id);
+            if (vp != null) effPrice = vp;
           }
           if (multiDiscountPct) {
-            const _pe = await client.query(`SELECT promo_eligible FROM services WHERE id = $1`, [slot.service_id]);
-            if (_pe.rows[0]?.promo_eligible !== false) {
+            const promoEligible = servicePromoMap.has(slot.service_id) ? servicePromoMap.get(slot.service_id) : true;
+            if (promoEligible !== false) {
               const lmMinPrice = bizSettings.last_minute_min_price_cents || 0;
               if (effPrice > 0 && effPrice >= lmMinPrice) slotDiscount = multiDiscountPct;
             }
