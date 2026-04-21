@@ -197,7 +197,7 @@ app.use(async (req, res, next) => {
       req.url = newPath + (req._parsedUrl?.search || '');
     }
   } catch (e) {
-    console.warn('[custom-domain] resolver error:', e.message);
+    console.error('[custom-domain] resolver error for host %s: %s', host, e.message);
   }
   next();
 });

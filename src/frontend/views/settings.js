@@ -1152,7 +1152,10 @@ async function changePassword(){
   try{const r=await fetch('/api/auth/change-password',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({current_password:cur,new_password:nw})});
     if(!r.ok)throw new Error((await r.json()).error);
     document.getElementById('s_pwd_current').value='';document.getElementById('s_pwd_new').value='';document.getElementById('s_pwd_confirm').value='';
-    GendaUI.toast('Mot de passe modifié','success');
+    GendaUI.toast('Mot de passe modifié. Reconnexion nécessaire...','success');
+    // Le serveur bump token_version → le JWT courant est maintenant caduc.
+    // Forcer logout + redirect /login sinon toute requête suivante renvoie 401.
+    setTimeout(()=>api.logout(),1500);
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 
