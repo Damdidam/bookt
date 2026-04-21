@@ -4,7 +4,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { query, pool } = require('../../services/db');
 const { authLimiter } = require('../../middleware/rate-limiter');
-const { requireAuth } = require('../../middleware/auth');
+const { requireAuth, blockIfImpersonated } = require('../../middleware/auth');
 const { sendEmail, buildEmailHTML, escHtml } = require('../../services/email');
 
 // H#16 v3: REAL dummy bcrypt hash (60 chars, valid base64 alphabet).
@@ -283,7 +283,7 @@ router.get('/me', requireAuth, async (req, res, next) => {
 // Change password (requires current password)
 // UI: Settings > Sécurité
 // ============================================================
-router.post('/change-password', authLimiter, requireAuth, async (req, res, next) => {
+router.post('/change-password', authLimiter, requireAuth, blockIfImpersonated, async (req, res, next) => {
   try {
     const { current_password, new_password } = req.body;
     if (!current_password || !new_password) {

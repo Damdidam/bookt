@@ -778,6 +778,13 @@ router.delete('/:id', requireOwner, blockIfImpersonated, async (req, res, next) 
           [bid, origEmail]
         );
       } catch (e) { console.error('[RGPD] notifications email cascade:', e.message); }
+      try {
+        await queryWithRLS(bid,
+          `UPDATE pre_rdv_sends SET email_to = NULL
+           WHERE business_id = $1 AND LOWER(email_to) = $2`,
+          [bid, origEmail]
+        );
+      } catch (e) { console.error('[RGPD] pre_rdv_sends cascade:', e.message); }
     }
     if (origPhone) {
       try {
