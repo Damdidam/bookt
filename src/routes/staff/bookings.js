@@ -39,13 +39,21 @@ router.get('/', async (req, res, next) => {
              sv.name AS variant_name, sv.duration_min AS variant_duration_min, sv.price_cents AS variant_price_cents,
              p.id AS practitioner_id, p.display_name AS practitioner_name, p.color AS practitioner_color,
              c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email, c.is_vip AS client_is_vip, c.notes AS client_notes,
-             (SELECT COUNT(*) FROM booking_notes bn WHERE bn.booking_id = b.id)::int AS notes_count,
-             (SELECT bn2.content FROM booking_notes bn2 WHERE bn2.booking_id = b.id ORDER BY bn2.is_pinned DESC, bn2.created_at DESC LIMIT 1) AS first_note
+             bn_stats.notes_count,
+             bn_stats.first_note
       FROM bookings b
       LEFT JOIN services s ON s.id = b.service_id
       LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
       JOIN practitioners p ON p.id = b.practitioner_id
       LEFT JOIN clients c ON c.id = b.client_id
+      -- BUG-4 perf fix : remplacer 2 correlated subqueries (COUNT + ORDER BY LIMIT 1)
+      -- par un LATERAL agrégé unique. Sur 2000 bookings = 1 pass booking_notes
+      -- au lieu de 4000 sous-queries sérielles.
+      LEFT JOIN LATERAL (
+        SELECT COUNT(*)::int AS notes_count,
+               (ARRAY_AGG(content ORDER BY is_pinned DESC, created_at DESC))[1] AS first_note
+        FROM booking_notes WHERE booking_id = b.id
+      ) bn_stats ON true
       WHERE b.business_id = $1`;
 
     const params = [bid];

@@ -46,13 +46,22 @@ router.get('/summary', async (req, res, next) => {
               sv.name AS variant_name,
               p.display_name AS practitioner_name, p.color AS practitioner_color,
               c.full_name AS client_name,
-              (SELECT COUNT(*) FROM practitioner_todos t WHERE t.booking_id = b.id AND t.is_done = false) AS todo_count,
-              (SELECT COUNT(*) FROM booking_notes n WHERE n.booking_id = b.id) AS note_count
+              COALESCE(todo_stats.todo_count, 0) AS todo_count,
+              COALESCE(note_stats.note_count, 0) AS note_count
        FROM bookings b
        LEFT JOIN services s ON s.id = b.service_id
        LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
        JOIN practitioners p ON p.id = b.practitioner_id
        LEFT JOIN clients c ON c.id = b.client_id
+       -- BUG-4 perf fix (dashboard today) : remplacer 2 correlated subqueries par LATERAL
+       -- agrégées uniques. Dashboard today affiche ~10-30 RDV → 20-60 sous-queries avant fix,
+       -- 2 LATERAL scans après fix.
+       LEFT JOIN LATERAL (
+         SELECT COUNT(*)::int AS todo_count FROM practitioner_todos WHERE booking_id = b.id AND is_done = false
+       ) todo_stats ON true
+       LEFT JOIN LATERAL (
+         SELECT COUNT(*)::int AS note_count FROM booking_notes WHERE booking_id = b.id
+       ) note_stats ON true
        WHERE b.business_id = $1
        AND DATE(b.start_at AT TIME ZONE 'Europe/Brussels') = $2
        AND b.status IN ('pending', 'confirmed', 'completed', 'pending_deposit', 'modified_pending')
