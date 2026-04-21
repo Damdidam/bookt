@@ -88,17 +88,18 @@ router.get('/summary', async (req, res, next) => {
        FROM bookings b
        LEFT JOIN services s ON s.id = b.service_id
        LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
-       -- BUG-1 perf : replace LEFT JOIN LATERAL corrélé (2 subqueries par row) par
-       -- 2 LEFT JOIN agrégés (hash join Postgres). Sur 1800 rows : ~3600 subqueries
-       -- → 2 hash scans. Gain majeur sur /analytics et /summary.
+       -- BUG-1 perf v2 : LEFT JOIN agrégés avec filter business_id — évite
+       -- over-aggregation cross-tenant sur instance multi-salons (pas de RLS
+       -- policy sur ces 2 tables). Réduit la taille du hash-build à ~1% du dataset global.
        LEFT JOIN (
          SELECT booking_id, SUM(amount_cents) AS gc_paid_cents
-         FROM gift_card_transactions WHERE type = 'debit'
+         FROM gift_card_transactions
+         WHERE type = 'debit' AND business_id = $1
          GROUP BY booking_id
        ) alt_gc ON alt_gc.booking_id = b.id
        LEFT JOIN (
          SELECT DISTINCT booking_id FROM pass_transactions
-         WHERE type = 'debit' AND sessions > 0
+         WHERE type = 'debit' AND sessions > 0 AND business_id = $1
        ) alt_pass ON alt_pass.booking_id = b.id
        WHERE b.business_id = $1
        AND b.start_at >= ($2::timestamp AT TIME ZONE 'Europe/Brussels')
@@ -315,17 +316,18 @@ router.get('/analytics', async (req, res, next) => {
        FROM bookings b
        LEFT JOIN services s ON s.id = b.service_id
        LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
-       -- BUG-1 perf : replace LEFT JOIN LATERAL corrélé (2 subqueries par row) par
-       -- 2 LEFT JOIN agrégés (hash join Postgres). Sur 1800 rows : ~3600 subqueries
-       -- → 2 hash scans. Gain majeur sur /analytics et /summary.
+       -- BUG-1 perf v2 : LEFT JOIN agrégés avec filter business_id — évite
+       -- over-aggregation cross-tenant sur instance multi-salons (pas de RLS
+       -- policy sur ces 2 tables). Réduit la taille du hash-build à ~1% du dataset global.
        LEFT JOIN (
          SELECT booking_id, SUM(amount_cents) AS gc_paid_cents
-         FROM gift_card_transactions WHERE type = 'debit'
+         FROM gift_card_transactions
+         WHERE type = 'debit' AND business_id = $1
          GROUP BY booking_id
        ) alt_gc ON alt_gc.booking_id = b.id
        LEFT JOIN (
          SELECT DISTINCT booking_id FROM pass_transactions
-         WHERE type = 'debit' AND sessions > 0
+         WHERE type = 'debit' AND sessions > 0 AND business_id = $1
        ) alt_pass ON alt_pass.booking_id = b.id
        WHERE b.business_id = $1 AND b.start_at >= ($2::timestamp AT TIME ZONE 'Europe/Brussels')
        ${pracFilter ? 'AND b.practitioner_id = $3' : ''}
@@ -362,17 +364,18 @@ router.get('/analytics', async (req, res, next) => {
        FROM bookings b
        JOIN services s ON s.id = b.service_id
        LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
-       -- BUG-1 perf : replace LEFT JOIN LATERAL corrélé (2 subqueries par row) par
-       -- 2 LEFT JOIN agrégés (hash join Postgres). Sur 1800 rows : ~3600 subqueries
-       -- → 2 hash scans. Gain majeur sur /analytics et /summary.
+       -- BUG-1 perf v2 : LEFT JOIN agrégés avec filter business_id — évite
+       -- over-aggregation cross-tenant sur instance multi-salons (pas de RLS
+       -- policy sur ces 2 tables). Réduit la taille du hash-build à ~1% du dataset global.
        LEFT JOIN (
          SELECT booking_id, SUM(amount_cents) AS gc_paid_cents
-         FROM gift_card_transactions WHERE type = 'debit'
+         FROM gift_card_transactions
+         WHERE type = 'debit' AND business_id = $1
          GROUP BY booking_id
        ) alt_gc ON alt_gc.booking_id = b.id
        LEFT JOIN (
          SELECT DISTINCT booking_id FROM pass_transactions
-         WHERE type = 'debit' AND sessions > 0
+         WHERE type = 'debit' AND sessions > 0 AND business_id = $1
        ) alt_pass ON alt_pass.booking_id = b.id
        WHERE b.business_id = $1
        AND b.status IN ('confirmed', 'completed')
@@ -411,17 +414,18 @@ router.get('/analytics', async (req, res, next) => {
        FROM bookings b
        LEFT JOIN services s ON s.id = b.service_id
        LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
-       -- BUG-1 perf : replace LEFT JOIN LATERAL corrélé (2 subqueries par row) par
-       -- 2 LEFT JOIN agrégés (hash join Postgres). Sur 1800 rows : ~3600 subqueries
-       -- → 2 hash scans. Gain majeur sur /analytics et /summary.
+       -- BUG-1 perf v2 : LEFT JOIN agrégés avec filter business_id — évite
+       -- over-aggregation cross-tenant sur instance multi-salons (pas de RLS
+       -- policy sur ces 2 tables). Réduit la taille du hash-build à ~1% du dataset global.
        LEFT JOIN (
          SELECT booking_id, SUM(amount_cents) AS gc_paid_cents
-         FROM gift_card_transactions WHERE type = 'debit'
+         FROM gift_card_transactions
+         WHERE type = 'debit' AND business_id = $1
          GROUP BY booking_id
        ) alt_gc ON alt_gc.booking_id = b.id
        LEFT JOIN (
          SELECT DISTINCT booking_id FROM pass_transactions
-         WHERE type = 'debit' AND sessions > 0
+         WHERE type = 'debit' AND sessions > 0 AND business_id = $1
        ) alt_pass ON alt_pass.booking_id = b.id
        WHERE b.business_id = $1 AND b.start_at >= ($2::timestamp AT TIME ZONE 'Europe/Brussels')
        ${pracFilter ? 'AND b.practitioner_id = $3' : ''}
