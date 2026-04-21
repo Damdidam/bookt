@@ -49,6 +49,53 @@ router.get('/providers', slotsLimiter, (req, res) => {
 });
 
 // ============================================================
+// GET /api/public/auth/pickup-cookie
+// H#18 v2: consume pickupKey from httpOnly cookie (no secret in URL).
+// DOIT rester AVANT `/:provider` sinon Express matche `pickup-cookie`
+// comme provider name et renvoie 400 "Provider inconnu" (OAuth email
+// pas pré-rempli en prod depuis commit e76a320 du 20 avril).
+// ============================================================
+router.get('/pickup-cookie', async (req, res) => {
+  try {
+    // H#18 v2 regression fix: `req.cookies` undefined (cookie-parser NOT installed
+    // in this app). server.js:309-317 a un helper `parseCookies(req)` custom mais
+    // non exporté. On duplique les 4 lignes inline pour éviter un refactor d'import.
+    const cookies = {};
+    (req.headers.cookie || '').split(';').forEach(c => {
+      const [k, v] = c.trim().split('=');
+      if (k) cookies[k] = decodeURIComponent(v || '');
+    });
+    const cookieKey = cookies.oauth_pickup;
+    if (!cookieKey) {
+      return res.status(404).json({ error: 'Aucune session OAuth en cours' });
+    }
+    const r = await query(
+      `DELETE FROM oauth_states WHERE state_key = $1 AND expires_at > NOW() RETURNING data`,
+      [cookieKey]
+    );
+    // Clear cookie immediately (one-shot consumption even on error).
+    // Path doit matcher celui du Set-Cookie — maintenant `/` (v2 regression fix).
+    res.clearCookie('oauth_pickup', { path: '/' });
+    if (r.rows.length === 0) {
+      return res.status(404).json({ error: 'Lien expiré ou déjà utilisé' });
+    }
+    const data = typeof r.rows[0].data === 'string' ? JSON.parse(r.rows[0].data) : r.rows[0].data;
+    if (!data || data.type !== 'pickup') {
+      return res.status(404).json({ error: 'Lien expiré ou déjà utilisé' });
+    }
+    res.json({
+      name: data.name || '',
+      email: data.email || '',
+      provider: data.provider,
+      provider_id: data.providerId
+    });
+  } catch (err) {
+    console.error('[OAUTH] Pickup cookie error:', err.message);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// ============================================================
 // GET /api/public/auth/:provider?slug=SLUG
 // Initiate OAuth flow — redirect to provider
 // ============================================================
@@ -115,51 +162,6 @@ router.get('/google/callback', async (req, res) => {
 // ============================================================
 router.get('/facebook/callback', async (req, res) => {
   await handleCallback('facebook', req.query, null, req, res);
-});
-
-// ============================================================
-// GET /api/public/auth/pickup-cookie
-// H#18 v2: consume pickupKey from httpOnly cookie (no secret in URL).
-// Replaces /pickup/:key — frontend calls this with no arg, cookie provides key.
-// ============================================================
-router.get('/pickup-cookie', async (req, res) => {
-  try {
-    // H#18 v2 regression fix: `req.cookies` undefined (cookie-parser NOT installed
-    // in this app). server.js:309-317 a un helper `parseCookies(req)` custom mais
-    // non exporté. On duplique les 4 lignes inline pour éviter un refactor d'import.
-    const cookies = {};
-    (req.headers.cookie || '').split(';').forEach(c => {
-      const [k, v] = c.trim().split('=');
-      if (k) cookies[k] = decodeURIComponent(v || '');
-    });
-    const cookieKey = cookies.oauth_pickup;
-    if (!cookieKey) {
-      return res.status(404).json({ error: 'Aucune session OAuth en cours' });
-    }
-    const r = await query(
-      `DELETE FROM oauth_states WHERE state_key = $1 AND expires_at > NOW() RETURNING data`,
-      [cookieKey]
-    );
-    // Clear cookie immediately (one-shot consumption even on error).
-    // Path doit matcher celui du Set-Cookie — maintenant `/` (v2 regression fix).
-    res.clearCookie('oauth_pickup', { path: '/' });
-    if (r.rows.length === 0) {
-      return res.status(404).json({ error: 'Lien expiré ou déjà utilisé' });
-    }
-    const data = typeof r.rows[0].data === 'string' ? JSON.parse(r.rows[0].data) : r.rows[0].data;
-    if (!data || data.type !== 'pickup') {
-      return res.status(404).json({ error: 'Lien expiré ou déjà utilisé' });
-    }
-    res.json({
-      name: data.name || '',
-      email: data.email || '',
-      provider: data.provider,
-      provider_id: data.providerId
-    });
-  } catch (err) {
-    console.error('[OAUTH] Pickup cookie error:', err.message);
-    res.status(500).json({ error: 'Erreur serveur' });
-  }
 });
 
 // ============================================================
