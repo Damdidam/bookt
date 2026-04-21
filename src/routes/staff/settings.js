@@ -423,11 +423,12 @@ router.post('/upload-image', requireOwner, blockIfImpersonated, async (req, res,
     if (!photo) return res.status(400).json({ error: 'Photo requise' });
     if (!['logo', 'cover', 'about'].includes(type)) return res.status(400).json({ error: 'Type invalide (logo, cover ou about)' });
 
-    const match = photo.match(/^data:image\/(jpeg|jpg|png|webp);base64,(.+)$/);
-    if (!match) return res.status(400).json({ error: 'Format invalide (JPEG, PNG ou WebP)' });
-
-    const ext = match[1] === 'jpg' ? 'jpeg' : match[1];
-    const buffer = Buffer.from(match[2], 'base64');
+    // P1-B : validation magic-bytes — le MIME string seul est contrôlé par l'attaquant.
+    const { parseAndValidateImageDataUri } = require('../../services/image-validation');
+    const parsed = parseAndValidateImageDataUri(photo);
+    if (!parsed) return res.status(400).json({ error: 'Format invalide (JPEG, PNG ou WebP) ou contenu corrompu' });
+    const ext = parsed.type;
+    const buffer = parsed.buffer;
     const maxSize = type === 'logo' ? 1 * 1024 * 1024 : 2 * 1024 * 1024;
     if (buffer.length > maxSize) return res.status(400).json({ error: `Image trop lourde (max ${type === 'logo' ? '1' : '2'} Mo)` });
 

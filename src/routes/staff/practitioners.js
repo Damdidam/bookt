@@ -188,11 +188,12 @@ router.post('/:id/photo', requireOwner, blockIfImpersonated, async (req, res, ne
     const pracCheck = await queryWithRLS(bid, `SELECT id FROM practitioners WHERE id = $1 AND business_id = $2`, [id, bid]);
     if (pracCheck.rows.length === 0) return res.status(404).json({ error: 'Praticien introuvable' });
 
-    const match = photo.match(/^data:image\/(jpeg|jpg|png|webp);base64,(.+)$/);
-    if (!match) return res.status(400).json({ error: 'Format invalide (JPEG, PNG ou WebP requis)' });
-
-    const ext = match[1] === 'jpg' ? 'jpeg' : match[1];
-    const buffer = Buffer.from(match[2], 'base64');
+    // P1-B : validation magic-bytes.
+    const { parseAndValidateImageDataUri } = require('../../services/image-validation');
+    const parsed = parseAndValidateImageDataUri(photo);
+    if (!parsed) return res.status(400).json({ error: 'Format invalide (JPEG, PNG ou WebP) ou contenu corrompu' });
+    const ext = parsed.type;
+    const buffer = parsed.buffer;
 
     if (buffer.length > 2 * 1024 * 1024) {
       return res.status(400).json({ error: 'Photo trop lourde (max 2 Mo)' });
