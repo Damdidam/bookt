@@ -160,9 +160,11 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
             }
             cancelResult = await txClient.query(`SELECT * FROM bookings WHERE id = $1`, [postCancelBkFinal.id]);
           } else {
+            // Promoted out of try/catch so reportError below can reference it safely
+            // (avoids ReferenceError if require('stripe') throws before _piId is declared).
+            let _piId = _piRaw;
             try {
               const _stripe = require('stripe')(_stripeKey);
-              let _piId = _piRaw;
               if (_piId.startsWith('cs_')) {
                 const _sess = await _stripe.checkout.sessions.retrieve(_piId);
                 _piId = _sess.payment_intent;
@@ -732,9 +734,10 @@ router.post('/booking/:token/reject', async (req, res, next) => {
             }
             result = await txClient.query(`SELECT * FROM bookings WHERE id = $1`, [rejBkFinal.id]);
           } else {
+            // Promoted for safe ref in catch → reportError.
+            let _piId = _piRaw;
             try {
               const _stripe = require('stripe')(_stripeKey);
-              let _piId = _piRaw;
               if (_piId.startsWith('cs_')) { const _s = await _stripe.checkout.sessions.retrieve(_piId); _piId = _s.payment_intent; }
               if (_piId && _piId.startsWith('pi_')) {
                 // B1 fix: reject = staff-initiated modification refused by client. Per commit L498-501
@@ -1291,9 +1294,10 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
             }
             cancelResult = await txClient2.query(`SELECT * FROM bookings WHERE id = $1`, [cancelBkFinal.id]);
           } else {
+            // Promoted for safe ref in catch → reportError.
+            let _piId = _piRaw;
             try {
               const _stripe = require('stripe')(_stripeKey);
-              let _piId = _piRaw;
               if (_piId.startsWith('cs_')) { const _s = await _stripe.checkout.sessions.retrieve(_piId); _piId = _s.payment_intent; }
               if (_piId && _piId.startsWith('pi_')) {
                 const _rp = bk.business_settings?.refund_policy || 'full';

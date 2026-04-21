@@ -803,9 +803,10 @@ router.delete('/:id', requireOwner, blockIfImpersonated, async (req, res, next) 
         // Stripe refund si deposit paid via pi_/cs_
         if (bk.deposit_status === 'paid' && bk.deposit_payment_intent_id && _stripeKeyPrac &&
             (bk.deposit_payment_intent_id.startsWith('pi_') || bk.deposit_payment_intent_id.startsWith('cs_'))) {
+          // Promoted for safe ref in catch → reportError.
+          let _piId = bk.deposit_payment_intent_id;
           try {
             const _s = require('stripe')(_stripeKeyPrac);
-            let _piId = bk.deposit_payment_intent_id;
             if (_piId.startsWith('cs_')) {
               const _sess = await _s.checkout.sessions.retrieve(_piId);
               _piId = _sess.payment_intent;
