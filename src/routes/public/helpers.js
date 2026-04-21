@@ -318,21 +318,36 @@ async function validateAndCalcPromo(txClient, businessId, promotionId, serviceId
 
 /**
  * Decrement promo current_uses when a booking with a promo is cancelled.
- * Safe to call multiple times — only decrements once per booking.
+ * P2-01 fix : idempotence VRAIE via flag `bookings.promo_decremented_at` (v83).
+ * Avant : UPDATE brut sans guard → double-appel décrémentait 2× → promo épuisée
+ * redevient dispo à tort.
+ * Maintenant : UPDATE ... WHERE promo_decremented_at IS NULL RETURNING id
+ * atomique — si déjà fait, rowCount=0 → skip.
  */
 async function decrementPromoUsage(bookingId, dbClient) {
   const q = dbClient ? dbClient.query.bind(dbClient) : require('../../services/db').query;
-  // Check primary booking first
-  let bk = await q(`SELECT promotion_id, business_id, group_id FROM bookings WHERE id = $1 AND promotion_id IS NOT NULL`, [bookingId]);
-  // If primary has no promo but is part of a group, check siblings (promo may be on a non-primary sibling)
+  // Check primary booking first — résoudre la row qui porte la promo + son id.
+  let bk = await q(`SELECT id, promotion_id, business_id, group_id FROM bookings WHERE id = $1 AND promotion_id IS NOT NULL`, [bookingId]);
+  // Si primary n'a pas de promo mais fait partie d'un groupe, check siblings.
   if (bk.rows.length === 0) {
     const grp = await q(`SELECT group_id FROM bookings WHERE id = $1`, [bookingId]);
     if (grp.rows[0]?.group_id) {
-      bk = await q(`SELECT promotion_id, business_id FROM bookings WHERE group_id = $1 AND promotion_id IS NOT NULL LIMIT 1`, [grp.rows[0].group_id]);
+      bk = await q(`SELECT id, promotion_id, business_id FROM bookings WHERE group_id = $1 AND promotion_id IS NOT NULL LIMIT 1`, [grp.rows[0].group_id]);
     }
   }
   if (bk.rows.length === 0) return;
-  const { promotion_id, business_id } = bk.rows[0];
+  const { id: promoBookingId, promotion_id, business_id } = bk.rows[0];
+
+  // Atomic check-and-set : UPDATE seulement si pas encore décrémenté.
+  // RETURNING id → rowCount=1 si flag posé maintenant, 0 si déjà posé avant.
+  const flag = await q(
+    `UPDATE bookings SET promo_decremented_at = NOW()
+     WHERE id = $1 AND promo_decremented_at IS NULL
+     RETURNING id`,
+    [promoBookingId]
+  );
+  if (flag.rowCount === 0) return; // Already decremented by another path — skip.
+
   await q(`UPDATE promotions SET current_uses = GREATEST(current_uses - 1, 0) WHERE id = $1 AND business_id = $2`, [promotion_id, business_id]);
 }
 
