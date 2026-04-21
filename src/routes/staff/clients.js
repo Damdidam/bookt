@@ -787,6 +787,21 @@ router.delete('/:id', requireOwner, blockIfImpersonated, async (req, res, next) 
           [bid, origPhone]
         );
       } catch (e) { console.error('[RGPD] notifications phone cascade:', e.message); }
+      // v4 : call_logs (numéro appelant) + call_voicemails (numéro + transcription audio)
+      try {
+        await queryWithRLS(bid,
+          `UPDATE call_logs SET from_phone = NULL
+           WHERE business_id = $1 AND from_phone = $2`,
+          [bid, origPhone]
+        );
+      } catch (e) { console.error('[RGPD] call_logs cascade:', e.message); }
+      try {
+        await queryWithRLS(bid,
+          `UPDATE call_voicemails SET from_phone = NULL, transcription = NULL
+           WHERE business_id = $1 AND from_phone = $2`,
+          [bid, origPhone]
+        );
+      } catch (e) { console.error('[RGPD] call_voicemails cascade:', e.message); }
     }
 
     // Audit log — preuve vitale RGPD art.5(2) accountability.
