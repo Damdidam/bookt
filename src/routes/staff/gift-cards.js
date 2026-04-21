@@ -338,7 +338,8 @@ router.post('/:id/refund', blockIfImpersonated, async (req, res, next) => {
             stripeRefundCents = 0;
           } else {
             // Stripe must succeed before we credit the balance — keep everything as-is, return error
-            console.error('[GC REFUND] Stripe refund failed:', stripeErr.message);
+            const { reportError } = require('../../services/error-reporter');
+            reportError(stripeErr, { tag: 'GC_REFUND', gcId: id, piId });
             throw Object.assign(new Error(`Remboursement Stripe échoué : ${stripeErr.message}`), { status: 502 });
           }
         }

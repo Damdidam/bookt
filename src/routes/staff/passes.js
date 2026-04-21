@@ -633,7 +633,8 @@ router.post('/:id/refund-full', blockIfImpersonated, async (req, res, next) => {
             console.warn(`[PASS REFUND-FULL] Stripe says already refunded for pass ${id} — proceeding with status update`);
           } else {
             // RULE #4: Stripe must succeed before we mark the pass refunded — keep status, return error
-            console.error('[PASS REFUND-FULL] Stripe refund failed:', stripeErr.message);
+            const { reportError } = require('../../services/error-reporter');
+            reportError(stripeErr, { tag: 'PASS_REFUND_FULL', passId: id, piId });
             throw Object.assign(new Error(`Remboursement Stripe échoué : ${stripeErr.message}`), { status: 502 });
           }
         }

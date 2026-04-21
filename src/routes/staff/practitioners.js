@@ -818,7 +818,10 @@ router.delete('/:id', requireOwner, blockIfImpersonated, async (req, res, next) 
               );
             }
           } catch (e) {
-            if (e.code !== 'charge_already_refunded') console.warn(`[PRAC DEL] Stripe refund ${bk.id}:`, e.message);
+            if (e.code !== 'charge_already_refunded') {
+              const { reportError } = require('../../services/error-reporter');
+              reportError(e, { tag: 'PRAC_DEL_REFUND', bookingId: bk.id, piId: _piId });
+            }
           }
         }
         // calSyncDelete + email queue : skippés pour orphelins (déjà faits

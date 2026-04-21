@@ -207,7 +207,8 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
               }
             } catch (_stripeErr) {
               if (_stripeErr.code !== 'charge_already_refunded') {
-                console.error('[PUBLIC CANCEL] Stripe refund failed — deposit retained:', _stripeErr.message);
+                const { reportError } = require('../../services/error-reporter');
+                reportError(_stripeErr, { tag: 'PUBLIC_CANCEL_REFUND', bookingId: postCancelBkFinal.id, piId: _piId });
                 // R3 fix: reset netRefundCents=0 pour éviter email menteur sur montant calculé
                 // (était assigné à _netRefund ligne 173 avant le fail).
                 publicCancelNetRefundCents = 0;
@@ -744,7 +745,8 @@ router.post('/booking/:token/reject', async (req, res, next) => {
               }
             } catch (_e) {
               if (_e.code !== 'charge_already_refunded') {
-                console.error('[REJECT] Stripe refund failed — deposit retained:', _e.message);
+                const { reportError } = require('../../services/error-reporter');
+                reportError(_e, { tag: 'REJECT_REFUND', bookingId: rejBkFinal.id, piId: _piId });
                 rejectRetentionReason = 'stripe_failure';
                 rejectNetRefundCents = 0;
                 await txClient.query(`UPDATE bookings SET deposit_status = 'cancelled' WHERE id = $1`, [rejBkFinal.id]);
@@ -1330,7 +1332,8 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
               }
             } catch (_e) {
               if (_e.code !== 'charge_already_refunded') {
-                console.error('[CANCEL-BOOKING] Stripe refund failed — deposit retained:', _e.message);
+                const { reportError } = require('../../services/error-reporter');
+                reportError(_e, { tag: 'CANCEL_BOOKING_REFUND', bookingId: cancelBkFinal.id, piId: _piId });
                 await txClient2.query(`UPDATE bookings SET deposit_status = 'cancelled' WHERE id = $1`, [cancelBkFinal.id]);
                 if (bk.group_id) {
                   await txClient2.query(
