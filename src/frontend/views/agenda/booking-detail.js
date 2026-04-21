@@ -1355,15 +1355,18 @@ async function _toggleLockAndSave() {
       body: JSON.stringify({ locked })
     });
     if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || 'Erreur'); }
-    // For grouped bookings, lock/unlock ALL siblings too
-    const siblings = calState.fcDetailData?.group_siblings || [];
-    for (const sib of siblings) {
-      if (sib.id === bookingId) continue;
-      await fetch(`/api/bookings/${sib.id}/edit`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
-        body: JSON.stringify({ locked })
-      }).catch(() => {});
+    // For grouped bookings, lock/unlock ALL siblings too.
+    // B5-fix : Promise.all parallel au lieu de await sérial → groupe 10 RDV
+    // passe de ~3s à ~300ms côté user.
+    const siblings = (calState.fcDetailData?.group_siblings || []).filter(s => s.id !== bookingId);
+    if (siblings.length > 0) {
+      await Promise.all(siblings.map(sib =>
+        fetch(`/api/bookings/${sib.id}/edit`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+          body: JSON.stringify({ locked })
+        }).catch(() => {})
+      ));
     }
     if (hidden) hidden.value = locked ? 'true' : 'false';
     if (calState.fcEditOriginal) calState.fcEditOriginal.locked = locked;

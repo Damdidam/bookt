@@ -102,11 +102,13 @@ async function soLoadAbsences() {
       months.add(parts[0] + '-' + parts[1]);
     }
     const headers = { 'Authorization': 'Bearer ' + api.getToken() };
-    const all = [];
-    for (const m of months) {
-      const resp = await fetch('/api/planning/absences?month=' + m, { headers });
-      if (resp.ok) { const data = await resp.json(); if (data.absences) all.push(...data.absences); }
-    }
+    // B5-fix : Promise.all parallel au lieu de await sérial par mois.
+    const monthResults = await Promise.all(Array.from(months).map(m =>
+      fetch('/api/planning/absences?month=' + m, { headers })
+        .then(r => r.ok ? r.json().catch(() => ({})) : {})
+        .catch(() => ({}))
+    ));
+    const all = monthResults.flatMap(d => d.absences || []);
     const seen = new Set();
     S.absences = all.filter(a => { if (seen.has(a.id)) return false; seen.add(a.id); return true; });
   } catch (e) {
@@ -127,11 +129,14 @@ async function soLoadHolidays() {
     if (S.calYear != null) years.add(S.calYear);
     if (S.dateFilter !== 'all') years.add(parseInt(S.dateFilter.split('-')[0]));
     const headers = { 'Authorization': 'Bearer ' + api.getToken() };
+    // B5-fix : Promise.all parallel au lieu de await sérial par année.
+    const yearResults = await Promise.all(Array.from(years).map(y =>
+      fetch('/api/availabilities/holidays?year=' + y, { headers })
+        .then(r => r.ok ? r.json().catch(() => []) : [])
+        .catch(() => [])
+    ));
     const set = new Set();
-    for (const y of years) {
-      const resp = await fetch('/api/availabilities/holidays?year=' + y, { headers });
-      if (resp.ok) { const data = await resp.json(); (data || []).forEach(h => { if (h.date) set.add(h.date.slice(0, 10)); }); }
-    }
+    yearResults.flat().forEach(h => { if (h && h.date) set.add(h.date.slice(0, 10)); });
     S.holidays = set;
   } catch (e) {
     console.warn('SO: failed to load holidays', e);

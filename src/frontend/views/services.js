@@ -303,9 +303,10 @@ async function saveCategory(catId,oldLabel){
     if(oldLabel&&oldLabel!==name)updates.category=name;
     if(color&&color!==(catMeta[srcLabel]?.color||null))updates.color=color;
     if(Object.keys(updates).length>0){
-      for(const s of svcsToUpdate){
-        await fetch(`/api/services/${s.id}`,{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(updates)});
-      }
+      // B5-fix : Promise.all parallel au lieu de await sérial.
+      await Promise.all(svcsToUpdate.map(s =>
+        fetch(`/api/services/${s.id}`,{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(updates)})
+      ));
     }
     document.getElementById('catModalOverlay')?._dirtyGuard?.markClean(); closeModal('catModalOverlay');
     GendaUI.toast(oldLabel?'Catégorie modifiée':'Catégorie créée','success');
@@ -321,10 +322,12 @@ async function svcDeleteCategory(cat){
     :`Supprimer la catégorie "${cat}" (vide) ?`;
   if(!(await showConfirmDialog(msg)))return;
   try{
-    let errors=0;
-    for(const s of svcsInCat){
-      try{const r=await fetch(`/api/services/${s.id}`,{method:'DELETE',headers:{'Authorization':'Bearer '+api.getToken()}});if(!r.ok)errors++;}catch(e){errors++;}
-    }
+    // B5-fix : Promise.all parallel.
+    const results = await Promise.all(svcsInCat.map(s =>
+      fetch(`/api/services/${s.id}`,{method:'DELETE',headers:{'Authorization':'Bearer '+api.getToken()}})
+        .then(r => r.ok ? 0 : 1).catch(() => 1)
+    ));
+    const errors = results.reduce((a, b) => a + b, 0);
     const bizCat=allSectorCats.find(c=>c.label===cat&&(c.source==='custom'||c.id));
     if(bizCat?.id){await fetch(`/api/business/categories/${bizCat.id}`,{method:'DELETE',headers:{'Authorization':'Bearer '+api.getToken()}}).catch(()=>{});}
     if(errors>0)GendaUI.toast(`${errors} erreur(s) lors de la suppression`,'error');
