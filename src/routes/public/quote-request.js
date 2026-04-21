@@ -78,16 +78,23 @@ router.post('/:slug/quote-request', bookingLimiter, async (req, res, next) => {
       const { ensureSubdir } = require('../../services/uploads');
       const uploadDir = ensureSubdir('quotes');
 
+      // P1-B/P0-public : validation magic-bytes via helper centralisé.
+      // Endpoint PUBLIC non-auth → risque XSS / storage pollution si contenu
+      // non-image servi depuis /uploads/quotes/ avec extension image.
+      // Restreint aux 3 formats supportés par le helper (jpeg/png/webp) ;
+      // heic/heif/avif/gif refusés par défaut (formats obsolètes ou demandent
+      // lib supplémentaire pour magic-bytes validation).
+      const { parseAndValidateImageDataUri } = require('../../services/image-validation');
       for (let i = 0; i < toProcess.length; i++) {
         const img = toProcess[i];
         // Accept both raw base64 strings and {data, name} objects
         const raw = typeof img === 'string' ? img : img?.data;
         const origName = typeof img === 'object' ? img?.name : null;
-        const match = raw?.match(/^data:image\/(jpeg|jpg|png|webp|gif|heic|heif|avif);base64,(.+)$/);
-        if (!match) continue;
+        const parsed = parseAndValidateImageDataUri(raw);
+        if (!parsed) continue;
 
-        const ext = match[1] === 'jpg' ? 'jpeg' : match[1] === 'heif' ? 'heic' : match[1];
-        const buffer = Buffer.from(match[2], 'base64');
+        const ext = parsed.type;
+        const buffer = parsed.buffer;
 
         if (buffer.length > MAX_IMAGE_BYTES) continue;
 
