@@ -81,18 +81,25 @@ router.get('/summary', async (req, res, next) => {
           GREATEST(
             COALESCE(b.booked_price_cents, CASE WHEN COALESCE(b.discount_pct, 0) > 0 THEN ROUND(COALESCE(sv.price_cents, s.price_cents, 0) * (100 - b.discount_pct) / 100.0)::int ELSE COALESCE(sv.price_cents, s.price_cents, 0) END, 0)
             - COALESCE(b.promotion_discount_cents, 0)
-            - COALESCE(alt.gc_paid_cents, 0)
-            - CASE WHEN alt.pass_used THEN COALESCE(b.booked_price_cents, CASE WHEN COALESCE(b.discount_pct, 0) > 0 THEN ROUND(COALESCE(sv.price_cents, s.price_cents, 0) * (100 - b.discount_pct) / 100.0)::int ELSE COALESCE(sv.price_cents, s.price_cents, 0) END, 0) ELSE 0 END
+            - COALESCE(alt_gc.gc_paid_cents, 0)
+            - CASE WHEN (alt_pass.booking_id IS NOT NULL) THEN COALESCE(b.booked_price_cents, CASE WHEN COALESCE(b.discount_pct, 0) > 0 THEN ROUND(COALESCE(sv.price_cents, s.price_cents, 0) * (100 - b.discount_pct) / 100.0)::int ELSE COALESCE(sv.price_cents, s.price_cents, 0) END, 0) ELSE 0 END
           , 0)
         ) FILTER (WHERE b.status IN ('confirmed', 'completed')), 0) AS revenue_cents
        FROM bookings b
        LEFT JOIN services s ON s.id = b.service_id
        LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
-       LEFT JOIN LATERAL (
-         SELECT
-           COALESCE((SELECT SUM(amount_cents) FROM gift_card_transactions WHERE booking_id = b.id AND type = 'debit'), 0) AS gc_paid_cents,
-           EXISTS(SELECT 1 FROM pass_transactions WHERE booking_id = b.id AND type = 'debit' AND sessions > 0) AS pass_used
-       ) alt ON true
+       -- BUG-1 perf : replace LEFT JOIN LATERAL corrélé (2 subqueries par row) par
+       -- 2 LEFT JOIN agrégés (hash join Postgres). Sur 1800 rows : ~3600 subqueries
+       -- → 2 hash scans. Gain majeur sur /analytics et /summary.
+       LEFT JOIN (
+         SELECT booking_id, SUM(amount_cents) AS gc_paid_cents
+         FROM gift_card_transactions WHERE type = 'debit'
+         GROUP BY booking_id
+       ) alt_gc ON alt_gc.booking_id = b.id
+       LEFT JOIN (
+         SELECT DISTINCT booking_id FROM pass_transactions
+         WHERE type = 'debit' AND sessions > 0
+       ) alt_pass ON alt_pass.booking_id = b.id
        WHERE b.business_id = $1
        AND b.start_at >= ($2::timestamp AT TIME ZONE 'Europe/Brussels')
        ${pracFilter ? 'AND b.practitioner_id = $3' : ''}`,
@@ -301,18 +308,25 @@ router.get('/analytics', async (req, res, next) => {
           GREATEST(
             COALESCE(b.booked_price_cents, CASE WHEN COALESCE(b.discount_pct, 0) > 0 THEN ROUND(COALESCE(sv.price_cents, s.price_cents, 0) * (100 - b.discount_pct) / 100.0)::int ELSE COALESCE(sv.price_cents, s.price_cents, 0) END, 0)
             - COALESCE(b.promotion_discount_cents, 0)
-            - COALESCE(alt.gc_paid_cents, 0)
-            - CASE WHEN alt.pass_used THEN COALESCE(b.booked_price_cents, CASE WHEN COALESCE(b.discount_pct, 0) > 0 THEN ROUND(COALESCE(sv.price_cents, s.price_cents, 0) * (100 - b.discount_pct) / 100.0)::int ELSE COALESCE(sv.price_cents, s.price_cents, 0) END, 0) ELSE 0 END
+            - COALESCE(alt_gc.gc_paid_cents, 0)
+            - CASE WHEN (alt_pass.booking_id IS NOT NULL) THEN COALESCE(b.booked_price_cents, CASE WHEN COALESCE(b.discount_pct, 0) > 0 THEN ROUND(COALESCE(sv.price_cents, s.price_cents, 0) * (100 - b.discount_pct) / 100.0)::int ELSE COALESCE(sv.price_cents, s.price_cents, 0) END, 0) ELSE 0 END
           , 0)
         ) FILTER (WHERE b.status IN ('confirmed', 'completed')), 0) AS revenue
        FROM bookings b
        LEFT JOIN services s ON s.id = b.service_id
        LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
-       LEFT JOIN LATERAL (
-         SELECT
-           COALESCE((SELECT SUM(amount_cents) FROM gift_card_transactions WHERE booking_id = b.id AND type = 'debit'), 0) AS gc_paid_cents,
-           EXISTS(SELECT 1 FROM pass_transactions WHERE booking_id = b.id AND type = 'debit' AND sessions > 0) AS pass_used
-       ) alt ON true
+       -- BUG-1 perf : replace LEFT JOIN LATERAL corrélé (2 subqueries par row) par
+       -- 2 LEFT JOIN agrégés (hash join Postgres). Sur 1800 rows : ~3600 subqueries
+       -- → 2 hash scans. Gain majeur sur /analytics et /summary.
+       LEFT JOIN (
+         SELECT booking_id, SUM(amount_cents) AS gc_paid_cents
+         FROM gift_card_transactions WHERE type = 'debit'
+         GROUP BY booking_id
+       ) alt_gc ON alt_gc.booking_id = b.id
+       LEFT JOIN (
+         SELECT DISTINCT booking_id FROM pass_transactions
+         WHERE type = 'debit' AND sessions > 0
+       ) alt_pass ON alt_pass.booking_id = b.id
        WHERE b.business_id = $1 AND b.start_at >= ($2::timestamp AT TIME ZONE 'Europe/Brussels')
        ${pracFilter ? 'AND b.practitioner_id = $3' : ''}
        GROUP BY day ORDER BY day`,
@@ -341,18 +355,25 @@ router.get('/analytics', async (req, res, next) => {
           GREATEST(
             COALESCE(b.booked_price_cents, CASE WHEN COALESCE(b.discount_pct, 0) > 0 THEN ROUND(COALESCE(sv.price_cents, s.price_cents, 0) * (100 - b.discount_pct) / 100.0)::int ELSE COALESCE(sv.price_cents, s.price_cents, 0) END, 0)
             - COALESCE(b.promotion_discount_cents, 0)
-            - COALESCE(alt.gc_paid_cents, 0)
-            - CASE WHEN alt.pass_used THEN COALESCE(b.booked_price_cents, CASE WHEN COALESCE(b.discount_pct, 0) > 0 THEN ROUND(COALESCE(sv.price_cents, s.price_cents, 0) * (100 - b.discount_pct) / 100.0)::int ELSE COALESCE(sv.price_cents, s.price_cents, 0) END, 0) ELSE 0 END
+            - COALESCE(alt_gc.gc_paid_cents, 0)
+            - CASE WHEN (alt_pass.booking_id IS NOT NULL) THEN COALESCE(b.booked_price_cents, CASE WHEN COALESCE(b.discount_pct, 0) > 0 THEN ROUND(COALESCE(sv.price_cents, s.price_cents, 0) * (100 - b.discount_pct) / 100.0)::int ELSE COALESCE(sv.price_cents, s.price_cents, 0) END, 0) ELSE 0 END
           , 0)
         ), 0) AS revenue
        FROM bookings b
        JOIN services s ON s.id = b.service_id
        LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
-       LEFT JOIN LATERAL (
-         SELECT
-           COALESCE((SELECT SUM(amount_cents) FROM gift_card_transactions WHERE booking_id = b.id AND type = 'debit'), 0) AS gc_paid_cents,
-           EXISTS(SELECT 1 FROM pass_transactions WHERE booking_id = b.id AND type = 'debit' AND sessions > 0) AS pass_used
-       ) alt ON true
+       -- BUG-1 perf : replace LEFT JOIN LATERAL corrélé (2 subqueries par row) par
+       -- 2 LEFT JOIN agrégés (hash join Postgres). Sur 1800 rows : ~3600 subqueries
+       -- → 2 hash scans. Gain majeur sur /analytics et /summary.
+       LEFT JOIN (
+         SELECT booking_id, SUM(amount_cents) AS gc_paid_cents
+         FROM gift_card_transactions WHERE type = 'debit'
+         GROUP BY booking_id
+       ) alt_gc ON alt_gc.booking_id = b.id
+       LEFT JOIN (
+         SELECT DISTINCT booking_id FROM pass_transactions
+         WHERE type = 'debit' AND sessions > 0
+       ) alt_pass ON alt_pass.booking_id = b.id
        WHERE b.business_id = $1
        AND b.status IN ('confirmed', 'completed')
        AND b.start_at >= ($2::timestamp AT TIME ZONE 'Europe/Brussels')
@@ -383,18 +404,25 @@ router.get('/analytics', async (req, res, next) => {
           GREATEST(
             COALESCE(b.booked_price_cents, CASE WHEN COALESCE(b.discount_pct, 0) > 0 THEN ROUND(COALESCE(sv.price_cents, s.price_cents, 0) * (100 - b.discount_pct) / 100.0)::int ELSE COALESCE(sv.price_cents, s.price_cents, 0) END, 0)
             - COALESCE(b.promotion_discount_cents, 0)
-            - COALESCE(alt.gc_paid_cents, 0)
-            - CASE WHEN alt.pass_used THEN COALESCE(b.booked_price_cents, CASE WHEN COALESCE(b.discount_pct, 0) > 0 THEN ROUND(COALESCE(sv.price_cents, s.price_cents, 0) * (100 - b.discount_pct) / 100.0)::int ELSE COALESCE(sv.price_cents, s.price_cents, 0) END, 0) ELSE 0 END
+            - COALESCE(alt_gc.gc_paid_cents, 0)
+            - CASE WHEN (alt_pass.booking_id IS NOT NULL) THEN COALESCE(b.booked_price_cents, CASE WHEN COALESCE(b.discount_pct, 0) > 0 THEN ROUND(COALESCE(sv.price_cents, s.price_cents, 0) * (100 - b.discount_pct) / 100.0)::int ELSE COALESCE(sv.price_cents, s.price_cents, 0) END, 0) ELSE 0 END
           , 0)
         ) FILTER (WHERE b.status IN ('confirmed', 'completed')), 0) AS revenue
        FROM bookings b
        LEFT JOIN services s ON s.id = b.service_id
        LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
-       LEFT JOIN LATERAL (
-         SELECT
-           COALESCE((SELECT SUM(amount_cents) FROM gift_card_transactions WHERE booking_id = b.id AND type = 'debit'), 0) AS gc_paid_cents,
-           EXISTS(SELECT 1 FROM pass_transactions WHERE booking_id = b.id AND type = 'debit' AND sessions > 0) AS pass_used
-       ) alt ON true
+       -- BUG-1 perf : replace LEFT JOIN LATERAL corrélé (2 subqueries par row) par
+       -- 2 LEFT JOIN agrégés (hash join Postgres). Sur 1800 rows : ~3600 subqueries
+       -- → 2 hash scans. Gain majeur sur /analytics et /summary.
+       LEFT JOIN (
+         SELECT booking_id, SUM(amount_cents) AS gc_paid_cents
+         FROM gift_card_transactions WHERE type = 'debit'
+         GROUP BY booking_id
+       ) alt_gc ON alt_gc.booking_id = b.id
+       LEFT JOIN (
+         SELECT DISTINCT booking_id FROM pass_transactions
+         WHERE type = 'debit' AND sessions > 0
+       ) alt_pass ON alt_pass.booking_id = b.id
        WHERE b.business_id = $1 AND b.start_at >= ($2::timestamp AT TIME ZONE 'Europe/Brussels')
        ${pracFilter ? 'AND b.practitioner_id = $3' : ''}
        GROUP BY month ORDER BY month`,
