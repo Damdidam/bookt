@@ -3,6 +3,7 @@
  */
 import { api } from '../state.js';
 import { bridge } from '../utils/window-bridge.js';
+import { isPro, showProGate } from '../utils/plan-gate.js';
 
 const esc=s=>s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'):'';
 
@@ -11,21 +12,8 @@ let analyticsPeriod='30d';
 async function loadAnalytics(period){
   if(period)analyticsPeriod=period;
   const c=document.getElementById('contentArea');
+  if (!isPro()) { showProGate(c, 'Statistiques'); return; }
   c.innerHTML=`<div class="loading"><div class="spinner"></div></div>`;
-
-  // Check plan — show upgrade screen for free tier
-  try {
-    const planRes = await api.get('/api/stripe/status');
-    if (planRes.plan === 'free') {
-      c.innerHTML = `<div style="text-align:center;padding:60px 20px">
-        <svg class="gi" style="width:64px;height:64px;color:var(--text-4);margin-bottom:16px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 3v18h18"/><path d="M7 16l4-8 4 4 4-6"/></svg>
-        <h2 style="margin-bottom:8px;color:var(--text-1)">Statistiques avanc\u00e9es</h2>
-        <p style="color:var(--text-3);margin-bottom:20px;max-width:400px;margin-left:auto;margin-right:auto">Analysez vos performances, revenus et tendances avec les statistiques d\u00e9taill\u00e9es du plan Pro.</p>
-        <button class="btn-primary" onclick="window.location.hash='settings'">Passer au Pro \u2014 60 \u20ac/mois</button>
-      </div>`;
-      return;
-    }
-  } catch (e) { /* proceed if check fails */ }
 
   try{
     const r=await fetch(`/api/dashboard/analytics?period=${analyticsPeriod}`,{headers:{'Authorization':'Bearer '+api.getToken()}});
