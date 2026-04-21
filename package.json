@@ -29,7 +29,8 @@
     "test:e2e:cleanup": "node scripts/test-cleanup-force.js",
     "test:e2e:nuke": "node scripts/test-nuke.js",
     "test:e2e:report": "playwright show-report tests/e2e/playwright-report",
-    "test:e2e:last-failed": "playwright test --last-failed --config=tests/e2e/playwright.config.js"
+    "test:e2e:last-failed": "playwright test --last-failed --config=tests/e2e/playwright.config.js",
+    "test:unit": "node tests/unit-services-all.test.js"
   },
   "dependencies": {
     "@fullcalendar/core": "~6.1.20",
