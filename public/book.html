@@ -1259,7 +1259,22 @@ function initPage(){
     try{
       var _ss=JSON.parse(sessionStorage.getItem('bk_state')||'null');
       if(_ss&&_ss.slug===slug&&_ss.step&&_ss.step>1){
-        if(_ss.serviceId){selectedService=siteData.services.find(function(s){return s.id===_ss.serviceId;})||null;}
+        // FE-03 fix: restore multi-services cart si mode multi sauvegardé.
+        if(_ss.multi&&Array.isArray(_ss.serviceIds)&&_ss.serviceIds.length>0){
+          selectedServices=[];
+          _ss.serviceIds.forEach(function(sid){
+            var svc=siteData.services.find(function(s){return s.id===sid;});
+            if(svc)selectedServices.push(svc);
+          });
+          if(selectedServices.length>0){
+            multiServiceMode=true;
+            selectedService=selectedServices[0];
+            if(Array.isArray(_ss.variantIdsByIdx)){selectedVariantsByIdx=_ss.variantIdsByIdx.slice();}
+            if(typeof updateCartBar==='function')updateCartBar();
+          }
+        } else if(_ss.serviceId){
+          selectedService=siteData.services.find(function(s){return s.id===_ss.serviceId;})||null;
+        }
         if(_ss.pracId){selectedPractitioner=siteData.practitioners.find(function(p){return p.id===_ss.pracId;})||null;}
         if(_ss.noPref){noPrefSelected=true;}
         if(_ss.mode){selectedMode=_ss.mode;}
@@ -2196,7 +2211,8 @@ function goToStep(n){
     history.pushState({step:n},'','');
   }
   _popstateNav=false;
-  // BK-6: persist critical state to sessionStorage
+  // BK-6 + FE-03 fix: persist state inclus multi-services (sinon refresh à step 3/4
+  // en mode multi perd cart → crash submit selectedServices.length===0).
   try{
     var ss={slug:slug,stepIdx:currentStepIdx,step:n};
     if(selectedService)ss.serviceId=selectedService.id;
@@ -2204,6 +2220,11 @@ function goToStep(n){
     if(selectedSlot)ss.slot=selectedSlot;
     if(selectedMode)ss.mode=selectedMode;
     if(noPrefSelected)ss.noPref=true;
+    if(multiServiceMode&&Array.isArray(selectedServices)&&selectedServices.length>0){
+      ss.multi=true;
+      ss.serviceIds=selectedServices.map(function(s){return s.id;});
+      ss.variantIdsByIdx=(typeof selectedVariantsByIdx!=='undefined'&&selectedVariantsByIdx)?selectedVariantsByIdx.slice():[];
+    }
     sessionStorage.setItem('bk_state',JSON.stringify(ss));
   }catch(e){}
   updateProgress();

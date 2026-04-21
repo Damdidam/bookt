@@ -454,16 +454,18 @@ async function confirmBooking() {
   try {
     const endpoint = bookingData?.booking?.status === 'pending' ? 'confirm-booking' : 'confirm';
     const r = await fetch(`/api/public/booking/${token}/${endpoint}`, { method: 'POST' });
-    if (!r.ok) throw new Error('Failed');
-
-    document.getElementById('actionButtons').style.display = 'none';
-    document.getElementById('alertBanner').style.display = 'none';
-    document.getElementById('confirmResult').style.display = 'block';
-
-    // Update status visually
-    document.getElementById('valStatus').innerHTML =
-      '<span class="status-pill st-confirmed">Confirmé</span>';
-    document.getElementById('rowDate').classList.remove('changed');
+    // FE-02 fix: 409 = booking already confirmed (double-clic / refresh after success).
+    // Traiter comme succès UX plutôt que toast erreur trompeur.
+    if (r.status === 409 || r.ok) {
+      document.getElementById('actionButtons').style.display = 'none';
+      document.getElementById('alertBanner').style.display = 'none';
+      document.getElementById('confirmResult').style.display = 'block';
+      document.getElementById('valStatus').innerHTML =
+        '<span class="status-pill st-confirmed">Confirmé</span>';
+      document.getElementById('rowDate').classList.remove('changed');
+      return;
+    }
+    throw new Error('Failed');
   } catch (e) {
     btn.disabled = false;
     btn.innerHTML = 'Ça me convient <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
@@ -492,16 +494,17 @@ async function confirmCancel() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ reason: reason || 'Annulé par le client' })
     });
-    if (!r.ok) {
-      const data = await r.json();
-      throw new Error(data.error || 'Failed');
+    // FE-02 fix: 409 = déjà annulé (double-clic / refresh) → traiter comme succès.
+    if (r.status === 409 || r.ok) {
+      document.getElementById('cancelConfirm').style.display = 'none';
+      document.getElementById('cancelResult').style.display = 'block';
+      document.getElementById('valStatus').innerHTML =
+        '<span class="status-pill st-cancelled">Annulé</span>';
+      document.getElementById('alertBanner').style.display = 'none';
+      return;
     }
-
-    document.getElementById('cancelConfirm').style.display = 'none';
-    document.getElementById('cancelResult').style.display = 'block';
-    document.getElementById('valStatus').innerHTML =
-      '<span class="status-pill st-cancelled">Annulé</span>';
-    document.getElementById('alertBanner').style.display = 'none';
+    const data = await r.json().catch(() => ({}));
+    throw new Error(data.error || 'Failed');
   } catch (e) {
     btns.forEach(b => b.disabled = false);
     showToast(e.message || 'Erreur lors de l\'annulation.', 'error');
