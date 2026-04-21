@@ -564,7 +564,9 @@ router.patch('/:id/status', blockIfImpersonated, async (req, res, next) => {
                 }
               } catch (stripeErr) {
                 if (stripeErr.code !== 'charge_already_refunded') {
-                  console.error('[DEPOSIT CANCEL REFUND] Stripe refund failed:', stripeErr.message);
+                  // P2-09: Sentry capture — money loss silent sinon.
+                  const { reportError } = require('../../services/error-reporter');
+                  reportError(stripeErr, { tag: 'DEPOSIT_CANCEL_REFUND', bookingId: id, piId: dep.deposit_payment_intent_id });
                   // Stripe refund failed — keep deposit as 'cancelled' (retained), not 'refunded'
                   newDepStatus = 'cancelled';
                   depRetentionReason = 'stripe_failure';
@@ -1330,7 +1332,9 @@ router.patch('/:id/deposit-refund', blockIfImpersonated, async (req, res, next) 
           }
         } catch (stripeErr) {
           if (stripeErr.code !== 'charge_already_refunded') {
-            console.error('[DEPOSIT REFUND] Stripe refund failed:', stripeErr.message);
+            // P2-09: Sentry capture.
+            const { reportError } = require('../../services/error-reporter');
+            reportError(stripeErr, { tag: 'DEPOSIT_REFUND_MANUAL', bookingId: id, piId });
             return { error: 500, message: 'Erreur Stripe lors du remboursement' };
           }
         }

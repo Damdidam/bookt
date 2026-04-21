@@ -1342,7 +1342,10 @@ async function handleStripeWebhook(req, res) {
       }
     }
   } catch (err) {
-    console.error('[STRIPE WH] Processing error:', err);
+    // P2-09: Sentry capture — webhook processing errors sont perte data silencieuse
+    // sans observability centralisée. reportError log + capture Sentry si DSN.
+    const { reportError } = require('../../services/error-reporter');
+    reportError(err, { tag: 'STRIPE_WH', event_type: event?.type, event_id: event?.id });
     // BUG-G fix: release the idempotence row so Stripe retries this event.
     // Without this, the event is marked processed forever even though it threw.
     if (_idemClaimed) {
