@@ -231,7 +231,10 @@ function updateInvTotals(){
   container.querySelectorAll(':scope > div').forEach(row=>{
     const qty=parseFloat(row.querySelector('.inv-qty')?.value||1);
     const price=parseFloat(row.querySelector('.inv-price')?.value||0);
-    subtotal+=qty*price*100;
+    // B3-fix : convertir en cents AVANT la multiplication — aligne sur backend
+    // (L257 `Math.round(price*100)`) et évite le drift floating-point cumulatif.
+    // Exemple avant : 0.1 * 3 * 100 = 30.000000000000004. Après : Math.round(0.1*100) * 3 = 30.
+    subtotal+=Math.round(price*100)*qty;
   });
   // Prices are TTC (Belgian standard) — extract VAT from TTC, aligned with backend
   const vat=Math.round(subtotal*vatRate/(100+vatRate));
@@ -297,9 +300,20 @@ async function deleteInvoice(id){
   }catch(e){GendaUI.toast(e.message||'Erreur','error');}
 }
 
-function downloadInvoicePDF(id){
-  const token=localStorage.getItem('genda_token');
-  window.open(`/api/invoices/${id}/pdf?token=${token}`,'_blank','noopener,noreferrer');
+async function downloadInvoicePDF(id){
+  // B4-fix : token JWT dans query param = leak dans access logs + history + Referer.
+  // Fetch via Authorization header + blob + URL.createObjectURL.
+  try{
+    const token=localStorage.getItem('genda_token');
+    const r=await fetch(`/api/invoices/${id}/pdf`,{headers:{Authorization:'Bearer '+token}});
+    if(!r.ok)throw new Error('Erreur téléchargement PDF');
+    const blob=await r.blob();
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;a.download=`invoice-${id}.pdf`;
+    document.body.appendChild(a);a.click();
+    setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url);},100);
+  }catch(e){GendaUI.toast(e.message||'Erreur téléchargement','error');}
 }
 
 // ── Credit note (BE legal compliance AR n°1 art.14) ──

@@ -376,10 +376,17 @@ async function loadAgenda() {
   if (calState.fcLocked) fcApplyLockUI();
 
   // Measure toolbar height for sticky column headers
+  // B2-fix : retirer le listener précédent avant d'en ajouter un nouveau
+  // (loadAgenda réappelé à chaque navigation → N handlers cumulés + closures
+  // qui réfèrent à l'ancien DOM détaché).
   const tb = document.querySelector('.agenda-toolbar');
   if (tb) {
+    if (window._agendaResizeHandler) {
+      window.removeEventListener('resize', window._agendaResizeHandler);
+    }
     const setToolbarH = () => c.style.setProperty('--toolbar-h', tb.offsetHeight + 'px');
     setToolbarH();
+    window._agendaResizeHandler = setToolbarH;
     window.addEventListener('resize', setToolbarH);
   }
 

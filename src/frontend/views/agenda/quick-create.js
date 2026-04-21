@@ -992,8 +992,13 @@ async function calCreateBooking() {
 /**
  * Setup global event listeners for freestyle duration auto-update.
  * Called once from index.js.
+ * B1-fix : guard contre attachement multiple (navigation Agenda↔Clients↔Agenda
+ * ajoutait 1 handler par visite → keystroke déclenchait N handlers).
  */
+let _qcListenersWired = false;
 function setupQuickCreateListeners() {
+  if (_qcListenersWired) return;
+  _qcListenersWired = true;
   document.addEventListener('change', e => {
     if (['qcFreeEnd', 'qcFreeBufBefore', 'qcFreeBufAfter'].includes(e.target?.id)) qcUpdateFreeDuration();
     // Update gradient on freestyle color change

@@ -1160,8 +1160,19 @@ async function exportData(type) {
   const label = type === 'clients' ? 'clients' : 'factures';
   GendaUI.toast(`Export ${label} en cours…`, 'info');
   try {
+    // B4-fix : token JWT dans query param = leak access logs + history + Referer.
+    // Fetch via Authorization header + blob download.
     const url = type === 'clients' ? '/api/clients/export' : '/api/invoices/export';
-    window.open(`${url}?token=${api.getToken()}`, '_blank', 'noopener,noreferrer');
+    const token = api.getToken();
+    const r = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
+    if (!r.ok) throw new Error('Erreur export');
+    const blob = await r.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = `${type}-${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(blobUrl); }, 100);
   } catch (e) { GendaUI.toast('Erreur: ' + e.message, 'error'); }
 }
 window.exportData = exportData;
