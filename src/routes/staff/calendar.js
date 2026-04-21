@@ -382,12 +382,22 @@ router.post('/connections/:id/sync', requireAuth, requirePro, blockIfImpersonate
       }
       const bookings = await queryWithRLS(req.businessId, pushSql, pushParams);
 
-      for (const bk of bookings.rows) {
-        try {
-          await cal.pushBookingToCalendar(conn, bk, qFn);
-          pushed++;
-        } catch (err) {
-          console.warn('[CAL-SYNC] Push failed for booking', bk.id, err.message);
+      // BUG-3 perf : parallel chunks au lieu de sérial — réduit latence sync
+      // de N×RTT Google/Outlook à ceil(N/5)×RTT. Chunks de 5 pour rester
+      // respectueux des rate limits Google Calendar API (1000 req/sec mais
+      // per-user quotas plus stricts).
+      const CONCURRENCY = 5;
+      for (let i = 0; i < bookings.rows.length; i += CONCURRENCY) {
+        const chunk = bookings.rows.slice(i, i + CONCURRENCY);
+        const results = await Promise.allSettled(
+          chunk.map(bk => cal.pushBookingToCalendar(conn, bk, qFn))
+        );
+        for (let j = 0; j < results.length; j++) {
+          if (results[j].status === 'fulfilled') {
+            pushed++;
+          } else {
+            console.warn('[CAL-SYNC] Push failed for booking', chunk[j].id, results[j].reason?.message || results[j].reason);
+          }
         }
       }
     }
