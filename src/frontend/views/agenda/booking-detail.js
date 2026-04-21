@@ -132,24 +132,18 @@ async function fcOpenDetail(bookingId) {
       </span>
       <div class="m-st-actions">${acts.join('')}</div>`;
 
-    // -- Countdown for pending confirmation --
-    if (b.status === 'pending' && b.confirmation_expires_at) {
-      const dlDate = new Date(b.confirmation_expires_at);
-      const cdEl = document.createElement('span');
-      cdEl.style.cssText = 'font-size:.72rem;font-weight:500;margin-left:8px;opacity:.8';
-      const update = () => {
-        const diff = dlDate - Date.now();
-        cdEl.textContent = '· ' + fmtCountdown(diff);
-        if (diff <= 0 && _countdownTimer) { clearInterval(_countdownTimer); _countdownTimer = null; }
-      };
-      update();
-      _countdownTimer = setInterval(update, 30000);
-      document.querySelector('.m-st-current')?.appendChild(cdEl);
-    }
-
-    // -- Countdown for deposit deadline --
-    if (b.status === 'pending_deposit' && b.deposit_deadline) {
-      const dlDate = new Date(b.deposit_deadline);
+    // -- Countdown pour pending confirmation OU deposit deadline --
+    // B8-fix : avant, chaque if attribuait `_countdownTimer = setInterval(...)`
+    // en écrasant la ref précédente sans clear → interval orphelin tapant sur
+    // DOM détaché. Maintenant, clear préalable unique + reassign.
+    const cdTarget = (b.status === 'pending' && b.confirmation_expires_at)
+      ? b.confirmation_expires_at
+      : (b.status === 'pending_deposit' && b.deposit_deadline)
+        ? b.deposit_deadline
+        : null;
+    if (cdTarget) {
+      if (_countdownTimer) { clearInterval(_countdownTimer); _countdownTimer = null; }
+      const dlDate = new Date(cdTarget);
       const cdEl = document.createElement('span');
       cdEl.style.cssText = 'font-size:.72rem;font-weight:500;margin-left:8px;opacity:.8';
       const update = () => {

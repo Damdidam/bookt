@@ -193,11 +193,14 @@ async function loadDashboard(){
 async function dashToggleTodo(todoId, bookingId, isDone){
   if(!bookingId) return;
   try{
-    await fetch(`/api/bookings/${bookingId}/todos/${todoId}`,{
+    // B6-fix : check r.ok — sinon UI fade-out comme si succès alors que backend
+    // a rejeté (403/500) → user croit tâche cochée, reload = elle revient.
+    const r=await fetch(`/api/bookings/${bookingId}/todos/${todoId}`,{
       method:'PATCH',
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
       body:JSON.stringify({is_done:isDone})
     });
+    if(!r.ok){const d=await r.json().catch(()=>({}));throw new Error(d.error||'Erreur');}
     // Fade out the row
     const row=document.querySelector(`.dash-todo-row input[onchange*="${todoId}"]`)?.closest('.dash-todo-row');
     if(row&&isDone){row.style.opacity='.3';row.style.textDecoration='line-through';setTimeout(()=>row.remove(),800);}

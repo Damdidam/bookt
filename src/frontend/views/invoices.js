@@ -117,7 +117,10 @@ async function loadInvoices(){
 // Invoice creation modal
 async function openInvoiceModal(type='invoice',prefill={}){
   let clients=[];
-  try{const r=await api.get('/api/clients');clients=r.clients||r||[];}catch(e){console.warn('Impossible de charger les clients pour la facture:',e.message);}
+  // B9-fix : cap à 500 pour éviter DOM explosé sur gros salon (10k clients
+  // importés CSV). Backend filtre par last_visit DESC → les 500 les plus
+  // actifs récents. Au-delà, autocomplete search dispo via champ manuel.
+  try{const r=await api.get('/api/clients?limit=500');clients=r.clients||r||[];}catch(e){console.warn('Impossible de charger les clients pour la facture:',e.message);}
 
   const isQuote=type==='quote';
   const title=isQuote?'Nouveau devis':'Nouvelle facture';
