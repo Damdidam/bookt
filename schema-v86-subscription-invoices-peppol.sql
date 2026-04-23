@@ -6,10 +6,15 @@
 -- (b) une table singleton avec les infos émetteur Genda (H3001 SRL).
 --
 -- Idempotent (CREATE IF NOT EXISTS + ON CONFLICT DO UPDATE sur seed).
+--
+-- Note RGPD/Archive : business_id = RESTRICT (pas CASCADE) car on doit pouvoir
+-- conserver les factures d'abo même si un business est hard-deleted (obligation
+-- comptable BE 7 ans > RGPD Art.17 dans ce cas précis). Le hard-delete doit
+-- soit anonymiser le business avant suppression, soit garder le row.
 
 CREATE TABLE IF NOT EXISTS subscription_invoices (
   id                    UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  business_id           UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  business_id           UUID NOT NULL REFERENCES businesses(id) ON DELETE RESTRICT,
   stripe_invoice_id     VARCHAR(120) UNIQUE NOT NULL,
   stripe_invoice_number VARCHAR(50),
   stripe_pdf_url        TEXT,
@@ -39,8 +44,6 @@ CREATE INDEX IF NOT EXISTS idx_sub_invoices_business_created
   ON subscription_invoices(business_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_sub_invoices_status_retry
   ON subscription_invoices(status, next_retry_at) WHERE status = 'pending';
-CREATE INDEX IF NOT EXISTS idx_sub_invoices_stripe_id
-  ON subscription_invoices(stripe_invoice_id);
 CREATE INDEX IF NOT EXISTS idx_sub_invoices_status_updated_at
   ON subscription_invoices(status, updated_at) WHERE status = 'peppol_sent';
 
