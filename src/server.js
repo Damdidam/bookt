@@ -298,7 +298,7 @@ app.use('/webhooks/twilio', twilioWebhooks);
 app.use('/webhooks/brevo', brevoWebhooks);
 
 // Webhooks (Billit Peppol) — invoice status updates (sent/delivered/failed)
-app.use('/api/webhooks/billit', require('./routes/webhooks/billit'));
+app.use('/webhooks/billit', require('./routes/webhooks/billit'));
 
 // ===== PUBLIC MINI-SITE =====
 // Catch-all for /:slug → DB lookup → serve the right template
