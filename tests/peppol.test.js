@@ -111,3 +111,123 @@ test('buildUBLXml handles recipient without VAT (fallback scheme 9925)', () => {
   // Check positif : fallback scheme 9925 avec email
   assert.match(xml, /<cbc:EndpointID schemeID="9925">p@x\.be<\/cbc:EndpointID>/);
 });
+
+test('dispatchFromStripeInvoice inserts row + calls Billit + updates on success', async () => {
+  peppol._invalidateSettingsCache();
+  _mockRows.splice(0, _mockRows.length, {
+    id: 1, company_name: 'H3001 SRL', vat_number: 'BE0775599330', bce_number: '0775599330',
+    address_street: 'X', address_zip: '1000', address_city: 'Y', address_country: 'BE',
+    contact_email: 'info@genda.be'
+  });
+
+  const calls = [];
+  const dbMock = require.cache[require.resolve('../src/services/db')].exports;
+  const origQuery = dbMock.query;
+  dbMock.query = async (sql, params) => {
+    calls.push({ sql: sql.replace(/\s+/g, ' ').trim(), params });
+    if (/FROM platform_settings/.test(sql)) return { rows: _mockRows };
+    if (/INSERT INTO subscription_invoices/.test(sql)) return { rows: [{ id: 'uuid-stub' }] };
+    if (/FROM businesses/.test(sql)) return { rows: [{ id: 'biz-uuid' }] };
+    return { rows: [] };
+  };
+
+  const origFetch = global.fetch;
+  process.env.BILLIT_API_URL = 'https://api.sandbox.billit.be/v1';
+  process.env.BILLIT_API_KEY = 'fake_test_key';
+  global.fetch = async (url, opts) => {
+    if (url.includes('billit.be')) {
+      return { ok: true, status: 200, json: async () => ({ invoiceId: 'billit_xyz' }) };
+    }
+    return { ok: false, status: 404 };
+  };
+
+  const stripeInvoice = {
+    id: 'in_test_999',
+    number: 'INV-0099',
+    currency: 'eur',
+    customer: 'cus_stub',
+    subscription: 'sub_stub',
+    subtotal: 6000, tax: 1260, total: 7260,
+    period_start: 1745107200, period_end: 1747699200,
+    invoice_pdf: 'https://stripe.com/pdf',
+    customer_address: { line1: 'Rue X 10', postal_code: '1000', city: 'Bruxelles', country: 'BE' },
+    customer_email: 'acme@test.be',
+    customer_name: 'Acme Salon',
+    customer_tax_ids: [{ type: 'eu_vat', value: 'BE0123456789' }],
+    lines: {
+      data: [{
+        description: 'Abo Pro',
+        amount: 6000,
+        currency: 'eur',
+        period: { start: 1745107200, end: 1747699200 },
+        tax_amounts: [{ amount: 1260, tax_rate: { percentage: 21 } }]
+      }]
+    }
+  };
+
+  await peppol.dispatchFromStripeInvoice(stripeInvoice);
+
+  const insertCall = calls.find(c => /INSERT INTO subscription_invoices/.test(c.sql));
+  assert.ok(insertCall, 'Expected INSERT into subscription_invoices');
+  assert.equal(insertCall.params[1], 'in_test_999');
+  assert.equal(insertCall.params[2], 'INV-0099');
+
+  // Expected success update
+  const updateCall = calls.find(c => /UPDATE subscription_invoices/.test(c.sql) && /peppol_sent/.test(c.sql));
+  assert.ok(updateCall, 'Expected UPDATE to peppol_sent');
+
+  dbMock.query = origQuery;
+  global.fetch = origFetch;
+  delete process.env.BILLIT_API_URL;
+  delete process.env.BILLIT_API_KEY;
+});
+
+test('dispatchFromStripeInvoice keeps row pending when Billit env missing', async () => {
+  peppol._invalidateSettingsCache();
+  _mockRows.splice(0, _mockRows.length, {
+    id: 1, company_name: 'H3001 SRL', vat_number: 'BE0775599330', bce_number: '0775599330',
+    address_street: 'X', address_zip: '1000', address_city: 'Y', address_country: 'BE',
+    contact_email: 'info@genda.be'
+  });
+
+  const calls = [];
+  const dbMock = require.cache[require.resolve('../src/services/db')].exports;
+  const origQuery = dbMock.query;
+  dbMock.query = async (sql, params) => {
+    calls.push({ sql: sql.replace(/\s+/g, ' ').trim(), params });
+    if (/FROM platform_settings/.test(sql)) return { rows: _mockRows };
+    if (/INSERT INTO subscription_invoices/.test(sql)) return { rows: [{ id: 'uuid-stub' }] };
+    if (/FROM businesses/.test(sql)) return { rows: [{ id: 'biz-uuid' }] };
+    return { rows: [] };
+  };
+
+  delete process.env.BILLIT_API_URL;
+  delete process.env.BILLIT_API_KEY;
+
+  const stripeInvoice = {
+    id: 'in_test_nokey',
+    number: 'INV-0100',
+    currency: 'eur',
+    customer: 'cus_stub',
+    subscription: 'sub_stub',
+    subtotal: 6000, tax: 1260, total: 7260,
+    period_start: 1745107200, period_end: 1747699200,
+    invoice_pdf: null,
+    customer_address: { country: 'BE' },
+    customer_email: 'x@y.be',
+    customer_name: 'Client',
+    customer_tax_ids: [],
+    lines: { data: [{ amount: 6000, currency: 'eur', period:{start:0,end:0}, tax_amounts: [{amount:1260, tax_rate:{percentage:21}}] }] }
+  };
+
+  await peppol.dispatchFromStripeInvoice(stripeInvoice);
+
+  // INSERT toujours fait — row doit exister
+  const insertCall = calls.find(c => /INSERT INTO subscription_invoices/.test(c.sql));
+  assert.ok(insertCall, 'INSERT doit avoir lieu même sans Billit config');
+  // UPDATE status_detail seulement (pas peppol_sent), row reste pending
+  const updateStatusDetail = calls.find(c => /UPDATE subscription_invoices/.test(c.sql) && /status_detail/.test(c.sql));
+  assert.ok(updateStatusDetail, 'UPDATE status_detail attendu avec reason BILLIT not configured');
+
+  dbMock.query = origQuery;
+});

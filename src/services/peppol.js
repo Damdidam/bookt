@@ -12,8 +12,12 @@
  *
  * See docs/superpowers/specs/2026-04-21-peppol-integration-design.md
  */
-const { query } = require('./db');
+const db = require('./db');
 const { create } = require('xmlbuilder2');
+
+function query(...args) {
+  return db.query(...args);
+}
 
 let _settingsCache = null;
 let _settingsCacheAt = 0;
@@ -158,9 +162,131 @@ function buildUBLXml(stripeInvoice, emitter, recipient) {
   return doc.end({ prettyPrint: true });
 }
 
+function _extractRecipient(stripeInvoice) {
+  const addr = stripeInvoice.customer_address || {};
+  const taxIds = stripeInvoice.customer_tax_ids || [];
+  const vat = taxIds.find(t => t.type === 'eu_vat')?.value || null;
+  const addressStr = [addr.line1, addr.line2, addr.postal_code, addr.city, addr.country]
+    .filter(Boolean).join(', ');
+  return {
+    name: stripeInvoice.customer_name || 'Client',
+    vat_number: vat,
+    address: addressStr,
+    email: stripeInvoice.customer_email
+  };
+}
+
+async function _sendToBillit(subInvoiceId, ublXml, recipient, emitter) {
+  const apiUrl = process.env.BILLIT_API_URL;
+  const apiKey = process.env.BILLIT_API_KEY;
+  if (!apiUrl || !apiKey) {
+    return { ok: false, reason: 'BILLIT not configured — row stays pending for cron retry' };
+  }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
+  try {
+    const res = await fetch(`${apiUrl}/invoices`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        reference: subInvoiceId,
+        format: 'ubl',
+        ubl_xml: ublXml,
+        recipient_email_fallback: recipient.email
+      }),
+      signal: controller.signal
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      return { ok: false, reason: `Billit ${res.status}: ${text.slice(0, 200)}` };
+    }
+    const data = await res.json();
+    return { ok: true, billitInvoiceId: data.invoiceId || data.id };
+  } catch (e) {
+    return { ok: false, reason: `Billit request failed: ${e.message}` };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function dispatchFromStripeInvoice(stripeInvoice) {
+  const emitter = await loadPlatformSettings();
+  if (!emitter) {
+    console.error('[PEPPOL] platform_settings empty — abort dispatch');
+    return;
+  }
+  const recipient = _extractRecipient(stripeInvoice);
+  const peppolParticipantId = _deriveBcePeppolId(recipient.vat_number);
+  const ubl = buildUBLXml(stripeInvoice, emitter, recipient);
+
+  const bizRes = await query(
+    `SELECT id FROM businesses WHERE stripe_customer_id = $1 LIMIT 1`,
+    [stripeInvoice.customer]
+  );
+  if (bizRes.rows.length === 0) {
+    console.error('[PEPPOL] business not found for customer', stripeInvoice.customer);
+    return;
+  }
+  const businessId = bizRes.rows[0].id;
+
+  const insertRes = await query(
+    `INSERT INTO subscription_invoices
+      (business_id, stripe_invoice_id, stripe_invoice_number, stripe_pdf_url,
+       period_start, period_end,
+       amount_ht_cents, amount_vat_cents, amount_total_cents, vat_rate, currency,
+       recipient_name, recipient_vat, recipient_address, recipient_email,
+       peppol_participant_id, ubl_xml, status, next_retry_at)
+     VALUES
+      ($1, $2, $3, $4,
+       to_timestamp($5), to_timestamp($6),
+       $7, $8, $9, $10, $11,
+       $12, $13, $14, $15,
+       $16, $17, 'pending', NOW() + INTERVAL '1 minute')
+     ON CONFLICT (stripe_invoice_id) DO NOTHING
+     RETURNING id`,
+    [
+      businessId, stripeInvoice.id, stripeInvoice.number, stripeInvoice.invoice_pdf,
+      stripeInvoice.period_start, stripeInvoice.period_end,
+      stripeInvoice.subtotal, stripeInvoice.tax, stripeInvoice.total,
+      stripeInvoice.lines.data[0]?.tax_amounts?.[0]?.tax_rate?.percentage ?? 21,
+      (stripeInvoice.currency || 'eur').toUpperCase(),
+      recipient.name, recipient.vat_number, recipient.address, recipient.email,
+      peppolParticipantId ? `0208:${peppolParticipantId}` : null,
+      ubl
+    ]
+  );
+  if (insertRes.rows.length === 0) {
+    return;
+  }
+  const subInvoiceId = insertRes.rows[0].id;
+
+  const result = await _sendToBillit(subInvoiceId, ubl, recipient, emitter);
+  if (result.ok) {
+    await query(
+      `UPDATE subscription_invoices
+         SET billit_invoice_id = $1, status = 'peppol_sent', next_retry_at = NULL, updated_at = NOW()
+         WHERE id = $2`,
+      [result.billitInvoiceId, subInvoiceId]
+    );
+  } else {
+    await query(
+      `UPDATE subscription_invoices
+         SET status_detail = $1, updated_at = NOW()
+         WHERE id = $2`,
+      [result.reason, subInvoiceId]
+    );
+  }
+}
+
 module.exports = {
   loadPlatformSettings,
   buildUBLXml,
+  dispatchFromStripeInvoice,
   _invalidateSettingsCache,
-  _deriveBcePeppolId
+  _deriveBcePeppolId,
+  _extractRecipient,
+  _sendToBillit
 };
