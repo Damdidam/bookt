@@ -249,11 +249,29 @@ async function handleStripeWebhook(req, res) {
 
   try {
     switch (event.type) {
+      case 'checkout.session.async_payment_failed': {
+        // Bancontact/SEPA async payment that failed after checkout.session.completed
+        // was emitted (with payment_status='unpaid'). Nothing to roll back because
+        // the guard in checkout.session.completed skips fulfillment when unpaid.
+        const s = event.data.object;
+        console.warn(`[STRIPE WH] async_payment_failed session=${s.id} type=${s.metadata?.type || 'unknown'} — fulfillment was deferred, no rollback needed`);
+        break;
+      }
+
+      // Fall-through: async_payment_succeeded delivers the paid status for
+      // delayed-settlement methods (Bancontact, SEPA) — same fulfillment logic.
+      case 'checkout.session.async_payment_succeeded':
       case 'checkout.session.completed': {
         const session = event.data.object;
 
         // ===== DEPOSIT PAYMENT =====
         if (session.metadata?.type === 'deposit') {
+          // Bancontact/SEPA can fire checkout.session.completed with payment_status='unpaid'.
+          // Fulfillment must wait for checkout.session.async_payment_succeeded (same case body).
+          if (session.payment_status !== 'paid') {
+            console.log(`[STRIPE WH] deposit session ${session.id} payment_status=${session.payment_status} — deferring fulfillment`);
+            break;
+          }
           const bookingId = session.metadata.booking_id;
           const businessId = session.metadata.business_id;
           const bookingToken = session.metadata.booking_token;
@@ -531,6 +549,11 @@ async function handleStripeWebhook(req, res) {
 
         // ===== GIFT CARD PAYMENT =====
         if (session.metadata?.type === 'gift_card') {
+          // Same async-payment guard as deposit (Bancontact may be unpaid on completed event).
+          if (session.payment_status !== 'paid') {
+            console.log(`[STRIPE WH] gift_card session ${session.id} payment_status=${session.payment_status} — deferring fulfillment`);
+            break;
+          }
           const bizId = session.metadata.business_id;
           const amountCents = parseInt(session.metadata.amount_cents);
           if (!bizId || !amountCents) break;
@@ -658,6 +681,11 @@ async function handleStripeWebhook(req, res) {
 
         // ===== PASS PAYMENT =====
         if (session.metadata?.type === 'pass') {
+          // Same async-payment guard as deposit/gift_card.
+          if (session.payment_status !== 'paid') {
+            console.log(`[STRIPE WH] pass session ${session.id} payment_status=${session.payment_status} — deferring fulfillment`);
+            break;
+          }
           try {
             const { business_id, pass_template_id, buyer_name, buyer_email } = session.metadata;
 

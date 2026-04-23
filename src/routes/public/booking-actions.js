@@ -1706,8 +1706,13 @@ router.post('/booking/:token/confirm-booking', async (req, res, next) => {
                 let smsBody = `${row.biz_name} : RDV "${_svcLabel2}" confirmé le ${_sDate2} à ${_sTime2}${row.practitioner_name ? ' avec ' + row.practitioner_name : ''}. Gérer : ${manageUrl}`;
                 if (smsBody.length > 160) smsBody = `RDV "${_svcLabel2}" confirmé le ${_sDate2} à ${_sTime2}. Gérer : ${manageUrl}`;
                 const _smsRes = await sendSMS({ to: row.client_phone, body: smsBody, businessId: row.business_id, clientId: row.client_id });
-                try { await query(`INSERT INTO notifications (business_id, booking_id, type, recipient_phone, status, sent_at, error) VALUES ($1,$2,'sms_confirmation',$3,$4,NOW(),$5)`,
-                  [row.business_id, row.id, row.client_phone, _smsRes.success ? 'sent' : (_smsRes.skipped ? 'skipped' : 'failed'), _smsRes.error || null]); } catch (_) {}
+                try {
+                  // notifications.status CHECK = {'queued','sent','failed'} — skipped was silently rejected by CHECK.
+                  const _st = _smsRes?.success ? 'sent' : 'failed';
+                  const _err = _smsRes?.skipped ? ('skipped:' + (_smsRes.error || 'opt_out_or_cap')) : (_smsRes?.error || null);
+                  await query(`INSERT INTO notifications (business_id, booking_id, type, recipient_phone, status, sent_at, error) VALUES ($1,$2,'sms_confirmation',$3,$4,NOW(),$5)`,
+                    [row.business_id, row.id, row.client_phone, _st, _err]);
+                } catch (_) {}
               }
             } catch (smsErr) { console.warn('[SMS] Post-confirm SMS error:', smsErr.message); }
           }

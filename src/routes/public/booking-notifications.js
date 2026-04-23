@@ -187,14 +187,22 @@ async function sendPostBookingComms({
             if (groupServices) {
               // Multi-service: use grouped label
               const _svcLabel = groupServices.length > 1 ? `${groupServices[0].name} +${groupServices.length - 1}` : groupServices[0].name;
-              await sendSMS({ to: clientPhone, body: `${bizRow.rows[0].name} : RDV "${_svcLabel}" le ${_sDate} \u00e0 ${_sTime} avec ${practitionerName}. Confirmez ici : ${link}`, businessId, clientId: createdBooking.client_id });
+              const smsResultMulti = await sendSMS({ to: clientPhone, body: `${bizRow.rows[0].name} : RDV "${_svcLabel}" le ${_sDate} \u00e0 ${_sTime} avec ${practitionerName}. Confirmez ici : ${link}`, businessId, clientId: createdBooking.client_id });
+              try {
+                const _stM = smsResultMulti?.success ? 'sent' : 'failed';
+                const _errM = smsResultMulti?.skipped ? ('skipped:' + (smsResultMulti.error || 'opt_out_or_cap')) : (smsResultMulti?.error || null);
+                await query(`INSERT INTO notifications (business_id, booking_id, type, recipient_phone, status, sent_at, error) VALUES ($1,$2,'sms_confirmation',$3,$4,NOW(),$5)`,
+                  [businessId, createdBooking.id, clientPhone, _stM, _errM]);
+              } catch (_) {}
             } else {
               // Single-service: use service name + optional practitioner
               console.log(`[SMS] Attempting confirmation SMS to ${clientPhone} for booking ${createdBooking.id}, channel=${confirmChannel}`);
               const smsResult = await sendSMS({ to: clientPhone, body: `${bizRow.rows[0].name} : RDV "${serviceName}" le ${_sDate} \u00e0 ${_sTime}${practitionerName ? ' avec ' + practitionerName : ''}. Confirmez ici : ${link}`, businessId, clientId: createdBooking.client_id });
               console.log(`[SMS] Confirmation SMS result:`, JSON.stringify(smsResult));
+              const _stS = smsResult?.success ? 'sent' : 'failed';
+              const _errS = smsResult?.skipped ? ('skipped:' + (smsResult.error || 'opt_out_or_cap')) : (smsResult?.error || null);
               await query(`INSERT INTO notifications (business_id, booking_id, type, recipient_phone, status, sent_at, error) VALUES ($1,$2,'sms_confirmation',$3,$4,NOW(),$5)`,
-                [businessId, createdBooking.id, clientPhone, smsResult.success ? 'sent' : 'failed', smsResult.error || null]);
+                [businessId, createdBooking.id, clientPhone, _stS, _errS]);
             }
           } catch (smsErr) {
             if (groupServices) {
