@@ -926,6 +926,10 @@ app.listen(PORT, async () => {
       stripeWebhookCleanupRunning = false;
     }
   }, stripeWebhookCleanupInterval);
+
+  // ===== PEPPOL RETRY CRON — retry pending subscription invoices + status-check stuck =====
+  // Démarre 2 setInterval en interne (5min retry + 6h stuck), skip si non-production.
+  require('./services/cron-peppol-retry').start();
 });
 
 module.exports = app;
