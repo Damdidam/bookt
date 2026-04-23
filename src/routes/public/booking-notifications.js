@@ -244,9 +244,11 @@ async function sendPostBookingComms({
             const smsBody = `${bizRow.rows[0].name} : RDV "${_svcLabel}" confirmé le ${_sDate} à ${_sTime}${practitionerName ? ' avec ' + practitionerName : ''}. Gérer : ${manageUrl}`;
             const smsResult = await sendSMS({ to: clientPhone, body: smsBody, businessId, clientId: createdBooking.client_id });
             try {
+              const _stD = smsResult?.success ? 'sent' : 'failed';
+              const _errD = smsResult?.skipped ? ('skipped:' + (smsResult.error || 'opt_out_or_cap')) : (smsResult?.error || null);
               await query(
                 `INSERT INTO notifications (business_id, booking_id, type, recipient_phone, status, sent_at, error) VALUES ($1,$2,'sms_confirmation',$3,$4,NOW(),$5)`,
-                [businessId, createdBooking.id, clientPhone, smsResult.success ? 'sent' : 'failed', smsResult.error || null]
+                [businessId, createdBooking.id, clientPhone, _stD, _errD]
               );
             } catch (_) {}
           } catch (smsErr) {

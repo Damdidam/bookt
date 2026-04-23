@@ -1052,14 +1052,18 @@ async function togglePracTodo(todoId, bookingId, done, pracId, pracName) {
 // ============================================================
 
 function openInviteModal(practId, name) {
+  // XSS-03 fix (scan 23 avril) : caller passe escJs(p.display_name) → JS-escapé mais
+  // non HTML-escapé. Interpolation dans <h3> / <strong> exigeait escH() pour prévenir
+  // XSS cross-owner exploitable via display_name contenant <img onerror=...>.
+  const _nameH = escH(name);
   const sl = SECTOR_LABELS[userSector] || SECTOR_LABELS.autre;
   let m = `<div class="m-overlay open" id="inviteModalOverlay"><div class="m-dialog m-sm">
     <div class="m-header-simple">
-      <h3>Créer un accès — ${name}</h3>
+      <h3>Créer un accès — ${_nameH}</h3>
       <button class="m-close" onclick="closeInviteModal()" aria-label="Fermer">${ICONS.close}</button>
     </div>
     <div class="m-body">
-      <p style="font-size:.85rem;color:var(--text-3);margin-bottom:14px">Créez un compte pour que <strong>${name}</strong> puisse se connecter au dashboard.</p>
+      <p style="font-size:.85rem;color:var(--text-3);margin-bottom:14px">Créez un compte pour que <strong>${_nameH}</strong> puisse se connecter au dashboard.</p>
       <div class="m-sec">
         <div class="m-field-label">Email *</div>
         <input class="m-input" id="inv_email" type="email" placeholder="email@exemple.com">
@@ -1130,6 +1134,7 @@ async function sendInvite(practId) {
 // ============================================================
 
 function openRoleModal(practId, name, currentRole) {
+  const _nameH = escH(name);
   const sl = SECTOR_LABELS[userSector] || SECTOR_LABELS.autre;
   const roles = [
     { value: 'owner', label: 'Propriétaire / Manager', desc: 'Accès complet au dashboard' },
@@ -1137,7 +1142,7 @@ function openRoleModal(practId, name, currentRole) {
   ];
   let m = `<div class="m-overlay open" id="roleModalOverlay"><div class="m-dialog m-sm">
     <div class="m-header-simple">
-      <h3>Modifier le rôle — ${name}</h3>
+      <h3>Modifier le rôle — ${_nameH}</h3>
       <button class="m-close" onclick="closeRoleModal()" aria-label="Fermer">${ICONS.close}</button>
     </div>
     <div class="m-body">

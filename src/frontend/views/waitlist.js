@@ -184,7 +184,9 @@ async function wlSaveAdd(){
 
 // -- Offer a slot --
 function wlOffer(entryId,clientName,pracId,svcId){
-  let m=`<div class="m-overlay open" id="wlOfferModal"><div class="m-dialog m-sm"><div class="m-header-simple"><h3>Proposer un cr\u00e9neau \u00e0 ${clientName}</h3><button class="m-close" onclick="closeModal('wlOfferModal')" aria-label="Fermer">${IC.x}</button></div><div class="m-body">`;
+  // XSS-02 fix (scan 23 avril) : le caller passe escJs(e.client_name) \u2192 cha\u00eene JS-escap\u00e9e
+  // mais non HTML-escap\u00e9e. L'interpolation dans <h3> exigeait esc() pour pr\u00e9venir XSS.
+  let m=`<div class="m-overlay open" id="wlOfferModal"><div class="m-dialog m-sm"><div class="m-header-simple"><h3>Proposer un cr\u00e9neau \u00e0 ${esc(clientName)}</h3><button class="m-close" onclick="closeModal('wlOfferModal')" aria-label="Fermer">${IC.x}</button></div><div class="m-body">`;
   m+=`<p style="font-size:.82rem;color:var(--text-3);margin-bottom:14px">Le client recevra un lien pour accepter ou d\u00e9cliner. L'offre expire apr\u00e8s <strong>2 heures</strong>.</p>`;
   m+=`<div><label class="m-field-label">Date</label><input type="date" class="m-input" id="wlo_date" value="${new Date().toLocaleDateString('en-CA',{timeZone:'Europe/Brussels'})}"></div>`;
   m+=`<div><label class="m-field-label">Heure de d\u00e9but</label><input type="time" class="m-input" id="wlo_start" value="09:00" step="900"></div>`;

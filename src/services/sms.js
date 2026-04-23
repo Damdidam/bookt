@@ -79,7 +79,7 @@ async function sendSMS(opts) {
         const cap = parseInt(process.env.SMS_MONTHLY_CAP) || 500;
         if (count >= cap) {
           console.warn(`[SMS] Monthly cap reached for business ${businessId}: ${count}/${cap}`);
-          return { success: false, error: 'SMS monthly cap reached' };
+          return { success: false, skipped: true, error: 'sms_monthly_cap_reached' };
         }
       }
     }
