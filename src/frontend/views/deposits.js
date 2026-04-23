@@ -162,14 +162,26 @@ function showDepositAudit(bookingId){
 }
 
 // ── CSV export ──
-function exportDepositsCSV(){
-  const token=localStorage.getItem('genda_token');
-  const params=new URLSearchParams();
-  if(depositFilter!=='all')params.set('status',depositFilter);
-  if(depositFrom)params.set('from',depositFrom);
-  if(depositTo)params.set('to',depositTo);
-  params.set('token',token);
-  window.open(`/api/deposits/export?${params}`,'_blank','noopener,noreferrer');
+// SECU-01 fix : JWT ne doit pas transiter en query param (leak dans access logs,
+// history, Referer). Fetch via Authorization header + blob download, même pattern
+// que invoices.js:306-319 et settings.js:1165-1180.
+async function exportDepositsCSV(){
+  try{
+    const token=localStorage.getItem('genda_token');
+    const params=new URLSearchParams();
+    if(depositFilter!=='all')params.set('status',depositFilter);
+    if(depositFrom)params.set('from',depositFrom);
+    if(depositTo)params.set('to',depositTo);
+    const qs=params.toString();
+    const r=await fetch('/api/deposits/export'+(qs?'?'+qs:''),{headers:{Authorization:'Bearer '+token}});
+    if(!r.ok)throw new Error('Erreur export CSV');
+    const blob=await r.blob();
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;a.download='deposits-'+new Date().toISOString().slice(0,10)+'.csv';
+    document.body.appendChild(a);a.click();
+    setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url);},100);
+  }catch(e){GendaUI.toast(e.message||'Erreur export','error');}
 }
 
 // Expose for inline handlers

@@ -1248,6 +1248,91 @@ async function handleStripeWebhook(req, res) {
                 txClient.release();
               }
             }
+
+            // STRIPE-01 fix (scan 23 avril) : cascade aussi aux gift_cards / passes.
+            // Sans cela, un pro qui refund une GC/Pass depuis le Dashboard Stripe garde
+            // la GC active (balance_cents) ou le pass actif (sessions_remaining) en DB →
+            // client peut réutiliser après avoir reçu son remboursement = double-loss.
+            // Parity avec charge.dispute.created L1294-1317 (flag disputed_at pour GC/pass).
+            const _gcsExt = await query(
+              `SELECT id, business_id, buyer_email, recipient_email, amount_cents, balance_cents, status
+               FROM gift_cards
+               WHERE stripe_payment_intent_id IN ($1, $2)
+                 AND status NOT IN ('cancelled','refunded')
+               FOR UPDATE`,
+              [pi, sessionId]
+            );
+            for (const _gc of _gcsExt.rows) {
+              if (isPartialRefund) {
+                console.warn(`[STRIPE WH] PARTIAL refund on GC ${_gc.id}: ${charge.amount_refunded}/${charge.amount}c — GC kept active, pro must act manually.`);
+                try {
+                  await query(
+                    `INSERT INTO notifications (business_id, type, status, metadata)
+                     VALUES ($1, 'email_dispute_alert', 'queued', $2)`,
+                    [_gc.business_id, JSON.stringify({ kind: 'partial_stripe_refund_gc', gift_card_id: _gc.id, charge_amount_cents: charge.amount, amount_refunded_cents: charge.amount_refunded, payment_intent: pi })]
+                  );
+                } catch (_) {}
+                continue;
+              }
+              // FULL refund — cancel GC (balance=0, status='cancelled') + audit trail
+              try {
+                const _balBefore = _gc.balance_cents || 0;
+                await query(
+                  `UPDATE gift_cards SET status = 'cancelled', balance_cents = 0, updated_at = NOW() WHERE id = $1`,
+                  [_gc.id]
+                );
+                if (_balBefore > 0) {
+                  await query(
+                    `INSERT INTO gift_card_transactions (gift_card_id, business_id, amount_cents, type, note)
+                     VALUES ($1, $2, $3, 'refund', 'Refund externe via Stripe Dashboard')`,
+                    [_gc.id, _gc.business_id, _balBefore]
+                  ).catch(() => {});
+                }
+                console.log(`[STRIPE WH] GC ${_gc.id} cancelled after external Stripe refund`);
+              } catch (gcErr) {
+                console.error(`[STRIPE WH] GC cascade cancel failed for ${_gc.id}:`, gcErr.message);
+              }
+            }
+
+            const _passesExt = await query(
+              `SELECT id, business_id, buyer_email, sessions_remaining, sessions_total, status
+               FROM passes
+               WHERE stripe_payment_intent_id IN ($1, $2)
+                 AND status NOT IN ('cancelled','refunded')
+               FOR UPDATE`,
+              [pi, sessionId]
+            );
+            for (const _ps of _passesExt.rows) {
+              if (isPartialRefund) {
+                console.warn(`[STRIPE WH] PARTIAL refund on pass ${_ps.id}: ${charge.amount_refunded}/${charge.amount}c — pass kept active, pro must act manually.`);
+                try {
+                  await query(
+                    `INSERT INTO notifications (business_id, type, status, metadata)
+                     VALUES ($1, 'email_dispute_alert', 'queued', $2)`,
+                    [_ps.business_id, JSON.stringify({ kind: 'partial_stripe_refund_pass', pass_id: _ps.id, charge_amount_cents: charge.amount, amount_refunded_cents: charge.amount_refunded, payment_intent: pi })]
+                  );
+                } catch (_) {}
+                continue;
+              }
+              // FULL refund — cancel pass (sessions_remaining=0, status='cancelled')
+              try {
+                const _sessionsBefore = _ps.sessions_remaining || 0;
+                await query(
+                  `UPDATE passes SET status = 'cancelled', sessions_remaining = 0, updated_at = NOW() WHERE id = $1`,
+                  [_ps.id]
+                );
+                if (_sessionsBefore > 0) {
+                  await query(
+                    `INSERT INTO pass_transactions (pass_id, business_id, sessions, type, note)
+                     VALUES ($1, $2, $3, 'refund', 'Refund externe via Stripe Dashboard')`,
+                    [_ps.id, _ps.business_id, _sessionsBefore]
+                  ).catch(() => {});
+                }
+                console.log(`[STRIPE WH] Pass ${_ps.id} cancelled after external Stripe refund`);
+              } catch (psErr) {
+                console.error(`[STRIPE WH] Pass cascade cancel failed for ${_ps.id}:`, psErr.message);
+              }
+            }
           } catch (refErr) {
             console.warn('[STRIPE WH] charge.refunded processing error:', refErr.message);
           }
