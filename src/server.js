@@ -275,6 +275,7 @@ app.use('/api/business', _staffLimiter, settingsRoutes);
 app.use('/api/site', _staffLimiter, siteRoutes);
 app.use('/api/practitioners', _staffLimiter, practitionerRoutes);
 app.use('/api/invoices', _staffLimiter, invoiceRoutes);
+app.use('/api/staff/subscription-invoices', _staffLimiter, require('./routes/staff/subscription-invoices'));
 app.use('/api/deposits', _staffLimiter, depositRoutes);
 app.use('/api/calendar', _staffLimiter, calendarRoutes);
 app.use('/api/waitlist', _staffLimiter, waitlistRoutes);
