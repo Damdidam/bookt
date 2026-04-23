@@ -297,6 +297,9 @@ app.use('/webhooks/twilio', twilioWebhooks);
 // Webhooks (Brevo) — track bounces, delivered, complaints, unsubscribes
 app.use('/webhooks/brevo', brevoWebhooks);
 
+// Webhooks (Billit Peppol) — invoice status updates (sent/delivered/failed)
+app.use('/api/webhooks/billit', require('./routes/webhooks/billit'));
+
 // ===== PUBLIC MINI-SITE =====
 // Catch-all for /:slug → DB lookup → serve the right template
 // Must be AFTER all API and static routes
