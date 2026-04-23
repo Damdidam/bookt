@@ -5,6 +5,7 @@ import { api, sectorLabels, calState, GendaUI } from '../state.js';
 import { bridge } from '../utils/window-bridge.js';
 import { guardModal, showConfirmDialog } from '../utils/dirty-guard.js';
 import { IC } from '../utils/icons.js';
+import { renderSubInvoicesBlock } from './sub-invoices.js';
 
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
@@ -561,6 +562,17 @@ async function loadSettings(){
       h+=`<div style="margin-top:14px;text-align:center"><button class="btn-outline btn-sm" onclick="openStripePortal()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg> Gérer mon abonnement · Factures · Moyen de paiement</button></div>`;
     }
 
+    // Factures d'abonnement Genda (Peppol) — section collapsable
+    h += `
+      <details style="margin-top:20px;border-top:1px solid var(--border);padding-top:16px">
+        <summary style="cursor:pointer;font-size:.92rem;font-weight:600;color:var(--text)">
+          ${IC.fileText} Mes factures d'abonnement
+          <span id="subInvoicesCount" style="font-size:.78rem;color:var(--text-3);font-weight:400;margin-left:6px"></span>
+        </summary>
+        <div id="subInvoicesContainer" style="margin-top:12px"></div>
+      </details>
+    `;
+
     h+=`</div></div>`;
 
     // 7. Danger zone
@@ -579,6 +591,9 @@ async function loadSettings(){
     </div></div>`;
 
     c.innerHTML=h;
+
+    // Trigger async load of sub-invoices (non-blocking — container already in DOM)
+    renderSubInvoicesBlock(document.getElementById('subInvoicesContainer'));
 
     // Dirty guard — warns before navigating away with unsaved changes
     window._settingsGuard?.destroy();
