@@ -938,6 +938,16 @@ async function handleStripeWebhook(req, res) {
             [subId]
           );
           console.log(`[STRIPE WH] Payment received for subscription ${subId}`);
+
+          // Peppol dispatch (fire-and-forget pattern : on commit row puis async send,
+          // la fonction swallow ses erreurs internes pour que Stripe reçoive 200)
+          try {
+            const peppol = require('../../services/peppol');
+            await peppol.dispatchFromStripeInvoice(invoice);
+          } catch (peppolErr) {
+            console.error('[PEPPOL] dispatch error (non-fatal for Stripe):', peppolErr.message);
+            // Swallow — Stripe doit recevoir 200, le cron retry gèrera
+          }
         }
         break;
       }

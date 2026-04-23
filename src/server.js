@@ -97,6 +97,9 @@ app.use('/webhooks/twilio', express.urlencoded({ extended: false }));
 // Stripe webhooks need raw body for signature verification
 app.post('/webhooks/stripe', express.raw({ type: 'application/json' }), handleStripeWebhook);
 
+// Billit webhook (raw body for HMAC validation) — MUST be mounted before express.json() global
+app.use('/webhooks/billit', express.raw({ type: 'application/json', limit: '100kb' }), require('./routes/webhooks/billit'));
+
 // Quote-request needs larger body limit for base64 images (3 × 5MB × 1.33 = ~22MB)
 app.use('/api/public', (req, res, next) => {
   if (req.path.endsWith('/quote-request')) {
@@ -275,6 +278,7 @@ app.use('/api/business', _staffLimiter, settingsRoutes);
 app.use('/api/site', _staffLimiter, siteRoutes);
 app.use('/api/practitioners', _staffLimiter, practitionerRoutes);
 app.use('/api/invoices', _staffLimiter, invoiceRoutes);
+app.use('/api/staff/subscription-invoices', _staffLimiter, require('./routes/staff/subscription-invoices'));
 app.use('/api/deposits', _staffLimiter, depositRoutes);
 app.use('/api/calendar', _staffLimiter, calendarRoutes);
 app.use('/api/waitlist', _staffLimiter, waitlistRoutes);
@@ -296,6 +300,9 @@ app.use('/webhooks/twilio', twilioWebhooks);
 
 // Webhooks (Brevo) — track bounces, delivered, complaints, unsubscribes
 app.use('/webhooks/brevo', brevoWebhooks);
+
+// Note: /webhooks/billit is mounted earlier (before express.json global)
+// so its express.raw() middleware receives the unparsed body for HMAC validation.
 
 // ===== PUBLIC MINI-SITE =====
 // Catch-all for /:slug → DB lookup → serve the right template
@@ -923,6 +930,10 @@ app.listen(PORT, async () => {
       stripeWebhookCleanupRunning = false;
     }
   }, stripeWebhookCleanupInterval);
+
+  // ===== PEPPOL RETRY CRON — retry pending subscription invoices + status-check stuck =====
+  // Démarre 2 setInterval en interne (5min retry + 6h stuck), skip si non-production.
+  require('./services/cron-peppol-retry').start();
 });
 
 module.exports = app;

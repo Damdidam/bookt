@@ -36,6 +36,7 @@ public/js/app.js
 .superpowers/
 docs/superpowers/plans/
 docs/superpowers/specs/
+.worktrees/
 
 # E2E tests
 .env.test
