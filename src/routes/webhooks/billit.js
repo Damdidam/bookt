@@ -2,14 +2,14 @@
  * Billit webhook — reçoit les events de status des factures Peppol.
  * Billit POST { invoiceId, event, detail } avec header X-Billit-Signature (HMAC SHA256).
  *
- * Le body DOIT être lu en raw (Buffer) pour valider le HMAC — on utilise
- * express.raw() local sur cette route au lieu de express.json() global.
+ * Le body DOIT être lu en raw (Buffer) pour valider le HMAC — le middleware
+ * express.raw() est appliqué au mount level dans server.js, AVANT express.json()
+ * global, sinon le body serait déjà parsé en objet JS et le HMAC invalidé.
  */
 const router = require('express').Router();
-const express = require('express');
 const peppol = require('../../services/peppol');
 
-router.post('/', express.raw({ type: 'application/json', limit: '100kb' }), async (req, res) => {
+router.post('/', async (req, res) => {
   try {
     const rawBody = req.body ? req.body.toString('utf8') : '';
     const signature = req.headers['x-billit-signature'] || req.headers['x-signature'] || '';
