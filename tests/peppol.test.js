@@ -296,3 +296,17 @@ test('handleWebhook rejects unknown event', async () => {
   assert.equal(result.reason, 'unknown_event');
   delete process.env.BILLIT_WEBHOOK_SECRET;
 });
+
+test('handleWebhook rejects prototype pollution events (__proto__, constructor, toString)', async () => {
+  process.env.BILLIT_WEBHOOK_SECRET = 'test_secret_123';
+  const crypto = require('node:crypto');
+  const pollutants = ['__proto__', 'constructor', 'toString', 'hasOwnProperty'];
+  for (const evt of pollutants) {
+    const payload = JSON.stringify({ invoiceId: 'x', event: evt });
+    const sig = crypto.createHmac('sha256', 'test_secret_123').update(payload).digest('hex');
+    const result = await peppol.handleWebhook(payload, sig);
+    assert.equal(result.ok, false, `Expected rejection for event=${evt}`);
+    assert.equal(result.reason, 'unknown_event', `Expected unknown_event reason for event=${evt}`);
+  }
+  delete process.env.BILLIT_WEBHOOK_SECRET;
+});

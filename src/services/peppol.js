@@ -300,7 +300,10 @@ async function handleWebhook(rawBody, signatureHeader) {
   }
   let payload;
   try { payload = JSON.parse(rawBody); } catch { return { ok: false, reason: 'invalid_json' }; }
-  const newStatus = BILLIT_EVENT_TO_STATUS[payload.event];
+  // Defense-in-depth : Object.hasOwn évite prototype pollution (ex: event='__proto__' qui retournerait Object.prototype sinon)
+  const newStatus = Object.hasOwn(BILLIT_EVENT_TO_STATUS, payload.event)
+    ? BILLIT_EVENT_TO_STATUS[payload.event]
+    : undefined;
   if (!newStatus) return { ok: false, reason: 'unknown_event' };
   await query(
     `UPDATE subscription_invoices
