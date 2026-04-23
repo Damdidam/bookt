@@ -10,6 +10,11 @@ const peppol = require('./peppol');
 const BACKOFF_MINUTES = [1, 5, 30, 120, 720]; // tentatives 1→2→3→4→5 puis fail
 
 async function runRetryPending() {
+  const emitter = await peppol.loadPlatformSettings();
+  if (!emitter) {
+    console.error('[PEPPOL CRON] platform_settings empty — skipping retry');
+    return;
+  }
   const { rows } = await query(
     `SELECT id, stripe_invoice_id, retry_count, ubl_xml, recipient_email
        FROM subscription_invoices
@@ -19,38 +24,42 @@ async function runRetryPending() {
        FOR UPDATE SKIP LOCKED`
   );
   for (const row of rows) {
-    const emitter = await peppol.loadPlatformSettings();
-    const result = await peppol._sendToBillit(row.id, row.ubl_xml, { email: row.recipient_email }, emitter);
-    if (result.ok) {
-      await query(
-        `UPDATE subscription_invoices
-           SET billit_invoice_id = $1, status = 'peppol_sent',
-               next_retry_at = NULL, updated_at = NOW()
-           WHERE id = $2`,
-        [result.billitInvoiceId, row.id]
-      );
-      console.log(`[PEPPOL CRON] retry success for ${row.stripe_invoice_id}`);
-    } else {
-      const newCount = (row.retry_count || 0) + 1;
-      if (newCount >= BACKOFF_MINUTES.length) {
+    try {
+      const result = await peppol._sendToBillit(row.id, row.ubl_xml, { email: row.recipient_email }, emitter);
+      if (result.ok) {
         await query(
           `UPDATE subscription_invoices
-             SET status = 'failed', status_detail = $1, next_retry_at = NULL,
-                 retry_count = $2, updated_at = NOW()
-             WHERE id = $3`,
-          [result.reason, newCount, row.id]
+             SET billit_invoice_id = $1, status = 'peppol_sent',
+                 next_retry_at = NULL, updated_at = NOW()
+             WHERE id = $2`,
+          [result.billitInvoiceId, row.id]
         );
-        console.error(`[PEPPOL CRON] FAILED after ${newCount} retries: ${row.stripe_invoice_id}`);
+        console.log(`[PEPPOL CRON] retry success for ${row.stripe_invoice_id}`);
       } else {
-        const delayMin = BACKOFF_MINUTES[newCount];
-        await query(
-          `UPDATE subscription_invoices
-             SET retry_count = $1, next_retry_at = NOW() + make_interval(mins := $2::int),
-                 status_detail = $3, updated_at = NOW()
-             WHERE id = $4`,
-          [newCount, delayMin, result.reason, row.id]
-        );
+        const newCount = (row.retry_count || 0) + 1;
+        if (newCount >= BACKOFF_MINUTES.length) {
+          await query(
+            `UPDATE subscription_invoices
+               SET status = 'failed', status_detail = $1, next_retry_at = NULL,
+                   retry_count = $2, updated_at = NOW()
+               WHERE id = $3`,
+            [result.reason, newCount, row.id]
+          );
+          console.error(`[PEPPOL CRON] FAILED after ${newCount} retries: ${row.stripe_invoice_id}`);
+        } else {
+          const delayMin = BACKOFF_MINUTES[newCount];
+          await query(
+            `UPDATE subscription_invoices
+               SET retry_count = $1, next_retry_at = NOW() + make_interval(mins := $2::int),
+                   status_detail = $3, updated_at = NOW()
+               WHERE id = $4`,
+            [newCount, delayMin, result.reason, row.id]
+          );
+        }
       }
+    } catch (rowErr) {
+      console.error(`[PEPPOL CRON] row ${row.stripe_invoice_id} crashed: ${rowErr.message}`);
+      // Continue avec les autres rows — ne pas laisser 1 row casser le batch
     }
   }
 }
