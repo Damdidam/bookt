@@ -231,3 +231,68 @@ test('dispatchFromStripeInvoice keeps row pending when Billit env missing', asyn
 
   dbMock.query = origQuery;
 });
+
+const crypto = require('node:crypto');
+
+test('handleWebhook validates HMAC and updates status', async () => {
+  process.env.BILLIT_WEBHOOK_SECRET = 'test_secret_123';
+  const calls = [];
+  const dbMock = require.cache[require.resolve('../src/services/db')].exports;
+  const origQuery = dbMock.query;
+  dbMock.query = async (sql, params) => {
+    calls.push({ sql: sql.replace(/\s+/g, ' ').trim(), params });
+    return { rows: [{ id: 'uuid' }] };
+  };
+
+  const payload = JSON.stringify({
+    invoiceId: 'billit_abc',
+    event: 'delivered',
+    detail: 'Received by recipient'
+  });
+  const signature = crypto.createHmac('sha256', 'test_secret_123').update(payload).digest('hex');
+
+  const result = await peppol.handleWebhook(payload, signature);
+  assert.equal(result.ok, true);
+  const updateCall = calls.find(c => /UPDATE subscription_invoices/.test(c.sql));
+  assert.ok(updateCall, 'UPDATE subscription_invoices attendu');
+  assert.equal(updateCall.params[0], 'peppol_delivered');
+  assert.equal(updateCall.params[2], 'billit_abc');
+
+  dbMock.query = origQuery;
+  delete process.env.BILLIT_WEBHOOK_SECRET;
+});
+
+test('handleWebhook rejects invalid signature', async () => {
+  process.env.BILLIT_WEBHOOK_SECRET = 'test_secret_123';
+  const result = await peppol.handleWebhook('{}', 'not-a-valid-sig');
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'invalid_signature');
+  delete process.env.BILLIT_WEBHOOK_SECRET;
+});
+
+test('handleWebhook rejects when secret missing', async () => {
+  delete process.env.BILLIT_WEBHOOK_SECRET;
+  const result = await peppol.handleWebhook('{}', 'any');
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'webhook_secret_missing');
+});
+
+test('handleWebhook rejects invalid JSON', async () => {
+  process.env.BILLIT_WEBHOOK_SECRET = 'test_secret_123';
+  const rawBody = 'not-json';
+  const sig = crypto.createHmac('sha256', 'test_secret_123').update(rawBody).digest('hex');
+  const result = await peppol.handleWebhook(rawBody, sig);
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'invalid_json');
+  delete process.env.BILLIT_WEBHOOK_SECRET;
+});
+
+test('handleWebhook rejects unknown event', async () => {
+  process.env.BILLIT_WEBHOOK_SECRET = 'test_secret_123';
+  const payload = JSON.stringify({ invoiceId: 'x', event: 'unknown_event' });
+  const sig = crypto.createHmac('sha256', 'test_secret_123').update(payload).digest('hex');
+  const result = await peppol.handleWebhook(payload, sig);
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'unknown_event');
+  delete process.env.BILLIT_WEBHOOK_SECRET;
+});

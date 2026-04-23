@@ -281,10 +281,41 @@ async function dispatchFromStripeInvoice(stripeInvoice) {
   }
 }
 
+const BILLIT_EVENT_TO_STATUS = {
+  delivered: 'peppol_delivered',
+  bounced:   'peppol_bounced',
+  email_sent: 'email_sent',
+  failed:    'failed'
+};
+
+async function handleWebhook(rawBody, signatureHeader) {
+  const secret = process.env.BILLIT_WEBHOOK_SECRET;
+  if (!secret) return { ok: false, reason: 'webhook_secret_missing' };
+  const crypto = require('node:crypto');
+  const expected = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
+  let provided = (signatureHeader || '').replace(/^sha256=/, '');
+  if (provided.length !== expected.length) return { ok: false, reason: 'invalid_signature' };
+  if (!crypto.timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(provided, 'hex'))) {
+    return { ok: false, reason: 'invalid_signature' };
+  }
+  let payload;
+  try { payload = JSON.parse(rawBody); } catch { return { ok: false, reason: 'invalid_json' }; }
+  const newStatus = BILLIT_EVENT_TO_STATUS[payload.event];
+  if (!newStatus) return { ok: false, reason: 'unknown_event' };
+  await query(
+    `UPDATE subscription_invoices
+       SET status = $1, status_detail = $2, next_retry_at = NULL, updated_at = NOW()
+       WHERE billit_invoice_id = $3`,
+    [newStatus, payload.detail || null, payload.invoiceId]
+  );
+  return { ok: true };
+}
+
 module.exports = {
   loadPlatformSettings,
   buildUBLXml,
   dispatchFromStripeInvoice,
+  handleWebhook,
   _invalidateSettingsCache,
   _deriveBcePeppolId,
   _extractRecipient,
