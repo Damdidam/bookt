@@ -479,11 +479,18 @@ router.patch('/:id/status', blockIfImpersonated, async (req, res, next) => {
       }
 
       // ===== UNDO: if reverting from cancelled (expired pending) to confirmed, decrement expired counter =====
-      if (old.rows[0].status === 'cancelled' && status === 'confirmed') {
-        // Check audit log to see if this was an expired pending
+      // BL-01 hotfix (scan 3 A3) : action 'deposit_expired' ajoutée (deposit-expiry.js:121-128
+      // utilise ce nom). Avant ce fix, seul 'confirmation_expired' était décrémenté →
+      // les clients qui avaient laissé expirer un pending_deposit puis qu'on restore gardaient
+      // leur expired_pending_count gonflé → futurs bookings bloqués par threshold.
+      // BL-02 hotfix : ne plus restreindre à status === 'confirmed' — inclure aussi
+      // pending_deposit (depositRestore='redeposit' override status). Logique : tout
+      // retour depuis cancelled vers un état actif doit décrémenter.
+      if (old.rows[0].status === 'cancelled' && !['cancelled', 'no_show', 'completed'].includes(status)) {
+        // Check audit log to see if this was an expired pending or expired deposit
         const auditCheck = await client.query(
           `SELECT 1 FROM audit_logs
-           WHERE entity_type = 'booking' AND entity_id = $1 AND action = 'confirmation_expired'
+           WHERE entity_type = 'booking' AND entity_id = $1 AND action IN ('confirmation_expired', 'deposit_expired')
              AND business_id = $2
            LIMIT 1`,
           [id, bid]
@@ -500,7 +507,10 @@ router.patch('/:id/status', blockIfImpersonated, async (req, res, next) => {
       // BUG-3 fix: Decrement cancel_count when restoring a cancelled booking
       // Note: only client-initiated cancels increment cancel_count. If staff cancelled then
       // restores, GREATEST(0) prevents going below zero. Completed status resets to 0 anyway.
-      if (old.rows[0].status === 'cancelled' && status === 'confirmed' && old.rows[0].client_id) {
+      // BL-02 hotfix (scan 3 A3) : inclure pending_deposit dans les cibles valides —
+      // depositRestore='redeposit' override status vers pending_deposit, et le test
+      // status === 'confirmed' manquait donc ce cas → cancel_count non décrémenté.
+      if (old.rows[0].status === 'cancelled' && !['cancelled', 'no_show', 'completed'].includes(status) && old.rows[0].client_id) {
         await client.query(
           `UPDATE clients SET cancel_count = GREATEST(COALESCE(cancel_count, 0) - 1, 0), updated_at = NOW()
            WHERE id = $1 AND business_id = $2 AND COALESCE(cancel_count, 0) > 0`,

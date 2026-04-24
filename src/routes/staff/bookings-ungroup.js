@@ -188,10 +188,14 @@ router.patch('/:id/ungroup', blockIfImpersonated, async (req, res, next) => {
         const updated = await client.query(updateSql, params);
 
         // Re-sequence group_order for all members (including this one)
+        // BL-16 hotfix (scan 3) : lock tous les siblings AVANT re-sequence — sinon
+        // concurrent cancel/move peut modifier siblings entre le SELECT L192 et
+        // l'UPDATE L200 → group_order incohérent ou conflit.
         const allMembersRes = await client.query(
           `SELECT id, group_order FROM bookings
            WHERE group_id = $1 AND business_id = $2
-           ORDER BY group_order, start_at`,
+           ORDER BY group_order, start_at
+           FOR UPDATE`,
           [locked.group_id, bid]
         );
         const allMembers = allMembersRes.rows;
@@ -447,9 +451,22 @@ router.delete('/:id/group-remove', blockIfImpersonated, async (req, res, next) =
               );
             } else {
               // Promo no longer valid (e.g. removed service was the specific_service target)
+              // COMBO-UNGROUP-PROMO hotfix (scan 3 A7) : décrémenter promotions.current_uses
+              // car la consommation est annulée. Sans ce decrement, stock promo reste
+              // inflated → atteint max_uses plus vite → utilisateurs légitimes bloqués.
+              // Idempotence via guard promo_decremented_at (helpers.js pattern).
+              const _currentPromoId = locked.promotion_id || remaining.find(m => m.promotion_id)?.promotion_id;
+              if (_currentPromoId) {
+                await client.query(
+                  `UPDATE promotions SET current_uses = GREATEST(current_uses - 1, 0)
+                   WHERE id = $1 AND business_id = $2`,
+                  [_currentPromoId, bid]
+                ).catch(e => console.warn('[UNGROUP PROMO DEC]', e.message));
+              }
               await client.query(
                 `UPDATE bookings SET promotion_id = NULL, promotion_label = NULL,
-                  promotion_discount_pct = NULL, promotion_discount_cents = NULL, updated_at = NOW()
+                  promotion_discount_pct = NULL, promotion_discount_cents = NULL,
+                  promo_decremented_at = NOW(), updated_at = NOW()
                  WHERE id = $1 AND business_id = $2`,
                 [carrierId, bid]
               );
