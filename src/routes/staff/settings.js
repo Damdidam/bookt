@@ -790,20 +790,25 @@ router.post('/close', requireOwner, blockIfImpersonated, async (req, res, next) 
       );
 
       // 2b-refund-2: gift cards avec balance restante + Stripe PI
+      // BL-03 Phase 3C hotfix (scan 3 audit) : exclude disputed_at — parity avec
+      // staff/gift-cards.js:293 manual refund guard. Évite double-loss si GC en dispute.
       const gcToRefundRes = await client.query(
         `SELECT id, code, balance_cents, stripe_payment_intent_id
          FROM gift_cards
          WHERE business_id = $1 AND status = 'active' AND balance_cents > 0
-           AND stripe_payment_intent_id IS NOT NULL`,
+           AND stripe_payment_intent_id IS NOT NULL
+           AND disputed_at IS NULL`,
         [bid]
       );
 
       // 2b-refund-3: passes avec sessions restantes + Stripe PI
+      // BL-03 Phase 3C hotfix : idem — parity passes.js:514 + :582.
       const passToRefundRes = await client.query(
         `SELECT id, code, price_cents, sessions_total, sessions_remaining, stripe_payment_intent_id
          FROM passes
          WHERE business_id = $1 AND status = 'active' AND sessions_remaining > 0
-           AND stripe_payment_intent_id IS NOT NULL`,
+           AND stripe_payment_intent_id IS NOT NULL
+           AND disputed_at IS NULL`,
         [bid]
       );
 

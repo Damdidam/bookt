@@ -712,11 +712,15 @@ router.delete('/:id', requireOwner, blockIfImpersonated, async (req, res, next) 
     const keepBookings = req.query.keep_bookings === 'true';
 
     // Count future active bookings for this practitioner
+    // BL-03 Phase 3C hotfix (scan 3 audit) : filter disputed_at IS NULL pour cohérence
+    // avec le UPDATE batch cancel L778 qui skip les disputés. Sans ce filter, le warning
+    // pro "X RDV à venir" surestime le vrai travail cancel (les disputés restent intacts).
     const futureRes = await queryWithRLS(bid,
       `SELECT COUNT(*)::int AS cnt FROM bookings
        WHERE practitioner_id = $1 AND business_id = $2
        AND start_at > NOW()
-       AND status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')`,
+       AND status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')
+       AND disputed_at IS NULL`,
       [pracId, bid]
     );
     const futureCount = futureRes.rows[0].cnt;
