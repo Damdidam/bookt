@@ -14,7 +14,8 @@ let invoiceOffset=0;
 const INVOICE_PAGE_SIZE=50;
 let _unbilledBookings=[];
 
-function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+// P1 hotfix (audit scan 2) : ajout apostrophe escape (XSS attribute-break).
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 
 async function loadInvoices(){
   if (!isPro()) { showProGate(document.getElementById('contentArea'), 'Facturation'); return; }

@@ -214,7 +214,7 @@ function _scheduleServerCheck(nd, ns, ne, pracId) {
         const conflictNames = (data.conflicts || []).map(c => {
           const s = new Date(c.start_at).toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' });
           const e = new Date(c.end_at).toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' });
-          return `<strong>${c.service_name || 'RDV'}</strong> (${s} \u2013 ${e})`;
+          return `<strong>${esc(c.service_name || 'RDV')}</strong> (${s} \u2013 ${e})`;
         }).join(', ');
         warn.style.display = 'block';
         warn.style.background = 'var(--red-bg)';

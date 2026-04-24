@@ -6,7 +6,9 @@ import { bridge } from '../utils/window-bridge.js';
 import { guardModal, showConfirmDialog } from '../utils/dirty-guard.js';
 import { IC } from '../utils/icons.js';
 
-function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+// P1 hotfix (audit scan 2) : ajout apostrophe escape. Avant ce fix, une valeur
+// contenant ' pouvait casser un attribut HTML délimité par ' → XSS attribute-break.
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 
 async function loadSettings(){
   const c=document.getElementById('contentArea');
@@ -500,16 +502,16 @@ async function loadSettings(){
 
     // 4. Lien public & widget
     h+=`<div class="settings-card"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Lien public & Widget</h3></div><div class="sc-body">
-      <div class="field"><label>URL de réservation</label><div class="copy-input"><input id="s_url" value="${lk.booking_url||''}" readonly><button class="btn-outline btn-sm" onclick="copyField('s_url')">${IC.clipboard} Copier</button></div></div>
-      <div class="field"><label>Code widget embeddable</label><div class="copy-input"><input id="s_widget" value='${esc(lk.widget_code||'')}' readonly style="font-size:.72rem"><button class="btn-outline btn-sm" onclick="copyField('s_widget')">${IC.clipboard} Copier</button></div><div class="hint">Collez ce code sur votre site existant pour ajouter un bouton de réservation</div></div>
-      <div class="field"><label>QR Code</label><div class="hint">Scannez pour accéder à votre page publique</div><div style="margin-top:8px;padding:16px;background:var(--surface);border-radius:8px;text-align:center">${lk.qr_image?`<img id="qrImage" src="${lk.qr_image}" alt="QR Code" style="width:160px;height:160px">`:'<div style="color:var(--text-4);font-size:.82rem">QR code non disponible</div>'}<div style="margin-top:8px">${lk.qr_image?`<button class="btn-outline btn-sm" onclick="downloadQR()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Télécharger PNG</button>`:''}</div></div></div>
+      <div class="field"><label>URL de réservation</label><div class="copy-input"><input id="s_url" value="${esc(lk.booking_url||'')}" readonly><button class="btn-outline btn-sm" onclick="copyField('s_url')">${IC.clipboard} Copier</button></div></div>
+      <div class="field"><label>Code widget embeddable</label><div class="copy-input"><input id="s_widget" value="${esc(lk.widget_code||'')}" readonly style="font-size:.72rem"><button class="btn-outline btn-sm" onclick="copyField('s_widget')">${IC.clipboard} Copier</button></div><div class="hint">Collez ce code sur votre site existant pour ajouter un bouton de réservation</div></div>
+      <div class="field"><label>QR Code</label><div class="hint">Scannez pour accéder à votre page publique</div><div style="margin-top:8px;padding:16px;background:var(--surface);border-radius:8px;text-align:center">${lk.qr_image?`<img id="qrImage" src="${esc(lk.qr_image)}" alt="QR Code" style="width:160px;height:160px">`:'<div style="color:var(--text-4);font-size:.82rem">QR code non disponible</div>'}<div style="margin-top:8px">${lk.qr_image?`<button class="btn-outline btn-sm" onclick="downloadQR()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Télécharger PNG</button>`:''}</div></div></div>
     </div></div>`;
 
     // 4. Sécurité
     h+=`<div class="settings-card"><div class="sc-h"><h3>${IC.lock} Sécurité</h3></div><div class="sc-body">
-      <p style="font-size:.85rem;color:var(--text-3);margin-bottom:14px">Connecté en tant que <strong>${u.email}</strong> · Rôle : ${sectorLabels[u.role]||u.role}${u.last_login_at?' · Dernière connexion : '+new Date(u.last_login_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',timeZone:'Europe/Brussels'}):''}</p>
-      <div class="field"><label>Mot de passe actuel</label><input id="s_pwd_current" type="password"></div>
-      <div class="field-row"><div class="field"><label>Nouveau mot de passe</label><input id="s_pwd_new" type="password" placeholder="Min. 8 caractères"></div><div class="field"><label>Confirmer</label><input id="s_pwd_confirm" type="password"></div></div>
+      <p style="font-size:.85rem;color:var(--text-3);margin-bottom:14px">Connecté en tant que <strong>${esc(u.email)}</strong> · Rôle : ${sectorLabels[u.role]||u.role}${u.last_login_at?' · Dernière connexion : '+new Date(u.last_login_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',timeZone:'Europe/Brussels'}):''}</p>
+      <div class="field"><label>Mot de passe actuel</label><input id="s_pwd_current" type="password" autocomplete="current-password"></div>
+      <div class="field-row"><div class="field"><label>Nouveau mot de passe</label><input id="s_pwd_new" type="password" placeholder="Min. 8 caractères" autocomplete="new-password"></div><div class="field"><label>Confirmer</label><input id="s_pwd_confirm" type="password" autocomplete="new-password"></div></div>
     </div><div class="sc-foot"><button class="btn-primary" onclick="changePassword()">Changer le mot de passe</button></div></div>`;
 
     // 5. Plan & facturation

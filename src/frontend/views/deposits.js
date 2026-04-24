@@ -16,7 +16,8 @@ const DEPOSIT_PAGE_SIZE=50;
 let _lastDepPag={total_count:0,limit:DEPOSIT_PAGE_SIZE,offset:0};
 let _lastDeps=[];
 
-function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+// P1 hotfix (audit scan 2) : ajout apostrophe escape (XSS attribute-break si attr délimité par ').
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 
 async function loadDeposits(){
   if (!isPro()) { showProGate(document.getElementById('contentArea'), 'Acomptes'); return; }

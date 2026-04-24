@@ -581,15 +581,15 @@ function openGalleryModal(item){
         </div>
       </div>
       <div id="galPreview" style="margin-bottom:12px;border-radius:8px;overflow:hidden;max-height:200px;display:${item?.image_url?'block':'none'};position:relative">
-        <img id="galPreviewImg" src="${item?.image_url||''}" style="width:100%;height:auto;max-height:200px;object-fit:cover">
+        <img id="galPreviewImg" src="${esc(item?.image_url||'')}" style="width:100%;height:auto;max-height:200px;object-fit:cover">
         <button id="galClearFile" style="display:none;position:absolute;top:6px;right:6px;background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:50%;width:24px;height:24px;cursor:pointer;font-size:14px;line-height:1" onclick="clearGalFile()">×</button>
       </div>
       <div style="border-top:1px solid var(--border-light);padding-top:12px;margin-top:4px">
         <label class="m-field-label" style="font-size:.72rem;color:var(--text-4)">Ou collez une URL</label>
-        <input class="m-input" id="galUrl" value="${isEdit?item?.image_url||'':''}" placeholder="https://i.imgur.com/...jpg" style="font-size:.82rem">
+        <input class="m-input" id="galUrl" value="${esc(isEdit?item?.image_url||'':'')}" placeholder="https://i.imgur.com/...jpg" style="font-size:.82rem">
       </div>
-      <div><label class="m-field-label">Titre</label><input class="m-input" id="galTitle" value="${item?.title||''}" placeholder="Ex: Notre cabinet"></div>
-      <div><label class="m-field-label">Légende</label><input class="m-input" id="galCaption" value="${item?.caption||''}" placeholder="Ex: Salle d'attente rénovée en 2024"></div>
+      <div><label class="m-field-label">Titre</label><input class="m-input" id="galTitle" value="${esc(item?.title||'')}" placeholder="Ex: Notre cabinet"></div>
+      <div><label class="m-field-label">Légende</label><input class="m-input" id="galCaption" value="${esc(item?.caption||'')}" placeholder="Ex: Salle d'attente rénovée en 2024"></div>
     </div>
     <div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('galModal')">Annuler</button><button class="m-btn m-btn-primary" id="galSaveBtn" onclick="saveGalleryItem('${item?.id||''}')">${isEdit?'Enregistrer':'Ajouter'}</button></div>
   </div>`;
@@ -724,15 +724,15 @@ function openNewsModal(item){
   ov.innerHTML=`<div class="m-dialog m-md">
     <div class="m-header-simple"><h3>${isEdit?'Modifier l\'article':'Publier un article'}</h3><button class="m-close" onclick="closeModal('newsModal')" aria-label="Fermer"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
     <div class="m-body">
-      <div><label class="m-field-label">Titre *</label><input class="m-input" id="newsTitle" value="${item?.title||''}" placeholder="Ex: Nouveau service de téléconsultation"></div>
-      <div><label class="m-field-label">Contenu *</label><textarea class="m-input" id="newsContent" style="min-height:120px;resize:vertical" placeholder="Rédigez votre article...">${item?.content||''}</textarea></div>
+      <div><label class="m-field-label">Titre *</label><input class="m-input" id="newsTitle" value="${esc(item?.title||'')}" placeholder="Ex: Nouveau service de téléconsultation"></div>
+      <div><label class="m-field-label">Contenu *</label><textarea class="m-input" id="newsContent" style="min-height:120px;resize:vertical" placeholder="Rédigez votre article...">${esc(item?.content||'')}</textarea></div>
       <div class="m-row m-row-2">
-        <div><label class="m-field-label">Tag (optionnel)</label><input class="m-input" id="newsTag" value="${item?.tag||''}" placeholder="Ex: Nouveau, Important"></div>
+        <div><label class="m-field-label">Tag (optionnel)</label><input class="m-input" id="newsTag" value="${esc(item?.tag||'')}" placeholder="Ex: Nouveau, Important"></div>
         <div><label class="m-field-label">Type de tag</label><select class="m-input" id="newsTagType">
           ${tagTypes.map(t=>`<option value="${t.val}"${item?.tag_type===t.val?' selected':''}>${t.label}</option>`).join('')}
         </select></div>
       </div>
-      <div><label class="m-field-label">Image (URL, optionnel)</label><input class="m-input" id="newsImage" value="${item?.image_url||''}" placeholder="https://..."></div>
+      <div><label class="m-field-label">Image (URL, optionnel)</label><input class="m-input" id="newsImage" value="${esc(item?.image_url||'')}" placeholder="https://..."></div>
       <div><label class="m-field-label">Date de publication</label><input class="m-input" type="date" id="newsDate" value="${item?.published_at?.split('T')[0]||new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' })}"></div>
     </div>
     <div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('newsModal')">Annuler</button><button class="m-btn m-btn-primary" id="newsSaveBtn" onclick="saveNewsItem('${item?.id||''}')">${isEdit?'Enregistrer':'Publier'}</button></div>
@@ -938,14 +938,14 @@ function openTestimonialModal(item){
   ov.innerHTML=`<div class="m-dialog m-md">
     <div class="m-header-simple"><h3>${isEdit?'Modifier le témoignage':'Ajouter un témoignage'}</h3><button class="m-close" onclick="closeModal('testModal')" aria-label="Fermer"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
     <div class="m-body">
-      <div><label class="m-field-label">Nom du client *</label><input class="m-input" id="testAuthor" value="${item?.author_name||''}" placeholder="Ex: Marie D."></div>
+      <div><label class="m-field-label">Nom du client *</label><input class="m-input" id="testAuthor" value="${esc(item?.author_name||'')}" placeholder="Ex: Marie D."></div>
       <div class="m-row m-row-2">
-        <div><label class="m-field-label">Fonction / Contexte</label><input class="m-input" id="testRole" value="${item?.author_role||''}" placeholder="Ex: Patiente depuis 2020"></div>
+        <div><label class="m-field-label">Fonction / Contexte</label><input class="m-input" id="testRole" value="${esc(item?.author_role||'')}" placeholder="Ex: Patiente depuis 2020"></div>
         <div><label class="m-field-label">Note (1-5)</label><select class="m-input" id="testRating">
           ${[5,4,3,2,1].map(n=>'<option value="'+n+'"'+(item?.rating===n?' selected':(!item&&n===5?' selected':''))+'>'+(Array.from({length:n},()=>'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" fill="currentColor"/></svg>').join(''))+' ('+n+')</option>').join('')}
         </select></div>
       </div>
-      <div><label class="m-field-label">Témoignage *</label><textarea class="m-input" id="testContent" style="min-height:100px;resize:vertical" placeholder="Ce que le client dit de votre cabinet...">${item?.content||''}</textarea></div>
+      <div><label class="m-field-label">Témoignage *</label><textarea class="m-input" id="testContent" style="min-height:100px;resize:vertical" placeholder="Ce que le client dit de votre cabinet...">${esc(item?.content||'')}</textarea></div>
     </div>
     <div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('testModal')">Annuler</button><button class="m-btn m-btn-primary" id="testSaveBtn" onclick="saveTestimonial('${item?.id||''}')">${isEdit?'Enregistrer':'Ajouter'}</button></div>
   </div>`;
@@ -1009,8 +1009,8 @@ function openValueModal(item){
         </div>
         <input class="m-input" id="valIcon" value="${item?.icon||'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.7 10.3a2.41 2.41 0 0 0 0 3.41l7.59 7.59a2.41 2.41 0 0 0 3.41 0l7.59-7.59a2.41 2.41 0 0 0 0-3.41l-7.59-7.59a2.41 2.41 0 0 0-3.41 0Z"/></svg>'}" placeholder="Emoji ou texte" style="max-width:80px">
       </div>
-      <div><label class="m-field-label">Titre *</label><input class="m-input" id="valTitle" value="${item?.title||''}" placeholder="Ex: Écoute, Expertise, Qualité"></div>
-      <div><label class="m-field-label">Description *</label><input class="m-input" id="valDesc" value="${item?.description||''}" placeholder="Ex: Chaque client est unique, nous prenons le temps"></div>
+      <div><label class="m-field-label">Titre *</label><input class="m-input" id="valTitle" value="${esc(item?.title||'')}" placeholder="Ex: Écoute, Expertise, Qualité"></div>
+      <div><label class="m-field-label">Description *</label><input class="m-input" id="valDesc" value="${esc(item?.description||'')}" placeholder="Ex: Chaque client est unique, nous prenons le temps"></div>
     </div>
     <div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('valModal')">Annuler</button><button class="m-btn m-btn-primary" id="valSaveBtn" onclick="saveValue('${item?.id||''}')">${isEdit?'Enregistrer':'Ajouter'}</button></div>
   </div>`;

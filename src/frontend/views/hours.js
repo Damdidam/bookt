@@ -217,7 +217,7 @@ function renderClosuresCard() {
       h += `<div class="closure-row">
         <div>
           <span class="closure-dates">${dateStr}</span>
-          ${cl.reason ? `<span class="closure-reason">— ${cl.reason}</span>` : ''}
+          ${cl.reason ? `<span class="closure-reason">— ${esc(cl.reason)}</span>` : ''}
         </div>
         <button class="btn-outline btn-sm btn-danger" onclick="(async()=>{if(await showConfirmDialog('Supprimer cette fermeture ?'))deleteClosure('${cl.id}')})()" style="padding:3px 8px">${ICON_X}</button>
       </div>`;
@@ -252,7 +252,7 @@ function renderHolidaysCard(year) {
         <div style="display:flex;align-items:center;gap:8px">
           <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="var(--amber-dark)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
           <span style="font-size:.85rem;font-weight:600">${dt}</span>
-          <span style="font-size:.78rem;color:var(--text-4)">${hol.name}</span>
+          <span style="font-size:.78rem;color:var(--text-4)">${esc(hol.name)}</span>
         </div>
         <button class="btn-outline btn-sm btn-danger" onclick="(async()=>{if(await showConfirmDialog('Supprimer ?'))deleteHoliday('${hol.id}')})()" style="padding:3px 8px">${ICON_X}</button>
       </div>`;

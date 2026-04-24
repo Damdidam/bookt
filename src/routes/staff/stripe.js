@@ -1080,6 +1080,10 @@ async function handleStripeWebhook(req, res) {
               const txClient = await pool.connect();
               let _whGcRefunded = 0;
               let _whPassRefunded = false;
+              // P1 hotfix (audit scan 2) : flag pour distinguer "tx failed" de "side-effect failed"
+              // post-COMMIT. Avant ce fix, un side-effect qui throw tombait dans outer catch
+              // → ROLLBACK no-op sur tx committed + log "cascade failed" alors que DB OK.
+              let _txCommitted = false;
               try {
                 await txClient.query('BEGIN');
                 const cancelReason = 'Remboursé via Stripe Dashboard';
@@ -1154,6 +1158,7 @@ async function handleStripeWebhook(req, res) {
                 );
 
                 await txClient.query('COMMIT');
+                _txCommitted = true;
                 console.log(`[STRIPE WH] External refund cascade complete for booking ${bk.id} (PI: ${pi})`);
 
                 // Post-commit side effects
@@ -1249,10 +1254,15 @@ async function handleStripeWebhook(req, res) {
                     // double-email si un futur sweep pick up ce cancel_reason).
                     await query(`UPDATE bookings SET cancellation_email_sent_at = NOW() WHERE id = $1`, [bk.id]).catch(() => {});
                   }
-                } catch (emailErr) { console.warn('[STRIPE WH] Client cancel email error:', emailErr.message); }
+                } catch (emailErr) { console.warn('[STRIPE WH] Client cancel email error:', emailErr?.message || emailErr); }
               } catch (txErr) {
-                await txClient.query('ROLLBACK').catch(() => {});
-                console.error(`[STRIPE WH] External refund cascade failed for booking ${bk.id}:`, txErr.message);
+                // P1 hotfix : distinguer tx failed (rollback nécessaire) vs side-effect failed (tx déjà committed)
+                if (_txCommitted) {
+                  console.warn(`[STRIPE WH] External refund cascade — side-effect failed post-COMMIT for booking ${bk.id} (DB OK):`, txErr.message);
+                } else {
+                  await txClient.query('ROLLBACK').catch(() => {});
+                  console.error(`[STRIPE WH] External refund cascade TX FAILED for booking ${bk.id}:`, txErr.message);
+                }
               } finally {
                 txClient.release();
               }
@@ -1405,23 +1415,31 @@ async function handleStripeWebhook(req, res) {
                WHERE b.deposit_payment_intent_id IN ($1, $2)`, [pi, sessionId]
             );
             if (bookings.rows.length > 0) {
-              const bk = bookings.rows[0];
               // P1-07: marque le booking en dispute pour bloquer les futurs refunds
               // staff — empêche le double-loss (refund + dispute perdue).
               // Idempotent (COALESCE) : si déjà disputed, garde le 1er timestamp.
+              //
+              // P1 hotfix (audit scan 2 PATTERN-38) : TOUS les siblings du groupe
+              // partagent le même deposit_payment_intent_id → dispute.created doit
+              // flag TOUS, pas juste rows[0]. Sans ça, un staff cancel sur un sibling
+              // non-flagué émet refund via PI partagé → dispute perdu + refund =
+              // double-loss. Parity avec dispute.closed qui UPDATE multi-row (L1484).
+              const _disputedIds = bookings.rows.map(b => b.id);
               await query(
                 `UPDATE bookings
                  SET disputed_at = COALESCE(disputed_at, NOW()), updated_at = NOW()
-                 WHERE id = $1`,
-                [bk.id]
+                 WHERE id = ANY($1::uuid[])`,
+                [_disputedIds]
               ).catch(e => console.warn('[STRIPE WH] Dispute flag update error:', e.message));
-              // Queue notification for business owner
-              await query(
-                `INSERT INTO notifications (business_id, booking_id, type, status, metadata)
-                 VALUES ($1, $2, 'email_dispute_alert', 'queued', $3)`,
-                [bk.business_id, bk.id, JSON.stringify({ dispute_id: dispute.id, amount: dispute.amount, reason: dispute.reason })]
-              ).catch(e => console.warn('[STRIPE WH] Dispute notification queue error:', e.message));
-              console.log(`[STRIPE WH] Dispute created for booking ${bk.id}, amount: ${dispute.amount}, reason: ${dispute.reason}`);
+              // Queue notification for business owner (1 notif par booking disputé)
+              for (const _bkD of bookings.rows) {
+                await query(
+                  `INSERT INTO notifications (business_id, booking_id, type, status, metadata)
+                   VALUES ($1, $2, 'email_dispute_alert', 'queued', $3)`,
+                  [_bkD.business_id, _bkD.id, JSON.stringify({ dispute_id: dispute.id, amount: dispute.amount, reason: dispute.reason })]
+                ).catch(e => console.warn('[STRIPE WH] Dispute notification queue error:', e.message));
+              }
+              console.log(`[STRIPE WH] Dispute created on ${_disputedIds.length} booking(s) (PI=${pi}), amount: ${dispute.amount}, reason: ${dispute.reason}`);
             }
 
             // P1-07 v82 : chercher aussi dans passes + gift_cards — ces achats
@@ -1435,6 +1453,14 @@ async function handleStripeWebhook(req, res) {
                 `UPDATE passes SET disputed_at = COALESCE(disputed_at, NOW()), updated_at = NOW() WHERE id = $1`,
                 [p.id]
               ).catch(e => console.warn('[STRIPE WH] Pass dispute flag update error:', e.message));
+              // P2 hotfix (audit scan 2) : notifier le pro parity avec bookings L1429-1433.
+              // Sans ce INSERT, un litige sur pass direct (sans booking) restait silencieux
+              // côté Genda — pro le découvrait seulement via email Stripe brut.
+              await query(
+                `INSERT INTO notifications (business_id, type, status, metadata)
+                 VALUES ($1, 'email_dispute_alert', 'queued', $2)`,
+                [p.business_id, JSON.stringify({ kind: 'dispute_pass', pass_id: p.id, dispute_id: dispute.id, amount: dispute.amount, reason: dispute.reason })]
+              ).catch(e => console.warn('[STRIPE WH] Pass dispute notification queue error:', e.message));
               console.log(`[STRIPE WH] Dispute flagged on pass ${p.id}`);
             }
             const gcs = await query(
@@ -1446,6 +1472,12 @@ async function handleStripeWebhook(req, res) {
                 `UPDATE gift_cards SET disputed_at = COALESCE(disputed_at, NOW()), updated_at = NOW() WHERE id = $1`,
                 [g.id]
               ).catch(e => console.warn('[STRIPE WH] GC dispute flag update error:', e.message));
+              // P2 hotfix (audit scan 2) : idem GC — notifier le pro.
+              await query(
+                `INSERT INTO notifications (business_id, type, status, metadata)
+                 VALUES ($1, 'email_dispute_alert', 'queued', $2)`,
+                [g.business_id, JSON.stringify({ kind: 'dispute_gc', gift_card_id: g.id, dispute_id: dispute.id, amount: dispute.amount, reason: dispute.reason })]
+              ).catch(e => console.warn('[STRIPE WH] GC dispute notification queue error:', e.message));
               console.log(`[STRIPE WH] Dispute flagged on gift card ${g.id}`);
             }
           }

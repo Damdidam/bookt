@@ -5,7 +5,7 @@
  * builds toolbar HTML, initialises FullCalendar, and sets up SSE.
  */
 import { api, calState, userRole, user, allowedSections, GendaUI } from '../../state.js';
-import { getContentArea } from '../../utils/dom.js';
+import { getContentArea, esc } from '../../utils/dom.js';
 import { fcIsMobile, fcIsTablet, fcIsTouch } from '../../utils/touch.js';
 import { bridge } from '../../utils/window-bridge.js';
 
@@ -270,7 +270,7 @@ async function loadAgenda() {
     pillsHtml += `<div class="prac-pill active" onclick="fcFilterPractitioner('all',this)"><span class="dot" style="background:var(--primary)"></span>Tous<span class="prac-fill" data-fill-id="all"></span></div>`;
     calState.fcPractitioners.forEach(p => {
       const ini = p.display_name.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
-      pillsHtml += `<div class="prac-pill" onclick="fcFilterPractitioner('${p.id}',this)" title="${p.display_name}"><span class="dot" style="background:${p.color || 'var(--primary)'}"></span>${ini}<span class="prac-fill" data-fill-id="${p.id}"></span></div>`;
+      pillsHtml += `<div class="prac-pill" onclick="fcFilterPractitioner('${p.id}',this)" title="${esc(p.display_name)}"><span class="dot" style="background:${p.color || 'var(--primary)'}"></span>${esc(ini)}<span class="prac-fill" data-fill-id="${p.id}"></span></div>`;
     });
   }
 

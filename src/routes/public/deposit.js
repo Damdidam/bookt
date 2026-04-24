@@ -126,8 +126,15 @@ router.post('/deposit/:token/checkout', depositLimiter, async (req, res, next) =
         // pas encore arrivé (lag 5-30s), return already_paid au lieu de laisser tomber
         // dans la création d'une 2e session → user payait 2× puis auto-refund (frais
         // Bancontact 0.24€ doublés + UX confuse).
-        if (existingSession.status === 'complete' && existingSession.payment_status === 'paid') {
-          return res.json({ status: 'already_paid', message: 'Paiement en cours de validation, vous recevrez la confirmation par email sous peu.' });
+        // STRIPE-03-ext (audit scan 2) : étendre au cas Bancontact in-flight où
+        // session.status='complete' mais payment_status='unpaid' (settlement asynchrone
+        // en attente de async_payment_succeeded). Peut durer plusieurs minutes, fenêtre
+        // où un reload = double-paiement. On bloque aussi ce cas.
+        if (existingSession.status === 'complete' && (existingSession.payment_status === 'paid' || existingSession.payment_status === 'unpaid')) {
+          const _msg = existingSession.payment_status === 'paid'
+            ? 'Paiement en cours de validation, vous recevrez la confirmation par email sous peu.'
+            : 'Paiement Bancontact en cours de validation bancaire (peut prendre quelques minutes). Vous recevrez la confirmation par email.';
+          return res.json({ status: 'already_paid', message: _msg });
         }
       } catch (e) { /* expired or invalid — create new */ }
     }
@@ -309,7 +316,9 @@ router.get('/deposit/:token/pay', depositLimiter, async (req, res, next) => {
         // STRIPE-03 fix (scan 23 avril) : parity avec route POST checkout ci-dessus.
         // Session complete+paid mais webhook lag → redirect vers page paid plutôt que
         // créer 2e session (double-paiement client).
-        if (existingSession.status === 'complete' && existingSession.payment_status === 'paid') {
+        // STRIPE-03-ext (audit scan 2) : inclure aussi payment_status='unpaid' (Bancontact
+        // async in-flight) — même raisonnement que POST /checkout.
+        if (existingSession.status === 'complete' && (existingSession.payment_status === 'paid' || existingSession.payment_status === 'unpaid')) {
           return res.redirect(depositPageUrl + '?paid=1');
         }
       } catch (e) { /* expired or invalid — create new */ }

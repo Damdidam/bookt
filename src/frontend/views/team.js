@@ -986,7 +986,7 @@ async function openPracTasks(pracId, pracName) {
           <input type="checkbox" onchange="togglePracTodo('${t.id}','${t.booking_id}',this.checked,'${pracId}','${esc(pracName)}')" style="margin-top:3px">
           <div style="flex:1;min-width:0">
             <div style="font-size:.82rem">${escH(t.content)}</div>
-            <div style="font-size:.7rem;color:var(--text-4)">${t.client_name || ''} ${t.service_name ? '· ' + t.service_name : ''} ${dt ? '· ' + dt : ''}</div>
+            <div style="font-size:.7rem;color:var(--text-4)">${escH(t.client_name || '')} ${t.service_name ? '· ' + escH(t.service_name) : ''} ${dt ? '· ' + dt : ''}</div>
           </div>
         </div>`;
       });
@@ -998,7 +998,7 @@ async function openPracTasks(pracId, pracName) {
       doneTodos.slice(0, 10).forEach(t => {
         h += `<div style="padding:6px 0;border-bottom:1px solid var(--border-light);opacity:.5">
           <div style="font-size:.8rem;text-decoration:line-through">${escH(t.content)}</div>
-          <div style="font-size:.68rem;color:var(--text-4)">${t.client_name || ''} · ${t.done_at ? new Date(t.done_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' }) : ''}</div>
+          <div style="font-size:.68rem;color:var(--text-4)">${escH(t.client_name || '')} · ${t.done_at ? new Date(t.done_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' }) : ''}</div>
         </div>`;
       });
       if (doneTodos.length > 10) h += `<div style="font-size:.72rem;color:var(--text-4);padding:4px 0">+ ${doneTodos.length - 10} autres</div>`;
@@ -1012,7 +1012,7 @@ async function openPracTasks(pracId, pracName) {
         const dt = new Date(r.remind_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
         h += `<div style="padding:8px 0;border-bottom:1px solid var(--border-light)">
           <div style="font-size:.82rem">${dt}</div>
-          <div style="font-size:.7rem;color:var(--text-4)">${r.client_name || ''} ${r.service_name ? '· ' + r.service_name : ''} ${r.message ? '· ' + escH(r.message) : ''}</div>
+          <div style="font-size:.7rem;color:var(--text-4)">${escH(r.client_name || '')} ${r.service_name ? '· ' + escH(r.service_name) : ''} ${r.message ? '· ' + escH(r.message) : ''}</div>
         </div>`;
       });
     }

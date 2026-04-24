@@ -908,7 +908,12 @@ router.post('/close', requireOwner, blockIfImpersonated, async (req, res, next) 
         }
       }
 
-      // Gift cards refund Stripe (balance_cents) + mark status='refunded'
+      // Gift cards refund Stripe (balance_cents) + mark status='cancelled'
+      // P1 hotfix (audit scan 2) : status='refunded' viole CHECK constraint
+      // schema-v59-gift-cards.sql:13 (CHECK IN active/used/expired/cancelled).
+      // Le .catch(()=>{}) masquait l'erreur silencieusement → GC restait 'active'
+      // avec balance=0 (état incohérent, client voyait GC "active" dans ses emails).
+      // Fix : 'cancelled' aligné avec stripe.js:1297 charge.refunded cascade.
       for (const gc of txResult.gcToRefund) {
         const amt = gc.balance_cents || 0;
         if (amt <= 0) continue;
@@ -916,7 +921,7 @@ router.post('/close', requireOwner, blockIfImpersonated, async (req, res, next) 
         if (res.ok) {
           refundStats.gc_refunded++;
           await queryWithRLS(bid,
-            `UPDATE gift_cards SET status = 'refunded', balance_cents = 0, updated_at = NOW() WHERE id = $1`,
+            `UPDATE gift_cards SET status = 'cancelled', balance_cents = 0, updated_at = NOW() WHERE id = $1`,
             [gc.id]
           ).catch(() => {});
         } else {
