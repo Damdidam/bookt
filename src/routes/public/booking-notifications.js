@@ -157,9 +157,11 @@ async function sendPostBookingComms({
             // (consent opt-out, no Twilio key, monthly cap) or failed (Twilio 400).
             const _depSmsRes = await sendSMS({ to: clientPhone, body: `${bizRow.rows[0].name} : Acompte ${depAmt}\u20ac pour "${_svcLabel}"${practitionerName ? ' avec ' + practitionerName : ''} le ${_sDate} \u00e0 ${_sTime}${_depDl ? '. Avant le ' + _depDl : ''}. Payez : ${depositUrl}`, businessId, clientId: createdBooking.client_id });
             try {
-              // notifications.status CHECK = {'queued','sent','failed'} — skip + failed both map to 'failed'
+              // notifications.status CHECK = {'queued','sent','failed'} — skip + failed both map to 'failed'.
+              // Format error: 'skipped:<reason>' pour parity avec les 3 autres sites SMS (L193, L203, L248)
+              // — grep/query `error LIKE 'skipped:%'` doit remonter TOUTES les entrées skipped.
               const _depStatus = _depSmsRes?.success ? 'sent' : 'failed';
-              const _depError = _depSmsRes?.skipped ? 'skipped_opt_out_or_cap' : (_depSmsRes?.error || null);
+              const _depError = _depSmsRes?.skipped ? ('skipped:' + (_depSmsRes.error || 'opt_out_or_cap')) : (_depSmsRes?.error || null);
               await query(
                 `INSERT INTO notifications (business_id, booking_id, type, recipient_phone, status, sent_at, error)
                  VALUES ($1,$2,'sms_deposit_request',$3,$4,NOW(),$5)`,

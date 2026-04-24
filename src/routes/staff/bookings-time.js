@@ -2135,11 +2135,19 @@ router.post('/:id/send-reminder', blockIfImpersonated, async (req, res, next) =>
       }
     }
 
-    // Log notification
+    // P2 hotfix (audit scan 2) : dériver status réel du résultat sendSMS/sendEmail
+    // au lieu de hardcoder 'sent'. Sinon la metric anti-spam (L2012 30min window)
+    // bloque le pro pendant 30min même si le SMS/email a skipped/failed.
+    const _smsOk = result.sms === 'sent';
+    const _emailOk = result.email === 'sent';
+    const _manRemStatus = (_smsOk || _emailOk) ? 'sent' : 'failed';
+    const _manRemErr = _manRemStatus === 'failed'
+      ? `sms=${result.sms || 'none'};email=${result.email || 'none'}`
+      : null;
     await queryWithRLS(bid,
-      `INSERT INTO notifications (business_id, booking_id, type, recipient_phone, recipient_email, status, sent_at)
-       VALUES ($1, $2, 'manual_reminder', $3, $4, 'sent', NOW())`,
-      [bid, id, b.client_phone || null, b.client_email || null]
+      `INSERT INTO notifications (business_id, booking_id, type, recipient_phone, recipient_email, status, sent_at, error)
+       VALUES ($1, $2, 'manual_reminder', $3, $4, $5, ${_manRemStatus === 'sent' ? 'NOW()' : 'NULL'}, $6)`,
+      [bid, id, b.client_phone || null, b.client_email || null, _manRemStatus, _manRemErr]
     );
 
     res.json({ sent: true, ...result });

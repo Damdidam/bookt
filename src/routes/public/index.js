@@ -793,10 +793,14 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                 // If pass was used, mark only the matched booking as pass-paid
                 // Other bookings still need normal deposit flow
                 if (passUsed && passMatchedBookingId) {
+                  // P2 hotfix (audit scan 2 R1) : parity COMBO-02 + Stripe webhook — un
+                  // booking payé via pass doit être locked=true comme GC full coverage
+                  // (L864) et Stripe webhook (stripe.js:297). Sans ça, reschedule libre
+                  // possible sur un booking "payé" via pass, incohérent avec autres modes.
                   await client.query(
                     `UPDATE bookings SET status = 'confirmed', deposit_required = true, deposit_amount_cents = $1,
                       deposit_status = 'paid', deposit_paid_at = NOW(),
-                      deposit_payment_intent_id = $2
+                      deposit_payment_intent_id = $2, locked = true
                      WHERE id = $3 AND business_id = $4`,
                     [depResult.depCents, `pass_${passUsed}`, passMatchedBookingId, businessId]
                   );
@@ -1406,10 +1410,13 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
               // If pass was used, it covers the deposit
               let gcAutoPaid = false;
               if (passUsed) {
+                // P2 hotfix (audit scan 2 R1) : parity GC full coverage L1468 + Stripe
+                // webhook — lock le booking après pass-paid pour empêcher reschedule
+                // libre (même sémantique que les autres modes de paiement réussis).
                 await client.query(
                   `UPDATE bookings SET deposit_required = true, deposit_amount_cents = $1,
                     deposit_status = 'paid', deposit_paid_at = NOW(),
-                    deposit_payment_intent_id = $2
+                    deposit_payment_intent_id = $2, locked = true
                    WHERE id = $3 AND business_id = $4`,
                   [depResult.depCents, `pass_${passUsed}`, booking.rows[0].id, businessId]
                 );
@@ -1417,6 +1424,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                 booking.rows[0].deposit_amount_cents = depResult.depCents;
                 booking.rows[0].deposit_status = 'paid';
                 booking.rows[0].deposit_payment_intent_id = `pass_${passUsed}`;
+                booking.rows[0].locked = true;
                 gcAutoPaid = true;
                 console.log(`[DEPOSIT] Fully covered by pass ${passUsed}`);
               }

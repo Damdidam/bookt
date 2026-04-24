@@ -1926,10 +1926,13 @@ router.post('/:id/send-deposit-request', blockIfImpersonated, async (req, res, n
       const provider = ch === 'sms' ? 'twilio' : 'brevo';
       const providerId = r?.messageId || r?.sid || null;
       const notifType = ch === 'sms' ? 'sms_deposit_request' : 'email_deposit_request';
+      // P2 hotfix (audit batch 2) : parity EMAIL-02 — si r.skipped=true, préfixe 'skipped:'
+      // dans error pour que les queries `error LIKE 'skipped:%'` remontent ce cas.
+      const errorMsg = r?.skipped ? ('skipped:' + (r.error || 'opt_out_or_cap')) : (r?.error || null);
       await queryWithRLS(bid, `
         INSERT INTO notifications (business_id, booking_id, type, recipient_email, recipient_phone, status, provider, provider_message_id, error, sent_at)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, ${status === 'sent' ? 'NOW()' : 'NULL'})
-      `, [bid, id, notifType, bk.client_email || null, bk.client_phone || null, status, provider, providerId, r?.error || null]);
+      `, [bid, id, notifType, bk.client_email || null, bk.client_phone || null, status, provider, providerId, errorMsg]);
       if (r?.success) sent.push(ch);
       else failed.push(ch);
     }

@@ -791,7 +791,11 @@ async function handleStripeWebhook(req, res) {
               const biz = bizRes.rows[0];
               if (biz && buyer_email) {
                 const { sendPassPurchaseEmail, sendPassPurchaseProEmail } = require('../../services/email');
-                const passData = { code, name: tpl.name, sessions_total: tpl.sessions_count, price_cents: tpl.price_cents, service_name: tpl.service_name, buyer_name, buyer_email, expires_at: expiresAt };
+                // P1 hotfix (audit scan 2) : la var s'appelle _passExpAt depuis le fix PASS-01.
+                // Avant ce fix, expires_at référençait `expiresAt` inexistant dans ce scope
+                // (défini seulement dans la branche gift_card) → ReferenceError silencieux
+                // catché L803 → aucun email pass-purchase envoyé au client.
+                const passData = { code, name: tpl.name, sessions_total: tpl.sessions_count, price_cents: tpl.price_cents, service_name: tpl.service_name, buyer_name, buyer_email, expires_at: _passExpAt };
                 await sendPassPurchaseEmail({
                   pass: passData,
                   business: { id: business_id, name: biz.name, slug: biz.slug, email: biz.email, phone: biz.phone, address: biz.address, theme: biz.theme }
