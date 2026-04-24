@@ -7,7 +7,7 @@ const { broadcast } = require('../../services/sse');
 const { calSyncPush, calSyncDelete, checkBookingConflicts, getMaxConcurrent } = require('./bookings-helpers');
 const { refundGiftCardForBooking, getGcPaidCents } = require('../../services/gift-card-refund');
 const { refundPassForBooking } = require('../../services/pass-refund');
-const { blockIfImpersonated } = require('../../middleware/auth');
+const { blockIfImpersonated, requirePro } = require('../../middleware/auth');
 const { invalidateMinisiteCache } = require('../public/helpers');
 
 // ===== STATE MACHINE: valid transitions (module-level for reuse) =====
@@ -1778,7 +1778,7 @@ router.patch('/:id/waive-deposit', blockIfImpersonated, async (req, res, next) =
 // Accepts { channels: ['email','sms'] } or legacy { channel: 'email' }
 // UI: Quick-create post-creation panel + Detail modal deposit banner
 // ============================================================
-router.post('/:id/send-deposit-request', blockIfImpersonated, async (req, res, next) => {
+router.post('/:id/send-deposit-request', requirePro, blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
@@ -1796,6 +1796,14 @@ router.post('/:id/send-deposit-request', blockIfImpersonated, async (req, res, n
 
     const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!UUID_RE.test(id)) return res.status(400).json({ error: 'ID invalide' });
+
+    // DEP-01 fix : Stripe Connect doit etre active sinon relance d'acompte envoie
+    // un lien qui echouera cote client. Parite /require-deposit.
+    const connectRes = await queryWithRLS(bid, `SELECT stripe_connect_id, stripe_connect_status FROM businesses WHERE id = $1`, [bid]);
+    const connectRow = connectRes.rows[0];
+    if (!connectRow?.stripe_connect_id || connectRow.stripe_connect_status !== 'active') {
+      return res.status(400).json({ error: 'stripe_connect_required', message: 'Activez Stripe Connect pour envoyer une demande d\'acompte' });
+    }
 
     // 1. Fetch booking + client + business + service
     const bkResult = await queryWithRLS(bid, `
@@ -2006,7 +2014,7 @@ router.post('/:id/send-deposit-request', blockIfImpersonated, async (req, res, n
 // Retroactively require a deposit on an already-confirmed booking
 // UI: Calendar → event detail → "Exiger un acompte"
 // ============================================================
-router.post('/:id/require-deposit', blockIfImpersonated, async (req, res, next) => {
+router.post('/:id/require-deposit', requirePro, blockIfImpersonated, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
@@ -2015,6 +2023,15 @@ router.post('/:id/require-deposit', blockIfImpersonated, async (req, res, next) 
 
     const { amount_cents, deadline_hours } = req.body;
     if (!amount_cents || amount_cents <= 0) return res.status(400).json({ error: 'Montant invalide' });
+
+    // DEP-01 fix : Stripe Connect doit etre active sinon le lien deposit genere
+    // echoue cote client (create checkout session impossible) -> booking bloque
+    // pending_deposit -> expire -> auto-cancel. Parite avec public/deposit.js:41.
+    const connectRes = await queryWithRLS(bid, `SELECT stripe_connect_id, stripe_connect_status FROM businesses WHERE id = $1`, [bid]);
+    const connectRow = connectRes.rows[0];
+    if (!connectRow?.stripe_connect_id || connectRow.stripe_connect_status !== 'active') {
+      return res.status(400).json({ error: 'stripe_connect_required', message: 'Activez Stripe Connect pour exiger des acomptes' });
+    }
 
     const txResult = await transactionWithRLS(bid, async (client) => {
       // Fetch booking + client + business info for email
