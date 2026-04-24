@@ -268,9 +268,14 @@ async function loadAgenda() {
     calState.fcCurrentFilter = 'all';
   } else {
     pillsHtml += `<div class="prac-pill active" onclick="fcFilterPractitioner('all',this)"><span class="dot" style="background:var(--primary)"></span>Tous<span class="prac-fill" data-fill-id="all"></span></div>`;
+    // P2 hotfix (audit scan 2) : valide p.color en regex hex/var pour éviter CSS
+    // injection. p.color est owner-contrôlé (UPDATE practitioners), sans CHECK en DB.
+    // Pattern accepté : #rgb, #rrggbb, #rrggbbaa, var(--...), nom CSS simple.
+    const _safeColorRe = /^(#[0-9a-fA-F]{3,8}|var\(--[a-zA-Z0-9_-]+\)|[a-zA-Z]+)$/;
     calState.fcPractitioners.forEach(p => {
       const ini = p.display_name.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
-      pillsHtml += `<div class="prac-pill" onclick="fcFilterPractitioner('${p.id}',this)" title="${esc(p.display_name)}"><span class="dot" style="background:${p.color || 'var(--primary)'}"></span>${esc(ini)}<span class="prac-fill" data-fill-id="${p.id}"></span></div>`;
+      const _pColor = (p.color && _safeColorRe.test(p.color)) ? p.color : 'var(--primary)';
+      pillsHtml += `<div class="prac-pill" onclick="fcFilterPractitioner('${p.id}',this)" title="${esc(p.display_name)}"><span class="dot" style="background:${_pColor}"></span>${esc(ini)}<span class="prac-fill" data-fill-id="${p.id}"></span></div>`;
     });
   }
 

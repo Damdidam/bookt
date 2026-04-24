@@ -983,7 +983,7 @@ async function openPracTasks(pracId, pracName) {
       pendingTodos.forEach(t => {
         const dt = t.booking_start ? new Date(t.booking_start).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' }) : '';
         h += `<div style="padding:8px 0;border-bottom:1px solid var(--border-light);display:flex;gap:10px;align-items:flex-start">
-          <input type="checkbox" onchange="togglePracTodo('${t.id}','${t.booking_id}',this.checked,'${pracId}','${esc(pracName)}')" style="margin-top:3px">
+          <input type="checkbox" onchange="togglePracTodo('${t.id}','${t.booking_id}',this.checked,'${pracId}','${escJs(pracName)}')" style="margin-top:3px">
           <div style="flex:1;min-width:0">
             <div style="font-size:.82rem">${escH(t.content)}</div>
             <div style="font-size:.7rem;color:var(--text-4)">${escH(t.client_name || '')} ${t.service_name ? '· ' + escH(t.service_name) : ''} ${dt ? '· ' + dt : ''}</div>

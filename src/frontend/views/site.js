@@ -1007,7 +1007,7 @@ function openValueModal(item){
         <div id="valIconPicker" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">
           ${icons.map(ic=>'<button type="button" onclick="document.getElementById(\'valIcon\').value=\''+ic+'\';document.querySelectorAll(\'#valIconPicker button\').forEach(b=>b.style.outline=\'\');this.style.outline=\'2px solid var(--primary)\'" style="width:36px;height:36px;border-radius:8px;border:1px solid var(--border-light);background:var(--white);font-size:1.1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .1s'+(item?.icon===ic?';outline:2px solid var(--primary)':'')+'">'+ic+'</button>').join('')}
         </div>
-        <input class="m-input" id="valIcon" value="${item?.icon||'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.7 10.3a2.41 2.41 0 0 0 0 3.41l7.59 7.59a2.41 2.41 0 0 0 3.41 0l7.59-7.59a2.41 2.41 0 0 0 0-3.41l-7.59-7.59a2.41 2.41 0 0 0-3.41 0Z"/></svg>'}" placeholder="Emoji ou texte" style="max-width:80px">
+        <input class="m-input" id="valIcon" value="${esc(item?.icon||'')}" placeholder="Emoji ou texte" style="max-width:80px">
       </div>
       <div><label class="m-field-label">Titre *</label><input class="m-input" id="valTitle" value="${esc(item?.title||'')}" placeholder="Ex: Écoute, Expertise, Qualité"></div>
       <div><label class="m-field-label">Description *</label><input class="m-input" id="valDesc" value="${esc(item?.description||'')}" placeholder="Ex: Chaque client est unique, nous prenons le temps"></div>
