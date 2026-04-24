@@ -67,7 +67,7 @@ function renderAnalytics(d){
   const stColors={confirmed:'#0D7377',completed:'#6B6560',pending:'#A68B3C',no_show:'#DC8C00',cancelled:'#DC2626'};
   const stLabels={confirmed:'Confirmé',completed:'Terminé',pending:'En attente',no_show:'No-show',cancelled:'Annulé'};
   h+=`<div class="status-legend">`;
-  d.status_breakdown.forEach(s=>{h+=`<span class="sl"><span class="dot" style="background:${stColors[s.status]||'#999'}"></span>${stLabels[s.status]||s.status}: ${s.count}</span>`;});
+  d.status_breakdown.forEach(s=>{h+=`<span class="sl"><span class="dot" style="background:${stColors[s.status]||'#999'}"></span>${esc(stLabels[s.status]||s.status)}: ${s.count}</span>`;});
   h+=`</div></div>`;
 
   h+=`</div>`; // end chart-row

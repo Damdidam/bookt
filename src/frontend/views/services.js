@@ -34,8 +34,11 @@ const CSW_COLORS=['#1E3A8A','#B91C1C','#059669','#EA580C','#7C3AED','#DB2777','#
 function catColor(cat){let h=0;for(let i=0;i<cat.length;i++)h=((h<<5)-h)+cat.charCodeAt(i);return CSW_COLORS[Math.abs(h)%CSW_COLORS.length];}
 function catBg(cat){let h=0;for(let i=0;i<cat.length;i++)h=((h<<5)-h)+cat.charCodeAt(i);return CAT_BG_PALETTE[Math.abs(h)%CAT_BG_PALETTE.length];}
 function hexToRgb(hex){const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);return`${r},${g},${b}`;}
-// Safe string for JS inside HTML attribute: JS-escape first, then HTML-escape
-function jsAttr(s){return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+// Safe string for JS inside HTML attribute: JS-escape first (full spec incl.
+// newlines + U+2028/2029 line separators — parity dom.js:escJs), then HTML-escape.
+// P1 hotfix (audit scan 2 round 7) : ancien jsAttr manquait \n \r U+2028/2029
+// → JS break-out possible via service.name contenant newline.
+function jsAttr(s){return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\n/g,'\\n').replace(/\r/g,'\\r').replace(/ /g,'\\u2028').replace(/ /g,'\\u2029').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
 // ===== MAIN RENDER =====
 

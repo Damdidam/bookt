@@ -7,7 +7,8 @@ import { showConfirmDialog } from '../utils/dirty-guard.js';
 import { isPro, showProGate } from '../utils/plan-gate.js';
 
 const gToast = GendaUI.toast.bind(GendaUI);
-function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+// P1 hotfix (audit scan 2) : ajout apostrophe escape (XSS attribute-break).
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 
 const PROVIDER_INFO = {
   google:  { label: 'Google Calendar',  color: '#4285F4', icon: 'M21.35 11.1h-9.18v2.73h5.51c-.54 2.56-2.73 3.97-5.51 3.97a6.13 6.13 0 1 1 0-12.26c1.51 0 2.89.55 3.96 1.45l2.04-2.04A9.27 9.27 0 0 0 12.17 2 10 10 0 1 0 22 12.17c0-.57-.07-1.13-.18-1.66l-.47.59Z' },
@@ -94,11 +95,11 @@ async function loadCalSync() {
               <div style="font-size:.85rem;font-weight:600">${info.label}</div>
               <div style="font-size:.72rem;color:var(--text-4)">${esc(conn.email || pracName)}</div>
             </div>
-            <span style="font-size:.68rem;font-weight:600;color:${statusColor};background:${statusColor}15;padding:2px 8px;border-radius:6px">${statusLabel}</span>
+            <span style="font-size:.68rem;font-weight:600;color:${statusColor};background:${statusColor}15;padding:2px 8px;border-radius:6px">${esc(statusLabel)}</span>
           </div>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:.75rem">
             <span style="color:var(--text-4)">Praticien: <strong>${esc(pracName)}</strong></span>
-            <span style="color:var(--text-4)">Direction: <strong>${DIR_LABELS[conn.sync_direction] || conn.sync_direction || 'push'}</strong></span>
+            <span style="color:var(--text-4)">Direction: <strong>${esc(DIR_LABELS[conn.sync_direction] || conn.sync_direction || 'push')}</strong></span>
             <span style="color:var(--text-4)">Sync: <strong>${lastSync}</strong></span>
           </div>`;
 

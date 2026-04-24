@@ -86,11 +86,11 @@ async function loadInvoices(){
         const d=new Date(f.issue_date).toLocaleDateString('fr-BE',{timeZone:'Europe/Brussels'});
         h+=`<tr style="border-bottom:1px solid var(--border-light)">
           <td style="padding:10px 14px;font-weight:600">${esc(f.invoice_number)}</td>
-          <td style="padding:10px"><span style="font-size:.7rem;padding:2px 8px;border-radius:10px;background:${typeColors[f.type]}15;color:${typeColors[f.type]};font-weight:600">${typeLabels[f.type]||f.type}</span></td>
+          <td style="padding:10px"><span style="font-size:.7rem;padding:2px 8px;border-radius:10px;background:${typeColors[f.type]}15;color:${typeColors[f.type]};font-weight:600">${esc(typeLabels[f.type]||f.type)}</span></td>
           <td style="padding:10px">${esc(f.client_name)}</td>
           <td style="padding:10px;color:var(--text-3)">${d}</td>
           <td style="padding:10px;text-align:right;font-weight:600">${fmtEur(f.total_cents)}</td>
-          <td style="padding:10px;text-align:center"><span style="font-size:.72rem;padding:3px 10px;border-radius:10px;background:${sc}12;color:${sc};font-weight:600">${statusLabels[f.status]||f.status}</span></td>
+          <td style="padding:10px;text-align:center"><span style="font-size:.72rem;padding:3px 10px;border-radius:10px;background:${sc}12;color:${sc};font-weight:600">${esc(statusLabels[f.status]||f.status)}</span></td>
           <td style="padding:10px;text-align:right">
             <button onclick="downloadInvoicePDF('${f.id}')" title="Télécharger PDF" aria-label="Télécharger PDF" style="background:none;border:none;cursor:pointer;font-size:1rem"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></button>
             ${f.status==='draft'?`<button onclick="changeInvoiceStatus('${f.id}','sent')" title="Marquer envoyée" aria-label="Marquer envoyée" style="background:none;border:none;cursor:pointer;font-size:1rem"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>`:''}

@@ -132,7 +132,7 @@ function renderGiftCards(c,cards,st){
         <td style="padding:10px;text-align:right;font-weight:600">${fmtEur(gc.amount_cents)}</td>
         <td style="padding:10px;text-align:right;font-weight:600;color:${balanceCents>0?'var(--green)':'var(--text-4)'}">${fmtEur(balanceCents)}</td>
         <td style="padding:10px"><div style="font-weight:500">${esc(recipientName)}</div>${recipientEmail?`<div style="font-size:.7rem;color:var(--text-4)">${esc(recipientEmail)}</div>`:''}</td>
-        <td style="padding:10px;text-align:center"><span style="font-size:.72rem;padding:3px 10px;border-radius:10px;background:${sc}12;color:${sc};font-weight:600">${statusLabels[gc.status]||gc.status}</span></td>
+        <td style="padding:10px;text-align:center"><span style="font-size:.72rem;padding:3px 10px;border-radius:10px;background:${sc}12;color:${sc};font-weight:600">${esc(statusLabels[gc.status]||gc.status)}</span></td>
         <td style="padding:10px;font-size:.78rem;color:var(--text-3)">${createdDate}</td>
         <td style="padding:10px;font-size:.78rem;color:var(--text-3)">${expiresDate}</td>
         <td style="padding:10px;text-align:center;white-space:nowrap">${actions}</td>

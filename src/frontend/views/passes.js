@@ -8,6 +8,7 @@ import { isPro, showProGate } from '../utils/plan-gate.js';
 import { trapFocus, releaseFocus } from '../utils/focus-trap.js';
 import { formatEur as fmtEur } from '../utils/format.js';
 import { renderPagination } from '../utils/pagination.js';
+import { escJs } from '../utils/dom.js';
 
 let passFilter='all', passSearch='';
 let passOffset=0;
@@ -124,7 +125,7 @@ function renderPasses(c,passes,st){
         actions+=`<button onclick="refundPass('${p.id}')" title="Rembourser 1 séance" aria-label="Rembourser 1 séance" style="background:none;border:none;cursor:pointer;color:var(--blue);font-size:.78rem;padding:4px 6px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>`;
       }
       // Delete button always visible
-      actions+=`<button onclick="deletePass('${p.id}','${esc(p.code)}')" title="Supprimer" aria-label="Supprimer" style="background:none;border:none;cursor:pointer;color:var(--red);font-size:.78rem;padding:4px 6px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>`;
+      actions+=`<button onclick="deletePass('${p.id}','${escJs(p.code)}')" title="Supprimer" aria-label="Supprimer" style="background:none;border:none;cursor:pointer;color:var(--red);font-size:.78rem;padding:4px 6px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>`;
 
       h+=`<tr style="border-bottom:1px solid var(--border-light)">
         <td style="padding:10px 14px"><span style="font-family:monospace;font-weight:600;font-size:.8rem;letter-spacing:.5px">${esc(p.code)}</span></td>
@@ -132,7 +133,7 @@ function renderPasses(c,passes,st){
         <td style="padding:10px;color:var(--text-2)">${esc(serviceName)}</td>
         <td style="padding:10px;text-align:center;font-weight:600"><span style="color:${sessionsRemaining>0?'var(--green)':'var(--text-4)'}">${sessionsRemaining}</span><span style="color:var(--text-4);font-weight:400">/${sessionsTotal}</span></td>
         <td style="padding:10px;font-size:.78rem;color:var(--text-3)">${expiresDate}</td>
-        <td style="padding:10px;text-align:center"><span style="font-size:.72rem;padding:3px 10px;border-radius:10px;background:${sc}12;color:${sc};font-weight:600">${statusLabels[p.status]||p.status}</span></td>
+        <td style="padding:10px;text-align:center"><span style="font-size:.72rem;padding:3px 10px;border-radius:10px;background:${sc}12;color:${sc};font-weight:600">${esc(statusLabels[p.status]||p.status)}</span></td>
         <td style="padding:10px;text-align:center;white-space:nowrap">${actions}</td>
       </tr>`;
     });

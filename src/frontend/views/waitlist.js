@@ -82,7 +82,7 @@ async function loadWaitlist(){
         h+=`<div class="wl-info">`;
         h+=`<div class="wl-name">${esc(e.client_name)} <span class="email">${esc(e.client_email)}</span></div>`;
         h+=`<div class="wl-meta"><span>${esc(e.service_name||'—')}</span><span class="dot-sep">·</span><span>${esc(e.practitioner_name||'—')}</span>`;
-        h+=`<span class="dot-sep">·</span><span class="badge st-${e.status}" style="font-size:.6rem;padding:2px 7px">${WL_ST[e.status]||e.status}</span>`;
+        h+=`<span class="dot-sep">·</span><span class="badge st-${e.status}" style="font-size:.6rem;padding:2px 7px">${esc(WL_ST[e.status]||e.status)}</span>`;
         h+=`</div>`;
         if(e.staff_notes){
           const preview=e.staff_notes.length>60?e.staff_notes.slice(0,60)+'\u2026':e.staff_notes;
@@ -255,7 +255,7 @@ function wlDetail(idx){
   let m=`<div class="m-overlay open" id="wlDetailModal"><div class="m-dialog m-md"><div class="m-header-simple"><h3>${esc(e.client_name)}</h3><button class="m-close" onclick="closeModal('wlDetailModal')" aria-label="Fermer">${IC.x}</button></div><div class="m-body">`;
 
   // Status badge
-  m+=`<div style="margin-bottom:16px"><span class="badge st-${e.status}" style="font-size:.72rem;padding:4px 12px">${WL_ST[e.status]||e.status}</span><span style="font-size:.72rem;color:var(--text-4);margin-left:8px">Inscrit le ${created}</span></div>`;
+  m+=`<div style="margin-bottom:16px"><span class="badge st-${e.status}" style="font-size:.72rem;padding:4px 12px">${esc(WL_ST[e.status]||e.status)}</span><span style="font-size:.72rem;color:var(--text-4);margin-left:8px">Inscrit le ${created}</span></div>`;
 
   // Info grid
   m+=`<div class="wl-detail-grid">`;

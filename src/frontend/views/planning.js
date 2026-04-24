@@ -6,7 +6,7 @@
  */
 import { api, GendaUI, sectorLabels } from '../state.js';
 import { trapFocus, releaseFocus } from '../utils/focus-trap.js';
-import { esc } from '../utils/dom.js';
+import { esc, escJs } from '../utils/dom.js';
 import { safeColor } from '../utils/safe-color.js';
 import { bridge } from '../utils/window-bridge.js';
 import { IC } from '../utils/icons.js';
@@ -970,7 +970,7 @@ async function _fetchAlternatives(token, pracId, from, to, period, periodEnd) {
       } else {
         altZone.innerHTML = `<span style="font-size:.7rem;color:var(--text-4)">Assigner à :</span> ` +
           alts.map(a =>
-            `<button class="plan-alt-chip" style="--ac:${esc(a.color || 'var(--text-3)')}" onclick="planReassign('${esc(bk.id)}','${esc(a.practitioner_id)}')">${esc(a.display_name)}</button>`
+            `<button class="plan-alt-chip" style="--ac:${safeColor(a.color, 'var(--text-3)')}" onclick="planReassign('${escJs(bk.id)}','${escJs(a.practitioner_id)}')">${esc(a.display_name)}</button>`
           ).join(' ');
       }
     }

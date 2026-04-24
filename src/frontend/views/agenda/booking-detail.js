@@ -2,7 +2,7 @@
  * Booking Detail - renders the booking detail modal (the largest agenda sub-module).
  */
 import { api, calState, userRole, user } from '../../state.js';
-import { esc, gToast } from '../../utils/dom.js';
+import { esc, gToast, escJs } from '../../utils/dom.js';
 import { bridge } from '../../utils/window-bridge.js';
 import { fcRenderTodos } from './booking-todos.js';
 import { fcRenderReminders } from './booking-reminders.js';
@@ -520,7 +520,7 @@ async function fcOpenDetail(bookingId) {
         const sibFrozen = ['cancelled', 'no_show'].includes(sib.status);
         const canDrag = canDetach && !sibFrozen;
         const detachBtn = (canDetach && !sibFrozen) ? `<button class="g-detach-btn" onclick="fcShowUngroupPanel('${sib.id}')" title="Détacher du groupe"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><path d="m7 11 2 2 4-4"/><line x1="4" y1="4" x2="20" y2="20"/><line x1="4" y1="20" x2="20" y2="4"/></svg></button>` : '';
-        const safeSibName = (sib.service_name || 'RDV libre').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        const safeSibName = escJs(sib.service_name || 'RDV libre');
         const deleteBtn = canDetach ? `<button class="g-delete-btn" onclick="fcRemoveFromGroup('${sib.id}','${safeSibName}')" title="Supprimer du groupe"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>` : '';
         gh += `<div class="m-group-item${isCur ? ' current' : ''}" data-sib-id="${sib.id}"${canDrag ? ' data-draggable="true"' : ''}>
           <span class="g-dot" style="background:${safeSibColor}"></span>
