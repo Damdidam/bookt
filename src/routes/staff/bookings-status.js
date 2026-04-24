@@ -149,7 +149,7 @@ router.patch('/:id/status', blockIfImpersonated, async (req, res, next) => {
         `SELECT b.status, b.client_id, b.deposit_required, b.deposit_status, b.deposit_amount_cents,
                 b.group_id, b.practitioner_id, b.start_at, b.public_token,
                 b.disputed_at, b.deposit_payment_intent_id,
-                biz.settings
+                biz.settings, biz.plan, biz.stripe_connect_id, biz.stripe_connect_status
          FROM bookings b JOIN businesses biz ON biz.id = b.business_id
          WHERE b.id = $1 AND b.business_id = $2 FOR UPDATE OF b`,
         [id, bid]
@@ -195,6 +195,19 @@ router.patch('/:id/status', blockIfImpersonated, async (req, res, next) => {
         if (depSt === 'pending') {
           depositRestore = 'redeposit';
           status = 'pending_deposit';
+        }
+      }
+
+      // DEP-01 clone fix : si uncancel → redeposit (génère deposit_payment_url +
+      // transitionne pending_deposit), le pro doit être Pro + Stripe Connect actif
+      // sinon le client reçoit un lien cassé → booking expire → auto-cancel.
+      if (depositRestore === 'redeposit') {
+        const _pl = (old.rows[0].plan || 'free');
+        if (_pl === 'free') {
+          return { error: 403, message: 'Cette action nécessite le plan Pro.' };
+        }
+        if (!old.rows[0].stripe_connect_id || old.rows[0].stripe_connect_status !== 'active') {
+          return { error: 400, message: 'Activez Stripe Connect pour restaurer ce RDV avec acompte.' };
         }
       }
 

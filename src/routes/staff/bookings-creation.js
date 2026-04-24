@@ -157,14 +157,17 @@ router.post('/manual', blockIfImpersonated, async (req, res, next) => {
         const booking = result.rows[0];
         if (client_id && booking) {
           const depCheck = await client.query(
-            `SELECT c.no_show_count, biz.settings, biz.plan
+            `SELECT c.no_show_count, biz.settings, biz.plan, biz.stripe_connect_id, biz.stripe_connect_status
              FROM clients c JOIN businesses biz ON biz.id = c.business_id
              WHERE c.id = $1 AND c.business_id = $2`,
             [client_id, bid]
           );
           const dc = depCheck.rows[0];
           const noShowTriggered = dc && dc.no_show_count >= ((dc.settings || {}).deposit_noshow_threshold || 2);
-          if (dc && dc.settings?.deposit_enabled && (dc.plan || 'free') !== 'free' && (noShowTriggered || force_deposit)) {
+          // DEP-01 clone fix : skip deposit transition si Stripe Connect pas actif →
+          // booking reste 'confirmed' au lieu d'etre bloque en pending_deposit avec lien casse.
+          const _stripeOK = dc?.stripe_connect_id && dc?.stripe_connect_status === 'active';
+          if (dc && dc.settings?.deposit_enabled && (dc.plan || 'free') !== 'free' && _stripeOK && (noShowTriggered || force_deposit)) {
             const depCents = (deposit_amount_cents > 0)
               ? deposit_amount_cents
               : (dc.settings.deposit_fixed_cents || 2500);
@@ -477,14 +480,16 @@ router.post('/manual', blockIfImpersonated, async (req, res, next) => {
       // ===== DEPOSIT CHECK (normal mode — inside transaction for atomicity) =====
       if (client_id && results.length > 0) {
         const depCheck = await client.query(
-          `SELECT c.no_show_count, biz.settings, biz.plan
+          `SELECT c.no_show_count, biz.settings, biz.plan, biz.stripe_connect_id, biz.stripe_connect_status
            FROM clients c JOIN businesses biz ON biz.id = c.business_id
            WHERE c.id = $1 AND c.business_id = $2`,
           [client_id, bid]
         );
         const dc = depCheck.rows[0];
         const noShowTriggered = dc && dc.no_show_count >= ((dc.settings || {}).deposit_noshow_threshold || 2);
-        if (dc && dc.settings?.deposit_enabled && (dc.plan || 'free') !== 'free' && (noShowTriggered || force_deposit)) {
+        // DEP-01 clone fix : skip deposit transition si Stripe Connect pas actif.
+        const _stripeOK = dc?.stripe_connect_id && dc?.stripe_connect_status === 'active';
+        if (dc && dc.settings?.deposit_enabled && (dc.plan || 'free') !== 'free' && _stripeOK && (noShowTriggered || force_deposit)) {
           const svcPriceResult = await client.query(
             `SELECT COALESCE(SUM(COALESCE(sv.price_cents, s.price_cents)), 0) AS total_price
              FROM bookings b
