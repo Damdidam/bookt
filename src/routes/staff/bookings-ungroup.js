@@ -305,6 +305,7 @@ router.delete('/:id/group-remove', blockIfImpersonated, async (req, res, next) =
         const lock = await client.query(
           `SELECT id, group_id, group_order, status, service_id, practitioner_id, start_at, end_at,
                   promotion_id, promotion_label, promotion_discount_pct, promotion_discount_cents,
+                  promo_decremented_at,
                   deposit_required, deposit_status, deposit_amount_cents, deposit_paid_at,
                   booked_price_cents
            FROM bookings WHERE id = $1 AND business_id = $2 FOR UPDATE`,
@@ -370,10 +371,16 @@ router.delete('/:id/group-remove', blockIfImpersonated, async (req, res, next) =
           // Only 1 member left → ungroup it (no group of 1)
           // Also migrate promo fields if the deleted booking was the promo carrier
           const promoSets = hadPromo
-            ? `, promotion_id = $3, promotion_label = $4, promotion_discount_pct = $5, promotion_discount_cents = $6`
+            // EDG UNGROUP-PROMO edge hotfix (audit c638a48) : copier aussi
+            // promo_decremented_at du carrier supprimé vers le nouveau carrier
+            // pour préserver l'idempotence. Sans cette copie, si A cancelled
+            // (flag posé) puis /group-remove A, le flag est perdu → next
+            // decrement (ex: cancel B restant) dec 2× (une fois pour A déjà
+            // cancelled + une fois pour B via atomic claim sur flag NULL).
+            ? `, promotion_id = $3, promotion_label = $4, promotion_discount_pct = $5, promotion_discount_cents = $6, promo_decremented_at = $7`
             : '';
           const promoParams = hadPromo
-            ? [remaining[0].id, bid, locked.promotion_id, locked.promotion_label, locked.promotion_discount_pct, locked.promotion_discount_cents]
+            ? [remaining[0].id, bid, locked.promotion_id, locked.promotion_label, locked.promotion_discount_pct, locked.promotion_discount_cents, locked.promo_decremented_at]
             : [remaining[0].id, bid];
           await client.query(
             `UPDATE bookings SET group_id = NULL, group_order = NULL, updated_at = NOW()${promoSets}
@@ -393,12 +400,15 @@ router.delete('/:id/group-remove', blockIfImpersonated, async (req, res, next) =
           }
 
           // Migrate promo fields to new group_order=0 if deleted booking was the promo carrier
+          // EDG UNGROUP-PROMO edge hotfix (audit c638a48) : inclure promo_decremented_at
+          // pour préserver idempotence dec (évite double-dec sur chaîne cancel+group-remove).
           if (hadPromo) {
             await client.query(
               `UPDATE bookings SET promotion_id = $1, promotion_label = $2,
-                promotion_discount_pct = $3, promotion_discount_cents = $4, updated_at = NOW()
+                promotion_discount_pct = $3, promotion_discount_cents = $4,
+                promo_decremented_at = $7, updated_at = NOW()
                WHERE group_id = $5 AND group_order = 0 AND business_id = $6`,
-              [locked.promotion_id, locked.promotion_label, locked.promotion_discount_pct, locked.promotion_discount_cents, groupId, bid]
+              [locked.promotion_id, locked.promotion_label, locked.promotion_discount_pct, locked.promotion_discount_cents, groupId, bid, locked.promo_decremented_at]
             );
           }
         }
