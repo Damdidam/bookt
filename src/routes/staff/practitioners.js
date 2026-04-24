@@ -738,12 +738,17 @@ router.delete('/:id', requireOwner, blockIfImpersonated, async (req, res, next) 
     if (cancelBookings && futureCount > 0) {
       // 1) Lister les bookings à cancel + snapshot refund targets dans une TX
       const txTargets = await transactionWithRLS(bid, async (client) => {
+        // BL-03 hotfix Phase 3C (scan 3 audit batch 1) : exclude disputed_at pour éviter
+        // double-loss (cancel + refund + dispute perdu Stripe). Parity avec staff cancel L175.
+        // Un booking disputé ne doit pas être batch-cancelled lors d'une suppression de
+        // practitioner — le pro doit résoudre la dispute Stripe avant.
         const listRes = await client.query(
           `SELECT id, group_id, client_id, deposit_status, deposit_amount_cents, deposit_payment_intent_id
            FROM bookings
            WHERE practitioner_id = $1 AND business_id = $2
              AND start_at > NOW()
              AND status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')
+             AND disputed_at IS NULL
            FOR UPDATE`,
           [pracId, bid]
         );
@@ -769,7 +774,8 @@ router.delete('/:id', requireOwner, blockIfImpersonated, async (req, res, next) 
             updated_at = NOW()
            WHERE practitioner_id = $1 AND business_id = $2
              AND start_at > NOW()
-             AND status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')`,
+             AND status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')
+             AND disputed_at IS NULL`,
           [pracId, bid, cancelReasonPrac]
         );
         // Refund GC + pass dans la même TX
@@ -819,7 +825,15 @@ router.delete('/:id', requireOwner, blockIfImpersonated, async (req, res, next) 
               );
             }
           } catch (e) {
-            if (e.code !== 'charge_already_refunded') {
+            if (e.code === 'charge_already_refunded') {
+              // BUG-NEW-1 hotfix (scan 3 audit batch 1) : parity avec CRON-01 fix.
+              // Avant ce fix, charge_already_refunded swallowait l'erreur SANS UPDATE
+              // deposit_status → booking cancelled avec deposit_status='paid' drift
+              // perpétuel (dashboard + stats financières faux).
+              await queryWithRLS(bid,
+                `UPDATE bookings SET deposit_status = 'refunded' WHERE id = $1`, [bk.id]
+              ).catch(() => {});
+            } else {
               const { reportError } = require('../../services/error-reporter');
               reportError(e, { tag: 'PRAC_DEL_REFUND', bookingId: bk.id, piId: _piId });
             }

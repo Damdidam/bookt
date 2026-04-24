@@ -760,6 +760,9 @@ router.post('/close', requireOwner, blockIfImpersonated, async (req, res, next) 
       );
 
       // 2b. Cancel all future bookings + mark deposit as 'cancelled' (retained by merchant)
+      // BUG-NEW-3 hotfix (scan 3 audit batch 1) : exclude disputed_at pour éviter
+      // double-loss si close business coincide avec dispute Stripe en cours. Parity
+      // avec BL-03. Pro doit résoudre dispute avant fermeture.
       const futureRes = await client.query(
         `UPDATE bookings SET status = 'cancelled',
           cancel_reason = 'Fermeture du salon',
@@ -767,6 +770,7 @@ router.post('/close', requireOwner, blockIfImpersonated, async (req, res, next) 
           updated_at = NOW()
          WHERE business_id = $1 AND status IN ('confirmed', 'pending', 'modified_pending', 'pending_deposit')
            AND start_at > NOW()
+           AND disputed_at IS NULL
          RETURNING id, client_id`, [bid]
       );
 
