@@ -1315,6 +1315,10 @@ async function handleStripeWebhook(req, res) {
                 } else {
                   await txClient.query('ROLLBACK').catch(() => {});
                   console.error(`[STRIPE WH] External refund cascade TX FAILED for booking ${bk.id}:`, txErr.message);
+                  // STRIPE-CASCADE-RETHROW fix : tx non committée → booking reste confirmed
+                  // alors que Stripe a remboursé externement → double-loss si webhook
+                  // retourne 200. Rethrow → outer catch 500 + idem release → Stripe retry.
+                  throw txErr;
                 }
               } finally {
                 txClient.release();
@@ -1441,11 +1445,19 @@ async function handleStripeWebhook(req, res) {
             } catch (_gcPassTxErr) {
               await _gcPassTxClient.query('ROLLBACK').catch(() => {});
               console.error('[STRIPE WH] GC/Pass cascade tx error:', _gcPassTxErr.message);
+              // STRIPE-CASCADE-RETHROW fix : GC/Pass tx failed → card/pass reste active
+              // alors que Stripe a remboursé externement → client peut réutiliser =
+              // double-loss. Rethrow → webhook 500 + retry. Les ops sont idempotentes
+              // (WHERE status NOT IN ('cancelled','refunded')) donc retry safe.
+              throw _gcPassTxErr;
             } finally {
               _gcPassTxClient.release();
             }
           } catch (refErr) {
-            console.warn('[STRIPE WH] charge.refunded processing error:', refErr.message);
+            // STRIPE-CASCADE-RETHROW fix : rethrow pour que Stripe retry l'event
+            // au lieu d'accepter silencieusement une cascade incomplète (double-loss).
+            console.error('[STRIPE WH] charge.refunded processing error (will retry):', refErr.message);
+            throw refErr;
           }
         }
         break;
