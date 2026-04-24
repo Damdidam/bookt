@@ -4,6 +4,7 @@
 import { api } from '../state.js';
 import { bridge } from '../utils/window-bridge.js';
 import { isPro, showProGate } from '../utils/plan-gate.js';
+import { safeColor } from '../utils/safe-color.js';
 
 const esc=s=>s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'):'';
 
@@ -55,7 +56,7 @@ function renderAnalytics(d){
     h+=`<div class="top-svc-list">`;
     d.top_services.forEach(s=>{
       const pct=Math.round(s.count/maxCount*100);
-      h+=`<div class="top-svc-row"><span class="sname">${esc(s.name)}</span><div class="bar-wrap"><div class="bar" style="width:${pct}%;background:${s.color||'var(--primary)'}">${s.count}</div></div><span class="scount">${(s.revenue/100).toFixed(2).replace('.',',')}€</span></div>`;
+      h+=`<div class="top-svc-row"><span class="sname">${esc(s.name)}</span><div class="bar-wrap"><div class="bar" style="width:${pct}%;background:${safeColor(s.color)}">${s.count}</div></div><span class="scount">${(s.revenue/100).toFixed(2).replace('.',',')}€</span></div>`;
     });
     h+=`</div>`;
   }

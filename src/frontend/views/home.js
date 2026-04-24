@@ -3,6 +3,7 @@
  */
 import { api, biz, userRole, calState, GendaUI, categoryLabels } from '../state.js';
 import { esc } from '../utils/dom.js';
+import { safeColor } from '../utils/safe-color.js';
 import { bridge } from '../utils/window-bridge.js';
 import { IC } from '../utils/icons.js';
 
@@ -97,7 +98,7 @@ async function loadDashboard(){
         const totalFmt=totalM>0?`${totalH}h${String(totalM).padStart(2,'0')}`:`${totalH}h`;
         h+=`<div class="card"><div class="card-h"><h3>Heures du jour</h3><span class="badge badge-teal">${totalFmt}</span></div>`;
         pracHrs.forEach(p=>{
-          h+=`<div class="dph-row"><span class="dot" style="color:${p.color||'var(--primary)'}">●</span><span class="dph-name">${esc(p.name)}</span><span class="dph-val">${p.formatted}</span></div>`;
+          h+=`<div class="dph-row"><span class="dot" style="color:${safeColor(p.color)}">●</span><span class="dph-name">${esc(p.name)}</span><span class="dph-val">${p.formatted}</span></div>`;
         });
         h+=`</div>`;
       }

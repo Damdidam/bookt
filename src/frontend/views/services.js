@@ -5,6 +5,7 @@
 import { api, userSector, categoryLabels, GendaUI } from '../state.js';
 import { trapFocus, releaseFocus } from '../utils/focus-trap.js';
 import { esc } from '../utils/dom.js';
+import { safeColor } from '../utils/safe-color.js';
 import { bridge } from '../utils/window-bridge.js';
 import { cswHTML } from './agenda/color-swatches.js';
 import { guardModal, closeModal, showConfirmDialog } from '../utils/dirty-guard.js';
@@ -189,7 +190,7 @@ function renderServiceRow(s,sortIdx){
   if(s.quote_only) badges+=`<span class="svc-row-badge" style="background:var(--primary-bg);color:var(--primary)">Sur devis</span>`;
 
   let h=`<div class="svc-row${s.is_active===false?' inactive':''}" data-id="${s.id}" data-sort="${sortIdx}" draggable="true" ondragstart="svcDragStart(event,'svc')" ondragover="svcDragOver(event,'svc')" ondragleave="svcDragLeave(event)" ondrop="svcDrop(event,'svc')">`;
-  h+=`<div class="svc-color" style="background:${s.color||'var(--primary)'}"></div>`;
+  h+=`<div class="svc-color" style="background:${safeColor(s.color)}"></div>`;
   h+=`<span class="drag-handle">${GRIP_SVG}</span>`;
   h+=`<div class="svc-row-info">`;
   h+=`<div class="svc-row-top"><span class="svc-row-name">${esc(s.name)}</span><span class="svc-row-price">${priceStr}</span><span class="svc-row-duration">· ${durStr}</span></div>`;
@@ -236,7 +237,7 @@ function renderVariantList(vars,color,serviceId){
 function renderVariantRow(v,color){
   const price=v.price_cents?(v.price_cents/100).toFixed(2).replace('.',',')+' €':'';
   let h=`<div class="svc-var-item" data-variant-id="${v.id}">`;
-  h+=`<div class="svc-var-dot" style="background:${color}"></div>`;
+  h+=`<div class="svc-var-dot" style="background:${safeColor(color)}"></div>`;
   h+=`<div class="svc-var-info">`;
   h+=`<div class="svc-var-top"><span class="svc-var-name">${esc(v.name)}</span>`;
   if(price) h+=`<span class="svc-var-price">${price}</span>`;
@@ -720,7 +721,7 @@ function renderServiceModal(svc,sectorCats,prefill,existingPromo){
       const rankClass=isSelected?` selected rank-${Math.min(order,4)}`:'';
       const initials=p.display_name?.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2)||'??';
       m+=`<div class="prac-pill${rankClass}" data-pid="${p.id}"${isSelected?` data-order="${order}"`:''} onclick="svcTogglePrac(this)">`;
-      m+=`<div class="prac-avatar" style="background:${p.color||'var(--primary)'}">${initials}</div>`;
+      m+=`<div class="prac-avatar" style="background:${safeColor(p.color)}">${initials}</div>`;
       m+=`<span class="prac-name">${esc(p.display_name)}</span>`;
       m+=`<span class="prac-badge">${isSelected?order:''}</span>`;
       m+=`</div>`;

@@ -7,6 +7,7 @@
 import { api, GendaUI, sectorLabels } from '../state.js';
 import { trapFocus, releaseFocus } from '../utils/focus-trap.js';
 import { esc } from '../utils/dom.js';
+import { safeColor } from '../utils/safe-color.js';
 import { bridge } from '../utils/window-bridge.js';
 import { IC } from '../utils/icons.js';
 import { closeModal, showConfirmDialog, guardModal } from '../utils/dirty-guard.js';
@@ -270,7 +271,7 @@ function buildHTML() {
 
     h += `<tr class="plan-prac-row"><td>
       <div class="plan-prac-cell">
-        <div class="plan-prac-av" style="background:${esc(color)}">${initials}</div>
+        <div class="plan-prac-av" style="background:${safeColor(color)}">${initials}</div>
         <div class="plan-prac-details">
           <div class="plan-prac-nm">${esc(p.display_name)}</div>
           ${countersHTML}
@@ -513,7 +514,7 @@ function planOpenModal(pracId, dateStr, absId) {
         <button class="m-close" onclick="planCloseModal()" aria-label="Fermer">${ICONS.close}</button>
         <div class="m-header-content">
           <div class="m-client-hero">
-            <div class="m-avatar" style="background:${esc(pracColor)}">${pracInitials}</div>
+            <div class="m-avatar" style="background:${safeColor(pracColor)}">${pracInitials}</div>
             <div class="m-client-info">
               <div class="m-client-name" id="planModalTitle">${isEdit ? esc(absData?.practitioner_name || '') : 'Nouvelle absence'}</div>
               <div class="m-client-meta"><span id="planModalSubtitle">Planifiez une absence</span></div>

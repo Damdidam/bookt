@@ -8,6 +8,7 @@
  */
 import { calState, api } from '../../state.js';
 import { esc, gToast, initTimeInputs } from '../../utils/dom.js';
+import { safeColor } from '../../utils/safe-color.js';
 import { isPro } from '../../utils/plan-gate.js';
 import { bridge } from '../../utils/window-bridge.js';
 import { fcOpenQuickCreate } from './quick-create.js';
@@ -832,7 +833,7 @@ function soSelectedServicesHTML() {
     const schedLabel = soGetScheduleLabel(svc.id);
     const schedTag = schedLabel ? ` <span class="so-svc-sched">${schedLabel}</span>` : '';
     html += `<div class="so-svc-card">
-      <span class="so-svc-dot" style="background:${svc.color}"></span>
+      <span class="so-svc-dot" style="background:${safeColor(svc.color)}"></span>
       <div class="so-svc-info">
         <span class="so-svc-name">${esc(svc.name)}</span>
         <span class="so-svc-dur">${svc.duration_min}min${poseLabel}${schedTag}</span>
@@ -898,11 +899,11 @@ function soRenderRight() {
     html += `<div class="so-day-slots">`;
     daySlots.forEach(slot => {
       const tier = slot.score >= 80 ? 'high' : slot.score >= 60 ? 'mid' : 'low';
-      html += `<div class="so-slot-card" data-tier="${tier}" style="--prac-color:${slot.pracColor}" onclick="soFillSlot(${slot.start},'${slot.pracId}','${slot.dateStr}')">
+      html += `<div class="so-slot-card" data-tier="${tier}" style="--prac-color:${safeColor(slot.pracColor)}" onclick="soFillSlot(${slot.start},'${slot.pracId}','${slot.dateStr}')">
         <div class="so-slot-top">
           <div class="so-slot-left">
             <div class="so-slot-time">${timeStr(slot.start)} \u2013 ${timeStr(slot.end)}</div>
-            ${showPrac ? `<span class="so-slot-prac"><span class="so-prac-dot" style="background:${slot.pracColor}"></span>${esc(slot.pracName)}</span>` : ''}
+            ${showPrac ? `<span class="so-slot-prac"><span class="so-prac-dot" style="background:${safeColor(slot.pracColor)}"></span>${esc(slot.pracName)}</span>` : ''}
           </div>
           <div class="so-slot-right-info">
             <span class="so-score-badge so-score--${tier}">${slot.icon} ${slot.label}</span>

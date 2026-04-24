@@ -5,6 +5,7 @@
  */
 import { api, calState } from '../../state.js';
 import { esc, gToast } from '../../utils/dom.js';
+import { safeColor } from '../../utils/safe-color.js';
 import { bridge } from '../../utils/window-bridge.js';
 import { showConfirmDialog } from '../../utils/dirty-guard.js';
 import { closeCalModal } from './booking-detail.js';
@@ -99,7 +100,7 @@ async function fcOpenTaskDetail(taskId) {
     pracHtml += '<div class="td-prac-checks" id="tdPracChecks">';
     (calState.fcPractitioners || []).forEach(p => {
       const checked = assignedIds.has(p.id) ? 'checked' : '';
-      pracHtml += `<label class="td-prac-check"><input type="checkbox" value="${p.id}" ${checked}><span class="td-prac-dot" style="background:${p.color || 'var(--primary)'}"></span><span>${esc(p.display_name)}</span></label>`;
+      pracHtml += `<label class="td-prac-check"><input type="checkbox" value="${p.id}" ${checked}><span class="td-prac-dot" style="background:${safeColor(p.color)}"></span><span>${esc(p.display_name)}</span></label>`;
     });
     pracHtml += '</div>';
     pracField.innerHTML = pracHtml;

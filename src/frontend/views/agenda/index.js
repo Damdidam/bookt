@@ -5,7 +5,8 @@
  * builds toolbar HTML, initialises FullCalendar, and sets up SSE.
  */
 import { api, calState, userRole, user, allowedSections, GendaUI } from '../../state.js';
-import { getContentArea, esc } from '../../utils/dom.js';
+import { getContentArea, esc, escJs } from '../../utils/dom.js';
+import { safeColor } from '../../utils/safe-color.js';
 import { fcIsMobile, fcIsTablet, fcIsTouch } from '../../utils/touch.js';
 import { bridge } from '../../utils/window-bridge.js';
 
@@ -268,14 +269,11 @@ async function loadAgenda() {
     calState.fcCurrentFilter = 'all';
   } else {
     pillsHtml += `<div class="prac-pill active" onclick="fcFilterPractitioner('all',this)"><span class="dot" style="background:var(--primary)"></span>Tous<span class="prac-fill" data-fill-id="all"></span></div>`;
-    // P2 hotfix (audit scan 2) : valide p.color en regex hex/var pour éviter CSS
-    // injection. p.color est owner-contrôlé (UPDATE practitioners), sans CHECK en DB.
-    // Pattern accepté : #rgb, #rrggbb, #rrggbbaa, var(--...), nom CSS simple.
-    const _safeColorRe = /^(#[0-9a-fA-F]{3,8}|var\(--[a-zA-Z0-9_-]+\)|[a-zA-Z]+)$/;
+    // P2 hotfix (audit scan 2) : valide p.color via safeColor() helper pour
+    // éviter CSS injection (p.color owner-contrôlé, sans CHECK DB).
     calState.fcPractitioners.forEach(p => {
       const ini = p.display_name.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
-      const _pColor = (p.color && _safeColorRe.test(p.color)) ? p.color : 'var(--primary)';
-      pillsHtml += `<div class="prac-pill" onclick="fcFilterPractitioner('${p.id}',this)" title="${esc(p.display_name)}"><span class="dot" style="background:${_pColor}"></span>${esc(ini)}<span class="prac-fill" data-fill-id="${p.id}"></span></div>`;
+      pillsHtml += `<div class="prac-pill" onclick="fcFilterPractitioner('${p.id}',this)" title="${esc(p.display_name)}"><span class="dot" style="background:${safeColor(p.color)}"></span>${esc(ini)}<span class="prac-fill" data-fill-id="${p.id}"></span></div>`;
     });
   }
 
@@ -288,11 +286,12 @@ async function loadAgenda() {
   if (categories.length > 1) {
     catChipsInnerHtml += `<div class="at-sep" style="width:1px;height:18px;background:var(--border-light);flex-shrink:0"></div>`;
     catChipsInnerHtml += `<div class="cat-chip active" data-cat="__all__" onclick="fcFilterCategory('__all__',this)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><polyline points="20 6 9 17 4 12"/></svg> Tout</div>`;
+    // P1 hotfix (audit scan 2) : escape ${cat} + ${label} + safeColor() pour
+    // prévenir XSS stocké via category owner-saisie + CSS injection via color.
     categories.forEach(cat => {
       const label = cat || 'Autres';
       const svcOfCat = calState.fcServices.find(s => (s.category || '') === cat && s.is_active !== false);
-      const color = svcOfCat?.color || 'var(--primary)';
-      catChipsInnerHtml += `<div class="cat-chip active" data-cat="${cat}" onclick="fcFilterCategory('${cat.replace(/'/g, "\\'")}',this)"><span class="dot" style="background:${color}"></span>${label}</div>`;
+      catChipsInnerHtml += `<div class="cat-chip active" data-cat="${esc(cat)}" onclick="fcFilterCategory('${escJs(cat)}',this)"><span class="dot" style="background:${safeColor(svcOfCat?.color)}"></span>${esc(label)}</div>`;
     });
     if (categories.length > 3) {
       catChipsInnerHtml = `<button class="at-tog" onclick="fcToggleCatPills()" title="Catégories"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></button><div class="at-cat-inner" style="display:none">${catChipsInnerHtml}</div>`;
