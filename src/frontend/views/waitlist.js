@@ -217,10 +217,15 @@ async function wlSendOffer(entryId){
 }
 
 // -- Mark outcome --
+// P3 hotfix audit batch 4 : align\u00e9 sur wlChangeStatus \u2014 outcome='booked' est rejet\u00e9
+// par le backend (POST /contact WL-01 fix), on route vers 'contacted' (\u2192 declined
+// c\u00f4t\u00e9 DB, tant que migration 'contacted' non appliqu\u00e9e).
 async function wlContact(entryId,outcome){
   try{
-    await api.post(`/api/waitlist/${entryId}/contact`,{outcome});
-    GendaUI.toast(`Marqu\u00e9 comme ${outcome==='booked'?'r\u00e9serv\u00e9':'d\u00e9clin\u00e9'}`,'success');
+    const _eff = outcome === 'booked' ? 'contacted' : outcome;
+    await api.post(`/api/waitlist/${entryId}/contact`,{outcome:_eff});
+    const _label = outcome === 'booked' ? 'Entr\u00e9e ferm\u00e9e' : 'D\u00e9clin\u00e9';
+    GendaUI.toast(_label,'success');
     loadWaitlist();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
@@ -336,7 +341,9 @@ async function wlChangeStatus(entryId,status){
       await api.patch(`/api/waitlist/${entryId}`,body);
     }
     closeModal('wlDetailModal');
-    const labels={booked:'Entr\u00e9e ferm\u00e9e (RDV obtenu)',declined:'D\u00e9clin\u00e9',waiting:'Remis en attente'};
+    // Toast label "Entr\u00e9e ferm\u00e9e" (sans "(RDV obtenu)") car le status DB devient 'declined',
+    // le KPI "R\u00e9serv\u00e9" ne s'incr\u00e9mente pas \u2014 \u00e9vite induire l'impression que stats bougent.
+    const labels={booked:'Entr\u00e9e ferm\u00e9e',declined:'D\u00e9clin\u00e9',waiting:'Remis en attente'};
     GendaUI.toast(labels[status]||'Statut mis \u00e0 jour','success');
     loadWaitlist();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
