@@ -642,21 +642,29 @@ router.patch('/:id/status', blockIfImpersonated, async (req, res, next) => {
 
       // H1 fix: Re-increment promo usage when restoring a cancelled booking
       if (old.rows[0].status === 'cancelled' && status !== 'cancelled') {
-        const _promoRestore = await client.query(
-          `SELECT promotion_id FROM bookings WHERE id = $1 AND promotion_id IS NOT NULL`, [id]
+        // PROMO-01 fix (audit 23 avril hotfix) : trouver le CARRIER (le booking qui
+        // porte promotion_id). En multi-service seul le carrier group_order=0 l'a.
+        // Si le restore est demandé sur un sibling non-carrier, le SELECT WHERE id=$1
+        // renvoyait 0 rows → ni current_uses++ ni reset promo_decremented_at.
+        // Parity avec decrementPromoUsage:332-336 qui cherche le carrier via group_id.
+        const _carrierQ = await client.query(
+          `SELECT id, promotion_id FROM bookings
+           WHERE promotion_id IS NOT NULL AND business_id = $1
+             AND (id = $2 OR group_id = (SELECT group_id FROM bookings WHERE id = $2))
+           LIMIT 1`,
+          [bid, id]
         );
-        if (_promoRestore.rows.length > 0) {
+        if (_carrierQ.rows.length > 0) {
+          const _carrierId = _carrierQ.rows[0].id;
+          const _carrierPromoId = _carrierQ.rows[0].promotion_id;
           await client.query(
             `UPDATE promotions SET current_uses = current_uses + 1 WHERE id = $1`,
-            [_promoRestore.rows[0].promotion_id]
+            [_carrierPromoId]
           ).catch(e => console.warn('[PROMO INC] restore:', e.message));
-          // PROMO-01 fix (scan 23 avril) : reset promo_decremented_at=NULL au restore,
-          // sinon le prochain cancel verra IS NOT NULL → guard atomique skip silencieux
-          // → current_uses reste incrémenté → promo sur-consommée → utilisateurs bloqués
-          // par faux "limit_reached". Impacte tous les bookings portant la promo (carrier
-          // group_order=0 en multi + single). Reset sur le booking en cours uniquement.
+          // Reset promo_decremented_at=NULL sur le CARRIER (pas sur id courant) pour
+          // que le prochain cancel passe le guard atomique de decrementPromoUsage.
           await client.query(
-            `UPDATE bookings SET promo_decremented_at = NULL WHERE id = $1`, [id]
+            `UPDATE bookings SET promo_decremented_at = NULL WHERE id = $1`, [_carrierId]
           ).catch(e => console.warn('[PROMO DEC RESET] restore:', e.message));
         }
 

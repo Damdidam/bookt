@@ -316,14 +316,27 @@ async function wlSaveNotes(entryId,notes){
 }
 
 async function wlChangeStatus(entryId,status){
+  // WL-01 hotfix (audit batch 4) : l'endpoint PATCH /api/waitlist/:id rejette
+  // status='booked' depuis 7ed5b72 (booking doit \u00eatre cr\u00e9\u00e9 via le flow normal,
+  // pas set manuellement). Pour les boutons "RDV obtenu"/"RDV confirm\u00e9" c\u00f4t\u00e9 UI
+  // (status='booked'), router vers POST /contact outcome='contacted' qui ferme
+  // l'entry proprement. Les autres statuts (declined, waiting) restent sur PATCH.
   const noteEl=document.getElementById('wlStaffNotes');
   const notes=noteEl?noteEl.value:undefined;
   try{
-    const body={status};
-    if(notes!==undefined)body.staff_notes=notes;
-    await api.patch(`/api/waitlist/${entryId}`,body);
+    if(status==='booked'){
+      // Sauvegarder les notes (si modifi\u00e9es) puis fermer via /contact
+      if(notes!==undefined && notes!==null){
+        try{ await api.patch(`/api/waitlist/${entryId}`,{staff_notes:notes}); }catch(_){/* notes optionnelles */}
+      }
+      await api.post(`/api/waitlist/${entryId}/contact`,{outcome:'contacted'});
+    }else{
+      const body={status};
+      if(notes!==undefined)body.staff_notes=notes;
+      await api.patch(`/api/waitlist/${entryId}`,body);
+    }
     closeModal('wlDetailModal');
-    const labels={booked:'RDV obtenu',declined:'D\u00e9clin\u00e9',waiting:'Remis en attente'};
+    const labels={booked:'Entr\u00e9e ferm\u00e9e (RDV obtenu)',declined:'D\u00e9clin\u00e9',waiting:'Remis en attente'};
     GendaUI.toast(labels[status]||'Statut mis \u00e0 jour','success');
     loadWaitlist();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
