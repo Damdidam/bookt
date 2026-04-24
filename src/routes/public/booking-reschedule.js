@@ -236,15 +236,30 @@ router.post(['/manage/:token/reschedule', '/booking/:token/reschedule'], booking
     let isSplitGroup = false;
     let groupMembers = [];
     if (bk.group_id) {
-      const grpRes = await client.query(
-        `SELECT id, start_at, end_at, practitioner_id, service_id, group_order,
-                booked_price_cents, promotion_discount_cents
-         FROM bookings
-         WHERE group_id = $1 AND business_id = $2
-         ORDER BY group_order, start_at
-         FOR UPDATE SKIP LOCKED`,
-        [bk.group_id, bk.business_id]
-      );
+      // SQL-01 fix (scan 23 avril) : FOR UPDATE SKIP LOCKED sautait silencieusement
+      // les siblings lockés par une autre tx (staff /move, bookings-status cancel,
+      // webhook). Résultat : UPDATE partiel du groupe + LM/deposit recalculé sur un
+      // subset → desync calendrier, incohérence deposit. NOWAIT échoue proprement
+      // avec lock_not_available qu'on convertit en 409 pour le client.
+      let grpRes;
+      try {
+        grpRes = await client.query(
+          `SELECT id, start_at, end_at, practitioner_id, service_id, group_order,
+                  booked_price_cents, promotion_discount_cents
+           FROM bookings
+           WHERE group_id = $1 AND business_id = $2
+           ORDER BY group_order, start_at
+           FOR UPDATE NOWAIT`,
+          [bk.group_id, bk.business_id]
+        );
+      } catch (lockErr) {
+        // Postgres code 55P03 = lock_not_available
+        if (lockErr.code === '55P03') {
+          await client.query('ROLLBACK');
+          return res.status(409).json({ error: 'Ce RDV est en cours de modification par le salon. Réessayez dans quelques secondes.' });
+        }
+        throw lockErr;
+      }
       groupMembers = grpRes.rows;
       if (groupMembers.length > 1) {
         const pracIds = new Set(groupMembers.map(m => m.practitioner_id));
