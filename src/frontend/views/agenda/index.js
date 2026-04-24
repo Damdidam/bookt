@@ -554,12 +554,14 @@ function toggleOverflowMenu() {
     items += `<div style="display:flex;flex-wrap:wrap;gap:4px;padding:4px 12px 8px">`;
     const hidden = calState.fcHiddenCategories || new Set();
     items += `<div class="cat-chip${hidden.size === 0 ? ' active' : ''}" data-cat="__all__" onclick="fcFilterCategory('__all__',this);toggleOverflowMenu()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><polyline points="20 6 9 17 4 12"/></svg> Tout</div>`;
+    // P1 hotfix (audit scan 2 c4e6333) : clone de L295 dans fcOverflowMenu() —
+    // même 4 vulns (esc cat attribut, escJs cat onclick, esc label text, safeColor).
+    // RULE #13 : quand on fix un pattern, grep les clones AVANT de commit.
     cats.forEach(cat => {
       const label = cat || 'Autres';
       const svc = (calState.fcServices || []).find(s => (s.category || '') === cat && s.is_active !== false);
-      const color = svc?.color || 'var(--primary)';
       const isActive = !hidden.has(cat);
-      items += `<div class="cat-chip${isActive ? ' active' : ''}" data-cat="${cat}" onclick="fcFilterCategory('${cat.replace(/'/g, "\\'")}',this)"><span class="dot" style="background:${color}"></span>${label}</div>`;
+      items += `<div class="cat-chip${isActive ? ' active' : ''}" data-cat="${esc(cat)}" onclick="fcFilterCategory('${escJs(cat)}',this)"><span class="dot" style="background:${safeColor(svc?.color)}"></span>${esc(label)}</div>`;
     });
     items += `</div>`;
   }

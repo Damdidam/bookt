@@ -5,6 +5,7 @@
  */
 import { api, calState, biz } from '../../state.js';
 import { esc, gToast } from '../../utils/dom.js';
+import { safeColor } from '../../utils/safe-color.js';
 import { isPro } from '../../utils/plan-gate.js';
 import { bridge } from '../../utils/window-bridge.js';
 import { fcRefresh } from './calendar-init.js';
@@ -259,7 +260,7 @@ function gaRenderPanel() {
 
   // Per-practitioner stat cards
   gaData.practitioners.forEach(prac => {
-    const color = calState.fcPractitioners?.find(p => String(p.id) === String(prac.practitioner_id))?.color || 'var(--primary)';
+    const color = safeColor(calState.fcPractitioners?.find(p => String(p.id) === String(prac.practitioner_id))?.color);
     const pct = Math.round(prac.stats.occupation_pct);
     const bookedH = fmtMin(prac.stats.booked_min);
     const totalH = fmtMin(prac.stats.total_work_min);

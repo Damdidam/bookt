@@ -140,8 +140,8 @@ async function openClientDetail(id){
         const dt=new Date(b.start_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short',timeZone:'Europe/Brussels'});
         m+=`<div style="padding:8px 12px;background:${bg};font-size:.8rem;cursor:pointer" onclick="fcOpenDetail('${b.id}')">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
-            <span style="font-weight:600;color:var(--text)">${b.service_name||'RDV libre'} · ${dt}</span>
-            <span style="font-size:.68rem;color:var(--text-4)">${b.practitioner_name||''}</span>
+            <span style="font-weight:600;color:var(--text)">${esc(b.service_name||'RDV libre')} · ${dt}</span>
+            <span style="font-size:.68rem;color:var(--text-4)">${esc(b.practitioner_name||'')}</span>
           </div>`;
         if(b.comment_client&&b.comment_client.trim()){
           m+=`<div style="font-size:.78rem;color:var(--text-3);line-height:1.4"><span style="font-weight:600;color:var(--primary)">Client :</span> ${esc(b.comment_client)}</div>`;
@@ -169,7 +169,7 @@ async function openClientDetail(id){
         m += `<div style="background:${bg}">`;
         m += `<div style="padding:8px 12px;font-size:.8rem;display:flex;justify-content:space-between;align-items:center">
           <div>
-            <span style="font-weight:600;font-family:monospace;letter-spacing:.5px">${g.code}</span>
+            <span style="font-weight:600;font-family:monospace;letter-spacing:.5px">${esc(g.code)}</span>
             <span style="font-size:.72rem;color:var(--text-4);margin-left:6px">exp. ${exp}</span>
           </div>
           <div style="text-align:right">
@@ -262,11 +262,11 @@ async function openClientDetail(id){
           const dl = {paid:'Payé',refunded:'Remboursé',cancelled:'Conservé',pending:'En attente'}[b.deposit_status] || '';
           return `<span style="font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:6px;color:${dc};background:${dc}12;margin-left:4px">\ud83d\udcb0 ${((b.deposit_amount_cents||0)/100).toFixed(2).replace('.',',')}\u20ac ${dl}</span>`;
         })() : '';
-        const promoTag = (b.promotion_discount_cents > 0 && b.promotion_label) ? `<span style="font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:6px;color:#15803D;background:#15803D12;margin-left:4px">\uD83C\uDFF7\uFE0F ${b.promotion_label}</span>` : '';
+        const promoTag = (b.promotion_discount_cents > 0 && b.promotion_label) ? `<span style="font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:6px;color:#15803D;background:#15803D12;margin-left:4px">\uD83C\uDFF7\uFE0F ${esc(b.promotion_label)}</span>` : '';
         const createdDt=b.created_at?new Date(b.created_at):null;
         const createdStr=createdDt?createdDt.toLocaleDateString('fr-BE',{day:'numeric',month:'short',year:'numeric',timeZone:'Europe/Brussels'}):'';
         const creatorStr=b.channel==='web'?'Client (en ligne)':b.created_by_name||'Staff';
-        m+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:${bg};font-size:.8rem"><div style="display:flex;flex-direction:column;gap:2px"><span style="color:var(--text)">${dt.toLocaleDateString('fr-BE',{day:'numeric',month:'short',timeZone:'Europe/Brussels'})} — ${b.service_name||'RDV libre'}${depTag}${promoTag}</span><span style="font-size:.65rem;color:var(--text-4)">Créé le ${createdStr} par ${creatorStr}</span></div><span style="font-size:.68rem;font-weight:600;padding:2px 8px;border-radius:10px;color:${sc};background:${sc}12;white-space:nowrap">${stLabels[b.status]||b.status}</span></div>`;
+        m+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:${bg};font-size:.8rem"><div style="display:flex;flex-direction:column;gap:2px"><span style="color:var(--text)">${dt.toLocaleDateString('fr-BE',{day:'numeric',month:'short',timeZone:'Europe/Brussels'})} — ${esc(b.service_name||'RDV libre')}${depTag}${promoTag}</span><span style="font-size:.65rem;color:var(--text-4)">Créé le ${createdStr} par ${esc(creatorStr)}</span></div><span style="font-size:.68rem;font-weight:600;padding:2px 8px;border-radius:10px;color:${sc};background:${sc}12;white-space:nowrap">${esc(stLabels[b.status]||b.status)}</span></div>`;
       });
       m+=`</div>`;
     } else {
