@@ -91,19 +91,22 @@ async function sendSMS(opts) {
       fromNumber = process.env.TWILIO_FROM_NUMBER;
     }
 
-    // SMS-02 fix (scan 23 avril) : RGPD BE art 7 + Loi télécom — les SMS transactionnels
-    // doivent indiquer la voie de désinscription. Twilio Advanced Opt-Out n'est pas
-    // systématiquement appliqué au Messaging Service SID partagé (comportement variable
-    // selon configuration). On suffixe " STOP au 8444" seulement si le body ne contient
-    // pas déjà STOP et s'il reste assez de place pour éviter de dépasser 160 chars.
-    // (Si body ≥ 149 chars, on skip le suffix — le body a la priorité.)
+    // SMS-02 fix (scan 23 avril + audit hotfix) : RGPD BE art 7 + Loi télécom —
+    // les SMS transactionnels doivent indiquer la voie de désinscription. Twilio
+    // Advanced Opt-Out route automatiquement la réponse "STOP" au Messaging Service
+    // SID émetteur → pas besoin d'un shortcode dédié (le premier fix hardcodait
+    // "8444" qui n'était pas un vrai numéro Genda). On suffixe " Stop: STOP"
+    // seulement si body ne contient pas déjà STOP et si longueur <= 160 après ajout.
+    // Le webhook Twilio inbound (routes/webhooks/twilio.js:99) capture déjà le STOP
+    // sur le sender normal et met consent_sms=false.
     let finalBody = body;
     try {
       const _hasStop = /\bSTOP\b/i.test(body);
       if (!_hasStop) {
-        const _sfx = ' STOP au 8444';
+        const _sfx = ' Stop: STOP';
         if ((body.length + _sfx.length) <= 160) finalBody = body + _sfx;
-        // sinon on garde body tel quel — le pro a voulu tenir 160 chars, STOP passe en accepté implicitement via MessagingService
+        // sinon on garde body tel quel — le pro a voulu tenir 160 chars, Twilio
+        // Advanced Opt-Out reste actif de toute façon sur le sender MG SID.
       }
     } catch (_) { /* ignore */ }
 
