@@ -549,7 +549,8 @@ async function processExpiredPendingBookings() {
  * "sera automatiquement confirmé" — this cron fulfills that promise.
  *
  * Without this function, modified_pending bookings stay indefinitely (no cron
- * touches them, reminders skip them because they filter status='confirmed' only).
+ * touches them). Reminders 24h/2h traitent désormais aussi modified_pending
+ * (fix BL-06 scan 3 — reminders.js L86 + L373).
  *
  * Called every ~2 min from server.js alongside processExpiredPendingBookings.
  * @returns {Promise<{confirmed: number}>}

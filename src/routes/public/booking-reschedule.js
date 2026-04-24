@@ -629,10 +629,12 @@ router.post(['/manage/:token/reschedule', '/booking/:token/reschedule'], booking
           // H6 fix: promo est stockée sur le sibling matching condition_service_id (pas forcément group_order=0
           // — index.js:553-558). Sommer sur TOUTES les lignes du groupe. La promo n'est appliquée qu'à une
           // ligne par groupe donc la somme = valeur unique correcte.
+          // DEP-05 cohérence (scan 3 audit batch 2) : filter status NOT IN cancelled/no_show
+          // pour éviter surestimation deposit (parity avec bookings-time.js /move group).
           const totalRes = await client.query(
             `SELECT COALESCE(SUM(booked_price_cents), 0) AS total,
                     COALESCE(SUM(promotion_discount_cents), 0) AS promo
-             FROM bookings WHERE id = ANY($1::uuid[])`, [depIds]
+             FROM bookings WHERE id = ANY($1::uuid[]) AND status NOT IN ('cancelled','no_show')`, [depIds]
           );
           const effectiveTotal = Math.max((parseInt(totalRes.rows[0].total) || 0) - (parseInt(totalRes.rows[0].promo) || 0), 0);
           const newDepAmount = _depType === 'fixed' ? Math.min(_depFixed, effectiveTotal) : Math.round(effectiveTotal * _depPct / 100);

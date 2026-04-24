@@ -478,10 +478,12 @@ let sql = `UPDATE bookings SET start_at = $1, end_at = $2, reminder_24h_sent_at 
             const _gdFixed = parseInt(_gds.deposit_fixed_cents) || 0;
             if (_gdQo.rows.length === 0 && ((_gdType === 'percent' && _gdPct > 0) || (_gdType === 'fixed' && _gdFixed > 0))) {
               // H6 fix bis: promo peut être sur sibling non-primary (cf booking-reschedule.js même fix)
+              // DEP-05 cohérence (scan 3 audit batch 2) : filter status NOT IN cancelled/no_show
+              // pour éviter surestimation deposit si un sibling a été cancelled individuellement.
               const _gtRes = await client.query(
                 `SELECT COALESCE(SUM(booked_price_cents), 0) AS total,
                         COALESCE(SUM(promotion_discount_cents), 0) AS promo
-                 FROM bookings WHERE group_id = $1 AND business_id = $2`, [draggedBooking.group_id, bid]);
+                 FROM bookings WHERE group_id = $1 AND business_id = $2 AND status NOT IN ('cancelled','no_show')`, [draggedBooking.group_id, bid]);
               const _gEff = Math.max((parseInt(_gtRes.rows[0].total) || 0) - (parseInt(_gtRes.rows[0].promo) || 0), 0);
               const _gNewDep = _gdType === 'fixed' ? Math.min(_gdFixed, _gEff) : Math.round(_gEff * _gdPct / 100);
               await client.query(
