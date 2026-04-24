@@ -595,15 +595,32 @@ async function processNotifications() {
       stats.processed++;
       try {
         // Fetch booking data
-        const bk = await fetchBookingData(notif.booking_id);
+        let bk = await fetchBookingData(notif.booking_id);
         if (!bk) {
-          // Booking deleted — mark as failed
-          await client.query(
-            `UPDATE notifications SET status = 'failed', error = 'booking_not_found', sent_at = NOW() WHERE id = $1`,
-            [notif.id]
-          );
-          stats.failed++;
-          continue;
+          // STRIPE-01 hotfix (audit batch 2) : les alertes partial refund GC/Pass
+          // émises par stripe.js charge.refunded INSERT avec booking_id=NULL (la GC/Pass
+          // n'est pas attachée à un booking). Avant ce fix le handler bailait avec
+          // 'booking_not_found' → alertes jamais envoyées au pro. Fix : pour
+          // email_dispute_alert, on accepte booking_id=NULL et on charge le business
+          // via notif.business_id pour reconstruire le contexte minimal.
+          if (notif.type === 'email_dispute_alert' && notif.business_id) {
+            const _bizRes = await client.query(
+              `SELECT id, name AS biz_name, email AS biz_email, theme AS biz_theme FROM businesses WHERE id = $1`,
+              [notif.business_id]
+            );
+            if (_bizRes.rows[0]) {
+              bk = { business_id: notif.business_id, biz_email: _bizRes.rows[0].biz_email, biz_name: _bizRes.rows[0].biz_name, biz_theme: _bizRes.rows[0].biz_theme };
+            }
+          }
+          if (!bk) {
+            // Booking deleted — mark as failed
+            await client.query(
+              `UPDATE notifications SET status = 'failed', error = 'booking_not_found', sent_at = NOW() WHERE id = $1`,
+              [notif.id]
+            );
+            stats.failed++;
+            continue;
+          }
         }
 
         // Check if business has an email (not needed for client-facing review emails)
@@ -641,13 +658,18 @@ async function processNotifications() {
             result = await sendReviewEmail(bk, notif.metadata);
             break;
           case 'email_dispute_alert': {
-            // Send dispute alert email to merchant
+            // Send dispute / partial-refund alert email to merchant
             // BUG-DISPUTE-CTX fix: include client name, booking date, service so the pro can
             // cross-reference without opening Stripe dashboard + Genda side-by-side.
+            // STRIPE-01 hotfix: handle partial refund kinds (booking/gc/pass) — metadata has
+            // charge_amount_cents + amount_refunded_cents instead of {dispute_id, amount, reason}.
             const meta = notif.metadata || {};
             const { sendEmail, buildEmailHTML, escHtml, safeColor } = require('./email-utils');
             const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
-            const amtStr = meta.amount ? ((meta.amount / 100).toFixed(2).replace('.', ',') + ' €') : '?';
+            const _isPartialKind = meta.kind && String(meta.kind).startsWith('partial_stripe_refund');
+            const _amtCents = _isPartialKind ? meta.amount_refunded_cents : meta.amount;
+            const amtStr = _amtCents ? (((_amtCents | 0) / 100).toFixed(2).replace('.', ',') + ' €') : '?';
+            const _totalStr = meta.charge_amount_cents ? (((meta.charge_amount_cents | 0) / 100).toFixed(2).replace('.', ',') + ' €') : null;
             const _disputeCtx = [];
             if (bk.client_name) _disputeCtx.push(`<strong>${escHtml(bk.client_name)}</strong>`);
             if (bk.service_name) _disputeCtx.push(escHtml(bk.service_name));
@@ -656,19 +678,60 @@ async function processNotifications() {
               _disputeCtx.push(_d);
             }
             const _ctxLine = _disputeCtx.length > 0 ? `<div style="font-size:14px;color:#3D3832;margin-top:6px">${_disputeCtx.join(' · ')}</div>` : '';
+
+            let _subject, _title, _preheader, _headline, _reasonLine, _entityLine, _bodyIntro, _footerAction;
+            if (meta.kind === 'partial_stripe_refund_gc') {
+              _subject = `⚠ Remboursement partiel carte cadeau — ${amtStr} — action requise`;
+              _title = 'Remboursement partiel carte cadeau';
+              _preheader = `${amtStr} remboursé sur une carte cadeau via Stripe Dashboard`;
+              _headline = `Remboursement partiel ${amtStr}${_totalStr ? ' sur ' + _totalStr : ''}`;
+              _reasonLine = `Un remboursement partiel a été effectué depuis le dashboard Stripe sur une carte cadeau.`;
+              _entityLine = meta.gift_card_id ? `<div style="font-size:11px;color:#9C958E;margin-top:6px">GC ID : ${escHtml(meta.gift_card_id)}</div>` : '';
+              _bodyIntro = `<p>Un remboursement partiel Stripe a été effectué sur une carte cadeau. Nous n'avons pas annulé la carte côté Bookt (partial=non destructif). Si vous souhaitez aussi réduire le solde, agissez manuellement côté dashboard Bookt.</p>`;
+              _footerAction = `<p style="font-size:13px;color:#6B6560">Si ce remboursement était destiné à annuler la carte, utilisez "Annuler la carte" dans le dashboard Bookt.</p>`;
+            } else if (meta.kind === 'partial_stripe_refund_pass') {
+              _subject = `⚠ Remboursement partiel abonnement — ${amtStr} — action requise`;
+              _title = 'Remboursement partiel abonnement';
+              _preheader = `${amtStr} remboursé sur un abonnement via Stripe Dashboard`;
+              _headline = `Remboursement partiel ${amtStr}${_totalStr ? ' sur ' + _totalStr : ''}`;
+              _reasonLine = `Un remboursement partiel a été effectué depuis le dashboard Stripe sur un abonnement (pass).`;
+              _entityLine = meta.pass_id ? `<div style="font-size:11px;color:#9C958E;margin-top:6px">Pass ID : ${escHtml(meta.pass_id)}</div>` : '';
+              _bodyIntro = `<p>Un remboursement partiel Stripe a été effectué sur un abonnement. Nous n'avons pas annulé les séances côté Bookt (partial=non destructif). Si vous souhaitez aussi réduire les séances, agissez manuellement côté dashboard Bookt.</p>`;
+              _footerAction = `<p style="font-size:13px;color:#6B6560">Si ce remboursement était destiné à annuler l'abonnement, utilisez "Annuler le pass" dans le dashboard Bookt.</p>`;
+            } else if (meta.kind === 'partial_stripe_refund') {
+              _subject = `⚠ Remboursement partiel Stripe — ${amtStr} — action requise`;
+              _title = 'Remboursement partiel';
+              _preheader = `${amtStr} remboursé via Stripe Dashboard`;
+              _headline = `Remboursement partiel ${amtStr}${_totalStr ? ' sur ' + _totalStr : ''}`;
+              _reasonLine = `Un remboursement partiel a été effectué depuis le dashboard Stripe sur un acompte booking.`;
+              _entityLine = bk.id ? `<div style="font-size:11px;color:#9C958E;margin-top:6px">Booking ID : ${escHtml(bk.id)}</div>` : '';
+              _bodyIntro = `<p>Un remboursement partiel Stripe a été effectué. Le booking n'a pas été annulé (partial=non destructif). Si vous voulez annuler le RDV, utilisez la fonction dédiée dashboard.</p>`;
+              _footerAction = '';
+            } else {
+              // Default: full dispute
+              _subject = `⚠ Litige Stripe — ${amtStr} — action requise`;
+              _title = 'Litige reçu';
+              _preheader = `Un litige de ${amtStr} a été ouvert`;
+              _headline = `Litige de ${amtStr}`;
+              _reasonLine = `Motif : ${escHtml(meta.reason || 'Non spécifié')}`;
+              _entityLine = bk.id ? `<div style="font-size:11px;color:#9C958E;margin-top:6px">Booking ID : ${escHtml(bk.id)}</div>` : '';
+              _bodyIntro = `<p>Un litige a été ouvert sur un paiement.</p>`;
+              _footerAction = `<p style="font-size:13px;color:#6B6560">Connectez-vous à votre dashboard Stripe pour répondre au litige dans les délais.</p>`;
+            }
+
             await sendEmail({
               to: bk.biz_email, toName: bk.biz_name, businessId: bk.business_id,
-              subject: `⚠ Litige Stripe — ${amtStr} — action requise`,
+              subject: _subject,
               html: buildEmailHTML({
-                title: 'Litige reçu', preheader: `Un litige de ${amtStr} a été ouvert`,
-                bodyHTML: `<p>Un litige a été ouvert sur un paiement.</p>
+                title: _title, preheader: _preheader,
+                bodyHTML: `${_bodyIntro}
                   <div style="background:#FEF2F2;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #EF4444">
-                    <div style="font-size:15px;font-weight:600;color:#DC2626">Litige de ${amtStr}</div>
-                    <div style="font-size:14px;color:#3D3832;margin-top:4px">Motif : ${escHtml(meta.reason || 'Non spécifié')}</div>
+                    <div style="font-size:15px;font-weight:600;color:#DC2626">${_headline}</div>
+                    <div style="font-size:14px;color:#3D3832;margin-top:4px">${_reasonLine}</div>
                     ${_ctxLine}
-                    ${bk.id ? `<div style="font-size:11px;color:#9C958E;margin-top:6px">Booking ID : ${escHtml(bk.id)}</div>` : ''}
+                    ${_entityLine}
                   </div>
-                  <p style="font-size:13px;color:#6B6560">Connectez-vous à votre dashboard Stripe pour répondre au litige dans les délais.</p>`,
+                  ${_footerAction}`,
                 ctaText: 'Voir dans le dashboard', ctaUrl: `${baseUrl}/dashboard`,
                 businessName: bk.biz_name, primaryColor: safeColor(bk.biz_theme?.primary_color),
                 footerText: `${bk.biz_name} · Via Genda.be`

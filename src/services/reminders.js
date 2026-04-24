@@ -306,6 +306,10 @@ async function process24hReminders(stats) {
           stats.sms_24h++;
           anySent = true;
           await logNotification(bk, 'sms_reminder_24h', 'sent', 'twilio', result.sid);
+        } else if (result.skipped) {
+          // P3 hotfix (audit batch 3) : distinguer skipped (opt-out/cap) vs error technique
+          stats.skipped = (stats.skipped || 0) + 1;
+          await logNotification(bk, 'sms_reminder_24h', 'failed', 'twilio', null, 'skipped:' + (result.error || 'opt_out_or_cap'));
         } else {
           stats.errors++;
           await logNotification(bk, 'sms_reminder_24h', 'failed', 'twilio', null, result.error);
@@ -466,6 +470,10 @@ async function process2hReminders(stats) {
           stats.sms_2h++;
           anySent = true;
           await logNotification(bk, 'sms_reminder_2h', 'sent', 'twilio', result.sid);
+        } else if (result.skipped) {
+          // P3 hotfix (audit batch 3) : distinguer skipped vs error
+          stats.skipped = (stats.skipped || 0) + 1;
+          await logNotification(bk, 'sms_reminder_2h', 'failed', 'twilio', null, 'skipped:' + (result.error || 'opt_out_or_cap'));
         } else {
           stats.errors++;
           await logNotification(bk, 'sms_reminder_2h', 'failed', 'twilio', null, result.error);

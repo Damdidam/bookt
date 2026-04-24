@@ -19,17 +19,23 @@ window.addEventListener('beforeunload', e => {
 });
 
 // ── Generic confirmation dialog (replaces window.confirm) ──
+// XSS-hardened (scan 23 avril hotfix) : title + message + confirmLabel sont échappés
+// systématiquement. Tous les callers passent du texte brut — la page team.js/passes.js/
+// promotions.js/... interpolait `${name}`/`${code}`/`${title}` owner-contrôlés (display_name,
+// GC code, promo title) qui pouvaient contenir du HTML malveillant. Pour émettre du HTML
+// riche (gras, lien), utiliser un helper dédié à l'avenir.
+function _escDg(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
 export function showConfirmDialog(title, message, confirmLabel = 'Confirmer', confirmStyle = 'primary') {
   return new Promise(resolve => {
     const el = document.createElement('div');
     el.className = 'dg-overlay';
     const btnColor = confirmStyle === 'danger' ? '#DC2626' : 'var(--primary)';
     el.innerHTML = `<div class="dg-card">
-      <p class="dg-msg" style="font-weight:600;margin-bottom:6px">${title}</p>
-      ${message ? `<p class="dg-msg">${message}</p>` : ''}
+      <p class="dg-msg" style="font-weight:600;margin-bottom:6px">${_escDg(title)}</p>
+      ${message ? `<p class="dg-msg">${_escDg(message)}</p>` : ''}
       <div class="dg-actions">
         <button class="dg-btn dg-cancel" style="background:var(--bg);color:var(--text)">Annuler</button>
-        <button class="dg-btn dg-confirm" style="background:${btnColor};color:#fff">${confirmLabel}</button>
+        <button class="dg-btn dg-confirm" style="background:${btnColor};color:#fff">${_escDg(confirmLabel)}</button>
       </div>
     </div>`;
     el.querySelector('.dg-cancel').onclick = () => { el.remove(); resolve(false); };
