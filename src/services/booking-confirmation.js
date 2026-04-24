@@ -520,10 +520,16 @@ async function processExpiredPendingBookings() {
             // (rawPrice > bookedPrice) and render the "Last Minute -X%" struck-through banner.
             // Previously we pre-applied discount_pct here → template saw raw==booked → no LM banner.
             const { sendCancellationEmail } = require('./email');
+            // BL-10 clone fix : cancelled._stripeSessionId = primary PI. Si sibling a un PI
+            // distinct, ne pas forwarder cancelled._netRefund (calculé sur primary) → null
+            // → template recalcule depuis deposit_amount - gc du sibling lui-même.
+            const _sibNetRefund = (sib.deposit_payment_intent_id && sib.deposit_payment_intent_id === cancelled._stripeSessionId)
+              ? cancelled._netRefund
+              : null;
             await sendCancellationEmail({
               // H7 fix: forward custom_label so sibling email shows personalised service label
               // B3 fix: forward net_refund_cents + deposit_retention_reason from primary (siblings share the deposit PI)
-              booking: { start_at: sib.start_at, end_at: sib.end_at, client_name: sib.client_name, client_email: sib.client_email, service_name: sib.service_name, service_category: sib.service_category, custom_label: sib.custom_label, comment_client: sib.comment_client, service_price_cents: sib.service_price_cents, booked_price_cents: sib.booked_price_cents, discount_pct: sib.discount_pct, duration_min: sib.duration_min, promotion_label: sib.promotion_label, promotion_discount_cents: sib.promotion_discount_cents, promotion_discount_pct: sib.promotion_discount_pct, practitioner_name: sib.practitioner_name, deposit_required: sib.deposit_required, deposit_status: sib.deposit_status, deposit_amount_cents: sib.deposit_amount_cents, deposit_paid_at: sib.deposit_paid_at, deposit_payment_intent_id: sib.deposit_payment_intent_id, gc_paid_cents: gcPaidSibConf, gc_refunded_cents: _gcRef.rows[0]?.amt || 0, pass_refunded: _passRef.rows.length > 0, net_refund_cents: cancelled._netRefund, deposit_retention_reason: cancelled._retentionReason, cancel_reason: 'Confirmation non reçue dans le délai imparti' },
+              booking: { start_at: sib.start_at, end_at: sib.end_at, client_name: sib.client_name, client_email: sib.client_email, service_name: sib.service_name, service_category: sib.service_category, custom_label: sib.custom_label, comment_client: sib.comment_client, service_price_cents: sib.service_price_cents, booked_price_cents: sib.booked_price_cents, discount_pct: sib.discount_pct, duration_min: sib.duration_min, promotion_label: sib.promotion_label, promotion_discount_cents: sib.promotion_discount_cents, promotion_discount_pct: sib.promotion_discount_pct, practitioner_name: sib.practitioner_name, deposit_required: sib.deposit_required, deposit_status: sib.deposit_status, deposit_amount_cents: sib.deposit_amount_cents, deposit_paid_at: sib.deposit_paid_at, deposit_payment_intent_id: sib.deposit_payment_intent_id, gc_paid_cents: gcPaidSibConf, gc_refunded_cents: _gcRef.rows[0]?.amt || 0, pass_refunded: _passRef.rows.length > 0, net_refund_cents: _sibNetRefund, deposit_retention_reason: cancelled._retentionReason, cancel_reason: 'Confirmation non reçue dans le délai imparti' },
               business: { id: cancelled.business_id, name: sib.biz_name, slug: sib.biz_slug, email: sib.biz_email, phone: sib.biz_phone, address: sib.biz_address, theme: sib.biz_theme, settings: sib.biz_settings },
               groupServices: _sibGroupServices
             });
