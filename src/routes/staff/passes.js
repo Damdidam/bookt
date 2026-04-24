@@ -508,6 +508,13 @@ router.post('/:id/refund', blockIfImpersonated, async (req, res, next) => {
       if (p.rows.length === 0) throw Object.assign(new Error('Pass introuvable'), { status: 404 });
       const pass = p.rows[0];
 
+      // PASS-02 fix (scan 23 avril) : guard disputed_at parity avec /refund-full L575.
+      // Sans ce guard, pro pouvait créditer une séance sur un pass en litige Stripe →
+      // double-loss si Stripe perd le litige (pass crédité + charge back).
+      if (pass.disputed_at) {
+        throw Object.assign(new Error('Litige Stripe en cours sur cet abonnement. Attendez la résolution (dashboard Stripe) avant de rembourser.'), { status: 409 });
+      }
+
       if (pass.sessions_remaining >= pass.sessions_total) {
         throw Object.assign(new Error('Impossible de rembourser: toutes les séances sont déjà disponibles'), { status: 400 });
       }

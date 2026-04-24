@@ -739,7 +739,12 @@ async function handleStripeWebhook(req, res) {
             }
 
             // Calculate expiry
-            const expiresAt = new Date(Date.now() + (tpl.validity_days || 365) * 86400000);
+            // PASS-01 fix (scan 23 avril) : parité avec staff manual passes.js:348-352.
+            // Si tpl.validity_days est NULL (pass perpétuel by design), expires_at=NULL
+            // (au lieu du hardcode 365 qui forçait expiration à 1 an).
+            const _passExpAt = tpl.validity_days
+              ? new Date(Date.now() + tpl.validity_days * 86400000).toISOString()
+              : null;
 
             // Create pass
             // BUG-IDEMPOTENCE fix: UNIQUE partial index idx_passes_stripe_pi protects
@@ -753,7 +758,7 @@ async function handleStripeWebhook(req, res) {
                ON CONFLICT (stripe_payment_intent_id) WHERE stripe_payment_intent_id IS NOT NULL DO NOTHING
                RETURNING *`,
               // BUG-PASS-EMAIL-LOWER fix: normalize buyer_email lowercase for consistent matching.
-              [business_id, pass_template_id, tpl.service_id, tpl.service_variant_id || null, code, tpl.name, tpl.sessions_count, tpl.price_cents, buyer_name, buyer_email ? String(buyer_email).toLowerCase() : null, _passStripeId, expiresAt.toISOString()]
+              [business_id, pass_template_id, tpl.service_id, tpl.service_variant_id || null, code, tpl.name, tpl.sessions_count, tpl.price_cents, buyer_name, buyer_email ? String(buyer_email).toLowerCase() : null, _passStripeId, _passExpAt]
             );
             if (passRes.rows.length === 0) {
               console.log(`[STRIPE WH] Pass INSERT conflict for PI ${session.payment_intent} (race with concurrent webhook), skipping.`);

@@ -122,6 +122,13 @@ router.post('/deposit/:token/checkout', depositLimiter, async (req, res, next) =
         if (existingSession.status === 'open' && existingSession.url) {
           return res.json({ url: existingSession.url, session_id: existingSession.id });
         }
+        // STRIPE-03 fix (scan 23 avril) : si session déjà completed + paid mais webhook
+        // pas encore arrivé (lag 5-30s), return already_paid au lieu de laisser tomber
+        // dans la création d'une 2e session → user payait 2× puis auto-refund (frais
+        // Bancontact 0.24€ doublés + UX confuse).
+        if (existingSession.status === 'complete' && existingSession.payment_status === 'paid') {
+          return res.json({ status: 'already_paid', message: 'Paiement en cours de validation, vous recevrez la confirmation par email sous peu.' });
+        }
       } catch (e) { /* expired or invalid — create new */ }
     }
 
@@ -298,6 +305,12 @@ router.get('/deposit/:token/pay', depositLimiter, async (req, res, next) => {
         const existingSession = await stripe.checkout.sessions.retrieve(bk.deposit_payment_intent_id);
         if (existingSession.status === 'open' && existingSession.url) {
           return res.redirect(existingSession.url);
+        }
+        // STRIPE-03 fix (scan 23 avril) : parity avec route POST checkout ci-dessus.
+        // Session complete+paid mais webhook lag → redirect vers page paid plutôt que
+        // créer 2e session (double-paiement client).
+        if (existingSession.status === 'complete' && existingSession.payment_status === 'paid') {
+          return res.redirect(depositPageUrl + '?paid=1');
         }
       } catch (e) { /* expired or invalid — create new */ }
     }

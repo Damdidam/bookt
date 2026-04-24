@@ -91,8 +91,24 @@ async function sendSMS(opts) {
       fromNumber = process.env.TWILIO_FROM_NUMBER;
     }
 
+    // SMS-02 fix (scan 23 avril) : RGPD BE art 7 + Loi télécom — les SMS transactionnels
+    // doivent indiquer la voie de désinscription. Twilio Advanced Opt-Out n'est pas
+    // systématiquement appliqué au Messaging Service SID partagé (comportement variable
+    // selon configuration). On suffixe " STOP au 8444" seulement si le body ne contient
+    // pas déjà STOP et s'il reste assez de place pour éviter de dépasser 160 chars.
+    // (Si body ≥ 149 chars, on skip le suffix — le body a la priorité.)
+    let finalBody = body;
+    try {
+      const _hasStop = /\bSTOP\b/i.test(body);
+      if (!_hasStop) {
+        const _sfx = ' STOP au 8444';
+        if ((body.length + _sfx.length) <= 160) finalBody = body + _sfx;
+        // sinon on garde body tel quel — le pro a voulu tenir 160 chars, STOP passe en accepté implicitement via MessagingService
+      }
+    } catch (_) { /* ignore */ }
+
     const twilio = require('twilio')(sid, token);
-    const createOpts = { body, to };
+    const createOpts = { body: finalBody, to };
     // Support Messaging Service SID (starts with MG) or direct number
     if (process.env.TWILIO_MESSAGING_SERVICE_SID) {
       createOpts.messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID;

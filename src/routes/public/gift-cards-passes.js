@@ -40,12 +40,17 @@ router.post('/:slug/gift-card/checkout', depositLimiter, async (req, res, next) 
     if (!key) return res.status(500).json({ error: 'Paiement non configuré' });
     const stripe = require('stripe')(key);
     const { rows } = await query(
-      `SELECT id, name, slug, plan, settings, theme, stripe_connect_id FROM businesses WHERE slug = $1 AND is_active = true LIMIT 1`,
+      `SELECT id, name, slug, plan, settings, theme, stripe_connect_id, stripe_connect_status FROM businesses WHERE slug = $1 AND is_active = true LIMIT 1`,
       [req.params.slug]
     );
     if (rows.length === 0) return res.status(404).json({ error: 'Salon introuvable' });
     const biz = rows[0];
     if ((biz.plan || 'free') === 'free') return res.status(403).json({ error: 'upgrade_required', message: 'Les cartes cadeau sont disponibles avec le plan Pro.' });
+    // STRIPE-04 fix (scan 23 avril) : gate stripe_connect_status='active' pour éviter
+    // 500 inexplicable si compte désactivé/restricted. Parity avec deposit.js:41.
+    if (biz.stripe_connect_id && biz.stripe_connect_status !== 'active') {
+      return res.status(503).json({ error: 'Le paiement en ligne n\'est pas encore configuré par ce commerce. Contactez-le directement.' });
+    }
     const s = biz.settings || {};
     if (!s.giftcard_enabled) return res.status(400).json({ error: 'Cartes cadeau non disponibles' });
     const { buyer_name, buyer_email, recipient_name, recipient_email, message } = req.body;
@@ -314,12 +319,16 @@ router.post('/:slug/pass/checkout', depositLimiter, async (req, res, next) => {
     if (!key) return res.status(500).json({ error: 'Paiement non configuré' });
     const stripe = require('stripe')(key);
     const { rows } = await query(
-      `SELECT id, name, slug, plan, settings, theme, stripe_connect_id FROM businesses WHERE slug = $1 AND is_active = true LIMIT 1`,
+      `SELECT id, name, slug, plan, settings, theme, stripe_connect_id, stripe_connect_status FROM businesses WHERE slug = $1 AND is_active = true LIMIT 1`,
       [req.params.slug]
     );
     if (rows.length === 0) return res.status(404).json({ error: 'Salon introuvable' });
     const biz = rows[0]; const s = biz.settings || {};
     if ((biz.plan || 'free') === 'free') return res.status(403).json({ error: 'upgrade_required', message: 'Les abonnements sont disponibles avec le plan Pro.' });
+    // STRIPE-04 fix (scan 23 avril) : gate stripe_connect_status='active' (parity deposit.js:41)
+    if (biz.stripe_connect_id && biz.stripe_connect_status !== 'active') {
+      return res.status(503).json({ error: 'Le paiement en ligne n\'est pas encore configuré par ce commerce. Contactez-le directement.' });
+    }
     if (!s.passes_enabled) return res.status(400).json({ error: 'Abonnements non disponibles' });
     const { pass_template_id, buyer_name, buyer_email, buyer_phone, oauth_provider, oauth_provider_id } = req.body;
     if (!pass_template_id) return res.status(400).json({ error: 'Template requis' });
