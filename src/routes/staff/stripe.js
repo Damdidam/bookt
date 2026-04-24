@@ -253,8 +253,61 @@ async function handleStripeWebhook(req, res) {
         // Bancontact/SEPA async payment that failed after checkout.session.completed
         // was emitted (with payment_status='unpaid'). Nothing to roll back because
         // the guard in checkout.session.completed skips fulfillment when unpaid.
+        //
+        // Missing-handler hotfix (scan 3 A1) : notifier le client que son paiement
+        // async a échoué définitivement pour qu'il puisse réessayer. Sans ce email,
+        // le client croit que tout est OK → se présente au salon → RDV annulé (no-show
+        // mystère) via cron deposit-expiry après timeout.
         const s = event.data.object;
-        console.warn(`[STRIPE WH] async_payment_failed session=${s.id} type=${s.metadata?.type || 'unknown'} — fulfillment was deferred, no rollback needed`);
+        console.warn(`[STRIPE WH] async_payment_failed session=${s.id} type=${s.metadata?.type || 'unknown'}`);
+        try {
+          if (s.metadata?.type === 'deposit' && s.metadata?.booking_token) {
+            const _bk = await query(
+              `SELECT b.id, b.business_id, b.public_token, b.start_at,
+                      c.email AS client_email, c.full_name AS client_name,
+                      biz.name AS biz_name, biz.email AS biz_email, biz.phone AS biz_phone,
+                      biz.address AS biz_address, biz.theme AS biz_theme, biz.slug AS biz_slug
+                 FROM bookings b
+                 LEFT JOIN clients c ON c.id = b.client_id
+                 JOIN businesses biz ON biz.id = b.business_id
+                WHERE b.public_token = $1`, [s.metadata.booking_token]
+            );
+            if (_bk.rows[0]?.client_email) {
+              const row = _bk.rows[0];
+              const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+              const depositUrl = `${baseUrl}/deposit/${row.public_token}`;
+              const { sendEmail, buildEmailHTML, escHtml, safeColor } = require('../../services/email-utils');
+              const color = safeColor(row.biz_theme?.primary_color);
+              const bodyHTML = `
+                <p>Bonjour <strong>${escHtml(row.client_name || 'cher client')}</strong>,</p>
+                <p>Votre paiement Bancontact de l'acompte pour votre rendez-vous n'a pas abouti.</p>
+                <p>Pour confirmer votre RDV, veuillez réessayer le paiement dès que possible (avant le délai indiqué) :</p>`;
+              await sendEmail({
+                to: row.client_email, toName: row.client_name, businessId: row.business_id,
+                subject: `Paiement échoué — réessayez votre acompte — ${row.biz_name}`,
+                html: buildEmailHTML({
+                  title: 'Paiement échoué', preheader: 'Votre paiement Bancontact n\'a pas abouti — réessayez',
+                  bodyHTML, ctaText: 'Réessayer le paiement', ctaUrl: depositUrl,
+                  businessName: row.biz_name, primaryColor: color,
+                  footerText: `${row.biz_name}${row.biz_address ? ' · ' + row.biz_address : ''} · Via Genda.be`
+                }),
+                fromName: row.biz_name, replyTo: row.biz_email || null
+              });
+            }
+          }
+        } catch (notifErr) {
+          console.warn('[STRIPE WH] async_payment_failed notif error:', notifErr.message);
+        }
+        break;
+      }
+
+      // Missing-handler hotfix (scan 3 A1) : charge.failed
+      // Stripe émet ce event quand un paiement Bancontact/SEPA échoue définitivement
+      // en dehors d'une checkout session (ex: subscription recurring). Log only
+      // actuellement — le flow deposit est couvert par async_payment_failed ci-dessus.
+      case 'charge.failed': {
+        const ch = event.data.object;
+        console.warn(`[STRIPE WH] charge.failed charge=${ch.id} amount=${ch.amount}c reason=${ch.failure_message || 'unknown'}`);
         break;
       }
 
