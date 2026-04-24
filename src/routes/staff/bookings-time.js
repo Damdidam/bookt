@@ -836,9 +836,13 @@ let sql = `UPDATE bookings SET start_at = $1, end_at = $2, reminder_24h_sent_at 
 
         // M2 fix: Recalculate deposit_amount_cents when price changed on move (handles both percent AND fixed)
         // SKIP for quote_only — merchant set a specific amount manually
+        // DEP-05 hotfix (scan 3) : pour un booking multi-service, calculer sur la SOMME
+        // du groupe (booked_price - promo) au lieu du booking seul. Sinon le staff qui
+        // move 1 service d'un groupe recalcule deposit à 30% de ce service uniquement
+        // → client paie moins que dû sur l'ensemble. Parity avec /move group L467-491.
         if (moved && moved.deposit_required) {
           const _depRes = await client.query(
-            `SELECT biz.settings AS biz_settings, b.booked_price_cents, b.promotion_discount_cents, s.quote_only
+            `SELECT biz.settings AS biz_settings, b.booked_price_cents, b.promotion_discount_cents, b.group_id, s.quote_only
              FROM bookings b JOIN businesses biz ON biz.id = b.business_id
              LEFT JOIN services s ON s.id = b.service_id
              WHERE b.id = $1 AND b.business_id = $2`, [id, bid]
@@ -850,9 +854,25 @@ let sql = `UPDATE bookings SET start_at = $1, end_at = $2, reminder_24h_sent_at 
             const _depPct = parseInt(_ds.deposit_percent) || 0;
             const _depFixed = parseInt(_ds.deposit_fixed_cents) || 0;
             if ((_depType === 'percent' && _depPct > 0) || (_depType === 'fixed' && _depFixed > 0)) {
-              const _effPrice = Math.max((_dr.booked_price_cents || 0) - (_dr.promotion_discount_cents || 0), 0);
+              let _effPrice;
+              if (_dr.group_id) {
+                // Multi-service : somme du groupe (non-cancelled)
+                const _grpSum = await client.query(
+                  `SELECT COALESCE(SUM(COALESCE(booked_price_cents, 0) - COALESCE(promotion_discount_cents, 0)), 0) AS total
+                   FROM bookings WHERE group_id = $1 AND business_id = $2 AND status NOT IN ('cancelled','no_show')`,
+                  [_dr.group_id, bid]
+                );
+                _effPrice = Math.max(parseInt(_grpSum.rows[0].total) || 0, 0);
+              } else {
+                _effPrice = Math.max((_dr.booked_price_cents || 0) - (_dr.promotion_discount_cents || 0), 0);
+              }
               const _newDepAmt = _depType === 'fixed' ? Math.min(_depFixed, _effPrice) : Math.round(_effPrice * _depPct / 100);
-              await client.query(`UPDATE bookings SET deposit_amount_cents = $1 WHERE id = $2 AND business_id = $3 AND deposit_status = 'pending'`, [_newDepAmt, id, bid]);
+              // Multi-service : propager à tous les siblings pending (pattern index.js:908)
+              if (_dr.group_id) {
+                await client.query(`UPDATE bookings SET deposit_amount_cents = $1 WHERE group_id = $2 AND business_id = $3 AND deposit_status = 'pending'`, [_newDepAmt, _dr.group_id, bid]);
+              } else {
+                await client.query(`UPDATE bookings SET deposit_amount_cents = $1 WHERE id = $2 AND business_id = $3 AND deposit_status = 'pending'`, [_newDepAmt, id, bid]);
+              }
             }
           }
         }
@@ -1694,9 +1714,12 @@ router.patch('/:id/modify', blockIfImpersonated, async (req, res, next) => {
         // parité avec /move L797-818. Sans ce bloc, /modify qui sort un booking
         // pending_deposit de la fenêtre LM laissait deposit_amount_cents à 30%
         // du prix LM réduit → client payait -20% d'acompte → perte de revenu pro.
+        // DEP-05 hotfix (scan 3) : parity avec /move — calculer sur la SOMME du groupe
+        // si group_id présent (même si /modify bloque déjà les groupes L1522, défense
+        // en profondeur + future-proof).
         if (modified && modified.deposit_required) {
           const _depResM = await client.query(
-            `SELECT biz.settings AS biz_settings, b.booked_price_cents, b.promotion_discount_cents, s.quote_only
+            `SELECT biz.settings AS biz_settings, b.booked_price_cents, b.promotion_discount_cents, b.group_id, s.quote_only
              FROM bookings b JOIN businesses biz ON biz.id = b.business_id
              LEFT JOIN services s ON s.id = b.service_id
              WHERE b.id = $1 AND b.business_id = $2`, [id, bid]
@@ -1708,9 +1731,23 @@ router.patch('/:id/modify', blockIfImpersonated, async (req, res, next) => {
             const _depPctM = parseInt(_dsM.deposit_percent) || 0;
             const _depFixedM = parseInt(_dsM.deposit_fixed_cents) || 0;
             if ((_depTypeM === 'percent' && _depPctM > 0) || (_depTypeM === 'fixed' && _depFixedM > 0)) {
-              const _effPriceM = Math.max((_drM.booked_price_cents || 0) - (_drM.promotion_discount_cents || 0), 0);
+              let _effPriceM;
+              if (_drM.group_id) {
+                const _grpSumM = await client.query(
+                  `SELECT COALESCE(SUM(COALESCE(booked_price_cents, 0) - COALESCE(promotion_discount_cents, 0)), 0) AS total
+                   FROM bookings WHERE group_id = $1 AND business_id = $2 AND status NOT IN ('cancelled','no_show')`,
+                  [_drM.group_id, bid]
+                );
+                _effPriceM = Math.max(parseInt(_grpSumM.rows[0].total) || 0, 0);
+              } else {
+                _effPriceM = Math.max((_drM.booked_price_cents || 0) - (_drM.promotion_discount_cents || 0), 0);
+              }
               const _newDepAmtM = _depTypeM === 'fixed' ? Math.min(_depFixedM, _effPriceM) : Math.round(_effPriceM * _depPctM / 100);
-              await client.query(`UPDATE bookings SET deposit_amount_cents = $1 WHERE id = $2 AND business_id = $3 AND deposit_status = 'pending'`, [_newDepAmtM, id, bid]);
+              if (_drM.group_id) {
+                await client.query(`UPDATE bookings SET deposit_amount_cents = $1 WHERE group_id = $2 AND business_id = $3 AND deposit_status = 'pending'`, [_newDepAmtM, _drM.group_id, bid]);
+              } else {
+                await client.query(`UPDATE bookings SET deposit_amount_cents = $1 WHERE id = $2 AND business_id = $3 AND deposit_status = 'pending'`, [_newDepAmtM, id, bid]);
+              }
             }
           }
         }

@@ -83,14 +83,14 @@ async function process24hReminders(stats) {
     JOIN services s ON s.id = bk.service_id
     LEFT JOIN service_variants sv ON sv.id = bk.service_variant_id
     JOIN businesses b ON b.id = bk.business_id
-    WHERE bk.status = 'confirmed'
+    WHERE bk.status IN ('confirmed', 'modified_pending')
       AND bk.reminder_24h_sent_at IS NULL
       AND bk.start_at > NOW() + INTERVAL '23 hours'
       AND bk.start_at <= NOW() + INTERVAL '25 hours'
       AND b.is_active = true
       AND (bk.group_id IS NULL OR bk.group_order = (
         SELECT MIN(b2.group_order) FROM bookings b2
-        WHERE b2.group_id = bk.group_id AND b2.status = 'confirmed' AND b2.reminder_24h_sent_at IS NULL
+        WHERE b2.group_id = bk.group_id AND b2.status IN ('confirmed','modified_pending') AND b2.reminder_24h_sent_at IS NULL
       ))
     ORDER BY bk.start_at
     LIMIT 200
@@ -321,15 +321,15 @@ async function process24hReminders(stats) {
       // (Brevo sent the email but timed out before responding) won't trigger a duplicate either.
       // Doubles are MORE annoying than rare missed reminders. Cron logs the failure for visibility.
       if (reminderEmailEnabled || reminderSmsEnabled) {
+        // BL-06 hotfix : mark sent aussi sur modified_pending pour éviter double-send
         if (bk.group_id) {
-          // Mark all siblings in the group as sent
           await query(
-            `UPDATE bookings SET reminder_24h_sent_at = NOW() WHERE group_id = $1 AND business_id = $2 AND status = 'confirmed'`,
+            `UPDATE bookings SET reminder_24h_sent_at = NOW() WHERE group_id = $1 AND business_id = $2 AND status IN ('confirmed','modified_pending')`,
             [bk.group_id, bk.business_id]
           );
         } else {
           await query(
-            `UPDATE bookings SET reminder_24h_sent_at = NOW() WHERE id = $1 AND business_id = $2 AND status = 'confirmed'`,
+            `UPDATE bookings SET reminder_24h_sent_at = NOW() WHERE id = $1 AND business_id = $2 AND status IN ('confirmed','modified_pending')`,
             [bk.id, bk.business_id]
           );
         }
@@ -370,14 +370,14 @@ async function process2hReminders(stats) {
     JOIN services s ON s.id = bk.service_id
     LEFT JOIN service_variants sv ON sv.id = bk.service_variant_id
     JOIN businesses b ON b.id = bk.business_id
-    WHERE bk.status = 'confirmed'
+    WHERE bk.status IN ('confirmed', 'modified_pending')
       AND bk.reminder_2h_sent_at IS NULL
       AND bk.start_at > NOW() + INTERVAL '1 hour'
       AND bk.start_at <= NOW() + INTERVAL '2 hours 15 minutes'
       AND b.is_active = true
       AND (bk.group_id IS NULL OR bk.group_order = (
         SELECT MIN(b2.group_order) FROM bookings b2
-        WHERE b2.group_id = bk.group_id AND b2.status = 'confirmed' AND b2.reminder_2h_sent_at IS NULL
+        WHERE b2.group_id = bk.group_id AND b2.status IN ('confirmed','modified_pending') AND b2.reminder_2h_sent_at IS NULL
       ))
     ORDER BY bk.start_at
     LIMIT 200
@@ -605,14 +605,15 @@ async function process2hReminders(stats) {
       // M4 fix: mark reminder_2h_sent_at AFTER ANY attempt (even on Brevo/Twilio failure).
       // Avoids duplicate reminders when provider returns success:false but actually delivered.
       if (smsEnabled || emailEnabled) {
+        // BL-06 hotfix : mark sent aussi sur modified_pending pour éviter double-send
         if (bk.group_id) {
           await query(
-            `UPDATE bookings SET reminder_2h_sent_at = NOW() WHERE group_id = $1 AND business_id = $2 AND status = 'confirmed'`,
+            `UPDATE bookings SET reminder_2h_sent_at = NOW() WHERE group_id = $1 AND business_id = $2 AND status IN ('confirmed','modified_pending')`,
             [bk.group_id, bk.business_id]
           );
         } else {
           await query(
-            `UPDATE bookings SET reminder_2h_sent_at = NOW() WHERE id = $1 AND business_id = $2 AND status = 'confirmed'`,
+            `UPDATE bookings SET reminder_2h_sent_at = NOW() WHERE id = $1 AND business_id = $2 AND status IN ('confirmed','modified_pending')`,
             [bk.id, bk.business_id]
           );
         }
