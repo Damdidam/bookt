@@ -853,11 +853,15 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
 
                       if (gcDebit >= depResult.depCents) {
                         // Fully covered by GC — mark only unpaid bookings
+                        // COMBO-02 fix (scan 23 avril) : parité avec le path single-service L1463
+                        // (BUG-GC-LOCK). Deposit fully paid via GC → locked=true pour empêcher
+                        // reschedule libre (même sémantique que Stripe-paid). Avant ce fix,
+                        // multi-service GC-paid restait reschedulable sans contrainte.
                         const unpaidIds = unpaidBookings.map(b => b.id);
                         await client.query(
                           `UPDATE bookings SET deposit_required = true, deposit_amount_cents = $1,
                             deposit_status = 'paid', deposit_paid_at = NOW(),
-                            deposit_payment_intent_id = $2
+                            deposit_payment_intent_id = $2, locked = true
                            WHERE id = ANY($3) AND business_id = $4`,
                           [depResult.depCents, `gc_${gc.code}`, unpaidIds, businessId]
                         );
@@ -866,6 +870,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                           bk.deposit_amount_cents = depResult.depCents;
                           bk.deposit_status = 'paid';
                           bk.deposit_payment_intent_id = `gc_${gc.code}`;
+                          bk.locked = true;
                         }
                         gcAutoPaid = true;
                         console.log(`[DEPOSIT] Multi GC ${gc.code} covers ${unpaidIds.length} unpaid bookings (${gcDebit}c), balance: ${newBal}c`);

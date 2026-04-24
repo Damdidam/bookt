@@ -128,11 +128,13 @@ router.patch('/:id/move', blockIfImpersonated, async (req, res, next) => {
     }
 
     // Fetch dragged booking + service info + group info
+    // PARITY-01 fix (scan 23 avril) : ajout deposit_status + deposit_deadline pour
+    // le guard deposit_deadline qui doit tenir côté staff comme côté public.
     const old = await queryWithRLS(bid,
       `SELECT b.start_at, b.end_at, b.practitioner_id, b.service_id,
               b.group_id, b.group_order, b.status, b.locked,
               b.processing_time, b.processing_start,
-              b.created_at, b.deposit_required,
+              b.created_at, b.deposit_required, b.deposit_status, b.deposit_deadline,
               s.duration_min, s.buffer_before_min, s.buffer_after_min
        FROM bookings b
        LEFT JOIN services s ON s.id = b.service_id
@@ -228,6 +230,31 @@ router.patch('/:id/move', blockIfImpersonated, async (req, res, next) => {
         const availCheck = await checkPracAvailability(bid, effectivePracId, totalStart, totalEnd);
         if (!availCheck.ok) {
           return res.status(409).json({ error: availCheck.reason });
+        }
+      }
+
+      // PARITY-01 fix (scan 23 avril) : guard deposit_deadline pour chaque member
+      // du groupe avec deposit_status='pending'. Même règle que public reschedule :
+      // si rapprochement + nouvelle deadline ≤ NOW+1h → block. Appliqué par membre
+      // car chaque sibling a son propre start_at + deposit_deadline.
+      {
+        const _bizSettGrp = await queryWithRLS(bid, `SELECT settings FROM businesses WHERE id = $1`, [bid]);
+        const _dlHg = (_bizSettGrp.rows[0]?.settings?.deposit_deadline_hours) ?? 48;
+        const _memberDeposits = await queryWithRLS(bid,
+          `SELECT id, deposit_status, start_at FROM bookings WHERE group_id = $1 AND business_id = $2`,
+          [draggedBooking.group_id, bid]
+        );
+        const _depByMember = new Map(_memberDeposits.rows.map(r => [r.id, r]));
+        for (const u of updates) {
+          const md = _depByMember.get(u.id);
+          if (!md || md.deposit_status !== 'pending') continue;
+          const _uNewStart = new Date(u.start_at);
+          const _uOldStart = new Date(md.start_at);
+          if (_uNewStart.getTime() >= _uOldStart.getTime()) continue;  // seulement rapprochement
+          const _newDlG = new Date(_uNewStart.getTime() - _dlHg * 3600000);
+          if (_newDlG <= new Date(Date.now() + 3600000)) {
+            return res.status(400).json({ error: 'Impossible de rapprocher ce groupe : un acompte pending aurait une deadline dépassée. Faites payer/dispenser l\'acompte avant de déplacer.' });
+          }
         }
       }
 
@@ -633,6 +660,19 @@ let sql = `UPDATE bookings SET start_at = $1, end_at = $2, reminder_24h_sent_at 
     const availCheckSingle = await checkPracAvailability(bid, effectivePracId, start_at, end_at);
     if (!availCheckSingle.ok) {
       return res.status(409).json({ error: availCheckSingle.reason });
+    }
+
+    // PARITY-01 fix (scan 23 avril) : même guard que public reschedule L226-233.
+    // Si booking pending_deposit + rapprochement + nouvelle deadline ≤ NOW+1h →
+    // block pour éviter que le cron deposit-expiry annule immédiatement après
+    // le déplacement (client n'a pas le temps de payer). feedback_reschedule_deposit_deadline.md
+    if (draggedBooking.deposit_status === 'pending' && newStart.getTime() < new Date(draggedBooking.start_at).getTime()) {
+      const _bizSettMove = await queryWithRLS(bid, `SELECT settings FROM businesses WHERE id = $1`, [bid]);
+      const _dlH = (_bizSettMove.rows[0]?.settings?.deposit_deadline_hours) ?? 48;
+      const _newDl = new Date(newStart.getTime() - _dlH * 3600000);
+      if (_newDl <= new Date(Date.now() + 3600000)) {
+        return res.status(400).json({ error: 'Impossible de rapprocher ce RDV : le délai de paiement de l\'acompte serait dépassé. Faites payer l\'acompte ou marquez-le comme dispensé avant de déplacer.' });
+      }
     }
 
     // Atomic single move: conflict check + update + deposit deadline recalc in one transaction
@@ -1534,6 +1574,17 @@ router.patch('/:id/modify', blockIfImpersonated, async (req, res, next) => {
       return res.status(409).json({ error: availCheckModify.reason });
     }
 
+    // PARITY-01 fix (scan 23 avril) : même guard deposit_deadline que /move single +
+    // public reschedule. Rapprocher un booking pending_deposit ne doit pas casser
+    // le délai de paiement (le cron annulerait avant que le client ait payé).
+    if (oldBooking.deposit_status === 'pending' && new Date(start_at).getTime() < new Date(oldBooking.start_at).getTime()) {
+      const _dlHmod = (oldBooking.business_settings?.deposit_deadline_hours) ?? 48;
+      const _newDlMod = new Date(new Date(start_at).getTime() - _dlHmod * 3600000);
+      if (_newDlMod <= new Date(Date.now() + 3600000)) {
+        return res.status(400).json({ error: 'Impossible de rapprocher ce RDV : le délai de paiement de l\'acompte serait dépassé. Faites payer l\'acompte ou marquez-le comme dispensé avant de modifier.' });
+      }
+    }
+
     // BK-V13-002: newStatus is now computed inside the transaction using re-checked status
 
     // Atomic modify: conflict check + update in one transaction
@@ -1637,6 +1688,31 @@ router.patch('/:id/modify', blockIfImpersonated, async (req, res, next) => {
           }
           // Sync invoices drafts (parité H10)
           await syncDraftInvoicesForBookings(client, [id]);
+        }
+
+        // B-10 fix (scan 23 avril) : recalculer deposit_amount_cents si LM change,
+        // parité avec /move L797-818. Sans ce bloc, /modify qui sort un booking
+        // pending_deposit de la fenêtre LM laissait deposit_amount_cents à 30%
+        // du prix LM réduit → client payait -20% d'acompte → perte de revenu pro.
+        if (modified && modified.deposit_required) {
+          const _depResM = await client.query(
+            `SELECT biz.settings AS biz_settings, b.booked_price_cents, b.promotion_discount_cents, s.quote_only
+             FROM bookings b JOIN businesses biz ON biz.id = b.business_id
+             LEFT JOIN services s ON s.id = b.service_id
+             WHERE b.id = $1 AND b.business_id = $2`, [id, bid]
+          );
+          const _drM = _depResM.rows[0];
+          if (_drM && !_drM.quote_only) {
+            const _dsM = _drM.biz_settings || {};
+            const _depTypeM = _dsM.deposit_type || 'percent';
+            const _depPctM = parseInt(_dsM.deposit_percent) || 0;
+            const _depFixedM = parseInt(_dsM.deposit_fixed_cents) || 0;
+            if ((_depTypeM === 'percent' && _depPctM > 0) || (_depTypeM === 'fixed' && _depFixedM > 0)) {
+              const _effPriceM = Math.max((_drM.booked_price_cents || 0) - (_drM.promotion_discount_cents || 0), 0);
+              const _newDepAmtM = _depTypeM === 'fixed' ? Math.min(_depFixedM, _effPriceM) : Math.round(_effPriceM * _depPctM / 100);
+              await client.query(`UPDATE bookings SET deposit_amount_cents = $1 WHERE id = $2 AND business_id = $3 AND deposit_status = 'pending'`, [_newDepAmtM, id, bid]);
+            }
+          }
         }
 
         const oldTimes = { start_at: oldBooking.start_at, end_at: oldBooking.end_at, status: oldBooking.status };

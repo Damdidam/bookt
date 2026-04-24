@@ -675,15 +675,22 @@ router.post('/waitlist/:token/decline', bookingLimiter, async (req, res, next) =
         }
 
         if (!tooSoon && !slotTaken) {
-        // Atomic: SELECT FOR UPDATE SKIP LOCKED to prevent race condition
-        // between concurrent decline handlers picking the same next entry
+        // WL-02 fix (scan 23 avril) : acquérir advisory_xact_lock cohérent avec
+        // processWaitlistForCancellation (services/waitlist.js:136), processExpiredOffers
+        // (services/waitlist.js:345), staff manual offer (staff/waitlist.js:340). Sans
+        // ce lock, cascade publique decline + cron expiry sur même slot pouvaient
+        // envoyer 2 offers au même entry suivant. Key identique : hashtext(pracId_startISO).
         const offerToken = crypto.randomBytes(20).toString('hex');
         const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000);
+        const _lockKey = `${entry.practitioner_id}_${new Date(entry.offer_booking_start).toISOString()}`;
+        const { transactionWithRLS: _twl } = require('../../services/db');
 
         // BUG-WL-DECLINE-VARIANT fix (parité avec processExpiredOffers cascade) :
         // - filtre service_variant_id (proxy via entry.service_variant_id — si X, slot était X)
         // - exclut entries dont le variant est désactivé (sv.is_active=false)
-        const offerResult = await query(
+        const offerResult = await _twl(entry.business_id, async (_txClient) => {
+          await _txClient.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [_lockKey]);
+          return await _txClient.query(
           `UPDATE waitlist_entries SET
             status = 'offered', offer_token = $1,
             offer_booking_start = $2, offer_booking_end = $3,
@@ -706,7 +713,8 @@ router.post('/waitlist/:token/decline', bookingLimiter, async (req, res, next) =
            expiresAt.toISOString(),
            entry.practitioner_id, entry.service_id, entry.business_id,
            JSON.stringify([weekday]), timeOfDay, entry.service_variant_id]
-        );
+          );
+        });
 
         // Send offer email inline to next client (notification processor does not handle this type)
         if (offerResult.rows.length > 0) {

@@ -442,19 +442,30 @@ router.post('/:id/offer', blockIfImpersonated, async (req, res, next) => {
 router.post('/:id/contact', blockIfImpersonated, async (req, res, next) => {
   try {
     if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'ID invalide' });
-    const { outcome } = req.body; // 'booked' or 'declined'
+    const { outcome } = req.body; // 'declined' | 'contacted'
+    // WL-01 fix (scan 23 avril) : forbid outcome='booked' ici. Un booking réel passe
+    // par waitlist_offers + cascade OU par le flux public normal. Accepter 'booked'
+    // sans booking lié gonflait le KPI dashboard (COUNT status='booked') avec des
+    // entrées fantômes. Pour marquer "contacté" sans booking → status='contacted'.
+    if (outcome === 'booked') {
+      return res.status(400).json({ error: 'Marquer "booked" n\'est pas supporté ici. Créez un vrai RDV via le calendrier puis l\'entry sera automatiquement fermée.' });
+    }
+    // NOTE: schema-v7 CHECK limite à {waiting,offered,booked,expired,cancelled,declined}.
+    // Tant que la migration v86 (ajout 'contacted') n'est pas appliquée, on mappe toute
+    // issue non-'booked' sur 'declined' (l'entry est retirée de la liste active).
+    const _newStatus = 'declined';
     // V13-010: Add practitioner scope check
     let contactSql = `UPDATE waitlist_entries SET
         status = $1, updated_at = NOW()
        WHERE id = $2 AND business_id = $3`;
-    const contactParams = [outcome === 'booked' ? 'booked' : 'declined', req.params.id, req.businessId];
+    const contactParams = [_newStatus, req.params.id, req.businessId];
     if (req.practitionerFilter) {
       contactSql += ` AND practitioner_id = $4`;
       contactParams.push(req.practitionerFilter);
     }
     await queryWithRLS(req.businessId, contactSql, contactParams);
-    try { broadcast(req.businessId, 'booking_update', { action: 'waitlist_entry_contacted', outcome: outcome === 'booked' ? 'booked' : 'declined' }); } catch (_) {}
-    res.json({ updated: true });
+    try { broadcast(req.businessId, 'booking_update', { action: 'waitlist_entry_contacted', outcome: _newStatus }); } catch (_) {}
+    res.json({ updated: true, status: _newStatus });
   } catch (err) { next(err); }
 });
 

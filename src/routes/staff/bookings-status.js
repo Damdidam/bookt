@@ -650,6 +650,14 @@ router.patch('/:id/status', blockIfImpersonated, async (req, res, next) => {
             `UPDATE promotions SET current_uses = current_uses + 1 WHERE id = $1`,
             [_promoRestore.rows[0].promotion_id]
           ).catch(e => console.warn('[PROMO INC] restore:', e.message));
+          // PROMO-01 fix (scan 23 avril) : reset promo_decremented_at=NULL au restore,
+          // sinon le prochain cancel verra IS NOT NULL → guard atomique skip silencieux
+          // → current_uses reste incrémenté → promo sur-consommée → utilisateurs bloqués
+          // par faux "limit_reached". Impacte tous les bookings portant la promo (carrier
+          // group_order=0 en multi + single). Reset sur le booking en cours uniquement.
+          await client.query(
+            `UPDATE bookings SET promo_decremented_at = NULL WHERE id = $1`, [id]
+          ).catch(e => console.warn('[PROMO DEC RESET] restore:', e.message));
         }
 
         // C1 fix: Re-consume pass credits + GC balance when restoring a cancelled booking

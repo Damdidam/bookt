@@ -1001,7 +1001,7 @@ router.post('/notify-impacted', requireOwner, blockIfImpersonated, async (req, r
       const siblings = await queryWithRLS(bid,
         `SELECT b.id, b.practitioner_id, b.status, b.public_token, b.start_at, b.end_at,
                 b.promotion_label, b.promotion_discount_cents,
-                b.deposit_status, b.deposit_amount_cents,
+                b.deposit_status, b.deposit_amount_cents, b.deposit_payment_intent_id,
                 CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS service_name,
                 COALESCE(sv.price_cents, s.price_cents) AS price_cents,
                 p.display_name AS practitioner_name,
@@ -1018,13 +1018,37 @@ router.post('/notify-impacted', requireOwner, blockIfImpersonated, async (req, r
       const pracIds = new Set(siblings.rows.map(r => r.practitioner_id));
       if (pracIds.size <= 1) continue; // Not a split group, handle normally
 
-      // Cancel ALL siblings in the split group
-      await queryWithRLS(bid,
-        `UPDATE bookings SET status = 'cancelled', cancel_reason = 'absence', updated_at = NOW()
-         WHERE group_id = $1 AND business_id = $2 AND status IN ('confirmed', 'pending', 'pending_deposit')`,
-        [bk.group_id, bid]
-      );
-      splitGroupsCancelled++;
+      // EMAIL-03 fix (scan 23 avril) : le flow absence cancellait les bookings
+      // SANS déclencher refund GC/pass/promo (legacy bug) ET envoyait un email sans
+      // breakdown. Fix : transaction avec refund cascade (parité deposit-expiry.js +
+      // booking-confirmation.js). Le email custom en aval lit maintenant gc_refunded /
+      // pass_refunded pour informer le client du sort exact.
+      let _refundSumsAbs = { gcRef: 0, passRef: false };
+      try {
+        const { transactionWithRLS: _twAbs } = require('../../services/db');
+        const { refundGiftCardForBooking: _rgcAbs } = require('../../services/gift-card-refund');
+        const { refundPassForBooking: _rpAbs } = require('../../services/pass-refund');
+        const { decrementPromoUsage: _dpAbs } = require('../../routes/public/helpers');
+        await _twAbs(bid, async (_cliAbs) => {
+          for (const sib of siblings.rows) {
+            try { const r = await _rgcAbs(sib.id, _cliAbs); if (r?.refunded) _refundSumsAbs.gcRef += r.refunded; } catch (e) { console.warn('[PLAN-ABS] gc refund', sib.id, e.message); }
+            try { const r = await _rpAbs(sib.id, _cliAbs); if (r?.refunded) _refundSumsAbs.passRef = true; } catch (e) { console.warn('[PLAN-ABS] pass refund', sib.id, e.message); }
+            try { await _dpAbs(sib.id, _cliAbs); } catch (_) {}
+          }
+          await _cliAbs.query(
+            `UPDATE bookings SET status = 'cancelled', cancel_reason = 'absence', updated_at = NOW()
+             WHERE group_id = $1 AND business_id = $2 AND status IN ('confirmed', 'pending', 'pending_deposit', 'modified_pending')`,
+            [bk.group_id, bid]
+          );
+        });
+        splitGroupsCancelled++;
+      } catch (_absTxErr) {
+        console.error('[PLAN-ABS] split-group tx error for group', bk.group_id, ':', _absTxErr.message);
+        errors++;
+        const _sibIdsErr = new Set(siblings.rows.map(r => r.id));
+        filtered = filtered.filter(f => !_sibIdsErr.has(f.id));
+        continue;
+      }
 
       // Send unified cancellation email to the client
       const clientEmail = siblings.rows[0]?.client_email;
@@ -1048,13 +1072,27 @@ router.post('/notify-impacted', requireOwner, blockIfImpersonated, async (req, r
           const promoHTML = (grpPromoDiscount > 0 && grpPromoLabel)
             ? `<div style="font-size:12px;color:#7A7470;padding:2px 0">${escHtml(grpPromoLabel)} : -${(grpPromoDiscount / 100).toFixed(2).replace('.', ',')} \u20ac</div>`
             : '';
-          // Deposit info if any sibling had a paid deposit
+          // EMAIL-03 fix : breakdown actionnable (deposit refund/retenu, GC recr\u00e9dit\u00e9e,
+          // pass restitu\u00e9). Parity avec sendCancellationEmail.
           const grpDepositPaid = siblings.rows.find(s => s.deposit_status === 'paid' && parseInt(s.deposit_amount_cents) > 0);
-          const depositHTML = grpDepositPaid
-            ? `<div style="background:#FFF8E1;border-radius:8px;padding:12px 16px;margin:12px 0;border-left:3px solid #F9A825">
-                <div style="font-size:13px;color:#5D4037">Votre acompte de ${(parseInt(grpDepositPaid.deposit_amount_cents) / 100).toFixed(2).replace('.', ',')} \u20ac a bien \u00e9t\u00e9 enregistr\u00e9. Nous vous recontacterons concernant son traitement (remboursement ou report).</div>
-              </div>`
-            : '';
+          let depositHTML = '';
+          const _depAmtStr = grpDepositPaid ? (parseInt(grpDepositPaid.deposit_amount_cents) / 100).toFixed(2).replace('.', ',') : '';
+          const _pi = grpDepositPaid?.deposit_payment_intent_id || '';
+          const _paidViaGc = _pi.startsWith('gc_');
+          const _paidViaPass = _pi.startsWith('pass_');
+          if (grpDepositPaid) {
+            if (_paidViaGc) {
+              depositHTML = `<div style="background:#ECFDF5;border-radius:8px;padding:12px 16px;margin:12px 0;border-left:3px solid #10B981"><div style="font-size:13px;color:#065F46">Acompte ${_depAmtStr} \u20ac (carte cadeau) : le solde a \u00e9t\u00e9 automatiquement recr\u00e9dit\u00e9 sur votre carte cadeau.</div></div>`;
+            } else if (_paidViaPass) {
+              depositHTML = `<div style="background:#ECFDF5;border-radius:8px;padding:12px 16px;margin:12px 0;border-left:3px solid #10B981"><div style="font-size:13px;color:#065F46">Acompte (abonnement) : la s\u00e9ance a \u00e9t\u00e9 automatiquement restitu\u00e9e sur votre abonnement.</div></div>`;
+            } else {
+              depositHTML = `<div style="background:#FFF8E1;border-radius:8px;padding:12px 16px;margin:12px 0;border-left:3px solid #F9A825"><div style="font-size:13px;color:#5D4037">Acompte ${_depAmtStr} \u20ac : sera rembours\u00e9 sous 5-10 jours ouvr\u00e9s par virement Stripe sur votre moyen de paiement initial.</div></div>`;
+            }
+          } else if (_refundSumsAbs.gcRef > 0) {
+            depositHTML = `<div style="background:#ECFDF5;border-radius:8px;padding:12px 16px;margin:12px 0;border-left:3px solid #10B981"><div style="font-size:13px;color:#065F46">Carte cadeau : ${(_refundSumsAbs.gcRef / 100).toFixed(2).replace('.', ',')} \u20ac recr\u00e9dit\u00e9s automatiquement.</div></div>`;
+          } else if (_refundSumsAbs.passRef) {
+            depositHTML = `<div style="background:#ECFDF5;border-radius:8px;padding:12px 16px;margin:12px 0;border-left:3px solid #10B981"><div style="font-size:13px;color:#065F46">Abonnement : votre s\u00e9ance a \u00e9t\u00e9 restitu\u00e9e.</div></div>`;
+          }
           const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
           const slug = business.slug || '';
           const rebookUrl = slug ? `${baseUrl}/${slug}` : baseUrl;
