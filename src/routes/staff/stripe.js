@@ -400,7 +400,11 @@ async function handleStripeWebhook(req, res) {
           } catch (txErr) {
             await txClient.query('ROLLBACK').catch(() => {});
             console.error('[STRIPE WH] Deposit transaction failed:', txErr);
-            break;
+            // STRIPE-CASCADE-RETHROW fix : tx failed → booking reste pending_deposit
+            // alors que Stripe a capté le paiement → double-loss silencieux si break.
+            // Rethrow → outer catch 500 + idem release → Stripe retry. UPDATE WHERE
+            // status='pending_deposit' idempotent sur retry après succès partiel.
+            throw txErr;
           } finally {
             txClient.release();
           }
