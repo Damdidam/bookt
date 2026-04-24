@@ -133,8 +133,10 @@ async function generateInvoicePDF(invoice, items, opts = {}) {
     doc.roundedRect(50, y, W / 2 - 10, 80, 4).fillColor(LIGHT).fill();
     doc.fontSize(7.5).font('Helvetica-Bold').fillColor(MUTED)
       .text(isQuote ? 'DESTINATAIRE' : 'FACTURÉ À', 60, y + 10);
+    // EDG12-48 hotfix (scan 3 A5) : fallback 'Client' si client_name NULL/undefined
+    // (booking créé staff sans client_id → PDF rendait `undefined` en texte visible).
     doc.fontSize(10).font('Helvetica-Bold').fillColor(TEXT)
-      .text(invoice.client_name, 60, y + 24);
+      .text(invoice.client_name || 'Client', 60, y + 24);
     let cy = y + 38;
     doc.fontSize(8.5).font('Helvetica').fillColor(MUTED);
     if (invoice.client_address) { doc.text(invoice.client_address, 60, cy, { width: W / 2 - 30 }); cy += 12; }

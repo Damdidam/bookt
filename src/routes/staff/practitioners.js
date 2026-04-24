@@ -792,7 +792,7 @@ router.delete('/:id', requireOwner, blockIfImpersonated, async (req, res, next) 
         if (bkIds.length > 0) {
           await client.query(
             `UPDATE invoices SET status = 'cancelled', updated_at = NOW()
-             WHERE booking_id = ANY($1::uuid[]) AND status IN ('draft', 'sent')`,
+             WHERE booking_id = ANY($1::uuid[]) AND status = 'draft'`,
             [bkIds]
           );
         }

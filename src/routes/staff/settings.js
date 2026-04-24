@@ -815,7 +815,7 @@ router.post('/close', requireOwner, blockIfImpersonated, async (req, res, next) 
       // 2b2. Void all draft/sent invoices
       await client.query(
         `UPDATE invoices SET status = 'cancelled', updated_at = NOW()
-         WHERE business_id = $1 AND status IN ('draft', 'sent')`, [bid]
+         WHERE business_id = $1 AND status = 'draft'`, [bid]
       );
 
       // 2b3. Clean up waitlist entries

@@ -116,7 +116,7 @@ async function processExpiredPendingBookings() {
         }
         await client.query(
           `UPDATE invoices SET status = 'cancelled', updated_at = NOW()
-           WHERE booking_id = ANY($1::uuid[]) AND status IN ('draft', 'sent')`,
+           WHERE booking_id = ANY($1::uuid[]) AND status = 'draft'`,
           [voidIds]
         );
       } catch (e) { console.warn('[INVOICE VOID] confirm cron error:', e.message); }

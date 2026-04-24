@@ -263,7 +263,7 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
       }
       await query(
         `UPDATE invoices SET status = 'cancelled', updated_at = NOW()
-         WHERE booking_id = ANY($1::uuid[]) AND status IN ('draft', 'sent')`,
+         WHERE booking_id = ANY($1::uuid[]) AND status = 'draft'`,
         [voidBookingIds]
       );
     } catch (e) { console.warn('[INVOICE VOID] cancel error:', e.message); }
@@ -780,7 +780,7 @@ router.post('/booking/:token/reject', async (req, res, next) => {
       }
       await query(
         `UPDATE invoices SET status = 'cancelled', updated_at = NOW()
-         WHERE booking_id = ANY($1::uuid[]) AND status IN ('draft', 'sent')`,
+         WHERE booking_id = ANY($1::uuid[]) AND status = 'draft'`,
         [voidBookingIds]
       );
     } catch (e) { console.warn('[INVOICE VOID] reject error:', e.message); }
@@ -1420,7 +1420,7 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
       }
       await query(
         `UPDATE invoices SET status = 'cancelled', updated_at = NOW()
-         WHERE booking_id = ANY($1::uuid[]) AND status IN ('draft', 'sent')`,
+         WHERE booking_id = ANY($1::uuid[]) AND status = 'draft'`,
         [voidBookingIds]
       );
     } catch (e) { console.warn('[INVOICE VOID] cancel-booking error:', e.message); }

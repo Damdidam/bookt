@@ -454,19 +454,31 @@ router.delete('/:id/group-remove', blockIfImpersonated, async (req, res, next) =
               // COMBO-UNGROUP-PROMO hotfix (scan 3 A7) : décrémenter promotions.current_uses
               // car la consommation est annulée. Sans ce decrement, stock promo reste
               // inflated → atteint max_uses plus vite → utilisateurs légitimes bloqués.
-              // Idempotence via guard promo_decremented_at (helpers.js pattern).
+              //
+              // HOTFIX AUDIT 8c36ba7 (double-dec prevention) : atomic check-and-set via
+              // UPDATE promo_decremented_at WHERE ... IS NULL RETURNING. Si un precedent
+              // decrementPromoUsage (ex: cancel d'un sibling) a déjà posé le flag, skip
+              // le decrement Stripe pour éviter dec 2×.
               const _currentPromoId = locked.promotion_id || remaining.find(m => m.promotion_id)?.promotion_id;
               if (_currentPromoId) {
-                await client.query(
-                  `UPDATE promotions SET current_uses = GREATEST(current_uses - 1, 0)
-                   WHERE id = $1 AND business_id = $2`,
-                  [_currentPromoId, bid]
-                ).catch(e => console.warn('[UNGROUP PROMO DEC]', e.message));
+                const _carrierClaimed = await client.query(
+                  `UPDATE bookings SET promo_decremented_at = NOW()
+                   WHERE id = $1 AND business_id = $2 AND promo_decremented_at IS NULL
+                   RETURNING id`,
+                  [carrierId, bid]
+                );
+                if (_carrierClaimed.rowCount > 0) {
+                  await client.query(
+                    `UPDATE promotions SET current_uses = GREATEST(current_uses - 1, 0)
+                     WHERE id = $1 AND business_id = $2`,
+                    [_currentPromoId, bid]
+                  ).catch(e => console.warn('[UNGROUP PROMO DEC]', e.message));
+                }
               }
               await client.query(
                 `UPDATE bookings SET promotion_id = NULL, promotion_label = NULL,
                   promotion_discount_pct = NULL, promotion_discount_cents = NULL,
-                  promo_decremented_at = NOW(), updated_at = NOW()
+                  updated_at = NOW()
                  WHERE id = $1 AND business_id = $2`,
                 [carrierId, bid]
               );
@@ -574,7 +586,7 @@ router.delete('/:id/group-remove', blockIfImpersonated, async (req, res, next) =
         // ===== BUG 4 FIX: Void draft/sent invoices for the removed booking =====
         await client.query(
           `UPDATE invoices SET status = 'cancelled', updated_at = NOW()
-           WHERE booking_id = $1 AND status IN ('draft', 'sent')`,
+           WHERE booking_id = $1 AND status = 'draft'`,
           [id]
         );
         // Also void group-level invoices since total changed
@@ -582,7 +594,7 @@ router.delete('/:id/group-remove', blockIfImpersonated, async (req, res, next) =
           const remainingIds = remaining.map(m => m.id);
           await client.query(
             `UPDATE invoices SET status = 'cancelled', updated_at = NOW()
-             WHERE booking_id = ANY($1::uuid[]) AND status IN ('draft', 'sent')`,
+             WHERE booking_id = ANY($1::uuid[]) AND status = 'draft'`,
             [remainingIds]
           );
         }

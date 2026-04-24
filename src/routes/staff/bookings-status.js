@@ -296,12 +296,17 @@ router.patch('/:id/status', blockIfImpersonated, async (req, res, next) => {
         });
       }
 
-      // ===== AUTO-VOID INVOICES: void draft/sent invoices when booking is cancelled =====
+      // ===== AUTO-VOID INVOICES: void DRAFT invoices only when booking is cancelled =====
+      // EDG12-47 hotfix (scan 3 A5) : ne PAS void les invoices 'sent'/'paid' —
+      // elles sont légalement immutables (BE AR n°1 art.14). Les annuler directement
+      // en 'cancelled' viole la compliance TVA. Pour les sent/paid, le pro doit
+      // émettre une note de crédit (credit note) via POST /invoices/:id/credit-note.
+      // Seuls les DRAFT (non-finalisés) peuvent être void directement.
       if (status === 'cancelled') {
         const voidIds = [id, ...affectedSiblingIds];
         await client.query(
           `UPDATE invoices SET status = 'cancelled', updated_at = NOW()
-           WHERE booking_id = ANY($1::uuid[]) AND status IN ('draft', 'sent')`,
+           WHERE booking_id = ANY($1::uuid[]) AND status = 'draft'`,
           [voidIds]
         );
       }
@@ -1438,7 +1443,7 @@ router.patch('/:id/deposit-refund', blockIfImpersonated, async (req, res, next) 
       const voidIds = [id, ...affectedSiblingIds];
       await client.query(
         `UPDATE invoices SET status = 'cancelled', updated_at = NOW()
-         WHERE booking_id = ANY($1::uuid[]) AND status IN ('draft', 'sent')`,
+         WHERE booking_id = ANY($1::uuid[]) AND status = 'draft'`,
         [voidIds]
       );
 
