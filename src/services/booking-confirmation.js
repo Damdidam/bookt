@@ -35,6 +35,7 @@ async function processExpiredPendingBookings() {
        JOIN businesses biz ON biz.id = b.business_id
        WHERE b.status = 'pending'
          AND (b.deposit_status IS NULL OR b.deposit_status != 'paid')  -- M3: race vs Stripe webhook (paid deposit = webhook will confirm shortly)
+         AND b.disputed_at IS NULL                                     -- BL-03 hotfix scan 3 : exclude dispute → évite double-loss
          AND (
            (b.confirmation_expires_at IS NOT NULL AND b.confirmation_expires_at < NOW())
            OR b.start_at <= NOW()
@@ -276,7 +277,14 @@ async function processExpiredPendingBookings() {
               }
             }
           } catch (stripeErr) {
-            if (stripeErr.code !== 'charge_already_refunded') {
+            if (stripeErr.code === 'charge_already_refunded') {
+              // CRON-01 hotfix (scan 3) : parity avec sibling path L270-271. Avant ce
+              // fix, charge_already_refunded skippait l'UPDATE deposit_status sur le
+              // primary → booking passe cancelled mais deposit_status reste 'paid'
+              // en permanence → dashboard pro et stats financières faussés.
+              await client.query(`UPDATE bookings SET deposit_status = 'refunded' WHERE id = $1`, [bk.id]);
+              console.log(`[CONFIRM CRON] Primary ${bk.id} already refunded — deposit_status synced to 'refunded'`);
+            } else {
               console.error('[CONFIRM CRON] Stripe refund failed for', bk.id, ':', stripeErr.message);
               await client.query(`UPDATE bookings SET deposit_status = 'cancelled' WHERE id = $1`, [bk.id]);
               _netRefundForEmail = 0;

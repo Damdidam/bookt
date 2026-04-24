@@ -143,9 +143,12 @@ router.patch('/:id/status', blockIfImpersonated, async (req, res, next) => {
     // ===== All DB mutations inside a single transaction =====
     const txResult = await transactionWithRLS(bid, async (client) => {
       // Lock the booking row to prevent concurrent modifications
+      // COMBO10-P0 hotfix (scan 3) : ajout disputed_at + deposit_payment_intent_id au SELECT
+      // pour bloquer la cancel AVANT tout UPDATE si dispute Stripe en cours.
       const old = await client.query(
         `SELECT b.status, b.client_id, b.deposit_required, b.deposit_status, b.deposit_amount_cents,
                 b.group_id, b.practitioner_id, b.start_at, b.public_token,
+                b.disputed_at, b.deposit_payment_intent_id,
                 biz.settings
          FROM bookings b JOIN businesses biz ON biz.id = b.business_id
          WHERE b.id = $1 AND b.business_id = $2 FOR UPDATE OF b`,
@@ -162,6 +165,15 @@ router.patch('/:id/status', blockIfImpersonated, async (req, res, next) => {
       const allowed = TRANSITIONS[old.rows[0].status] || [];
       if (!allowed.includes(status)) {
         return { error: 400, message: `Transition ${old.rows[0].status} → ${status} non autorisée` };
+      }
+
+      // COMBO10-P0 hotfix (scan 3) : dispute Stripe en cours → bloquer cancel AVANT
+      // tout UPDATE. Avant ce fix, le check était L520 APRÈS L218 UPDATE status='cancelled'
+      // → la tx commit quand même (return != throw) → booking cancelled + pas de refund
+      // + dispute ouvert côté Stripe = DOUBLE-LOSS garanti. Le pro doit attendre
+      // résolution dispute avant de pouvoir cancel commercialement.
+      if (status === 'cancelled' && old.rows[0].disputed_at && old.rows[0].deposit_status === 'paid') {
+        return { error: 409, message: 'Litige Stripe en cours sur ce paiement. Attendez la résolution (dashboard Stripe) avant d\'annuler ce RDV.' };
       }
 
       // ===== DEPOSIT-AWARE RESTORE: cancelled → confirmed with deposit =====

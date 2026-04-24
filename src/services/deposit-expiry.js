@@ -26,6 +26,10 @@ async function processExpiredDeposits() {
     // Find pending_deposit bookings whose deposit deadline has passed
     // BUG-DEP-NULL fix: include deposit_status IS NULL so zombie bookings with
     // uninitialized status (pre-migration or data corruption) get cleaned up.
+    // BL-03 hotfix (scan 3) : exclude disputed_at IS NOT NULL — parity avec staff
+    // cancel (bookings-status.js:520) et public cancel (booking-actions.js:51).
+    // Sans ce guard, cron émet refund Stripe sur dispute en cours → pro paye 2×
+    // (refund + dispute perdu Stripe).
     const expired = await client.query(
       `SELECT id, business_id, service_id, practitioner_id, start_at, end_at,
               group_id, client_id, deposit_amount_cents, deposit_payment_intent_id
@@ -34,6 +38,7 @@ async function processExpiredDeposits() {
          AND (deposit_status = 'pending' OR deposit_status IS NULL)
          AND deposit_deadline IS NOT NULL
          AND deposit_deadline < NOW()
+         AND disputed_at IS NULL
        FOR UPDATE SKIP LOCKED`
     );
 
