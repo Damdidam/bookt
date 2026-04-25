@@ -805,6 +805,7 @@ async function savePractitionerChoiceSetting(){
 async function saveCalendarSettings(){
   try{
     const cm=document.getElementById('s_color_mode').value||'category';
+    const lmEl=document.getElementById('s_last_minute');
     const data={
       settings_slot_increment_min:parseInt(document.getElementById('s_slot_inc').value)||15,
       settings_waitlist_mode:document.getElementById('s_waitlist').value||'off',
@@ -812,10 +813,14 @@ async function saveCalendarSettings(){
       settings_slot_auto_optimize:document.getElementById('s_slot_auto_optimize')?.checked??true,
       settings_gap_analyzer_enabled:document.getElementById('s_gap_analyzer')?.checked||false,
       settings_featured_slots_enabled:document.getElementById('s_featured_slots')?.checked||false,
-      settings_last_minute_enabled:document.getElementById('s_last_minute')?.checked||false,
-      settings_last_minute_deadline:document.getElementById('s_lm_deadline')?.value||'j-1',
-      settings_last_minute_discount_pct:parseInt(document.getElementById('s_lm_discount')?.value)||10,
-      settings_last_minute_min_price_cents:parseInt(document.getElementById('s_lm_min_price')?.value)||0
+      // Skip s_last_minute si toggle disabled (plan=free) pour eviter flip silencieux
+      // (parite saveAllSettings batch 16).
+      ...(lmEl && !lmEl.disabled ? {
+        settings_last_minute_enabled:lmEl.checked||false,
+        settings_last_minute_deadline:document.getElementById('s_lm_deadline')?.value||'j-1',
+        settings_last_minute_discount_pct:parseInt(document.getElementById('s_lm_discount')?.value)||10,
+        settings_last_minute_min_price_cents:parseInt(document.getElementById('s_lm_min_price')?.value)||0
+      } : {})
     };
     const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(data)});
     if(!r.ok)throw new Error((await r.json()).error);
@@ -828,10 +833,13 @@ async function saveCalendarSettings(){
     freshBiz.settings.slot_auto_optimize=data.settings_slot_auto_optimize;
     freshBiz.settings.gap_analyzer_enabled=data.settings_gap_analyzer_enabled;
     freshBiz.settings.featured_slots_enabled=data.settings_featured_slots_enabled;
-    freshBiz.settings.last_minute_enabled=data.settings_last_minute_enabled;
-    freshBiz.settings.last_minute_deadline=data.settings_last_minute_deadline;
-    freshBiz.settings.last_minute_discount_pct=data.settings_last_minute_discount_pct;
-    freshBiz.settings.last_minute_min_price_cents=data.settings_last_minute_min_price_cents;
+    // Cache update : seulement si data contient les keys (skip si toggle disabled).
+    if (data.settings_last_minute_enabled !== undefined) {
+      freshBiz.settings.last_minute_enabled=data.settings_last_minute_enabled;
+      freshBiz.settings.last_minute_deadline=data.settings_last_minute_deadline;
+      freshBiz.settings.last_minute_discount_pct=data.settings_last_minute_discount_pct;
+      freshBiz.settings.last_minute_min_price_cents=data.settings_last_minute_min_price_cents;
+    }
     api.setBusiness(freshBiz);
     calState.fcColorMode=cm;
     if(window.fcRefresh)window.fcRefresh();
