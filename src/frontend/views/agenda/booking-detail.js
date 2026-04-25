@@ -205,7 +205,8 @@ async function fcOpenDetail(bookingId) {
       const depKept = b.deposit_status === 'cancelled' && !!b.deposit_paid_at;
       const depWaived = b.deposit_status === 'waived';
       const isFuture = new Date(b.start_at) > new Date();
-      const bizSettings = calState.fcBusinessSettings || {};
+      // P3 fix : fallback window._businessSettings pour Home/Clients flow.
+      const bizSettings = (calState.fcBusinessSettings && Object.keys(calState.fcBusinessSettings).length) ? calState.fcBusinessSettings : (window._businessSettings || {});
       const cancelDeadlineH = bizSettings.cancel_deadline_hours ?? 24;
       const hoursUntilRdv = (new Date(b.start_at).getTime() - Date.now()) / 3600000;
       const tooCloseForDeposit = hoursUntilRdv < cancelDeadlineH;
@@ -316,7 +317,8 @@ async function fcOpenDetail(bookingId) {
     const _depConnectId = calState.fcStripeConnectId || window._stripeConnectId || null;
     const _depConnectOK = _depPlan !== 'free' && _depConnectId && _depConnect === 'active';
     if (_depConnectOK && !b.deposit_required && ['pending', 'confirmed', 'modified_pending'].includes(b.status) && new Date(b.start_at) > new Date() && userRole !== 'practitioner') {
-      const s = calState.fcBusinessSettings || {};
+      // P3 fix : fallback window._businessSettings depuis Home/Clients (sans agenda)
+      const s = (calState.fcBusinessSettings && Object.keys(calState.fcBusinessSettings).length) ? calState.fcBusinessSettings : (window._businessSettings || {});
       const rdvCancelDlH = s.cancel_deadline_hours ?? 24;
       const rdvHoursLeft = (new Date(b.start_at).getTime() - Date.now()) / 3600000;
       // Only show "Exiger un acompte" if RDV is far enough away

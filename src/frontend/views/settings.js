@@ -23,7 +23,14 @@ async function loadSettings(){
     const b=bd.business, u=ud.user, lk=ld;
     api.setBusiness(b);
     window._initialSector=b.sector;
+    // DEP-01 UI gate : refresh window globals for Home/Clients fallback
+    window._businessPlan=b.plan||'free';
+    window._stripeConnectId=b.stripe_connect_id||null;
+    window._stripeConnectStatus=b.stripe_connect_status||'none';
     const plan=b.plan||'free';
+    const stripeConnectActive=!!b.stripe_connect_id && b.stripe_connect_status==='active';
+    const depositGated=plan==='free' || !stripeConnectActive;
+    const depositGateLabel = plan==='free' ? 'Plan Pro requis' : 'Stripe Connect requis';
     let h='';
     // Inject save button into the topbar (next to page title)
     const topbar=document.querySelector('.topbar');
@@ -290,13 +297,13 @@ async function loadSettings(){
     h+=`<div class="settings-card"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> Politique d'acompte</h3></div><div class="sc-body">`;
     h+=`<p style="font-size:.82rem;color:var(--text-3);margin-bottom:16px">Exigez un acompte des clients ayant un historique de no-shows. L'acompte sécurise le rendez-vous et réduit les pertes.</p>`;
 
-    // Master toggle
-    h+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--surface);border-radius:10px;margin-bottom:16px${plan==='free'?';opacity:.5':''}">
-      <div><div style="font-size:.85rem;font-weight:600;color:var(--text)">Activer les acomptes${plan==='free'?' <span style="font-size:.72rem;color:var(--primary);font-weight:500;margin-left:8px">Plan Pro requis</span>':''}</div><div style="font-size:.75rem;color:var(--text-4)">Demander un acompte aux clients récidivistes</div></div>
-      <label style="position:relative;width:44px;height:24px;cursor:${plan==='free'?'not-allowed':'pointer'}">
-        <input type="checkbox" id="s_dep_enabled" ${depOn&&plan!=='free'?'checked':''} ${plan==='free'?'disabled':''} onchange="document.getElementById('depositOptions').style.display=this.checked?'block':'none'" style="display:none">
-        <span style="position:absolute;inset:0;background:${depOn&&plan!=='free'?'var(--primary)':'var(--border)'};border-radius:12px;transition:all .2s"></span>
-        <span style="position:absolute;left:${depOn&&plan!=='free'?'22px':'2px'};top:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,.15)"></span>
+    // Master toggle (DEP-01 gate : disabled si pas Pro OU pas Stripe Connect actif)
+    h+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--surface);border-radius:10px;margin-bottom:16px${depositGated?';opacity:.5':''}">
+      <div><div style="font-size:.85rem;font-weight:600;color:var(--text)">Activer les acomptes${depositGated?` <span style="font-size:.72rem;color:var(--primary);font-weight:500;margin-left:8px">${depositGateLabel}</span>`:''}</div><div style="font-size:.75rem;color:var(--text-4)">Demander un acompte aux clients récidivistes</div></div>
+      <label style="position:relative;width:44px;height:24px;cursor:${depositGated?'not-allowed':'pointer'}">
+        <input type="checkbox" id="s_dep_enabled" ${depOn&&!depositGated?'checked':''} ${depositGated?'disabled':''} onchange="document.getElementById('depositOptions').style.display=this.checked?'block':'none'" style="display:none">
+        <span style="position:absolute;inset:0;background:${depOn&&!depositGated?'var(--primary)':'var(--border)'};border-radius:12px;transition:all .2s"></span>
+        <span style="position:absolute;left:${depOn&&!depositGated?'22px':'2px'};top:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,.15)"></span>
       </label>
     </div>`;
 

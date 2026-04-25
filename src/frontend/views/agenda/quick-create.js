@@ -1177,7 +1177,7 @@ async function qcSendDepositRequest(bookingId, channel) {
     });
     if (!r.ok) {
       const d = await r.json();
-      throw new Error(d.error || 'Erreur d\u2019envoi');
+      throw new Error(d.message || d.error || 'Erreur d\u2019envoi');
     }
     const data = await r.json();
     if (statusEl) {

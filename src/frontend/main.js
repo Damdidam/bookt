@@ -48,6 +48,9 @@ if (!api.isLoggedIn()) {
         // home/clients sans dependance sur calState d'agenda.
         window._stripeConnectId = d.business.stripe_connect_id || null;
         window._stripeConnectStatus = d.business.stripe_connect_status || 'none';
+        // DEP-01 P3 : settings JSONB global pour pre-fill amount/deadline coherents
+        // Home/Clients (avant ce fix, defaults hardcodes 24h/48h/50%/2500c).
+        window._businessSettings = d.business.settings || {};
       }
     }
   } catch (_) {}

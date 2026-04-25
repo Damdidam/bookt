@@ -27,7 +27,7 @@ async function fcSetStatus(newStatus) {
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
       body: JSON.stringify({ status: newStatus })
     });
-    if (!r.ok) { let msg = 'Erreur'; try { const d = await r.json(); msg = d.error || msg; } catch {} throw new Error(msg); }
+    if (!r.ok) { let msg = 'Erreur'; try { const d = await r.json(); msg = d.message || d.error || msg; } catch {} throw new Error(msg); }
     const result = await r.json().catch(() => ({}));
     // Deposit-aware restore: show specific toast
     if (result.deposit_restore === 'redeposit') {
@@ -69,7 +69,7 @@ async function fcPurgeBooking() {
       method: 'DELETE',
       headers: { 'Authorization': 'Bearer ' + api.getToken() }
     });
-    if (!r.ok) { let msg = 'Erreur'; try { const d = await r.json(); msg = d.error || msg; } catch {} throw new Error(msg); }
+    if (!r.ok) { let msg = 'Erreur'; try { const d = await r.json(); msg = d.message || d.error || msg; } catch {} throw new Error(msg); }
     gToast('RDV supprim\u00e9 d\u00e9finitivement', 'success');
     document.getElementById('calDetailModal')._dirtyGuard?.markClean();
     closeCalModal('calDetailModal');
@@ -92,7 +92,7 @@ async function fcWaiveDeposit() {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() }
     });
-    if (!r.ok) { let msg = 'Erreur'; try { const d = await r.json(); msg = d.error || msg; } catch {} throw new Error(msg); }
+    if (!r.ok) { let msg = 'Erreur'; try { const d = await r.json(); msg = d.message || d.error || msg; } catch {} throw new Error(msg); }
     gToast('RDV confirm\u00e9 sans acompte', 'success');
     document.getElementById('calDetailModal')._dirtyGuard?.markClean();
     closeCalModal('calDetailModal');
@@ -116,7 +116,7 @@ async function fcRefundDeposit(amountCents) {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() }
     });
-    if (!r.ok) { let msg = 'Erreur'; try { const d = await r.json(); msg = d.error || msg; } catch {} throw new Error(msg); }
+    if (!r.ok) { let msg = 'Erreur'; try { const d = await r.json(); msg = d.message || d.error || msg; } catch {} throw new Error(msg); }
     gToast('Acompte rembours\u00e9 \u2014 RDV annul\u00e9', 'success');
     document.getElementById('calDetailModal')._dirtyGuard?.markClean();
     closeCalModal('calDetailModal');
@@ -153,7 +153,7 @@ async function fcSendDepositRequest(channel) {
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
       body: JSON.stringify({ channels: [channel] })
     });
-    if (!r.ok) { let msg = 'Erreur'; try { const d = await r.json(); msg = d.error || msg; } catch {} throw new Error(msg); }
+    if (!r.ok) { let msg = 'Erreur'; try { const d = await r.json(); msg = d.message || d.error || msg; } catch {} throw new Error(msg); }
     const data = await r.json();
     gToast(`Demande d'acompte envoyée par ${data.label || channel}`, 'success');
     if (statusEl) { statusEl.style.background = 'var(--green-bg)'; statusEl.style.color = 'var(--green)'; statusEl.textContent = `\u2713 Demande envoyée par ${data.label || channel}`; }
@@ -178,7 +178,7 @@ async function fcRequireDeposit() {
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
       body: JSON.stringify({ amount_cents: amountCents, deadline_hours: deadlineHours })
     });
-    if (!r.ok) { let msg = 'Erreur'; try { const d = await r.json(); msg = d.error || msg; } catch {} throw new Error(msg); }
+    if (!r.ok) { let msg = 'Erreur'; try { const d = await r.json(); msg = d.message || d.error || msg; } catch {} throw new Error(msg); }
     const result = await r.json();
     if (result.email_sent) {
       gToast('Acompte exigé — demande envoyée par email', 'success');
