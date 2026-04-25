@@ -523,6 +523,11 @@ function qcUpdateTotal() {
 function qcCheckDepositSuggestion() {
   const s = calState.fcBusinessSettings || {};
   if (!s.deposit_enabled) return;
+  // DEP-01 UI gate : skip toggle deposit si pas Pro ou Stripe Connect inactif
+  // (endpoint refuserait l'envoi → booking bloque sans feedback utilisateur).
+  const _qcPlan = calState.fcBusinessPlan || 'free';
+  if (_qcPlan === 'free') return;
+  if (!calState.fcStripeConnectId || calState.fcStripeConnectStatus !== 'active') return;
 
   const toggle = document.getElementById('qcDepositToggle');
   const check = document.getElementById('qcDepositCheck');

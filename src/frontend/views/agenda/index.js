@@ -171,6 +171,9 @@ async function loadAgenda() {
     calState.fcColorMode = bizD.business?.settings?.calendar_color_mode || 'category';
     calState.calSearchQuery = '';
     calState.fcBusinessSettings = bizD.business?.settings || {};
+    calState.fcBusinessPlan = bizD.business?.plan || 'free';
+    calState.fcStripeConnectStatus = bizD.business?.stripe_connect_status || 'none';
+    calState.fcStripeConnectId = bizD.business?.stripe_connect_id || null;
     calState.fcDefaultView = bizD.business?.settings?.default_calendar_view || 'week';
 
     // Compute calendar bounds — prefer business_schedule (salon hours), fallback to practitioner avails
