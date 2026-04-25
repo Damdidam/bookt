@@ -753,10 +753,13 @@ async function saveAllSettings(){
       freshBiz.settings.slot_auto_optimize=body.settings_slot_auto_optimize;
       freshBiz.settings.gap_analyzer_enabled=body.settings_gap_analyzer_enabled;
       freshBiz.settings.featured_slots_enabled=body.settings_featured_slots_enabled;
-      freshBiz.settings.last_minute_enabled=body.settings_last_minute_enabled;
-      freshBiz.settings.last_minute_deadline=body.settings_last_minute_deadline;
-      freshBiz.settings.last_minute_discount_pct=body.settings_last_minute_discount_pct;
-      freshBiz.settings.last_minute_min_price_cents=body.settings_last_minute_min_price_cents;
+      // Cache last_minute uniquement si payload contenait les keys (parite saveCalendarSettings batch 17).
+      if (body.settings_last_minute_enabled !== undefined) {
+        freshBiz.settings.last_minute_enabled=body.settings_last_minute_enabled;
+        freshBiz.settings.last_minute_deadline=body.settings_last_minute_deadline;
+        freshBiz.settings.last_minute_discount_pct=body.settings_last_minute_discount_pct;
+        freshBiz.settings.last_minute_min_price_cents=body.settings_last_minute_min_price_cents;
+      }
       calState.fcColorMode=body.settings_calendar_color_mode;
       if(window.fcRefresh)window.fcRefresh();
     }
