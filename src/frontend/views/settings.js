@@ -308,7 +308,7 @@ async function loadSettings(){
     </div>`;
 
     // Conditional options
-    h+=`<div id="depositOptions" style="display:${depOn?'block':'none'}">`;
+    h+=`<div id="depositOptions" style="display:${depOn&&!depositGated?'block':'none'}">`;
 
     // Threshold
     h+=`<div class="field"><label>Seuil de déclenchement (no-shows)</label><div style="display:flex;align-items:center;gap:8px"><span style="font-size:.82rem;color:var(--text-3)">Exiger un acompte après</span><input type="number" id="s_dep_threshold" value="${depThresh}" min="1" max="10" style="width:60px;text-align:center;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem"><span style="font-size:.82rem;color:var(--text-3)">no-show(s)</span></div></div>`;
@@ -652,7 +652,10 @@ async function saveAllSettings(){
         settings_slot_auto_optimize:el('s_slot_auto_optimize')?.checked??true,
         settings_gap_analyzer_enabled:el('s_gap_analyzer')?.checked||false,
         settings_featured_slots_enabled:el('s_featured_slots')?.checked||false,
-        settings_last_minute_enabled:el('s_last_minute')?.checked||false,
+        // Skip s_last_minute si toggle disabled (plan=free) pour eviter flip silencieux true→false (parite deposit fix L673).
+        ...(el('s_last_minute') && !el('s_last_minute').disabled ? {
+          settings_last_minute_enabled:el('s_last_minute').checked||false
+        } : {}),
         settings_last_minute_deadline:el('s_lm_deadline')?.value||'j-1',
         settings_last_minute_discount_pct:parseInt(el('s_lm_discount')?.value)||10,
         settings_last_minute_min_price_cents:parseInt(el('s_lm_min_price')?.value)||0
@@ -667,8 +670,10 @@ async function saveAllSettings(){
       settings_reminder_email_2h:el('s_rem_email_2h').checked
     });
 
-    // Deposit settings
-    if(el('s_dep_enabled'))Object.assign(body,{
+    // Deposit settings — skip si toggle disabled (Plan free OU Stripe Connect inactif)
+    // pour eviter un flip silencieux deposit_enabled=true→false au save quand le pro
+    // perd ses prerequis Stripe (audit batch 15 P1).
+    if(el('s_dep_enabled') && !el('s_dep_enabled').disabled)Object.assign(body,{
       settings_deposit_enabled:el('s_dep_enabled').checked,
       settings_deposit_noshow_threshold:el('s_dep_threshold')?.value||2,
       settings_deposit_type:el('s_dep_type')?.value||'percent',
