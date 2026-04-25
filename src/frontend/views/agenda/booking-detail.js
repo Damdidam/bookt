@@ -309,10 +309,12 @@ async function fcOpenDetail(bookingId) {
     // DEP-01 UI gate : hide si plan='free' ou Stripe Connect inactif → l'endpoint
     // backend refuserait 403/400 et le client recevrait un lien casse. Bouton
     // affiche que pour les pros prets a accepter des paiements.
+    // Fallback window._* pour flow home/clients qui n'a pas charge calState d'agenda.
     document.querySelectorAll('.m-require-deposit-wrap').forEach(el => el.remove());
-    const _depPlan = calState.fcBusinessPlan || 'free';
-    const _depConnect = calState.fcStripeConnectStatus || 'none';
-    const _depConnectOK = _depPlan !== 'free' && calState.fcStripeConnectId && _depConnect === 'active';
+    const _depPlan = calState.fcBusinessPlan || window._businessPlan || 'free';
+    const _depConnect = calState.fcStripeConnectStatus || window._stripeConnectStatus || 'none';
+    const _depConnectId = calState.fcStripeConnectId || window._stripeConnectId || null;
+    const _depConnectOK = _depPlan !== 'free' && _depConnectId && _depConnect === 'active';
     if (_depConnectOK && !b.deposit_required && ['pending', 'confirmed', 'modified_pending'].includes(b.status) && new Date(b.start_at) > new Date() && userRole !== 'practitioner') {
       const s = calState.fcBusinessSettings || {};
       const rdvCancelDlH = s.cancel_deadline_hours ?? 24;

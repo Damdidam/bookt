@@ -44,6 +44,10 @@ if (!api.isLoggedIn()) {
           api.setBusiness(cached);
           window._businessPlan = d.business.plan;
         }
+        // DEP-01 UI gate : globals pour gate boutons "Exiger acompte" depuis
+        // home/clients sans dependance sur calState d'agenda.
+        window._stripeConnectId = d.business.stripe_connect_id || null;
+        window._stripeConnectStatus = d.business.stripe_connect_status || 'none';
       }
     }
   } catch (_) {}

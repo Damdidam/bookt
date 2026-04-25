@@ -525,9 +525,12 @@ function qcCheckDepositSuggestion() {
   if (!s.deposit_enabled) return;
   // DEP-01 UI gate : skip toggle deposit si pas Pro ou Stripe Connect inactif
   // (endpoint refuserait l'envoi → booking bloque sans feedback utilisateur).
-  const _qcPlan = calState.fcBusinessPlan || 'free';
+  // Fallback window._* car quick-create peut etre invoque avant fcBusinessPlan set.
+  const _qcPlan = calState.fcBusinessPlan || window._businessPlan || 'free';
+  const _qcConnectId = calState.fcStripeConnectId || window._stripeConnectId || null;
+  const _qcConnectStatus = calState.fcStripeConnectStatus || window._stripeConnectStatus || 'none';
   if (_qcPlan === 'free') return;
-  if (!calState.fcStripeConnectId || calState.fcStripeConnectStatus !== 'active') return;
+  if (!_qcConnectId || _qcConnectStatus !== 'active') return;
 
   const toggle = document.getElementById('qcDepositToggle');
   const check = document.getElementById('qcDepositCheck');
