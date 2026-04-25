@@ -652,21 +652,22 @@ async function saveAllSettings(){
         settings_slot_auto_optimize:el('s_slot_auto_optimize')?.checked??true,
         settings_gap_analyzer_enabled:el('s_gap_analyzer')?.checked||false,
         settings_featured_slots_enabled:el('s_featured_slots')?.checked||false,
-        // Skip s_last_minute si toggle disabled (plan=free) pour eviter flip silencieux true→false (parite deposit fix L673).
+        // Skip s_last_minute + sub-fields si toggle disabled (plan=free) pour eviter
+        // flip silencieux des 4 fields (audit batch 17 P1 — parite saveCalendarSettings).
         ...(el('s_last_minute') && !el('s_last_minute').disabled ? {
-          settings_last_minute_enabled:el('s_last_minute').checked||false
-        } : {}),
-        settings_last_minute_deadline:el('s_lm_deadline')?.value||'j-1',
-        settings_last_minute_discount_pct:parseInt(el('s_lm_discount')?.value)||10,
-        settings_last_minute_min_price_cents:parseInt(el('s_lm_min_price')?.value)||0
+          settings_last_minute_enabled:el('s_last_minute').checked||false,
+          settings_last_minute_deadline:el('s_lm_deadline')?.value||'j-1',
+          settings_last_minute_discount_pct:parseInt(el('s_lm_discount')?.value)||10,
+          settings_last_minute_min_price_cents:parseInt(el('s_lm_min_price')?.value)||0
+        } : {})
       });
     }
 
-    // Reminder settings
+    // Reminder settings — guard SMS toggles disabled (plan=free) pour eviter flip silencieux.
     if(el('s_rem_email_24h'))Object.assign(body,{
       settings_reminder_email_24h:el('s_rem_email_24h').checked,
-      settings_reminder_sms_24h:el('s_rem_sms_24h')?.checked||false,
-      settings_reminder_sms_2h:el('s_rem_sms_2h')?.checked||false,
+      ...(el('s_rem_sms_24h') && !el('s_rem_sms_24h').disabled ? { settings_reminder_sms_24h:el('s_rem_sms_24h').checked } : {}),
+      ...(el('s_rem_sms_2h') && !el('s_rem_sms_2h').disabled ? { settings_reminder_sms_2h:el('s_rem_sms_2h').checked } : {}),
       settings_reminder_email_2h:el('s_rem_email_2h').checked
     });
 
@@ -1039,10 +1040,13 @@ function buildReminderToggle(id, isOn, title, desc, enabled){
 
 async function saveReminderSettings(){
   try{
+    const sms24=document.getElementById('s_rem_sms_24h');
+    const sms2=document.getElementById('s_rem_sms_2h');
     const data={
       settings_reminder_email_24h:document.getElementById('s_rem_email_24h').checked,
-      settings_reminder_sms_24h:document.getElementById('s_rem_sms_24h')?.checked||false,
-      settings_reminder_sms_2h:document.getElementById('s_rem_sms_2h')?.checked||false,
+      // Skip SMS toggles si disabled (plan free) pour eviter flip silencieux true→false (parite saveAllSettings batch 17).
+      ...(sms24 && !sms24.disabled ? { settings_reminder_sms_24h:sms24.checked } : {}),
+      ...(sms2 && !sms2.disabled ? { settings_reminder_sms_2h:sms2.checked } : {}),
       settings_reminder_email_2h:document.getElementById('s_rem_email_2h').checked
     };
     const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(data)});
