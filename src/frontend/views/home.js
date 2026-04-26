@@ -201,7 +201,7 @@ async function dashToggleTodo(todoId, bookingId, isDone){
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
       body:JSON.stringify({is_done:isDone})
     });
-    if(!r.ok){const d=await r.json().catch(()=>({}));throw new Error(d.error||'Erreur');}
+    if(!r.ok){const d=await r.json().catch(()=>({}));throw new Error(d.message||d.error||'Erreur');}
     // Fade out the row
     const row=document.querySelector(`.dash-todo-row input[onchange*="${todoId}"]`)?.closest('.dash-todo-row');
     if(row&&isDone){row.style.opacity='.3';row.style.textDecoration='line-through';setTimeout(()=>row.remove(),800);}

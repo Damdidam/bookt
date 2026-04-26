@@ -977,7 +977,7 @@ async function connectStripe(){
     GendaUI.toast('Redirection vers Stripe...','info');
     const r=await fetch('/api/stripe/connect/onboard',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()}});
     const d=await r.json();
-    if(!r.ok)throw new Error(d.error);
+    if(!r.ok)throw new Error(d.message||d.error);
     window.location.href=d.url;
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
@@ -987,7 +987,7 @@ async function openStripeDashboard(){
     GendaUI.toast('Ouverture du dashboard...','info');
     const r=await fetch('/api/stripe/connect/dashboard',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()}});
     const d=await r.json();
-    if(!r.ok)throw new Error(d.error);
+    if(!r.ok)throw new Error(d.message||d.error);
     window.location.href=d.url;
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
@@ -1129,7 +1129,7 @@ async function startCheckout(plan){
       body:JSON.stringify({plan})
     });
     const d=await r.json();
-    if(!r.ok)throw new Error(d.error);
+    if(!r.ok)throw new Error(d.message||d.error);
     window.location.href=d.url;
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
@@ -1142,7 +1142,7 @@ async function openStripePortal(){
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()}
     });
     const d=await r.json();
-    if(!r.ok)throw new Error(d.error);
+    if(!r.ok)throw new Error(d.message||d.error);
     window.location.href=d.url;
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
@@ -1241,7 +1241,7 @@ async function confirmDeleteAccount(){
       body: JSON.stringify({ confirm_name: name })
     });
     const d = await r.json();
-    if (!r.ok) throw new Error(d.error);
+    if (!r.ok) throw new Error(d.message||d.error);
     GendaUI.toast(`Compte fermé. ${d.clients_notified} client(s) notifié(s).`, 'success');
     setTimeout(() => { localStorage.clear(); window.location.href = '/login.html'; }, 3000);
   } catch (e) {

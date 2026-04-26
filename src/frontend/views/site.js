@@ -545,7 +545,7 @@ async function selectTheme(preset){
   try{
     const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
       body:JSON.stringify({theme:{preset}})});
-    if(!r.ok){const d=await r.json();throw new Error(d.error);}
+    if(!r.ok){const d=await r.json();throw new Error(d.message||d.error);}
     currentThemePreset=preset;
     GendaUI.toast(`Thème "${THEMES[preset].name}" appliqué !`,'success');
     loadSiteSection();
@@ -557,7 +557,7 @@ async function saveCustomColor(){
   try{
     const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
       body:JSON.stringify({theme:{preset:currentThemePreset,primary_color:color}})});
-    if(!r.ok){const d=await r.json();throw new Error(d.error);}
+    if(!r.ok){const d=await r.json();throw new Error(d.message||d.error);}
     GendaUI.toast('Couleur appliquée !','success');
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
@@ -663,7 +663,7 @@ async function saveGalleryItem(id){
       // Upload new file then update existing record with new URL
       const upRes=await fetch('/api/gallery/upload',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
         body:JSON.stringify({photo:galPendingPhoto,title:title||null,caption:caption||null})});
-      if(!upRes.ok){const d=await upRes.json();throw new Error(d.error);}
+      if(!upRes.ok){const d=await upRes.json();throw new Error(d.message||d.error);}
       const upData=await upRes.json();
       // Delete old, keep new
       await fetch('/api/gallery/'+id,{method:'DELETE',headers:{'Authorization':'Bearer '+api.getToken()}}).catch(()=>{});
@@ -678,7 +678,7 @@ async function saveGalleryItem(id){
       if(id&&url)body.image_url=url;
       r=await fetch(endpoint,{method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(body)});
     }
-    if(!r.ok){const d=await r.json();throw new Error(d.error);}
+    if(!r.ok){const d=await r.json();throw new Error(d.message||d.error);}
     galPendingPhoto=null;
     document.getElementById('galModal')._dirtyGuard?.markClean();
     closeModal('galModal');
@@ -757,7 +757,7 @@ async function saveNewsItem(id){
     const endpoint=id?'/api/news/'+id:'/api/news';
     const r=await fetch(endpoint,{method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
       body:JSON.stringify({title,content,tag:tag||null,tag_type,image_url:image_url||null,published_at})});
-    if(!r.ok){const d=await r.json();throw new Error(d.error);}
+    if(!r.ok){const d=await r.json();throw new Error(d.message||d.error);}
     document.getElementById('newsModal')._dirtyGuard?.markClean();
     closeModal('newsModal');
     GendaUI.toast(id?'Article modifié':'Article publié','success');
@@ -848,7 +848,7 @@ async function saveSiteContent(){
         tagline:document.getElementById('siteTagline').value.trim()||null,
         description:document.getElementById('siteDescription').innerHTML.trim()||null
       })});
-    if(!r.ok){const d=await r.json();throw new Error(d.error);}
+    if(!r.ok){const d=await r.json();throw new Error(d.message||d.error);}
     GendaUI.toast('Contenu mis à jour','success');
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
@@ -866,7 +866,7 @@ async function handleBrandingFile(file,type){
     zone.innerHTML='<div class="spinner" style="width:24px;height:24px"></div>';
     try{
       const r=await fetch('/api/business/upload-image',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({photo:e.target.result,type})});
-      if(!r.ok){const d=await r.json();throw new Error(d.error);}
+      if(!r.ok){const d=await r.json();throw new Error(d.message||d.error);}
       const d=await r.json();
       GendaUI.toast(type==='logo'?'Logo mis à jour':type==='about'?'Photo mise à jour':'Bannière mise à jour','success');
       loadSiteSection();
@@ -897,7 +897,7 @@ async function saveSocialLinks(){
     };
     const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
       body:JSON.stringify({social_links})});
-    if(!r.ok){const d=await r.json();throw new Error(d.error);}
+    if(!r.ok){const d=await r.json();throw new Error(d.message||d.error);}
     GendaUI.toast('Réseaux sociaux mis à jour','success');
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
@@ -913,7 +913,7 @@ async function saveTestMode(){
         settings_minisite_test_mode:document.getElementById('siteTestMode')?.checked||false,
         settings_minisite_test_password:document.getElementById('siteTestPassword')?.value||''
       })});
-    if(!r.ok){const d=await r.json();throw new Error(d.error);}
+    if(!r.ok){const d=await r.json();throw new Error(d.message||d.error);}
     GendaUI.toast('Mode test mis à jour','success');
     loadSiteSection();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
@@ -926,7 +926,7 @@ async function saveSEO(){
         seo_title:document.getElementById('seoTitle').value.trim()||null,
         seo_description:document.getElementById('seoDesc').value.trim()||null
       })});
-    if(!r.ok){const d=await r.json();throw new Error(d.error);}
+    if(!r.ok){const d=await r.json();throw new Error(d.message||d.error);}
     GendaUI.toast('SEO mis à jour','success');
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
@@ -968,7 +968,7 @@ async function saveTestimonial(id){
     const endpoint=id?'/api/site/testimonials/'+id:'/api/site/testimonials';
     const r=await fetch(endpoint,{method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
       body:JSON.stringify({author_name,author_role:author_role||null,author_initials:initials,content,rating})});
-    if(!r.ok){const d=await r.json();throw new Error(d.error);}
+    if(!r.ok){const d=await r.json();throw new Error(d.message||d.error);}
     document.getElementById('testModal')._dirtyGuard?.markClean();
     closeModal('testModal');
     GendaUI.toast(id?'Témoignage modifié':'Témoignage ajouté','success');
@@ -1031,7 +1031,7 @@ async function saveValue(id){
     const endpoint=id?'/api/site/values/'+id:'/api/site/values';
     const r=await fetch(endpoint,{method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
       body:JSON.stringify({icon,title,description})});
-    if(!r.ok){const d=await r.json();throw new Error(d.error);}
+    if(!r.ok){const d=await r.json();throw new Error(d.message||d.error);}
     document.getElementById('valModal')._dirtyGuard?.markClean();
     closeModal('valModal');
     GendaUI.toast(id?'Valeur modifiée':'Valeur ajoutée','success');

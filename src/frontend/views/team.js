@@ -1312,7 +1312,7 @@ async function generateIcalFeed(pracId){
   try{
     const r=await fetch('/api/calendar/ical/generate',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({practitioner_id:pracId||null})});
     const d=await r.json();
-    if(!r.ok)throw new Error(d.error||'Erreur');
+    if(!r.ok)throw new Error(d.message||d.error||'Erreur');
     const el=document.getElementById('p_ical_url');
     if(!el)return;
     el.style.display='block';

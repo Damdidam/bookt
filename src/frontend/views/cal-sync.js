@@ -151,7 +151,7 @@ async function calSyncConnect(provider) {
     const url = `/api/calendar/${provider}/connect` + (pracId ? `?practitioner_id=${pracId}` : '');
     const r = await fetch(url, { headers: { 'Authorization': 'Bearer ' + api.getToken() } });
     const d = await r.json();
-    if (d.error) throw new Error(d.error);
+    if (d.error) throw new Error(d.message || d.error);
     if (d.url) window.location.href = d.url;
   } catch (e) { gToast(e.message, 'error'); }
 }
@@ -165,7 +165,7 @@ async function calSyncGenIcal() {
       body: JSON.stringify({ practitioner_id: pracId })
     });
     const d = await r.json();
-    if (!r.ok) throw new Error(d.error);
+    if (!r.ok) throw new Error(d.message||d.error);
 
     const box = document.getElementById('icalUrlBox');
     box.style.display = 'block';
@@ -191,7 +191,7 @@ async function calSyncUpdateDir(connId, direction) {
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
       body: JSON.stringify({ sync_direction: direction })
     });
-    if (!r.ok) throw new Error((await r.json()).error);
+    if (!r.ok) { const d=await r.json().catch(()=>({})); throw new Error(d.message||d.error||'Erreur'); }
     gToast('Direction mise à jour', 'success');
   } catch (e) { gToast(e.message, 'error'); }
 }
@@ -204,7 +204,7 @@ async function calSyncNow(connId) {
       headers: { 'Authorization': 'Bearer ' + api.getToken() }
     });
     const d = await r.json();
-    if (!r.ok) throw new Error(d.error);
+    if (!r.ok) throw new Error(d.message||d.error);
     gToast(`Sync OK — ${d.pulled || 0} importé(s), ${d.pushed || 0} exporté(s)`, 'success');
     loadCalSync();
   } catch (e) { gToast(e.message, 'error'); }
@@ -217,7 +217,7 @@ async function calSyncDisconnect(connId, label) {
       method: 'DELETE',
       headers: { 'Authorization': 'Bearer ' + api.getToken() }
     });
-    if (!r.ok) throw new Error((await r.json()).error);
+    if (!r.ok) { const d=await r.json().catch(()=>({})); throw new Error(d.message||d.error||'Erreur'); }
     gToast('Calendrier déconnecté', 'success');
     loadCalSync();
   } catch (e) { gToast(e.message, 'error'); }
