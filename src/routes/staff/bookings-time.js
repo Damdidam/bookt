@@ -344,19 +344,25 @@ let sql = `UPDATE bookings SET start_at = $1, end_at = $2, reminder_24h_sent_at 
           if (bizSettings.last_minute_enabled && (bizRes.rows[0]?.plan || 'free') !== 'free') {
             const lmDeadline = bizSettings.last_minute_deadline || 'j-1';
             const todayBrussels = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+            const lmMinPrice = bizSettings.last_minute_min_price_cents || 0;
+            // EDG1-2 fix (parite slots.js + index.js batch 35-36) : pre-pass all-or-nothing.
+            // Si ANY member combo a eff_price < lmMinPrice OU promo_eligible=false,
+            // LM disabled pour TOUT le groupe.
+            const _svcAllMv = await client.query(
+              `SELECT b.id, s.promo_eligible, COALESCE(sv.price_cents, s.price_cents, 0) AS eff_price
+               FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+               LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+               WHERE b.id = ANY($1::uuid[])`, [updates.map(u => u.id)]
+            );
+            const _comboQualifiesMv = _svcAllMv.rows.length > 0
+              && _svcAllMv.rows.every(r => r.promo_eligible !== false && r.eff_price >= lmMinPrice);
+
             for (const u of updates) {
               const newStartBrussels = new Date(u.start_at).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
               const inLmWindow = isWithinLastMinuteWindow(newStartBrussels, todayBrussels, lmDeadline);
-              const svcRes = await client.query(
-                `SELECT s.price_cents, s.promo_eligible, COALESCE(sv.price_cents, s.price_cents, 0) AS eff_price
-                 FROM bookings b LEFT JOIN services s ON s.id = b.service_id
-                 LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
-                 WHERE b.id = $1`, [u.id]
-              );
-              const svc = svcRes.rows[0];
-              const lmMinPrice = bizSettings.last_minute_min_price_cents || 0;
+              const svc = _svcAllMv.rows.find(r => r.id === u.id);
               let newDiscountPct = null;
-              if (inLmWindow && svc && svc.promo_eligible !== false && svc.eff_price > 0 && svc.eff_price >= lmMinPrice) {
+              if (inLmWindow && svc && _comboQualifiesMv && svc.eff_price > 0) {
                 newDiscountPct = bizSettings.last_minute_discount_pct || 10;
               }
               await client.query(

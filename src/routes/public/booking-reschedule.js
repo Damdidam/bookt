@@ -404,6 +404,18 @@ router.post(['/manage/:token/reschedule', '/booking/:token/reschedule'], booking
         ? groupMembers.map(m => m.id)
         : [bk.id];
 
+      // EDG1-2 fix (parite slots.js + index.js batch 35-36) : pre-pass all-or-nothing.
+      // Si ANY member du groupe a eff_price < lmMinPrice OU promo_eligible=false, LM
+      // disabled pour TOUS les members du combo. Aligne avec spec produit 3b.
+      const _svcAll = await client.query(
+        `SELECT b.id, s.promo_eligible, COALESCE(sv.price_cents, s.price_cents, 0) AS eff_price
+         FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+         LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+         WHERE b.id = ANY($1::uuid[])`, [idsToUpdate]
+      );
+      const _comboQualifies = _svcAll.rows.length > 0
+        && _svcAll.rows.every(r => r.promo_eligible !== false && r.eff_price >= lmMinPrice);
+
       for (const uid of idsToUpdate) {
         // Determine the new start_at for this member
         let memberStartAt;
@@ -421,15 +433,10 @@ router.post(['/manage/:token/reschedule', '/booking/:token/reschedule'], booking
         const newStartBrussels = new Date(memberStartAt).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
         const inLmWindow = isWithinLastMinuteWindow(newStartBrussels, todayBrussels, lmDeadline);
 
-        const svcRes = await client.query(
-          `SELECT s.price_cents, s.promo_eligible, COALESCE(sv.price_cents, s.price_cents, 0) AS eff_price
-           FROM bookings b LEFT JOIN services s ON s.id = b.service_id
-           LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
-           WHERE b.id = $1`, [uid]
-        );
-        const svc = svcRes.rows[0];
+        // Skip individual fetch — utilise la map pre-fetch.
+        const svc = _svcAll.rows.find(r => r.id === uid);
         let newDiscountPct = null;
-        if (inLmWindow && svc && svc.promo_eligible !== false && svc.eff_price > 0 && svc.eff_price >= lmMinPrice) {
+        if (inLmWindow && svc && _comboQualifies && svc.eff_price > 0) {
           newDiscountPct = settings.last_minute_discount_pct || 10;
         }
         await client.query(
