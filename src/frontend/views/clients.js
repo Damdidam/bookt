@@ -305,7 +305,7 @@ async function saveClient(id){
     const remarksHtml=remarkEl?sanitizeRichText(remarkEl.innerHTML.trim()):'';
     const bdayVal=document.getElementById('cl_birthday')?.value||null;
     const r=await fetch(`/api/clients/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({full_name:document.getElementById('cl_name').value,phone:document.getElementById('cl_phone').value,email:document.getElementById('cl_email').value,bce_number:document.getElementById('cl_bce').value,notes:document.getElementById('cl_notes').value,remarks:remarksHtml,birthday:bdayVal||null,is_vip:document.getElementById('cl_vip')?.checked||false})});
-    if(!r.ok)throw new Error((await r.json()).error);
+    if(!r.ok){ const _d = await r.json().catch(() => ({})); throw new Error(_d.message || _d.error || "Erreur"); }
     document.getElementById('clientModal')?._dirtyGuard?.markClean(); closeModal('clientModal');
     GendaUI.toast(categoryLabels.client+' mis·e à jour','success');loadClients();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
@@ -331,7 +331,7 @@ async function blockClient(id){
   if(reason===null)return;
   try{
     const r=await fetch(`/api/clients/${id}/block`,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({reason:reason||'Bloqué manuellement'})});
-    if(!r.ok)throw new Error((await r.json()).error);
+    if(!r.ok){ const _d = await r.json().catch(() => ({})); throw new Error(_d.message || _d.error || "Erreur"); }
     document.getElementById('clientModal')?._dirtyGuard?.markClean(); closeModal('clientModal');
     GendaUI.toast(categoryLabels.client+' bloqué·e','success');loadClients();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
@@ -341,7 +341,7 @@ async function unblockClient(id){
   if(!(await showConfirmDialog('Débloquer ? Il/elle pourra à nouveau réserver en ligne.')))return;
   try{
     const r=await fetch(`/api/clients/${id}/unblock`,{method:'POST',headers:{'Authorization':'Bearer '+api.getToken()}});
-    if(!r.ok)throw new Error((await r.json()).error);
+    if(!r.ok){ const _d = await r.json().catch(() => ({})); throw new Error(_d.message || _d.error || "Erreur"); }
     document.getElementById('clientModal')?._dirtyGuard?.markClean(); closeModal('clientModal');
     GendaUI.toast(categoryLabels.client+' débloqué·e','success');loadClients();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
@@ -351,7 +351,7 @@ async function resetNoShow(id){
   if(!(await showConfirmDialog('Remettre le compteur no-show à zéro et débloquer ?')))return;
   try{
     const r=await fetch(`/api/clients/${id}/reset-noshow`,{method:'POST',headers:{'Authorization':'Bearer '+api.getToken()}});
-    if(!r.ok)throw new Error((await r.json()).error);
+    if(!r.ok){ const _d = await r.json().catch(() => ({})); throw new Error(_d.message || _d.error || "Erreur"); }
     document.getElementById('clientModal')?._dirtyGuard?.markClean(); closeModal('clientModal');
     GendaUI.toast('Compteur remis à zéro','success');loadClients();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
@@ -361,7 +361,7 @@ async function resetExpired(id){
   if(!(await showConfirmDialog('Remettre le compteur de réservations non confirmées à zéro ?')))return;
   try{
     const r=await fetch(`/api/clients/${id}/reset-expired`,{method:'POST',headers:{'Authorization':'Bearer '+api.getToken()}});
-    if(!r.ok)throw new Error((await r.json()).error);
+    if(!r.ok){ const _d = await r.json().catch(() => ({})); throw new Error(_d.message || _d.error || "Erreur"); }
     document.getElementById('clientModal')?._dirtyGuard?.markClean(); closeModal('clientModal');
     GendaUI.toast('Compteur remis à zéro','success');loadClients();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
@@ -385,7 +385,7 @@ async function createClient(){
   if(!name){GendaUI.toast('Le nom est requis','error');return;}
   try{
     const r=await fetch('/api/clients',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({full_name:name,phone:phone||null,email:email||null})});
-    if(!r.ok)throw new Error((await r.json()).error);
+    if(!r.ok){ const _d = await r.json().catch(() => ({})); throw new Error(_d.message || _d.error || "Erreur"); }
     const d=await r.json();
     closeModal('newClientModal');
     GendaUI.toast(categoryLabels.client+' créé·e','success');
@@ -493,7 +493,7 @@ async function csvDoImport(){
   if(btn){btn.disabled=true;btn.textContent='Import en cours...';}
   try{
     const r=await fetch('/api/clients/import',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({clients:_csvParsed})});
-    if(!r.ok)throw new Error((await r.json()).error);
+    if(!r.ok){ const _d = await r.json().catch(() => ({})); throw new Error(_d.message || _d.error || "Erreur"); }
     const d=await r.json();
     closeModal('csvImportModal');
     GendaUI.toast(`${d.imported} client${d.imported>1?'s':''} importé${d.imported>1?'s':''}${d.skipped?' ('+d.skipped+' doublon'+(d.skipped>1?'s':'')+' ignoré'+(d.skipped>1?'s':'')+')':''}`,'success');

@@ -976,7 +976,7 @@ function initGroupDnD(container) {
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
         body: JSON.stringify({ ordered_ids: newIds })
       });
-      if (!r.ok) throw new Error((await r.json()).error || 'Erreur');
+      if (!r.ok) { const _d = await r.json().catch(() => ({})); throw new Error(_d.message || _d.error || 'Erreur'); }
       gToast('Ordre mis \u00e0 jour', 'success');
       fcOpenDetail(calState.fcCurrentEventId);
       if (calState.fcCal) calState.fcCal.refetchEvents();

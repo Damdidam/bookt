@@ -290,15 +290,15 @@ async function saveCategory(catId,oldLabel){
     if(catId){
       // Update existing business_category
       const r=await fetch(`/api/business/categories/${catId}`,{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({label:name,description:desc,color})});
-      if(!r.ok)throw new Error((await r.json()).error);
+      if(!r.ok){ const _d = await r.json().catch(() => ({})); throw new Error(_d.message || _d.error || "Erreur"); }
     }else if(oldLabel){
       // Editing a catalog/service-only category with no business_categories row yet — create one
       const r=await fetch('/api/business/categories',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({label:name,description:desc,color})});
-      if(!r.ok)throw new Error((await r.json()).error);
+      if(!r.ok){ const _d = await r.json().catch(() => ({})); throw new Error(_d.message || _d.error || "Erreur"); }
     }else{
       // Create new category from scratch
       const r=await fetch('/api/business/categories',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({label:name,description:desc,color})});
-      if(!r.ok)throw new Error((await r.json()).error);
+      if(!r.ok){ const _d = await r.json().catch(() => ({})); throw new Error(_d.message || _d.error || "Erreur"); }
     }
     // If name or color changed, update all services in this category
     const srcLabel=oldLabel||name;
@@ -942,7 +942,7 @@ async function saveService(id){
   try{
     const url=id?`/api/services/${id}`:'/api/services';const method=id?'PATCH':'POST';
     const r=await fetch(url,{method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(body)});
-    if(!r.ok)throw new Error((await r.json()).error);
+    if(!r.ok){ const _d = await r.json().catch(() => ({})); throw new Error(_d.message || _d.error || "Erreur"); }
     const savedData=await r.json();
     const serviceId=id||(savedData.service?.id||savedData.id);
     // Save pass templates (if section visible)
@@ -994,20 +994,20 @@ async function saveService(id){
 
 const BOOKING_WARNING='Ces prestations sont actuellement utilisées dans des RDV à venir. La désactivation empêche les nouvelles réservations mais les RDV existants sont maintenus.';
 async function deactivateService(id){
-  try{const r=await fetch(`/api/services/${id}/deactivate`,{method:'PATCH',headers:{'Authorization':'Bearer '+api.getToken()}});if(!r.ok)throw new Error((await r.json()).error);const d=await r.json();GendaUI.toast(categoryLabels.service+' désactivée','success');if(d.active_bookings>0)GendaUI.toast(`${d.active_bookings} RDV à venir utilisent cette prestation. `+BOOKING_WARNING,'warning',6000);loadServices();}catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+  try{const r=await fetch(`/api/services/${id}/deactivate`,{method:'PATCH',headers:{'Authorization':'Bearer '+api.getToken()}});if(!r.ok){ const _d = await r.json().catch(() => ({})); throw new Error(_d.message || _d.error || "Erreur"); }const d=await r.json();GendaUI.toast(categoryLabels.service+' désactivée','success');if(d.active_bookings>0)GendaUI.toast(`${d.active_bookings} RDV à venir utilisent cette prestation. `+BOOKING_WARNING,'warning',6000);loadServices();}catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 async function reactivateService(id){
-  try{const r=await fetch(`/api/services/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({is_active:true})});if(!r.ok)throw new Error((await r.json()).error);GendaUI.toast(categoryLabels.service+' réactivée','success');loadServices();}catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+  try{const r=await fetch(`/api/services/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({is_active:true})});if(!r.ok){ const _d = await r.json().catch(() => ({})); throw new Error(_d.message || _d.error || "Erreur"); }GendaUI.toast(categoryLabels.service+' réactivée','success');loadServices();}catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 async function deleteService(id){
-  try{const r=await fetch(`/api/services/${id}`,{method:'DELETE',headers:{'Authorization':'Bearer '+api.getToken()}});if(!r.ok)throw new Error((await r.json()).error);GendaUI.toast(categoryLabels.service+' supprimée','success');loadServices();}catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+  try{const r=await fetch(`/api/services/${id}`,{method:'DELETE',headers:{'Authorization':'Bearer '+api.getToken()}});if(!r.ok){ const _d = await r.json().catch(() => ({})); throw new Error(_d.message || _d.error || "Erreur"); }GendaUI.toast(categoryLabels.service+' supprimée','success');loadServices();}catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 async function toggleService(id,active){
   if(active) return reactivateService(id);
   return deactivateService(id);
 }
 async function toggleCategory(cat,active){
-  try{const r=await fetch('/api/services/category-toggle',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({category:cat,is_active:active})});if(!r.ok)throw new Error((await r.json()).error);const d=await r.json();GendaUI.toast(`${d.toggled} prestation${d.toggled>1?'s':''} ${active?'activée':'désactivée'}${d.toggled>1?'s':''}`,'success');if(!active&&d.active_bookings>0)GendaUI.toast(`${d.active_bookings} RDV à venir utilisent ces prestations. `+BOOKING_WARNING,'warning',6000);loadServices();}catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+  try{const r=await fetch('/api/services/category-toggle',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({category:cat,is_active:active})});if(!r.ok){ const _d = await r.json().catch(() => ({})); throw new Error(_d.message || _d.error || "Erreur"); }const d=await r.json();GendaUI.toast(`${d.toggled} prestation${d.toggled>1?'s':''} ${active?'activée':'désactivée'}${d.toggled>1?'s':''}`,'success');if(!active&&d.active_bookings>0)GendaUI.toast(`${d.active_bookings} RDV à venir utilisent ces prestations. `+BOOKING_WARNING,'warning',6000);loadServices();}catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 
 // ===== VARIANT ROW (in modal) =====

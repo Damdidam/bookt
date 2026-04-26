@@ -744,7 +744,7 @@ async function savePract(id) {
     const url = id ? `/api/practitioners/${id}` : '/api/practitioners';
     const method = id ? 'PATCH' : 'POST';
     const r = await fetch(url, { method, headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() }, body: JSON.stringify(body) });
-    if (!r.ok) throw new Error((await r.json()).error);
+    if (!r.ok) { const _d = await r.json().catch(() => ({})); throw new Error(_d.message || _d.error || "Erreur"); }
     const data = await r.json();
     const pracId = id || data.practitioner?.id;
 
@@ -889,7 +889,7 @@ async function deactivatePract(id) {
 
       const qp = cancelThem ? '?cancel_bookings=true' : '?keep_bookings=true';
       const r2 = await fetch(`/api/practitioners/${id}${qp}`, { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + api.getToken() } });
-      if (!r2.ok) throw new Error((await r2.json()).error);
+      if (!r2.ok) { const _d = await r2.json().catch(() => ({})); throw new Error(_d.message || _d.error || "Erreur"); }
       const result = await r2.json();
       if (result.cancelled_count > 0) {
         GendaUI.toast(`${sectorLabels.practitioner} désactivé, ${result.cancelled_count} RDV annulés`, 'success');
@@ -897,7 +897,7 @@ async function deactivatePract(id) {
         GendaUI.toast(sectorLabels.practitioner + ' désactivé (RDV conservés)', 'success');
       }
     } else if (!r.ok) {
-      throw new Error((await r.json()).error);
+      { const _d = await r.json().catch(() => ({})); throw new Error(_d.message || _d.error || "Erreur"); }
     } else {
       GendaUI.toast(sectorLabels.practitioner + ' désactivé', 'success');
     }
@@ -908,7 +908,7 @@ async function deactivatePract(id) {
 async function reactivatePract(id) {
   try {
     const r = await fetch(`/api/practitioners/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() }, body: JSON.stringify({ is_active: true, booking_enabled: true }) });
-    if (!r.ok) throw new Error((await r.json()).error);
+    if (!r.ok) { const _d = await r.json().catch(() => ({})); throw new Error(_d.message || _d.error || "Erreur"); }
     GendaUI.toast(sectorLabels.practitioner + ' réactivé', 'success');
     loadTeam();
   } catch (e) { GendaUI.toast('Erreur: ' + e.message, 'error'); }
@@ -939,9 +939,9 @@ async function deletePractPermanent(id) {
       );
       if (!cancelThem) return;
       const r2 = await fetch('/api/practitioners/' + id + '?permanent=true&cancel_bookings=true', { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + api.getToken() } });
-      if (!r2.ok) throw new Error((await r2.json()).error);
+      if (!r2.ok) { const _d = await r2.json().catch(() => ({})); throw new Error(_d.message || _d.error || "Erreur"); }
     } else if (!r.ok) {
-      throw new Error((await r.json()).error);
+      { const _d = await r.json().catch(() => ({})); throw new Error(_d.message || _d.error || "Erreur"); }
     }
     GendaUI.toast(sectorLabels.practitioner + ' supprimé définitivement', 'success');
     loadTeam();
@@ -1122,7 +1122,7 @@ async function sendInvite(practId) {
   if (!email || !password) return GendaUI.toast('Email et mot de passe requis', 'error');
   try {
     const r = await fetch(`/api/practitioners/${practId}/invite`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() }, body: JSON.stringify({ email, password, role }) });
-    if (!r.ok) throw new Error((await r.json()).error);
+    if (!r.ok) { const _d = await r.json().catch(() => ({})); throw new Error(_d.message || _d.error || "Erreur"); }
     document.getElementById('inviteModalOverlay')?._dirtyGuard?.markClean(); closeInviteModal();
     GendaUI.toast('Compte créé ! Communiquez les identifiants.', 'success');
     loadTeam();
@@ -1178,7 +1178,7 @@ async function saveRole(practId) {
   if (!picked) return GendaUI.toast('Sélectionnez un rôle', 'error');
   try {
     const r = await fetch(`/api/practitioners/${practId}/role`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() }, body: JSON.stringify({ role: picked.value }) });
-    if (!r.ok) throw new Error((await r.json()).error);
+    if (!r.ok) { const _d = await r.json().catch(() => ({})); throw new Error(_d.message || _d.error || "Erreur"); }
     document.getElementById('roleModalOverlay')?._dirtyGuard?.markClean(); closeRoleModal();
     GendaUI.toast('Rôle modifié', 'success');
     loadTeam();

@@ -380,14 +380,14 @@ async function fsSaveSlots() {
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
           body: JSON.stringify({ practitioner_id: pracId, week_start: weekStart, slots: slotsByWeek[weekStart] })
         });
-        if (!saveRes.ok) throw new Error((await saveRes.json()).error);
+        if (!saveRes.ok) { const _d = await saveRes.json().catch(() => ({})); throw new Error(_d.message || _d.error || 'Erreur'); }
 
         const lockRes = await fetch('/api/featured-slots/lock', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
           body: JSON.stringify({ practitioner_id: pracId, week_start: weekStart })
         });
-        if (!lockRes.ok) throw new Error((await lockRes.json()).error);
+        if (!lockRes.ok) { const _d = await lockRes.json().catch(() => ({})); throw new Error(_d.message || _d.error || 'Erreur'); }
       })
     ]);
 

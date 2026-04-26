@@ -832,7 +832,7 @@ async function saveAllSite(){
     if(revEl)Object.assign(body,{settings_reviews_enabled:revEl.checked,settings_review_delay_hours:parseInt(document.getElementById('s_review_delay')?.value)||24});
 
     const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(body)});
-    if(!r.ok)throw new Error((await r.json()).error);
+    if(!r.ok){const _d=await r.json().catch(()=>({}));throw new Error(_d.message||_d.error||'Erreur');}
     GendaUI.toast('Site enregistré','success');
     btn.disabled=false;btn.textContent='Enregistrer';
   }catch(e){
@@ -1065,7 +1065,7 @@ async function saveReviewSettings(){
       settings_review_delay_hours:parseInt(document.getElementById('s_review_delay')?.value)||24
     };
     const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(data)});
-    if(!r.ok)throw new Error((await r.json()).error);
+    if(!r.ok){const _d=await r.json().catch(()=>({}));throw new Error(_d.message||_d.error||'Erreur');}
     GendaUI.toast(data.settings_reviews_enabled?'Avis clients activés':'Avis clients désactivés','success');
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }

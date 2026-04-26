@@ -371,7 +371,7 @@ async function fsPublish() {
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
       body: JSON.stringify({ practitioner_id: selectedPractId, week_start: weekStart, slots })
     });
-    if (!r1.ok) throw new Error((await r1.json()).error);
+    if (!r1.ok) { const _d = await r1.json().catch(() => ({})); throw new Error(_d.message || _d.error || 'Erreur'); }
 
     // Lock week
     const r2 = await fetch('/api/featured-slots/lock', {
@@ -401,7 +401,7 @@ async function fsUnpublish() {
       method: 'DELETE',
       headers: { 'Authorization': 'Bearer ' + api.getToken() }
     });
-    if (!r.ok) throw new Error((await r.json()).error);
+    if (!r.ok) { const _d = await r.json().catch(() => ({})); throw new Error(_d.message || _d.error || 'Erreur'); }
     weekLocked = false;
     GendaUI.toast('Semaine dépubliée — vous pouvez modifier vos créneaux', 'success');
     updateCells();
@@ -417,7 +417,7 @@ async function fsClear() {
       method: 'DELETE',
       headers: { 'Authorization': 'Bearer ' + api.getToken() }
     });
-    if (!r.ok) throw new Error((await r.json()).error);
+    if (!r.ok) { const _d = await r.json().catch(() => ({})); throw new Error(_d.message || _d.error || 'Erreur'); }
     selectedSlots = {};
     savedSlots = {};
     // Also unlock if locked

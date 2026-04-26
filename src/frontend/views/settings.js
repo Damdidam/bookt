@@ -742,7 +742,7 @@ async function saveAllSettings(){
 
     // Send ONE PATCH
     const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(body)});
-    if(!r.ok)throw new Error((await r.json()).error);
+    if(!r.ok){const _d=await r.json().catch(()=>({}));throw new Error(_d.message||_d.error||'Erreur');}
 
     // Update local cache
     const freshBiz=api.getBusiness()||{};
@@ -798,7 +798,7 @@ async function savePractitionerChoiceSetting(){
   const on=document.getElementById('s_practitioner_choice').checked;
   try{
     const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({settings_practitioner_choice_enabled:on})});
-    if(!r.ok)throw new Error((await r.json()).error);
+    if(!r.ok){const _d=await r.json().catch(()=>({}));throw new Error(_d.message||_d.error||'Erreur');}
     GendaUI.toast(on?'Choix du praticien activé':'Choix du praticien désactivé','success');window._settingsGuard?.markClean();
     const span=document.getElementById('s_practitioner_choice').parentElement;
     span.querySelector('span:nth-child(2)').style.background=on?'var(--primary)':'var(--border)';
@@ -827,7 +827,7 @@ async function saveCalendarSettings(){
       } : {})
     };
     const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(data)});
-    if(!r.ok)throw new Error((await r.json()).error);
+    if(!r.ok){const _d=await r.json().catch(()=>({}));throw new Error(_d.message||_d.error||'Erreur');}
     // Update local biz cache so other modules see new settings immediately
     const freshBiz=api.getBusiness()||{};
     if(!freshBiz.settings)freshBiz.settings={};
@@ -855,7 +855,7 @@ async function saveMultiServicePolicy(){
   const on=document.getElementById('s_multi_service').checked;
   try{
     const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({settings_multi_service_enabled:on})});
-    if(!r.ok)throw new Error((await r.json()).error);
+    if(!r.ok){const _d=await r.json().catch(()=>({}));throw new Error(_d.message||_d.error||'Erreur');}
     GendaUI.toast(on?'Multi-prestations activé':'Multi-prestations désactivé','success');window._settingsGuard?.markClean();
     const span=document.getElementById('s_multi_service').parentElement;
     span.querySelector('span:nth-child(2)').style.background=on?'var(--primary)':'var(--border)';
@@ -965,7 +965,7 @@ async function savePaymentMethods(){
   });
   try{
     const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({settings_payment_methods:checked})});
-    if(!r.ok)throw new Error((await r.json()).error);
+    if(!r.ok){const _d=await r.json().catch(()=>({}));throw new Error(_d.message||_d.error||'Erreur');}
     const d=await r.json();
     api.setBusiness(d.business);
     GendaUI.toast('Moyens de paiement enregistrés','success');
@@ -996,7 +996,7 @@ async function disconnectStripe(){
   if(!(await showConfirmDialog('Déconnecter votre compte Stripe ? Les paiements d\'acomptes ne seront plus possibles.')))return;
   try{
     const r=await fetch('/api/stripe/connect',{method:'DELETE',headers:{'Authorization':'Bearer '+api.getToken()}});
-    if(!r.ok)throw new Error((await r.json()).error);
+    if(!r.ok){const _d=await r.json().catch(()=>({}));throw new Error(_d.message||_d.error||'Erreur');}
     GendaUI.toast('Compte Stripe d\u00e9connect\u00e9','success');
     loadConnectStatus();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
@@ -1005,7 +1005,7 @@ async function disconnectStripe(){
 async function saveDefaultView(view){
   try{
     const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({settings_default_calendar_view:view})});
-    if(!r.ok)throw new Error((await r.json()).error);
+    if(!r.ok){const _d=await r.json().catch(()=>({}));throw new Error(_d.message||_d.error||'Erreur');}
     const labels={day:'Jour',week:'Semaine',month:'Mois'};
     GendaUI.toast('Vue par d\u00e9faut : '+labels[view],'success');
     document.querySelectorAll('#defaultViewBtns .btn-sm').forEach(b=>b.classList.remove('active'));
@@ -1017,7 +1017,7 @@ async function saveOverlapPolicy(){
   const on=document.getElementById('s_overlap').checked;
   try{
     const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({settings_allow_overlap:on})});
-    if(!r.ok)throw new Error((await r.json()).error);
+    if(!r.ok){const _d=await r.json().catch(()=>({}));throw new Error(_d.message||_d.error||'Erreur');}
     calState.fcAllowOverlap=on;
     GendaUI.toast(on?'Chevauchements autorisés':'Chevauchements bloqués','success');window._settingsGuard?.markClean();
     // Update toggle visual
@@ -1053,7 +1053,7 @@ async function saveReminderSettings(){
       settings_reminder_email_2h:document.getElementById('s_rem_email_2h').checked
     };
     const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(data)});
-    if(!r.ok)throw new Error((await r.json()).error);
+    if(!r.ok){const _d=await r.json().catch(()=>({}));throw new Error(_d.message||_d.error||'Erreur');}
     GendaUI.toast('Rappels configurés '+IC.check,'success');window._settingsGuard?.markClean();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
@@ -1071,7 +1071,7 @@ async function saveGiftCardSettings(){
       settings_giftcard_expiry_days:parseInt(document.getElementById('s_gc_expiry')?.value)||365
     };
     const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(data)});
-    if(!r.ok)throw new Error((await r.json()).error);
+    if(!r.ok){const _d=await r.json().catch(()=>({}));throw new Error(_d.message||_d.error||'Erreur');}
     const freshBiz=api.getBusiness()||{};
     if(!freshBiz.settings)freshBiz.settings={};
     freshBiz.settings.giftcard_enabled=data.settings_giftcard_enabled;
@@ -1094,7 +1094,7 @@ async function saveRescheduleSettings(){
       settings_reschedule_window_days:parseInt(document.getElementById('s_reschedule_window')?.value)||30
     };
     const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(data)});
-    if(!r.ok)throw new Error((await r.json()).error);
+    if(!r.ok){const _d=await r.json().catch(()=>({}));throw new Error(_d.message||_d.error||'Erreur');}
     const freshBiz=api.getBusiness()||{};
     if(!freshBiz.settings)freshBiz.settings={};
     freshBiz.settings.reschedule_enabled=data.settings_reschedule_enabled;
@@ -1115,7 +1115,7 @@ async function saveBookingConfirmSettings(){
       settings_notify_new_booking_pro:document.getElementById('s_notify_new_booking_pro').checked
     };
     const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(data)});
-    if(!r.ok)throw new Error((await r.json()).error);
+    if(!r.ok){const _d=await r.json().catch(()=>({}));throw new Error(_d.message||_d.error||'Erreur');}
     GendaUI.toast(data.settings_booking_confirmation_required?'Confirmation obligatoire activée':'Confirmation obligatoire désactivée','success');window._settingsGuard?.markClean();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
@@ -1150,14 +1150,14 @@ async function openStripePortal(){
 async function saveBusiness(){
   const body={name:document.getElementById('s_name').value,slug:document.getElementById('s_slug').value,email:document.getElementById('s_email').value,phone:document.getElementById('s_phone').value,address:document.getElementById('s_address').value,bce_number:document.getElementById('s_bce').value,tagline:document.getElementById('s_tagline').value,description:document.getElementById('s_desc').value,founded_year:document.getElementById('s_year').value||null,parking_info:document.getElementById('s_parking').value,settings_iban:document.getElementById('s_iban').value,settings_bic:document.getElementById('s_bic').value,settings_invoice_footer:document.getElementById('s_inv_footer').value};
   try{const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(body)});
-    if(!r.ok)throw new Error((await r.json()).error);GendaUI.toast('Informations enregistrées','success');window._settingsGuard?.markClean();
+    if(!r.ok){const _d=await r.json().catch(()=>({}));throw new Error(_d.message||_d.error||'Erreur');}GendaUI.toast('Informations enregistrées','success');window._settingsGuard?.markClean();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 
 async function saveSEO(){
   const body={seo_title:document.getElementById('s_seo_title').value,seo_description:document.getElementById('s_seo_desc').value};
   try{const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(body)});
-    if(!r.ok)throw new Error((await r.json()).error);GendaUI.toast('SEO enregistré','success');window._settingsGuard?.markClean();
+    if(!r.ok){const _d=await r.json().catch(()=>({}));throw new Error(_d.message||_d.error||'Erreur');}GendaUI.toast('SEO enregistré','success');window._settingsGuard?.markClean();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 
@@ -1165,7 +1165,7 @@ async function saveSector(){
   const sector=document.getElementById('s_sector').value;
   try{
     const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({sector})});
-    if(!r.ok)throw new Error((await r.json()).error);
+    if(!r.ok){const _d=await r.json().catch(()=>({}));throw new Error(_d.message||_d.error||'Erreur');}
     GendaUI.toast('Secteur mis à jour. La page va se recharger...','success');
     setTimeout(()=>location.reload(),1200);
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
@@ -1179,7 +1179,7 @@ async function changePassword(){
   if(nw!==cnf)return GendaUI.toast('Les mots de passe ne correspondent pas','error');
   if(nw.length<8)return GendaUI.toast('Minimum 8 caractères','error');
   try{const r=await fetch('/api/auth/change-password',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({current_password:cur,new_password:nw})});
-    if(!r.ok)throw new Error((await r.json()).error);
+    if(!r.ok){const _d=await r.json().catch(()=>({}));throw new Error(_d.message||_d.error||'Erreur');}
     document.getElementById('s_pwd_current').value='';document.getElementById('s_pwd_new').value='';document.getElementById('s_pwd_confirm').value='';
     GendaUI.toast('Mot de passe modifié. Reconnexion nécessaire...','success');
     // Le serveur bump token_version → le JWT courant est maintenant caduc.

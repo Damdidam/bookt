@@ -358,7 +358,7 @@ async function saveBusinessSchedule() {
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
       body: JSON.stringify({ schedule })
     });
-    if (!r.ok) throw new Error((await r.json()).error);
+    if (!r.ok) { const _d = await r.json().catch(() => ({})); throw new Error(_d.message || _d.error || "Erreur"); }
     GendaUI.toast('Horaires enregistrés', 'success');
     loadHours();
   } catch (e) { GendaUI.toast('Erreur: ' + e.message, 'error'); }
@@ -392,7 +392,7 @@ async function saveClosure() {
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
       body: JSON.stringify({ date_from, date_to, reason })
     });
-    if (!r.ok) throw new Error((await r.json()).error);
+    if (!r.ok) { const _d = await r.json().catch(() => ({})); throw new Error(_d.message || _d.error || "Erreur"); }
     document.getElementById('closureModal')._dirtyGuard?.markClean();
     closeModal('closureModal');
     GendaUI.toast('Fermeture ajoutée', 'success');
@@ -436,7 +436,7 @@ async function saveHoliday() {
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
       body: JSON.stringify({ date, name })
     });
-    if (!r.ok) throw new Error((await r.json()).error);
+    if (!r.ok) { const _d = await r.json().catch(() => ({})); throw new Error(_d.message || _d.error || "Erreur"); }
     document.getElementById('holidayModal')._dirtyGuard?.markClean();
     closeModal('holidayModal');
     GendaUI.toast('Jour férié ajouté', 'success');
