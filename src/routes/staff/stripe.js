@@ -625,37 +625,48 @@ async function handleStripeWebhook(req, res) {
             break;
           }
 
-          try {
-            const { generateCode } = require('./gift-cards');
-            let code, codeIsUnique = false;
-            for (let i = 0; i < 10; i++) {
-              code = generateCode();
-              const exists = await query('SELECT 1 FROM gift_cards WHERE code = $1', [code]);
-              if (exists.rows.length === 0) { codeIsUnique = true; break; }
-            }
-            if (!codeIsUnique) {
-              console.error('[STRIPE WH] Failed to generate unique gift card code after 10 attempts — initiating refund');
-              if (piId && piId.startsWith('pi_')) {
-                try {
-                  const { createRefund: _cr } = require('../../services/stripe-refund');
-                  await _cr(stripe, { payment_intent: piId }, `wh-gc-gen-refund-${piId}`);
-                  console.log(`[STRIPE WH] Auto-refunded PI ${piId} for failed gift card code generation`);
-                } catch (refundErr) {
-                  console.error(`[STRIPE WH] Auto-refund failed for PI ${piId}:`, refundErr.message);
-                }
+          // === Code generation (outside tx — peut auto-refund + abort) ===
+          const { generateCode } = require('./gift-cards');
+          let code, codeIsUnique = false;
+          for (let i = 0; i < 10; i++) {
+            code = generateCode();
+            const exists = await query('SELECT 1 FROM gift_cards WHERE code = $1', [code]);
+            if (exists.rows.length === 0) { codeIsUnique = true; break; }
+          }
+          if (!codeIsUnique) {
+            console.error('[STRIPE WH] Failed to generate unique gift card code after 10 attempts — initiating refund');
+            if (piId && piId.startsWith('pi_')) {
+              try {
+                const { createRefund: _cr } = require('../../services/stripe-refund');
+                await _cr(stripe, { payment_intent: piId }, `wh-gc-gen-refund-${piId}`);
+                console.log(`[STRIPE WH] Auto-refunded PI ${piId} for failed gift card code generation`);
+              } catch (refundErr) {
+                console.error(`[STRIPE WH] Auto-refund failed for PI ${piId}:`, refundErr.message);
               }
-              break;
             }
+            break;
+          }
 
-            const bizResult = await query('SELECT id, name, slug, theme, email, settings FROM businesses WHERE id = $1', [bizId]);
-            const biz = bizResult.rows[0];
-            const days = biz?.settings?.giftcard_expiry_days || 365;
-            const expiresAt = new Date(Date.now() + days * 86400000);
+          // Fetch biz settings (pour expiry compute)
+          const bizResult = await query('SELECT id, name, slug, theme, email, settings FROM businesses WHERE id = $1', [bizId]);
+          const biz = bizResult.rows[0];
+          const days = biz?.settings?.giftcard_expiry_days || 365;
+          const expiresAt = new Date(Date.now() + days * 86400000);
+
+          // === Tx atomique : INSERT gift_cards + INSERT gift_card_transactions ===
+          // Audit batch 9 P3 : avant ce fix, les 2 INSERT etaient sequentiels sans BEGIN/COMMIT
+          // → si crash entre INSERT gift_cards (succes) et INSERT gift_card_transactions (fail),
+          // GC creee mais audit trail manquant + idempotence retry skip → trou permanent en DB.
+          const _gcTxClient = await pool.connect();
+          let _gcTxCommitted = false;
+          let giftCard = null;
+          try {
+            await _gcTxClient.query('BEGIN');
 
             // BUG-IDEMPOTENCE fix: UNIQUE partial index uq_gc_stripe_pi (schema-v73) protects
             // against duplicate INSERT on concurrent webhook deliveries. ON CONFLICT DO NOTHING
             // makes the 2nd call a silent no-op (RETURNING returns 0 rows → we skip).
-            const gc = await query(
+            const gc = await _gcTxClient.query(
               `INSERT INTO gift_cards (business_id, code, amount_cents, balance_cents,
                buyer_name, buyer_email, recipient_name, recipient_email, message,
                stripe_payment_intent_id, expires_at)
@@ -671,68 +682,85 @@ async function handleStripeWebhook(req, res) {
                session.metadata.message || null, piId, expiresAt]
             );
             if (gc.rows.length === 0) {
+              // Race avec autre webhook concurrent → autre delivery a deja cree la GC.
+              await _gcTxClient.query('ROLLBACK');
               console.log(`[STRIPE WH] GC INSERT conflict for PI ${piId} (race with concurrent webhook), skipping.`);
               break;
             }
 
-            await query(
+            await _gcTxClient.query(
               `INSERT INTO gift_card_transactions (gift_card_id, business_id, amount_cents, type, note)
                VALUES ($1, $2, $3, 'purchase', 'Achat en ligne')`,
               [gc.rows[0].id, bizId, amountCents]
             );
 
-            const giftCard = gc.rows[0];
+            await _gcTxClient.query('COMMIT');
+            _gcTxCommitted = true;
+            giftCard = gc.rows[0];
+          } catch (gcTxErr) {
+            if (!_gcTxCommitted) {
+              await _gcTxClient.query('ROLLBACK').catch(() => {});
+              console.error(`[STRIPE WH] GC fulfillment tx failed for PI ${piId}:`, gcTxErr.message);
+              // STRIPE-CASCADE-RETHROW (parite batch 9/10) : tx non-committee → DB rolled back
+              // → safe pour Stripe retry (idempotence pre-check + ON CONFLICT couvrent).
+              throw gcTxErr;
+            }
+            // Post-commit fail (impossible ici car COMMIT est la derniere op du try) — keep log.
+            console.warn(`[STRIPE WH] GC tx side-effect post-commit (unexpected):`, gcTxErr.message);
+          } finally {
+            _gcTxClient.release();
+          }
 
+          if (!giftCard) break; // race lost — autre webhook a fini
+
+          // === Post-commit side-effects (chacun avec son try/catch — non-blocking) ===
+          try {
             // Auto-create recipient as client if not exists
             if (giftCard.recipient_email) {
-              try {
-                const existingClient = await query(
-                  `SELECT id FROM clients WHERE business_id = $1 AND LOWER(email) = LOWER($2)`,
-                  [bizId, giftCard.recipient_email]
+              const existingClient = await query(
+                `SELECT id FROM clients WHERE business_id = $1 AND LOWER(email) = LOWER($2)`,
+                [bizId, giftCard.recipient_email]
+              );
+              if (existingClient.rows.length === 0) {
+                // clients.source column doesn't exist — correct column is `created_from`
+                // with CHECK ('booking' | 'manual' | 'call'). Use 'manual' (gift-card purchase
+                // = merchant-side creation, not a real booking, closest to 'manual').
+                await query(
+                  `INSERT INTO clients (id, business_id, full_name, email, created_from, created_at, updated_at)
+                   VALUES (gen_random_uuid(), $1, $2, $3, 'manual', NOW(), NOW())`,
+                  [bizId, giftCard.recipient_name || giftCard.recipient_email.split('@')[0], giftCard.recipient_email]
                 );
-                if (existingClient.rows.length === 0) {
-                  // clients.source column doesn't exist — correct column is `created_from`
-                  // with CHECK ('booking' | 'manual' | 'call'). Use 'manual' (gift-card purchase
-                  // = merchant-side creation, not a real booking, closest to 'manual').
-                  await query(
-                    `INSERT INTO clients (id, business_id, full_name, email, created_from, created_at, updated_at)
-                     VALUES (gen_random_uuid(), $1, $2, $3, 'manual', NOW(), NOW())`,
-                    [bizId, giftCard.recipient_name || giftCard.recipient_email.split('@')[0], giftCard.recipient_email]
-                  );
-                  console.log(`[GIFT-CARD] Auto-created client for ${giftCard.recipient_email}`);
-                }
-              } catch (clientErr) {
-                console.error('[GIFT-CARD] Auto-create client failed:', clientErr.message);
+                console.log(`[GIFT-CARD] Auto-created client for ${giftCard.recipient_email}`);
               }
             }
-
-            // Send emails
-            if (biz) {
-              const { sendGiftCardEmail, sendGiftCardReceiptEmail, sendGiftCardPurchaseProEmail } = require('../../services/email');
-
-              if (giftCard.recipient_email) {
-                await sendGiftCardEmail({ giftCard, business: biz }).catch(e =>
-                  console.error('[GIFT-CARD] Recipient email failed:', e.message));
-              }
-              if (giftCard.buyer_email) {
-                await sendGiftCardReceiptEmail({ giftCard, business: biz }).catch(e =>
-                  console.error('[GIFT-CARD] Buyer receipt failed:', e.message));
-              }
-              // M5: Notify merchant of GC purchase
-              sendGiftCardPurchaseProEmail({ giftCard, business: biz }).catch(e =>
-                console.warn('[GIFT-CARD] Pro notification failed:', e.message));
-            }
-
-            // SSE
-            try {
-              const { broadcast } = require('../../services/sse');
-              broadcast(bizId, 'gift_card', { action: 'purchased', gift_card_id: gc.rows[0].id });
-            } catch (_) {}
-
-            console.log(`[STRIPE WH] Gift card ${code} created (${amountCents}c) for business ${bizId}`);
-          } catch (gcErr) {
-            console.error('[STRIPE WH] Gift card creation failed:', gcErr);
+          } catch (clientErr) {
+            console.error('[GIFT-CARD] Auto-create client failed:', clientErr.message);
           }
+
+          // Send emails
+          if (biz) {
+            const { sendGiftCardEmail, sendGiftCardReceiptEmail, sendGiftCardPurchaseProEmail } = require('../../services/email');
+
+            if (giftCard.recipient_email) {
+              await sendGiftCardEmail({ giftCard, business: biz }).catch(e =>
+                console.error('[GIFT-CARD] Recipient email failed:', e.message));
+            }
+            if (giftCard.buyer_email) {
+              await sendGiftCardReceiptEmail({ giftCard, business: biz }).catch(e =>
+                console.error('[GIFT-CARD] Buyer receipt failed:', e.message));
+            }
+            // M5: Notify merchant of GC purchase
+            sendGiftCardPurchaseProEmail({ giftCard, business: biz }).catch(e =>
+              console.warn('[GIFT-CARD] Pro notification failed:', e.message));
+          }
+
+          // SSE
+          try {
+            const { broadcast } = require('../../services/sse');
+            broadcast(bizId, 'gift_card', { action: 'purchased', gift_card_id: giftCard.id });
+          } catch (_) {}
+
+          console.log(`[STRIPE WH] Gift card ${code} created (${amountCents}c) for business ${bizId}`);
           break;
         }
 
@@ -743,73 +771,81 @@ async function handleStripeWebhook(req, res) {
             console.log(`[STRIPE WH] pass session ${session.id} payment_status=${session.payment_status} — deferring fulfillment`);
             break;
           }
-          try {
-            const { business_id, pass_template_id, buyer_name, buyer_email } = session.metadata;
+          const { business_id, pass_template_id, buyer_name, buyer_email } = session.metadata;
 
-            // Idempotency guard — Stripe may deliver the same event multiple times.
-            // BUG-IDEMPOTENCE fix: fallback to session.id if payment_intent is null
-            // (async Bancontact). Align with the INSERT below which uses the same fallback.
-            const passPi = session.payment_intent || session.id;
-            if (passPi) {
-              const existingPass = await query('SELECT id FROM passes WHERE stripe_payment_intent_id = $1', [passPi]);
-              if (existingPass.rows.length > 0) {
-                console.log(`[STRIPE WH] Pass already created for PI ${passPi}, skipping duplicate`);
-                break;
-              }
-            }
-
-            // Fetch template
-            const tplRes = await query(
-              `SELECT pt.*, s.name AS service_name FROM pass_templates pt LEFT JOIN services s ON s.id = pt.service_id WHERE pt.id = $1 AND pt.business_id = $2`,
-              [pass_template_id, business_id]
-            );
-            if (tplRes.rows.length === 0) { console.error('[STRIPE] Pass template not found:', pass_template_id); break; }
-            const tpl = tplRes.rows[0];
-            // ST-14: Warn if template or service was deactivated since purchase
-            if (!tpl.is_active) console.warn(`[STRIPE WH] Pass template ${pass_template_id} is inactive — fulfilling anyway (client already paid)`);
-            if (tpl.service_id && !tpl.service_name) console.warn(`[STRIPE WH] Service for pass template ${pass_template_id} may be deleted/inactive`);
-
-            // Generate unique code (PS-XXXX-XXXX)
-            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-            let code, codeIsUnique = false;
-            for (let attempt = 0; attempt < 10; attempt++) {
-              code = 'PS-';
-              for (let i = 0; i < 4; i++) code += chars[require('crypto').randomInt(chars.length)];
-              code += '-';
-              for (let i = 0; i < 4; i++) code += chars[require('crypto').randomInt(chars.length)];
-              const dup = await query(`SELECT id FROM passes WHERE code = $1`, [code]);
-              if (dup.rows.length === 0) { codeIsUnique = true; break; }
-            }
-            if (!codeIsUnique) {
-              console.error('[STRIPE WH] Failed to generate unique pass code after 10 attempts — initiating refund');
-              const passPiId = session.payment_intent;
-              if (passPiId && passPiId.startsWith('pi_')) {
-                try {
-                  const { createRefund: _cr } = require('../../services/stripe-refund');
-                  await _cr(stripe, { payment_intent: passPiId }, `wh-pass-gen-refund-${passPiId}`);
-                  console.log(`[STRIPE WH] Auto-refunded PI ${passPiId} for failed pass code generation`);
-                } catch (refundErr) {
-                  console.error(`[STRIPE WH] Auto-refund failed for PI ${passPiId}:`, refundErr.message);
-                }
-              }
+          // Idempotency guard — Stripe may deliver the same event multiple times.
+          // BUG-IDEMPOTENCE fix: fallback to session.id if payment_intent is null
+          // (async Bancontact). Align with the INSERT below which uses the same fallback.
+          const passPi = session.payment_intent || session.id;
+          if (passPi) {
+            const existingPass = await query('SELECT id FROM passes WHERE stripe_payment_intent_id = $1', [passPi]);
+            if (existingPass.rows.length > 0) {
+              console.log(`[STRIPE WH] Pass already created for PI ${passPi}, skipping duplicate`);
               break;
             }
+          }
 
-            // Calculate expiry
-            // PASS-01 fix (scan 23 avril) : parité avec staff manual passes.js:348-352.
-            // Si tpl.validity_days est NULL (pass perpétuel by design), expires_at=NULL
-            // (au lieu du hardcode 365 qui forçait expiration à 1 an).
-            const _passExpAt = tpl.validity_days
-              ? new Date(Date.now() + tpl.validity_days * 86400000).toISOString()
-              : null;
+          // Fetch template (outside tx — read-only)
+          const tplRes = await query(
+            `SELECT pt.*, s.name AS service_name FROM pass_templates pt LEFT JOIN services s ON s.id = pt.service_id WHERE pt.id = $1 AND pt.business_id = $2`,
+            [pass_template_id, business_id]
+          );
+          if (tplRes.rows.length === 0) { console.error('[STRIPE] Pass template not found:', pass_template_id); break; }
+          const tpl = tplRes.rows[0];
+          // ST-14: Warn if template or service was deactivated since purchase
+          if (!tpl.is_active) console.warn(`[STRIPE WH] Pass template ${pass_template_id} is inactive — fulfilling anyway (client already paid)`);
+          if (tpl.service_id && !tpl.service_name) console.warn(`[STRIPE WH] Service for pass template ${pass_template_id} may be deleted/inactive`);
 
-            // Create pass
+          // Generate unique code (PS-XXXX-XXXX) — outside tx (peut auto-refund + abort)
+          const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+          let code, codeIsUnique = false;
+          for (let attempt = 0; attempt < 10; attempt++) {
+            code = 'PS-';
+            for (let i = 0; i < 4; i++) code += chars[require('crypto').randomInt(chars.length)];
+            code += '-';
+            for (let i = 0; i < 4; i++) code += chars[require('crypto').randomInt(chars.length)];
+            const dup = await query(`SELECT id FROM passes WHERE code = $1`, [code]);
+            if (dup.rows.length === 0) { codeIsUnique = true; break; }
+          }
+          if (!codeIsUnique) {
+            console.error('[STRIPE WH] Failed to generate unique pass code after 10 attempts — initiating refund');
+            const passPiId = session.payment_intent;
+            if (passPiId && passPiId.startsWith('pi_')) {
+              try {
+                const { createRefund: _cr } = require('../../services/stripe-refund');
+                await _cr(stripe, { payment_intent: passPiId }, `wh-pass-gen-refund-${passPiId}`);
+                console.log(`[STRIPE WH] Auto-refunded PI ${passPiId} for failed pass code generation`);
+              } catch (refundErr) {
+                console.error(`[STRIPE WH] Auto-refund failed for PI ${passPiId}:`, refundErr.message);
+              }
+            }
+            break;
+          }
+
+          // Calculate expiry
+          // PASS-01 fix (scan 23 avril) : parité avec staff manual passes.js:348-352.
+          // Si tpl.validity_days est NULL (pass perpétuel by design), expires_at=NULL
+          // (au lieu du hardcode 365 qui forçait expiration à 1 an).
+          const _passExpAt = tpl.validity_days
+            ? new Date(Date.now() + tpl.validity_days * 86400000).toISOString()
+            : null;
+          // BUG-IDEMPOTENCE fix: PI fallback to session.id so NULL payment_intent (async Bancontact)
+          // still benefits from the UNIQUE guard — symmetric with the GC branch above.
+          const _passStripeId = session.payment_intent || session.id;
+
+          // === Tx atomique : INSERT passes + INSERT pass_transactions ===
+          // Audit batch 9 P3 : avant ce fix, les 2 INSERT etaient sequentiels sans BEGIN/COMMIT
+          // → si crash entre INSERT passes (succes) et INSERT pass_transactions (fail), pass
+          // creee mais audit trail manquant + idempotence retry skip → trou permanent en DB.
+          const _passTxClient = await pool.connect();
+          let _passTxCommitted = false;
+          let pass = null;
+          try {
+            await _passTxClient.query('BEGIN');
+
             // BUG-IDEMPOTENCE fix: UNIQUE partial index idx_passes_stripe_pi protects
             // against duplicate INSERT on concurrent Stripe webhook deliveries.
-            // PI fallback to session.id so NULL payment_intent (async Bancontact) still
-            // benefits from the UNIQUE guard — symmetric with the GC branch above.
-            const _passStripeId = session.payment_intent || session.id;
-            const passRes = await query(
+            const passRes = await _passTxClient.query(
               `INSERT INTO passes (business_id, pass_template_id, service_id, service_variant_id, code, name, sessions_total, sessions_remaining, price_cents, buyer_name, buyer_email, stripe_payment_intent_id, expires_at)
                VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8, $9, $10, $11, $12)
                ON CONFLICT (stripe_payment_intent_id) WHERE stripe_payment_intent_id IS NOT NULL DO NOTHING
@@ -818,61 +854,72 @@ async function handleStripeWebhook(req, res) {
               [business_id, pass_template_id, tpl.service_id, tpl.service_variant_id || null, code, tpl.name, tpl.sessions_count, tpl.price_cents, buyer_name, buyer_email ? String(buyer_email).toLowerCase() : null, _passStripeId, _passExpAt]
             );
             if (passRes.rows.length === 0) {
-              console.log(`[STRIPE WH] Pass INSERT conflict for PI ${session.payment_intent} (race with concurrent webhook), skipping.`);
+              await _passTxClient.query('ROLLBACK');
+              console.log(`[STRIPE WH] Pass INSERT conflict for PI ${_passStripeId} (race with concurrent webhook), skipping.`);
               break;
             }
-            const pass = passRes.rows[0];
 
-            // Create purchase transaction
-            await query(
+            await _passTxClient.query(
               `INSERT INTO pass_transactions (pass_id, business_id, sessions, type, note)
                VALUES ($1, $2, $3, 'purchase', $4)`,
-              [pass.id, business_id, tpl.sessions_count, `Achat Stripe — ${code}`]
+              [passRes.rows[0].id, business_id, tpl.sessions_count, `Achat Stripe — ${code}`]
             );
 
-            // Auto-create client if email provided (skip if already exists)
-            if (buyer_email) {
-              await query(
-                `INSERT INTO clients (business_id, full_name, email)
-                 SELECT $1, $2, $3::text
-                 WHERE NOT EXISTS (
-                   SELECT 1 FROM clients WHERE business_id = $1 AND LOWER(email) = LOWER($3::text)
-                 )`,
-                [business_id, buyer_name || 'Client', buyer_email]
-              ).catch(e => { if (e.code !== '23505') console.warn('[STRIPE] Client auto-create failed:', e.message); });
+            await _passTxClient.query('COMMIT');
+            _passTxCommitted = true;
+            pass = passRes.rows[0];
+          } catch (passTxErr) {
+            if (!_passTxCommitted) {
+              await _passTxClient.query('ROLLBACK').catch(() => {});
+              console.error(`[STRIPE WH] Pass fulfillment tx failed for PI ${_passStripeId}:`, passTxErr.message);
+              // STRIPE-CASCADE-RETHROW (parite batch 9/10) : tx non-committee → DB rolled back
+              // → safe pour Stripe retry (idempotence pre-check + ON CONFLICT couvrent).
+              throw passTxErr;
             }
-
-            // Send email
-            try {
-              const bizRes = await query(`SELECT name, slug, email, theme, phone, address FROM businesses WHERE id = $1`, [business_id]);
-              const biz = bizRes.rows[0];
-              if (biz && buyer_email) {
-                const { sendPassPurchaseEmail, sendPassPurchaseProEmail } = require('../../services/email');
-                // P1 hotfix (audit scan 2) : la var s'appelle _passExpAt depuis le fix PASS-01.
-                // Avant ce fix, expires_at référençait `expiresAt` inexistant dans ce scope
-                // (défini seulement dans la branche gift_card) → ReferenceError silencieux
-                // catché L803 → aucun email pass-purchase envoyé au client.
-                const passData = { code, name: tpl.name, sessions_total: tpl.sessions_count, price_cents: tpl.price_cents, service_name: tpl.service_name, buyer_name, buyer_email, expires_at: _passExpAt };
-                await sendPassPurchaseEmail({
-                  pass: passData,
-                  business: { id: business_id, name: biz.name, slug: biz.slug, email: biz.email, phone: biz.phone, address: biz.address, theme: biz.theme }
-                });
-                // M6: Notify merchant of pass purchase
-                sendPassPurchaseProEmail({ pass: passData, business: { id: business_id, name: biz.name, email: biz.email, theme: biz.theme } }).catch(e =>
-                  console.warn('[STRIPE] Pass pro notification failed:', e.message));
-              }
-            } catch (emailErr) { console.warn('[STRIPE] Pass email error:', emailErr.message); }
-
-            // Broadcast SSE
-            try {
-              const { broadcast } = require('../../services/sse');
-              broadcast(business_id, 'pass_purchased', { code, name: tpl.name });
-            } catch (e) {}
-
-            console.log(`[STRIPE] Pass created: ${code} (${tpl.name}, ${tpl.sessions_count} sessions) for ${buyer_email}`);
-          } catch (err) {
-            console.error('[STRIPE] Pass fulfillment error:', err.message);
+            console.warn(`[STRIPE WH] Pass tx side-effect post-commit (unexpected):`, passTxErr.message);
+          } finally {
+            _passTxClient.release();
           }
+
+          if (!pass) break; // race lost — autre webhook a fini
+
+          // === Post-commit side-effects (chacun avec son try/catch — non-blocking) ===
+          // Auto-create client if email provided (skip if already exists)
+          if (buyer_email) {
+            await query(
+              `INSERT INTO clients (business_id, full_name, email)
+               SELECT $1, $2, $3::text
+               WHERE NOT EXISTS (
+                 SELECT 1 FROM clients WHERE business_id = $1 AND LOWER(email) = LOWER($3::text)
+               )`,
+              [business_id, buyer_name || 'Client', buyer_email]
+            ).catch(e => { if (e.code !== '23505') console.warn('[STRIPE] Client auto-create failed:', e.message); });
+          }
+
+          // Send email
+          try {
+            const bizRes = await query(`SELECT name, slug, email, theme, phone, address FROM businesses WHERE id = $1`, [business_id]);
+            const biz = bizRes.rows[0];
+            if (biz && buyer_email) {
+              const { sendPassPurchaseEmail, sendPassPurchaseProEmail } = require('../../services/email');
+              const passData = { code, name: tpl.name, sessions_total: tpl.sessions_count, price_cents: tpl.price_cents, service_name: tpl.service_name, buyer_name, buyer_email, expires_at: _passExpAt };
+              await sendPassPurchaseEmail({
+                pass: passData,
+                business: { id: business_id, name: biz.name, slug: biz.slug, email: biz.email, phone: biz.phone, address: biz.address, theme: biz.theme }
+              });
+              // M6: Notify merchant of pass purchase
+              sendPassPurchaseProEmail({ pass: passData, business: { id: business_id, name: biz.name, email: biz.email, theme: biz.theme } }).catch(e =>
+                console.warn('[STRIPE] Pass pro notification failed:', e.message));
+            }
+          } catch (emailErr) { console.warn('[STRIPE] Pass email error:', emailErr.message); }
+
+          // Broadcast SSE
+          try {
+            const { broadcast } = require('../../services/sse');
+            broadcast(business_id, 'pass_purchased', { code, name: tpl.name });
+          } catch (e) {}
+
+          console.log(`[STRIPE] Pass created: ${code} (${tpl.name}, ${tpl.sessions_count} sessions) for ${buyer_email}`);
           break;
         }
 
