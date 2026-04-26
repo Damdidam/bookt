@@ -772,6 +772,10 @@ async function saveAllSettings(){
       freshBiz.settings.giftcard_max_amount_cents=body.settings_giftcard_max_amount_cents;
       freshBiz.settings.giftcard_expiry_days=body.settings_giftcard_expiry_days;
     }
+    if(body.settings_passes_enabled!==undefined){
+      freshBiz.settings.passes_enabled=body.settings_passes_enabled;
+      freshBiz.settings.pass_validity_days=body.settings_pass_validity_days;
+    }
     if(body.settings_reschedule_enabled!==undefined){
       freshBiz.settings.reschedule_enabled=body.settings_reschedule_enabled;
       freshBiz.settings.reschedule_deadline_hours=body.settings_reschedule_deadline_hours;
