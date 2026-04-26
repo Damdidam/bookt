@@ -408,7 +408,7 @@ router.post(['/manage/:token/reschedule', '/booking/:token/reschedule'], booking
       // Si ANY member du groupe a eff_price < lmMinPrice OU promo_eligible=false, LM
       // disabled pour TOUS les members du combo. Aligne avec spec produit 3b.
       const _svcAll = await client.query(
-        `SELECT b.id, s.promo_eligible, COALESCE(sv.price_cents, s.price_cents, 0) AS eff_price
+        `SELECT b.id, s.promo_eligible, s.quote_only, COALESCE(sv.price_cents, s.price_cents, 0) AS eff_price
          FROM bookings b LEFT JOIN services s ON s.id = b.service_id
          LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
          WHERE b.id = ANY($1::uuid[])`, [idsToUpdate]
@@ -441,7 +441,8 @@ router.post(['/manage/:token/reschedule', '/booking/:token/reschedule'], booking
         }
         // EDG1-2 batch 39 : reset booked_price_cents si discount NULL (parite bookings-time.js:1707).
         // Sans ca, un member qui perd LM garde son ancien booked_price_cents discounted-stale.
-        if (svc && svc.eff_price > 0) {
+        // batch 40 : skip booked_price recompute si quote_only (preserve override prix manuel staff).
+        if (svc && svc.eff_price > 0 && !svc.quote_only) {
           const newBookedPrice = newDiscountPct
             ? Math.round(svc.eff_price * (100 - newDiscountPct) / 100)
             : svc.eff_price;

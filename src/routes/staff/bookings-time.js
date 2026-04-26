@@ -349,7 +349,7 @@ let sql = `UPDATE bookings SET start_at = $1, end_at = $2, reminder_24h_sent_at 
             // Si ANY member combo a eff_price < lmMinPrice OU promo_eligible=false,
             // LM disabled pour TOUT le groupe.
             const _svcAllMv = await client.query(
-              `SELECT b.id, s.promo_eligible, COALESCE(sv.price_cents, s.price_cents, 0) AS eff_price
+              `SELECT b.id, s.promo_eligible, s.quote_only, COALESCE(sv.price_cents, s.price_cents, 0) AS eff_price
                FROM bookings b LEFT JOIN services s ON s.id = b.service_id
                LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
                WHERE b.id = ANY($1::uuid[])`, [updates.map(u => u.id)]
@@ -366,7 +366,8 @@ let sql = `UPDATE bookings SET start_at = $1, end_at = $2, reminder_24h_sent_at 
                 newDiscountPct = bizSettings.last_minute_discount_pct || 10;
               }
               // EDG1-2 batch 39 : reset booked_price_cents si discount change.
-              if (svc && svc.eff_price > 0) {
+              // batch 40 : skip recompute si quote_only (preserve override staff).
+              if (svc && svc.eff_price > 0 && !svc.quote_only) {
                 const newBookedPrice = newDiscountPct
                   ? Math.round(svc.eff_price * (100 - newDiscountPct) / 100)
                   : svc.eff_price;
@@ -758,7 +759,7 @@ let sql = `UPDATE bookings SET start_at = $1, end_at = $2, reminder_24h_sent_at 
             const inLmWindow = isWithinLastMinuteWindow(newStartBrussels, todayBrussels, lmDeadline);
             // Fetch service price + promo_eligible to validate LM discount
             const svcRes = await client.query(
-              `SELECT s.price_cents, s.promo_eligible, COALESCE(sv.price_cents, s.price_cents, 0) AS eff_price
+              `SELECT s.price_cents, s.promo_eligible, s.quote_only, COALESCE(sv.price_cents, s.price_cents, 0) AS eff_price
                FROM bookings b LEFT JOIN services s ON s.id = b.service_id
                LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
                WHERE b.id = $1`, [id]
@@ -769,11 +770,21 @@ let sql = `UPDATE bookings SET start_at = $1, end_at = $2, reminder_24h_sent_at 
             if (inLmWindow && svc && svc.promo_eligible !== false && svc.eff_price > 0 && svc.eff_price >= lmMinPrice) {
               newDiscountPct = bizSettings.last_minute_discount_pct || 10;
             }
-            // Only update if discount_pct actually changes
-            await client.query(
-              `UPDATE bookings SET discount_pct = $1 WHERE id = $2 AND business_id = $3`,
-              [newDiscountPct, id, bid]
-            );
+            // EDG1-2 batch 40 : reset booked_price_cents quand discount change (parite group + modify).
+            if (svc && svc.eff_price > 0 && !svc.quote_only) {
+              const newBookedPrice = newDiscountPct
+                ? Math.round(svc.eff_price * (100 - newDiscountPct) / 100)
+                : svc.eff_price;
+              await client.query(
+                `UPDATE bookings SET discount_pct = $1, booked_price_cents = $2 WHERE id = $3 AND business_id = $4`,
+                [newDiscountPct, newBookedPrice, id, bid]
+              );
+            } else {
+              await client.query(
+                `UPDATE bookings SET discount_pct = $1 WHERE id = $2 AND business_id = $3`,
+                [newDiscountPct, id, bid]
+              );
+            }
           }
         }
 
