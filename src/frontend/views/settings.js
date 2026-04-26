@@ -425,12 +425,12 @@ async function loadSettings(){
     const gcExpiry=b.settings?.giftcard_expiry_days||365;
     h+=`<div class="settings-card"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="12" rx="2"/><path d="M12 8v12"/><path d="M8 1l4 3.5L16 1"/></svg> Cartes cadeau</h3></div><div class="sc-body">`;
     h+=`<p style="font-size:.82rem;color:var(--text-3);margin-bottom:16px">Permettez à vos clients d'acheter des cartes cadeau en ligne depuis votre minisite.</p>`;
-    h+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--surface);border-radius:10px;margin-bottom:16px">
-      <div><div style="font-size:.85rem;font-weight:600;color:var(--text)">Activer les cartes cadeau</div><div style="font-size:.75rem;color:var(--text-4)">Un bouton "Carte cadeau" apparaîtra sur votre minisite</div></div>
-      <label style="position:relative;width:44px;height:24px;cursor:pointer">
-        <input type="checkbox" id="s_gc_enabled" ${gcOn?'checked':''} onchange="document.getElementById('gcOptions').style.display=this.checked?'block':'none'" style="display:none">
-        <span style="position:absolute;inset:0;background:${gcOn?'var(--primary)':'var(--border)'};border-radius:12px;transition:all .2s"></span>
-        <span style="position:absolute;left:${gcOn?'22px':'2px'};top:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,.15)"></span>
+    h+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--surface);border-radius:10px;margin-bottom:16px${depositGated?';opacity:.5':''}">
+      <div><div style="font-size:.85rem;font-weight:600;color:var(--text)">Activer les cartes cadeau${depositGated?` <span style="font-size:.72rem;color:var(--primary);font-weight:500;margin-left:8px">${depositGateLabel}</span>`:''}</div><div style="font-size:.75rem;color:var(--text-4)">Un bouton "Carte cadeau" apparaîtra sur votre minisite</div></div>
+      <label style="position:relative;width:44px;height:24px;cursor:${depositGated?'not-allowed':'pointer'}">
+        <input type="checkbox" id="s_gc_enabled" ${gcOn&&!depositGated?'checked':''} ${depositGated?'disabled':''} onchange="document.getElementById('gcOptions').style.display=this.checked?'block':'none'" style="display:none">
+        <span style="position:absolute;inset:0;background:${gcOn&&!depositGated?'var(--primary)':'var(--border)'};border-radius:12px;transition:all .2s"></span>
+        <span style="position:absolute;left:${gcOn&&!depositGated?'22px':'2px'};top:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,.15)"></span>
       </label>
     </div>`;
     h+=`<div id="gcOptions" style="display:${gcOn?'block':'none'}">`;
@@ -452,12 +452,12 @@ async function loadSettings(){
     const passExpiry=b.settings?.pass_validity_days||365;
     h+=`<div class="settings-card"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/></svg> Abonnements</h3></div><div class="sc-body">`;
     h+=`<p style="font-size:.82rem;color:var(--text-3);margin-bottom:16px">Proposez des packs de séances à vos clients. Les formules se configurent dans la fiche de chaque prestation.</p>`;
-    h+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--surface);border-radius:10px;margin-bottom:16px">
-      <div><div style="font-size:.85rem;font-weight:600;color:var(--text)">Activer les abonnements</div><div style="font-size:.75rem;color:var(--text-4)">Une page "Abonnements" apparaîtra sur votre minisite</div></div>
-      <label style="position:relative;width:44px;height:24px;cursor:pointer;flex-shrink:0">
-        <input type="checkbox" id="s_passes_enabled" ${passOn?'checked':''} onchange="document.getElementById('passOptions').style.display=this.checked?'block':'none'" style="display:none">
-        <span style="position:absolute;inset:0;background:${passOn?'var(--primary)':'var(--border)'};border-radius:12px;transition:all .2s"></span>
-        <span style="position:absolute;left:${passOn?'22px':'2px'};top:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,.15)"></span>
+    h+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--surface);border-radius:10px;margin-bottom:16px${depositGated?';opacity:.5':''}">
+      <div><div style="font-size:.85rem;font-weight:600;color:var(--text)">Activer les abonnements${depositGated?` <span style="font-size:.72rem;color:var(--primary);font-weight:500;margin-left:8px">${depositGateLabel}</span>`:''}</div><div style="font-size:.75rem;color:var(--text-4)">Une page "Abonnements" apparaîtra sur votre minisite</div></div>
+      <label style="position:relative;width:44px;height:24px;cursor:${depositGated?'not-allowed':'pointer'};flex-shrink:0">
+        <input type="checkbox" id="s_passes_enabled" ${passOn&&!depositGated?'checked':''} ${depositGated?'disabled':''} onchange="document.getElementById('passOptions').style.display=this.checked?'block':'none'" style="display:none">
+        <span style="position:absolute;inset:0;background:${passOn&&!depositGated?'var(--primary)':'var(--border)'};border-radius:12px;transition:all .2s"></span>
+        <span style="position:absolute;left:${passOn&&!depositGated?'22px':'2px'};top:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,.15)"></span>
       </label>
     </div>`;
     h+=`<div id="passOptions" style="display:${passOn?'block':'none'}">`;
@@ -705,7 +705,7 @@ async function saveAllSettings(){
     });
 
     // Gift card settings
-    if(el('s_gc_enabled')){
+    if(el('s_gc_enabled') && !el('s_gc_enabled').disabled){
       const amountsStr=el('s_gc_amounts')?.value||'';
       const amounts=amountsStr.split(',').map(s=>Math.round(parseFloat(s.trim())*100)).filter(n=>n>0&&!isNaN(n));
       Object.assign(body,{
@@ -718,7 +718,7 @@ async function saveAllSettings(){
       });
     }
     // Pass settings
-    if(el('s_passes_enabled')){
+    if(el('s_passes_enabled') && !el('s_passes_enabled').disabled){
       Object.assign(body,{
         settings_passes_enabled:el('s_passes_enabled').checked,
         settings_pass_validity_days:parseInt(el('s_pass_expiry')?.value)||365
