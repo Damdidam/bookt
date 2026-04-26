@@ -654,7 +654,7 @@ async function saveAllSettings(){
         ...(el('s_gap_analyzer') && !el('s_gap_analyzer').disabled ? { settings_gap_analyzer_enabled:el('s_gap_analyzer').checked||false } : {}),
         ...(el('s_featured_slots') && !el('s_featured_slots').disabled ? { settings_featured_slots_enabled:el('s_featured_slots').checked||false } : {}),
         // Skip s_last_minute + sub-fields si toggle disabled (plan=free) pour eviter
-        // flip silencieux des 4 fields (audit batch 17 P1 — parite saveCalendarSettings).
+        // flip silencieux des 4 fields (audit batch 17 P1).
         ...(el('s_last_minute') && !el('s_last_minute').disabled ? {
           settings_last_minute_enabled:el('s_last_minute').checked||false,
           settings_last_minute_deadline:el('s_lm_deadline')?.value||'j-1',
@@ -754,7 +754,7 @@ async function saveAllSettings(){
       freshBiz.settings.slot_auto_optimize=body.settings_slot_auto_optimize;
       if (body.settings_gap_analyzer_enabled !== undefined) freshBiz.settings.gap_analyzer_enabled=body.settings_gap_analyzer_enabled;
       if (body.settings_featured_slots_enabled !== undefined) freshBiz.settings.featured_slots_enabled=body.settings_featured_slots_enabled;
-      // Cache last_minute uniquement si payload contenait les keys (parite saveCalendarSettings batch 17).
+      // Cache last_minute uniquement si payload contenait les keys (audit batch 17).
       if (body.settings_last_minute_enabled !== undefined) {
         freshBiz.settings.last_minute_enabled=body.settings_last_minute_enabled;
         freshBiz.settings.last_minute_deadline=body.settings_last_minute_deadline;
@@ -808,52 +808,6 @@ async function savePractitionerChoiceSetting(){
     const span=document.getElementById('s_practitioner_choice').parentElement;
     span.querySelector('span:nth-child(2)').style.background=on?'var(--primary)':'var(--border)';
     span.querySelector('span:nth-child(3)').style.left=on?'22px':'2px';
-  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
-}
-
-async function saveCalendarSettings(){
-  try{
-    const cm=document.getElementById('s_color_mode').value||'category';
-    const lmEl=document.getElementById('s_last_minute');
-    const data={
-      settings_slot_increment_min:parseInt(document.getElementById('s_slot_inc').value)||15,
-      settings_waitlist_mode:document.getElementById('s_waitlist').value||'off',
-      settings_calendar_color_mode:cm,
-      settings_slot_auto_optimize:document.getElementById('s_slot_auto_optimize')?.checked??true,
-      // Skip toggles disabled (plan=free) pour eviter flip silencieux true→false.
-      ...((()=>{const g=document.getElementById('s_gap_analyzer');return g && !g.disabled ? { settings_gap_analyzer_enabled:g.checked||false } : {};})()),
-      ...((()=>{const f=document.getElementById('s_featured_slots');return f && !f.disabled ? { settings_featured_slots_enabled:f.checked||false } : {};})()),
-      // Skip s_last_minute si toggle disabled (plan=free) pour eviter flip silencieux
-      // (parite saveAllSettings batch 16).
-      ...(lmEl && !lmEl.disabled ? {
-        settings_last_minute_enabled:lmEl.checked||false,
-        settings_last_minute_deadline:document.getElementById('s_lm_deadline')?.value||'j-1',
-        settings_last_minute_discount_pct:parseInt(document.getElementById('s_lm_discount')?.value)||10,
-        settings_last_minute_min_price_cents:parseInt(document.getElementById('s_lm_min_price')?.value)||0
-      } : {})
-    };
-    const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(data)});
-    if(!r.ok){const _d=await r.json().catch(()=>({}));throw new Error(_d.message||_d.error||'Erreur');}
-    // Update local biz cache so other modules see new settings immediately
-    const freshBiz=api.getBusiness()||{};
-    if(!freshBiz.settings)freshBiz.settings={};
-    freshBiz.settings.slot_increment_min=data.settings_slot_increment_min;
-    freshBiz.settings.waitlist_mode=data.settings_waitlist_mode;
-    freshBiz.settings.calendar_color_mode=data.settings_calendar_color_mode;
-    freshBiz.settings.slot_auto_optimize=data.settings_slot_auto_optimize;
-    if (data.settings_gap_analyzer_enabled !== undefined) freshBiz.settings.gap_analyzer_enabled=data.settings_gap_analyzer_enabled;
-    if (data.settings_featured_slots_enabled !== undefined) freshBiz.settings.featured_slots_enabled=data.settings_featured_slots_enabled;
-    // Cache update : seulement si data contient les keys (skip si toggle disabled).
-    if (data.settings_last_minute_enabled !== undefined) {
-      freshBiz.settings.last_minute_enabled=data.settings_last_minute_enabled;
-      freshBiz.settings.last_minute_deadline=data.settings_last_minute_deadline;
-      freshBiz.settings.last_minute_discount_pct=data.settings_last_minute_discount_pct;
-      freshBiz.settings.last_minute_min_price_cents=data.settings_last_minute_min_price_cents;
-    }
-    api.setBusiness(freshBiz);
-    calState.fcColorMode=cm;
-    if(window.fcRefresh)window.fcRefresh();
-    GendaUI.toast('Paramètres calendrier enregistrés','success');window._settingsGuard?.markClean();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 
@@ -1047,85 +1001,6 @@ function buildReminderToggle(id, isOn, title, desc, enabled){
   </div>`;
 }
 
-async function saveReminderSettings(){
-  try{
-    const sms24=document.getElementById('s_rem_sms_24h');
-    const sms2=document.getElementById('s_rem_sms_2h');
-    const data={
-      settings_reminder_email_24h:document.getElementById('s_rem_email_24h').checked,
-      // Skip SMS toggles si disabled (plan free) pour eviter flip silencieux true→false (parite saveAllSettings batch 17).
-      ...(sms24 && !sms24.disabled ? { settings_reminder_sms_24h:sms24.checked } : {}),
-      ...(sms2 && !sms2.disabled ? { settings_reminder_sms_2h:sms2.checked } : {}),
-      settings_reminder_email_2h:document.getElementById('s_rem_email_2h').checked
-    };
-    const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(data)});
-    if(!r.ok){const _d=await r.json().catch(()=>({}));throw new Error(_d.message||_d.error||'Erreur');}
-    GendaUI.toast('Rappels configurés '+IC.check,'success');window._settingsGuard?.markClean();
-  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
-}
-
-async function saveGiftCardSettings(){
-  try{
-    const amountsStr=document.getElementById('s_gc_amounts')?.value||'';
-    const amounts=amountsStr.split(',').map(s=>Math.round(parseFloat(s.trim())*100)).filter(n=>n>0&&!isNaN(n));
-    const data={
-      settings_giftcard_enabled:document.getElementById('s_gc_enabled').checked,
-      settings_giftcard_amounts:amounts.length?amounts:[2500,5000,7500,10000],
-      settings_giftcard_custom_amount:document.getElementById('s_gc_custom').checked,
-      settings_giftcard_min_amount_cents:Math.round((parseFloat(document.getElementById('s_gc_min')?.value)||10)*100),
-      settings_giftcard_max_amount_cents:Math.round((parseFloat(document.getElementById('s_gc_max')?.value)||500)*100),
-      settings_giftcard_expiry_days:parseInt(document.getElementById('s_gc_expiry')?.value)||365
-    };
-    const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(data)});
-    if(!r.ok){const _d=await r.json().catch(()=>({}));throw new Error(_d.message||_d.error||'Erreur');}
-    const freshBiz=api.getBusiness()||{};
-    if(!freshBiz.settings)freshBiz.settings={};
-    freshBiz.settings.giftcard_enabled=data.settings_giftcard_enabled;
-    freshBiz.settings.giftcard_amounts=data.settings_giftcard_amounts;
-    freshBiz.settings.giftcard_custom_amount=data.settings_giftcard_custom_amount;
-    freshBiz.settings.giftcard_min_amount_cents=data.settings_giftcard_min_amount_cents;
-    freshBiz.settings.giftcard_max_amount_cents=data.settings_giftcard_max_amount_cents;
-    freshBiz.settings.giftcard_expiry_days=data.settings_giftcard_expiry_days;
-    api.setBusiness(freshBiz);
-    GendaUI.toast('Paramètres cartes cadeau enregistrés','success');window._settingsGuard?.markClean();
-  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
-}
-
-async function saveRescheduleSettings(){
-  try{
-    const data={
-      settings_reschedule_enabled:document.getElementById('s_reschedule_enabled').checked,
-      settings_reschedule_deadline_hours:parseInt(document.getElementById('s_reschedule_deadline')?.value)||24,
-      settings_reschedule_max_count:parseInt(document.getElementById('s_reschedule_max')?.value)||1,
-      settings_reschedule_window_days:parseInt(document.getElementById('s_reschedule_window')?.value)||30
-    };
-    const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(data)});
-    if(!r.ok){const _d=await r.json().catch(()=>({}));throw new Error(_d.message||_d.error||'Erreur');}
-    const freshBiz=api.getBusiness()||{};
-    if(!freshBiz.settings)freshBiz.settings={};
-    freshBiz.settings.reschedule_enabled=data.settings_reschedule_enabled;
-    freshBiz.settings.reschedule_deadline_hours=data.settings_reschedule_deadline_hours;
-    freshBiz.settings.reschedule_max_count=data.settings_reschedule_max_count;
-    freshBiz.settings.reschedule_window_days=data.settings_reschedule_window_days;
-    api.setBusiness(freshBiz);
-    GendaUI.toast('Paramètres de modification client enregistrés','success');window._settingsGuard?.markClean();
-  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
-}
-
-async function saveBookingConfirmSettings(){
-  try{
-    const data={
-      settings_booking_confirmation_required:document.getElementById('s_booking_confirm_required').checked,
-      settings_booking_confirmation_timeout:parseInt(document.getElementById('s_booking_confirm_timeout')?.value)||30,
-      settings_booking_confirmation_channel:document.getElementById('s_booking_confirm_channel')?.value||'email',
-      settings_notify_new_booking_pro:document.getElementById('s_notify_new_booking_pro').checked
-    };
-    const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(data)});
-    if(!r.ok){const _d=await r.json().catch(()=>({}));throw new Error(_d.message||_d.error||'Erreur');}
-    GendaUI.toast(data.settings_booking_confirmation_required?'Confirmation obligatoire activée':'Confirmation obligatoire désactivée','success');window._settingsGuard?.markClean();
-  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
-}
-
 async function startCheckout(plan){
   try{
     GendaUI.toast('Redirection vers le paiement...','info');
@@ -1265,6 +1140,6 @@ function downloadQR(){
 
 function doLogout(){api.logout();}
 
-bridge({ loadSettings, loadConnectStatus, connectStripe, openStripeDashboard, disconnectStripe, saveAllSettings, saveCalendarSettings, savePractitionerChoiceSetting, saveMultiServicePolicy, saveDefaultView, saveOverlapPolicy, saveReminderSettings, saveRescheduleSettings, saveGiftCardSettings, saveBookingConfirmSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout, savePaymentMethods });
+bridge({ loadSettings, loadConnectStatus, connectStripe, openStripeDashboard, disconnectStripe, saveAllSettings, savePractitionerChoiceSetting, saveMultiServicePolicy, saveDefaultView, saveOverlapPolicy, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout, savePaymentMethods });
 
-export { loadSettings, loadConnectStatus, connectStripe, openStripeDashboard, disconnectStripe, saveAllSettings, saveCalendarSettings, savePractitionerChoiceSetting, saveMultiServicePolicy, saveDefaultView, saveOverlapPolicy, saveReminderSettings, saveRescheduleSettings, saveGiftCardSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout, savePaymentMethods };
+export { loadSettings, loadConnectStatus, connectStripe, openStripeDashboard, disconnectStripe, saveAllSettings, savePractitionerChoiceSetting, saveMultiServicePolicy, saveDefaultView, saveOverlapPolicy, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout, savePaymentMethods };
