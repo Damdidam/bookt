@@ -57,9 +57,19 @@ export function timeDiffMin(startStr, endStr) {
 /**
  * Build an ISO 8601 string that represents a Brussels-local date+time,
  * preserving the intended wall-clock time instead of shifting to UTC.
+ *
+ * EDG3-13 (audit batch 44) : detection DST transitions.
+ * - Spring-forward (last Sunday March, 02:00→03:00) : wall-clock 02:00-02:59
+ *   n'existe pas. JS Date roll forward silently. Detection : compare wall-clock
+ *   produit par Brussels formatter avec input → si differe, gap detected.
+ * - Fall-back (last Sunday October, 03:00→02:00) : wall-clock 02:00-02:59
+ *   existe deux fois (CEST puis CET). JS Date pick la 1ere occurrence (CEST).
+ *   Detection : si wall-clock dans cette plage le jour DST-fall, log warning.
+ *
  * @param {string} date  "YYYY-MM-DD"
  * @param {string} time  "HH:MM"
  * @returns {string} e.g. "2026-03-03T14:30:00+01:00"
+ * @throws {Error} si l'heure tombe dans le gap spring-forward (impossible)
  */
 export function toBrusselsISO(date, time) {
   const dt = new Date(date + 'T' + time + ':00');
@@ -76,5 +86,33 @@ export function toBrusselsISO(date, time) {
   const absOff = Math.abs(offsetMin);
   const offH = String(Math.floor(absOff / 60)).padStart(2, '0');
   const offM = String(absOff % 60).padStart(2, '0');
+
+  // EDG3-13 spring-forward gap detection : si la wall-clock formattee Brussels
+  // ne match pas le date+time input (apres normalisation HH:MM), le navigateur
+  // a roll forward → time impossible, throw pour bloquer la creation booking.
+  const inputH = time.slice(0, 5); // "HH:MM"
+  const formattedH = `${parts.hour}:${parts.minute}`;
+  const inputDay = date;
+  const formattedDay = `${parts.year}-${parts.month}-${parts.day}`;
+  if (inputH !== formattedH || inputDay !== formattedDay) {
+    const err = new Error(`Heure invalide à cause du passage à l'heure d'été (${date} ${time} n'existe pas, l'heure saute de 02:00 à 03:00).`);
+    err.code = 'DST_SPRING_GAP';
+    throw err;
+  }
+
+  // EDG3-13 fall-back ambiguity : si wall-clock 02:00-02:59 sur le jour DST-fall
+  // (last Sunday October), le time existe 2 fois. Cette fonction pick la 1ere
+  // occurrence (CEST). Log warning pour visibility — pas de throw (bookings
+  // valides, juste ambigus).
+  const [yyyy, mm, dd] = date.split('-').map(Number);
+  if (mm === 10 && time.startsWith('02:')) {
+    const lastDayOct = new Date(Date.UTC(yyyy, 9, 31));
+    const dow = lastDayOct.getUTCDay(); // 0=Sun
+    const lastSunOct = 31 - dow;
+    if (dd === lastSunOct) {
+      console.warn(`[DST-fall] Heure ambigue ${date} ${time} Brussels (CEST puis CET) — picked CEST par defaut.`);
+    }
+  }
+
   return `${date}T${time}:00${sign}${offH}:${offM}`;
 }
