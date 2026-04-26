@@ -1012,6 +1012,30 @@ async function handleStripeWebhook(req, res) {
         break;
       }
 
+      // Pro deauth via dashboard.stripe.com → reconciliation parite DELETE /connect
+      // (audit batch 31 P3 follow-up). Sans ce handler, stripe_connect_id pointerait
+      // vers acct supprime + flags settings restaient true en DB.
+      case 'account.application.deauthorized': {
+        const acct = event.data.object;
+        const connectId = acct?.id || event.account;
+        if (connectId && typeof connectId === 'string' && connectId.startsWith('acct_')) {
+          await query(
+            `UPDATE businesses SET
+              stripe_connect_id = NULL,
+              stripe_connect_status = 'none',
+              settings = jsonb_set(jsonb_set(jsonb_set(COALESCE(settings, '{}'::jsonb),
+                '{deposit_enabled}', 'false'::jsonb),
+                '{giftcard_enabled}', 'false'::jsonb),
+                '{passes_enabled}', 'false'::jsonb),
+              updated_at = NOW()
+             WHERE stripe_connect_id = $1`,
+            [connectId]
+          );
+          console.log(`[STRIPE WH] Connect account ${connectId} deauthorized — flags auto-disabled`);
+        }
+        break;
+      }
+
       case 'invoice.paid': {
         const invoice = event.data.object;
         const subId = invoice.subscription;
