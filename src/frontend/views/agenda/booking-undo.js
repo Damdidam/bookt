@@ -87,7 +87,7 @@ async function fcUndoLast() {
         gToast('Action non annulable', 'error');
         return;
     }
-    if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erreur'); }
+    if (!r.ok) { const d = await r.json(); throw new Error(d.message || d.error || 'Erreur'); }
     gToast('Action annulée', 'success');
     fcRefresh();
   } catch (e) {

@@ -149,7 +149,7 @@ async function fcSetTaskStatus(status, el) {
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
       body: JSON.stringify({ status })
     });
-    if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erreur'); }
+    if (!r.ok) { const d = await r.json(); throw new Error(d.message || d.error || 'Erreur'); }
     document.querySelectorAll('.td-st-btn').forEach(b => b.classList.remove('active'));
     el.classList.add('active');
     gToast('Statut mis à jour', 'success');
@@ -198,7 +198,7 @@ async function fcSaveTask() {
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
       body: JSON.stringify(body)
     });
-    if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erreur'); }
+    if (!r.ok) { const d = await r.json(); throw new Error(d.message || d.error || 'Erreur'); }
     gToast(isCreation ? 'Tâche créée' : 'Tâche mise à jour', 'success');
     closeCalModal('calTaskModal');
     fcRefresh();
@@ -219,7 +219,7 @@ async function fcDeleteTask() {
       method: 'DELETE',
       headers: { 'Authorization': 'Bearer ' + api.getToken() }
     });
-    if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erreur'); }
+    if (!r.ok) { const d = await r.json(); throw new Error(d.message || d.error || 'Erreur'); }
     gToast('Tâche supprimée', 'success');
     closeCalModal('calTaskModal');
     fcRefresh();

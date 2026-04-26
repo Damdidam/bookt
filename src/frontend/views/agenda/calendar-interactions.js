@@ -186,7 +186,7 @@ function buildEventDrop() {
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
           body: JSON.stringify({ start_at: dateToBrusselsISO(ev.start), end_at: dateToBrusselsISO(ev.end || ev.start), practitioner_id: pracId })
         });
-        if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erreur'); }
+        if (!r.ok) { const d = await r.json(); throw new Error(d.message || d.error || 'Erreur'); }
         gToast(p.title + ' déplacée', 'success');
         calState.fcCal.refetchEvents();
       } catch (e) { info.revert(); gToast(e.message, 'error'); }
@@ -208,7 +208,7 @@ function buildEventDrop() {
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
         body: JSON.stringify({ start_at: dateToBrusselsISO(ev.start), end_at: dateToBrusselsISO(ev.end || ev.start), practitioner_id: pracId })
       });
-      if (!r.ok) { if (r.status === 401) { api.clearToken(); window.location.href = '/login.html?expired=1'; return; } const d = await r.json(); throw new Error(d.error || 'Erreur'); }
+      if (!r.ok) { if (r.status === 401) { api.clearToken(); window.location.href = '/login.html?expired=1'; return; } const d = await r.json(); throw new Error(d.message || d.error || 'Erreur'); }
       const result = await r.json();
       // Store undo state — works for both single and group moves
       // (backend moves all siblings when we move the first member)
@@ -238,7 +238,7 @@ function buildEventDrop() {
                 old_end_at: dateToBrusselsISO(oldEnd || oldStart)
               })
             });
-            if (!nr.ok) { const d = await nr.json(); throw new Error(d.error || 'Erreur'); }
+            if (!nr.ok) { const d = await nr.json(); throw new Error(d.message || d.error || 'Erreur'); }
             gToast('Client notifié', 'success');
           } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
         }}
@@ -284,7 +284,7 @@ function buildEventResize() {
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
           body: JSON.stringify({ start_at: dateToBrusselsISO(ev.start), end_at: dateToBrusselsISO(ev.end || ev.start) })
         });
-        if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erreur'); }
+        if (!r.ok) { const d = await r.json(); throw new Error(d.message || d.error || 'Erreur'); }
         gToast('Durée → ' + dur + ' min', 'success');
       } catch (e) { info.revert(); gToast(e.message, 'error'); }
       finally { _busy = false; }
@@ -296,7 +296,7 @@ function buildEventResize() {
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
         body: JSON.stringify({ end_at: dateToBrusselsISO(ev.end || ev.start) })
       });
-      if (!r.ok) { if (r.status === 401) { api.clearToken(); window.location.href = '/login.html?expired=1'; return; } const d = await r.json(); throw new Error(d.error || 'Erreur'); }
+      if (!r.ok) { if (r.status === 401) { api.clearToken(); window.location.href = '/login.html?expired=1'; return; } const d = await r.json(); throw new Error(d.message || d.error || 'Erreur'); }
       const evEnd = ev.end || ev.start;
       const dur = Math.round((evEnd - ev.start) / 60000);
       storeUndoAction(ev.id, 'resize', { end_at: dateToBrusselsISO(oldEnd || ev.start) });
@@ -317,7 +317,7 @@ function buildEventResize() {
                 old_end_at: dateToBrusselsISO(oldEnd || ev.start)
               })
             });
-            if (!nr.ok) { const d = await nr.json(); throw new Error(d.error || 'Erreur'); }
+            if (!nr.ok) { const d = await nr.json(); throw new Error(d.message || d.error || 'Erreur'); }
             gToast('Client notifié', 'success');
           } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
         }}

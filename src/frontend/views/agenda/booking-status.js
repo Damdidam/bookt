@@ -145,7 +145,7 @@ async function fcSendDepositRequest(channel) {
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
         body: JSON.stringify({ phone: newPhone || null, email: newEmail || null })
       });
-      if (!cr.ok) { const d = await cr.json().catch(() => ({})); throw new Error(d.error || 'Erreur sauvegarde contact'); }
+      if (!cr.ok) { const d = await cr.json().catch(() => ({})); throw new Error(d.message || d.error || 'Erreur sauvegarde contact'); }
       if (calState.fcEditOriginal) { calState.fcEditOriginal.client_email = newEmail; calState.fcEditOriginal.client_phone = newPhone; }
     }
     const r = await fetch(`/api/bookings/${calState.fcCurrentEventId}/send-deposit-request`, {
@@ -211,7 +211,7 @@ async function fcSaveQuotePrice() {
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
       body: JSON.stringify({ booked_price_cents: cents })
     });
-    if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || 'Erreur'); }
+    if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.message || d.error || 'Erreur'); }
     gToast('Prix enregistré — vous pouvez maintenant exiger un acompte', 'success');
     fcOpenDetail(calState.fcCurrentEventId);
   } catch (e) { gToast('Erreur: ' + e.message, 'error'); }

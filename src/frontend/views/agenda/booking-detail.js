@@ -1249,7 +1249,7 @@ async function fcConvertDirectAdd(force) {
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
         body: JSON.stringify({ service_id: svcId, service_variant_id: varId })
       });
-      if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || 'Erreur conversion'); }
+      if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.message || d.error || 'Erreur conversion'); }
     } else {
       // group-add: POST /group-add
       const body = { service_id: svcId, variant_id: varId };
@@ -1272,7 +1272,7 @@ async function fcConvertDirectAdd(force) {
         if (btn) { btn.disabled = false; btn.textContent = '+ Ajouter'; }
         return; // Wait for user decision
       }
-      if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || 'Erreur ajout'); }
+      if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.message || d.error || 'Erreur ajout'); }
     }
 
     // Success → toast, close panel, refresh modal without closing
@@ -1358,7 +1358,7 @@ async function _toggleLockAndSave() {
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
       body: JSON.stringify({ locked })
     });
-    if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || 'Erreur'); }
+    if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.message || d.error || 'Erreur'); }
     // For grouped bookings, lock/unlock ALL siblings too.
     // B5-fix : Promise.all parallel au lieu de await sérial → groupe 10 RDV
     // passe de ~3s à ~300ms côté user.
@@ -1454,7 +1454,7 @@ async function fcSendManualReminder(bookingId) {
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
       body: JSON.stringify({ channel: 'both' })
     });
-    if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erreur'); }
+    if (!r.ok) { const d = await r.json(); throw new Error(d.message || d.error || 'Erreur'); }
     const d = await r.json();
     const parts = [];
     if (d.sms === 'sent') parts.push('SMS');

@@ -138,7 +138,7 @@ async function calSendSession() {
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
       body: JSON.stringify({ session_notes: sanitizeRichText(html) })
     });
-    if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erreur'); }
+    if (!r.ok) { const d = await r.json(); throw new Error(d.message || d.error || 'Erreur'); }
     const data = await r.json();
 
     // Update status display

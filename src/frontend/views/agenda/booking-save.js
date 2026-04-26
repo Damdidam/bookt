@@ -85,7 +85,7 @@ async function calSaveAll() {
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
         body: JSON.stringify({ phone: newPhone || null, email: newEmail || null })
       });
-      if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erreur coordonnées'); }
+      if (!r.ok) { const d = await r.json(); throw new Error(d.message || d.error || 'Erreur coordonnées'); }
     } catch (e) { gToast('Erreur: ' + e.message, 'error'); return; }
   }
 
@@ -97,7 +97,7 @@ async function calSaveAll() {
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
         body: JSON.stringify(editPayload)
       });
-      if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erreur'); }
+      if (!r.ok) { const d = await r.json(); throw new Error(d.message || d.error || 'Erreur'); }
     } catch (e) { gToast('Erreur: ' + e.message, 'error'); return; }
   }
 
@@ -123,7 +123,7 @@ async function calSaveAll() {
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
         body: JSON.stringify({ start_at, end_at, practitioner_id: groupPracReassign })
       });
-      if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erreur'); }
+      if (!r.ok) { const d = await r.json(); throw new Error(d.message || d.error || 'Erreur'); }
     } catch (e) { gToast('Erreur: ' + e.message, 'error'); return; }
   }
 
@@ -231,7 +231,7 @@ async function calDoSaveTime(notify, channel) {
         body: JSON.stringify({ start_at, end_at, notify: !!notify, notify_channel: channel })
       });
     }
-    if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erreur'); }
+    if (!r.ok) { const d = await r.json(); throw new Error(d.message || d.error || 'Erreur'); }
     const result = await r.json();
     const groupCount = result.count || calState.fcDetailData?.group_siblings?.length || '?';
     const timeActuallyChanged = start_at !== oldStartAt || end_at !== oldEndAt;

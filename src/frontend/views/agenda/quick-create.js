@@ -820,7 +820,7 @@ async function calCreateBooking() {
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
         body: JSON.stringify(clientBody)
       });
-      if (!cr.ok) { const d = await cr.json(); throw new Error(d.error || 'Erreur création client'); }
+      if (!cr.ok) { const d = await cr.json(); throw new Error(d.message || d.error || 'Erreur création client'); }
       const cd = await cr.json();
       actualClientId = cd.client?.id;
     } else {
@@ -922,7 +922,7 @@ async function calCreateBooking() {
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
       body: JSON.stringify(body)
     });
-    if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erreur'); }
+    if (!r.ok) { const d = await r.json(); throw new Error(d.message || d.error || 'Erreur'); }
     const result = await r.json();
     const bookingId = result.booking?.id || result.bookings?.[0]?.id;
 
@@ -1102,7 +1102,7 @@ async function qcCreateTask() {
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
       body: JSON.stringify(body)
     });
-    if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erreur'); }
+    if (!r.ok) { const d = await r.json(); throw new Error(d.message || d.error || 'Erreur'); }
     const countMsg = pracIds.length > 1 ? ` (${pracIds.length} praticiens)` : '';
     gToast('Tâche créée' + countMsg, 'success');
     document.getElementById('calCreateModal')._soBooked = true;

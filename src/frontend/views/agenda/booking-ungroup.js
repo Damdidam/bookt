@@ -131,7 +131,7 @@ async function fcConfirmUngroup(siblingId) {
     });
     if (!r.ok) {
       const d = await r.json();
-      throw new Error(d.error || 'Erreur');
+      throw new Error(d.message || d.error || 'Erreur');
     }
     const data = await r.json();
     gToast('Prestation d\u00e9tach\u00e9e du groupe', 'success');
@@ -160,7 +160,7 @@ async function fcRemoveFromGroup(siblingId, serviceName) {
     });
     if (!r.ok) {
       const d = await r.json();
-      throw new Error(d.error || 'Erreur');
+      throw new Error(d.message || d.error || 'Erreur');
     }
     gToast('Prestation supprim\u00e9e du groupe', 'success');
     document.getElementById('calDetailModal')._dirtyGuard?.markClean();

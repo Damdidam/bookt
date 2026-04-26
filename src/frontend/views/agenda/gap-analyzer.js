@@ -110,7 +110,7 @@ async function gaLoadData() {
     });
     if (!r.ok) {
       const d = await r.json().catch(() => ({}));
-      throw new Error(d.error || 'Erreur');
+      throw new Error(d.message || d.error || 'Erreur');
     }
     gaData = await r.json();
   } catch (e) {
