@@ -1721,18 +1721,20 @@ router.patch('/:id/modify', blockIfImpersonated, async (req, res, next) => {
             if (inLmWindowModify && svcModify && svcModify.promo_eligible !== false && svcModify.eff_price > 0 && svcModify.eff_price >= lmMinPriceModify) {
               newDiscountPctModify = bizSettingsModify.last_minute_discount_pct || 10;
             }
-            await client.query(
-              `UPDATE bookings SET discount_pct = $1 WHERE id = $2 AND business_id = $3`,
-              [newDiscountPctModify, id, bid]
-            );
-            // Recalc booked_price_cents sauf quote_only (prix set manuellement)
-            if (svcModify && !svcModify.quote_only) {
+            // batch 42 : unifie en 1 UPDATE (parite /move single batch 40).
+            // Avant : 2 UPDATEs sequentielles (discount_pct puis booked_price_cents).
+            if (svcModify && svcModify.eff_price > 0 && !svcModify.quote_only) {
               const bookedPriceModify = newDiscountPctModify
                 ? Math.round(svcModify.eff_price * (100 - newDiscountPctModify) / 100)
                 : svcModify.eff_price;
               await client.query(
-                `UPDATE bookings SET booked_price_cents = $1 WHERE id = $2 AND business_id = $3`,
-                [bookedPriceModify, id, bid]
+                `UPDATE bookings SET discount_pct = $1, booked_price_cents = $2 WHERE id = $3 AND business_id = $4`,
+                [newDiscountPctModify, bookedPriceModify, id, bid]
+              );
+            } else {
+              await client.query(
+                `UPDATE bookings SET discount_pct = $1 WHERE id = $2 AND business_id = $3`,
+                [newDiscountPctModify, id, bid]
               );
             }
           }
