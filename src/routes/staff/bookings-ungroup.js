@@ -918,9 +918,34 @@ router.post('/:id/group-add', blockIfImpersonated, async (req, res, next) => {
           const _slotBxl = new Date(newStart).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
           const _lmDl = _addSettings.last_minute_deadline || 'j-1';
           const _lmMin = _addSettings.last_minute_min_price_cents || 0;
-          if (isWithinLastMinuteWindow(_slotBxl, _todayBxl, _lmDl) && svc.promo_eligible !== false && _addBookedPrice >= _lmMin) {
+          // EDG1-2 fix (parite batch 35-37) : all-or-nothing sur le combo combine
+          // (members existants + nouvelle prestation). Si ANY au-dessous de minPrice
+          // OU promo_eligible=false → LM disabled pour TOUT le combo (reset existants
+          // a null + nouvelle prestation a null).
+          const _existingMembers = await client.query(
+            `SELECT b.id, s.promo_eligible, COALESCE(sv.price_cents, s.price_cents, 0) AS eff_price
+             FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+             LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+             WHERE b.group_id = $1 AND b.business_id = $2`,
+            [booking.group_id, bid]
+          );
+          const _newMemberQualifies = svc.promo_eligible !== false && _addBookedPrice >= _lmMin;
+          const _existingQualifies = _existingMembers.rows.every(r => r.promo_eligible !== false && r.eff_price >= _lmMin);
+          const _comboQualifies = _newMemberQualifies && _existingQualifies;
+          if (isWithinLastMinuteWindow(_slotBxl, _todayBxl, _lmDl) && _comboQualifies && _addBookedPrice > 0) {
             _addDiscountPct = _addSettings.last_minute_discount_pct || 10;
             _addBookedPrice = Math.round(_addBookedPrice * (100 - _addDiscountPct) / 100);
+          } else if (!_comboQualifies) {
+            // Le combo ne qualifie plus (ex: ajout d'une prestation 0€) → reset LM
+            // sur les existants pour eviter drift (50€ avec 10% LM stale alors que
+            // le combo ne devrait plus avoir LM).
+            for (const m of _existingMembers.rows) {
+              await client.query(
+                `UPDATE bookings SET discount_pct = NULL, booked_price_cents = $1
+                 WHERE id = $2 AND business_id = $3 AND discount_pct IS NOT NULL`,
+                [m.eff_price, m.id, bid]
+              );
+            }
           }
         }
         const ins = await client.query(
