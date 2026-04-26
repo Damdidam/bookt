@@ -1802,12 +1802,22 @@ router.delete('/connect', requireAuth, requireOwner, blockIfImpersonated, async 
     if (connectId) {
       try { await getStripe().accounts.del(connectId); } catch (e) { console.warn('[STRIPE CONNECT] Account delete failed (may already be deleted):', e.message); }
     }
+    // Reconciliation Stripe Connect off → auto-disable les flags settings
+    // qui dependent de Stripe (audit batch 20 reco). Empeche etat incoherent
+    // settings.deposit_enabled=true alors que Stripe inactif.
     await query(
-      `UPDATE businesses SET stripe_connect_id = NULL, stripe_connect_status = 'none', updated_at = NOW()
+      `UPDATE businesses SET
+        stripe_connect_id = NULL,
+        stripe_connect_status = 'none',
+        settings = jsonb_set(jsonb_set(jsonb_set(COALESCE(settings, '{}'::jsonb),
+          '{deposit_enabled}', 'false'::jsonb),
+          '{giftcard_enabled}', 'false'::jsonb),
+          '{passes_enabled}', 'false'::jsonb),
+        updated_at = NOW()
        WHERE id = $1`,
       [bid]
     );
-    console.log(`[STRIPE CONNECT] Business ${bid} disconnected`);
+    console.log(`[STRIPE CONNECT] Business ${bid} disconnected (deposit/gc/passes auto-disabled)`);
     res.json({ disconnected: true });
   } catch (err) { next(err); }
 });
