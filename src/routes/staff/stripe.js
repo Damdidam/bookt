@@ -1016,8 +1016,13 @@ async function handleStripeWebhook(req, res) {
       // (audit batch 31 P3 follow-up). Sans ce handler, stripe_connect_id pointerait
       // vers acct supprime + flags settings restaient true en DB.
       case 'account.application.deauthorized': {
+        // Stripe envoie soit data.object={id:'acct_...'} soit data.object={id:'ca_...'} (application).
+        // event.account contient toujours le acct_* deauth → fallback robuste si data.object est l'app.
         const acct = event.data.object;
-        const connectId = acct?.id || event.account;
+        const _objId = acct?.id;
+        const connectId = (_objId && typeof _objId === 'string' && _objId.startsWith('acct_'))
+          ? _objId
+          : event.account;
         if (connectId && typeof connectId === 'string' && connectId.startsWith('acct_')) {
           await query(
             `UPDATE businesses SET
