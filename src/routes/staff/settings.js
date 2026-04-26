@@ -125,6 +125,16 @@ router.patch('/', requireOwner, blockIfImpersonated, async (req, res, next) => {
     if (req.businessPlan === 'free' && settings_deposit_enabled === true) {
       return res.status(403).json({ error: 'upgrade_required', message: 'Les acomptes sont disponibles avec le plan Pro.' });
     }
+    // Defense-in-depth : enable deposit requires Stripe Connect actif (audit batch 15 P1).
+    // Sans ce guard, un attacker / direct API call peut activer deposit en DB
+    // sans Stripe → tous les liens deposit generes sont casses cote client.
+    if (settings_deposit_enabled === true) {
+      const _connRes = await queryWithRLS(req.businessId, `SELECT stripe_connect_id, stripe_connect_status FROM businesses WHERE id = $1`, [req.businessId]);
+      const _conn = _connRes.rows[0];
+      if (!_conn?.stripe_connect_id || _conn.stripe_connect_status !== 'active') {
+        return res.status(400).json({ error: 'stripe_connect_required', message: 'Activez Stripe Connect pour activer les acomptes.' });
+      }
+    }
     if (req.businessPlan === 'free' && req.body.settings_giftcard_enabled === true) {
       return res.status(403).json({ error: 'upgrade_required', message: 'Les cartes cadeau sont disponibles avec le plan Pro.' });
     }
