@@ -147,6 +147,9 @@ router.patch('/', requireOwner, blockIfImpersonated, async (req, res, next) => {
     if (req.businessPlan === 'free' && req.body.settings_gap_analyzer_enabled === true) {
       return res.status(403).json({ error: 'upgrade_required', message: 'Le gap analyzer est disponible avec le plan Pro.' });
     }
+    if (req.businessPlan === 'free' && req.body.settings_featured_slots_enabled === true) {
+      return res.status(403).json({ error: 'upgrade_required', message: 'Le mode vedette est disponible avec le plan Pro.' });
+    }
 
     // Merge individual settings fields into settings JSONB
     let mergedSettings = settings || null;

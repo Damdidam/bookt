@@ -165,24 +165,24 @@ async function loadSettings(){
         <div class="hint" style="margin-top:4px;margin-left:46px">Calcule automatiquement l'espacement optimal des créneaux à partir de vos prestations et priorise les horaires qui comblent les trous</div>
       </div>
       <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
-        <div style="display:flex;align-items:center;gap:10px;cursor:pointer">
+        <div style="display:flex;align-items:center;gap:10px;cursor:pointer${plan==='free'?';opacity:.5;pointer-events:none':''}">
           <span style="position:relative;display:inline-block;width:36px;height:20px">
-            <input type="checkbox" id="s_gap_analyzer" style="opacity:0;width:0;height:0;position:absolute"${gapOn?' checked':''}>
-            <span style="position:absolute;inset:0;background:${gapOn?'var(--primary)':'#ccc'};border-radius:20px;transition:background .2s" onclick="const c=document.getElementById('s_gap_analyzer');c.checked=!c.checked;this.style.background=c.checked?'var(--primary)':'#ccc';this.nextElementSibling.style.transform=c.checked?'translateX(16px)':'translateX(0)'"></span>
-            <span style="position:absolute;top:2px;left:2px;width:16px;height:16px;background:#fff;border-radius:50%;transition:transform .2s;transform:${gapOn?'translateX(16px)':'translateX(0)'};pointer-events:none"></span>
+            <input type="checkbox" id="s_gap_analyzer" style="opacity:0;width:0;height:0;position:absolute"${gapOn&&plan!=='free'?' checked':''} ${plan==='free'?'disabled':''}>
+            <span style="position:absolute;inset:0;background:${gapOn&&plan!=='free'?'var(--primary)':'#ccc'};border-radius:20px;transition:background .2s" onclick="const c=document.getElementById('s_gap_analyzer');if(c.disabled)return;c.checked=!c.checked;this.style.background=c.checked?'var(--primary)':'#ccc';this.nextElementSibling.style.transform=c.checked?'translateX(16px)':'translateX(0)'"></span>
+            <span style="position:absolute;top:2px;left:2px;width:16px;height:16px;background:#fff;border-radius:50%;transition:transform .2s;transform:${gapOn&&plan!=='free'?'translateX(16px)':'translateX(0)'};pointer-events:none"></span>
           </span>
-          <span style="font-weight:600;font-size:.85rem">Analyseur de gaps</span>
+          <span style="font-weight:600;font-size:.85rem">Analyseur de gaps${plan==='free'?' <span style="font-size:.72rem;color:var(--primary);font-weight:500;margin-left:8px">Plan Pro requis</span>':''}</span>
         </div>
         <div class="hint" style="margin-top:4px;margin-left:46px">Détecte automatiquement les créneaux libres entre les RDV et suggère des services compatibles</div>
       </div>
       <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
-        <div style="display:flex;align-items:center;gap:10px;cursor:pointer">
+        <div style="display:flex;align-items:center;gap:10px;cursor:pointer${plan==='free'?';opacity:.5;pointer-events:none':''}">
           <span style="position:relative;display:inline-block;width:36px;height:20px">
-            <input type="checkbox" id="s_featured_slots" style="opacity:0;width:0;height:0;position:absolute"${fsOn?' checked':''}>
-            <span style="position:absolute;inset:0;background:${fsOn?'var(--primary)':'#ccc'};border-radius:20px;transition:background .2s" onclick="const c=document.getElementById('s_featured_slots');c.checked=!c.checked;this.style.background=c.checked?'var(--primary)':'#ccc';this.nextElementSibling.style.transform=c.checked?'translateX(16px)':'translateX(0)'"></span>
-            <span style="position:absolute;top:2px;left:2px;width:16px;height:16px;background:#fff;border-radius:50%;transition:transform .2s;transform:${fsOn?'translateX(16px)':'translateX(0)'};pointer-events:none"></span>
+            <input type="checkbox" id="s_featured_slots" style="opacity:0;width:0;height:0;position:absolute"${fsOn&&plan!=='free'?' checked':''} ${plan==='free'?'disabled':''}>
+            <span style="position:absolute;inset:0;background:${fsOn&&plan!=='free'?'var(--primary)':'#ccc'};border-radius:20px;transition:background .2s" onclick="const c=document.getElementById('s_featured_slots');if(c.disabled)return;c.checked=!c.checked;this.style.background=c.checked?'var(--primary)':'#ccc';this.nextElementSibling.style.transform=c.checked?'translateX(16px)':'translateX(0)'"></span>
+            <span style="position:absolute;top:2px;left:2px;width:16px;height:16px;background:#fff;border-radius:50%;transition:transform .2s;transform:${fsOn&&plan!=='free'?'translateX(16px)':'translateX(0)'};pointer-events:none"></span>
           </span>
-          <span style="font-weight:600;font-size:.85rem">Mode vedette</span>
+          <span style="font-weight:600;font-size:.85rem">Mode vedette${plan==='free'?' <span style="font-size:.72rem;color:var(--primary);font-weight:500;margin-left:8px">Plan Pro requis</span>':''}</span>
         </div>
         <div class="hint" style="margin-top:4px;margin-left:46px">Met en avant les créneaux prioritaires à remplir sur le calendrier</div>
       </div>
@@ -650,8 +650,9 @@ async function saveAllSettings(){
         settings_waitlist_mode:el('s_waitlist').value||'off',
         settings_calendar_color_mode:cm,
         settings_slot_auto_optimize:el('s_slot_auto_optimize')?.checked??true,
-        settings_gap_analyzer_enabled:el('s_gap_analyzer')?.checked||false,
-        settings_featured_slots_enabled:el('s_featured_slots')?.checked||false,
+        // Skip toggles disabled (plan=free) pour eviter flip silencieux true→false (parite deposit/sms).
+        ...(el('s_gap_analyzer') && !el('s_gap_analyzer').disabled ? { settings_gap_analyzer_enabled:el('s_gap_analyzer').checked||false } : {}),
+        ...(el('s_featured_slots') && !el('s_featured_slots').disabled ? { settings_featured_slots_enabled:el('s_featured_slots').checked||false } : {}),
         // Skip s_last_minute + sub-fields si toggle disabled (plan=free) pour eviter
         // flip silencieux des 4 fields (audit batch 17 P1 — parite saveCalendarSettings).
         ...(el('s_last_minute') && !el('s_last_minute').disabled ? {
@@ -751,8 +752,8 @@ async function saveAllSettings(){
       freshBiz.settings.calendar_color_mode=body.settings_calendar_color_mode;
       freshBiz.settings.slot_increment_min=body.settings_slot_increment_min;
       freshBiz.settings.slot_auto_optimize=body.settings_slot_auto_optimize;
-      freshBiz.settings.gap_analyzer_enabled=body.settings_gap_analyzer_enabled;
-      freshBiz.settings.featured_slots_enabled=body.settings_featured_slots_enabled;
+      if (body.settings_gap_analyzer_enabled !== undefined) freshBiz.settings.gap_analyzer_enabled=body.settings_gap_analyzer_enabled;
+      if (body.settings_featured_slots_enabled !== undefined) freshBiz.settings.featured_slots_enabled=body.settings_featured_slots_enabled;
       // Cache last_minute uniquement si payload contenait les keys (parite saveCalendarSettings batch 17).
       if (body.settings_last_minute_enabled !== undefined) {
         freshBiz.settings.last_minute_enabled=body.settings_last_minute_enabled;
@@ -815,8 +816,9 @@ async function saveCalendarSettings(){
       settings_waitlist_mode:document.getElementById('s_waitlist').value||'off',
       settings_calendar_color_mode:cm,
       settings_slot_auto_optimize:document.getElementById('s_slot_auto_optimize')?.checked??true,
-      settings_gap_analyzer_enabled:document.getElementById('s_gap_analyzer')?.checked||false,
-      settings_featured_slots_enabled:document.getElementById('s_featured_slots')?.checked||false,
+      // Skip toggles disabled (plan=free) pour eviter flip silencieux true→false.
+      ...((()=>{const g=document.getElementById('s_gap_analyzer');return g && !g.disabled ? { settings_gap_analyzer_enabled:g.checked||false } : {};})()),
+      ...((()=>{const f=document.getElementById('s_featured_slots');return f && !f.disabled ? { settings_featured_slots_enabled:f.checked||false } : {};})()),
       // Skip s_last_minute si toggle disabled (plan=free) pour eviter flip silencieux
       // (parite saveAllSettings batch 16).
       ...(lmEl && !lmEl.disabled ? {
@@ -835,8 +837,8 @@ async function saveCalendarSettings(){
     freshBiz.settings.waitlist_mode=data.settings_waitlist_mode;
     freshBiz.settings.calendar_color_mode=data.settings_calendar_color_mode;
     freshBiz.settings.slot_auto_optimize=data.settings_slot_auto_optimize;
-    freshBiz.settings.gap_analyzer_enabled=data.settings_gap_analyzer_enabled;
-    freshBiz.settings.featured_slots_enabled=data.settings_featured_slots_enabled;
+    if (data.settings_gap_analyzer_enabled !== undefined) freshBiz.settings.gap_analyzer_enabled=data.settings_gap_analyzer_enabled;
+    if (data.settings_featured_slots_enabled !== undefined) freshBiz.settings.featured_slots_enabled=data.settings_featured_slots_enabled;
     // Cache update : seulement si data contient les keys (skip si toggle disabled).
     if (data.settings_last_minute_enabled !== undefined) {
       freshBiz.settings.last_minute_enabled=data.settings_last_minute_enabled;
