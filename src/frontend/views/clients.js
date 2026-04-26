@@ -27,7 +27,7 @@ async function loadClients(){
     params.set('offset', String(clientOffset));
     const q='?'+params.toString();
     const r=await fetch(`/api/clients${q}`,{headers:{'Authorization':'Bearer '+api.getToken()}});
-    if(!r.ok){ const err=await r.json().catch(()=>({})); throw new Error(err.error||'Erreur chargement clients'); }
+    if(!r.ok){ const err=await r.json().catch(()=>({})); throw new Error(err.message||err.error||'Erreur chargement clients'); }
     const d=await r.json();
     const clients=d.clients||[];
     const stats=d.stats||{};
@@ -100,7 +100,7 @@ function clientLiveSearch(q) {
 async function openClientDetail(id){
   try{
     const r=await fetch(`/api/clients/${id}`,{headers:{'Authorization':'Bearer '+api.getToken()}});
-    if(!r.ok){ const err=await r.json().catch(()=>({})); throw new Error(err.error||'Erreur chargement client'); }
+    if(!r.ok){ const err=await r.json().catch(()=>({})); throw new Error(err.message||err.error||'Erreur chargement client'); }
     const d=await r.json();
     const cl=d.client, bks=d.bookings||[];
     const vipIcon=cl.is_vip?`<span style="color:var(--gold);margin-right:6px">${IC.star}</span>`:'';

@@ -897,7 +897,8 @@ async function deactivatePract(id) {
         GendaUI.toast(sectorLabels.practitioner + ' désactivé (RDV conservés)', 'success');
       }
     } else if (!r.ok) {
-      { const _d = await r.json().catch(() => ({})); throw new Error(_d.message || _d.error || "Erreur"); }
+      const _d = await r.json().catch(() => ({}));
+      throw new Error(_d.message || _d.error || 'Erreur');
     } else {
       GendaUI.toast(sectorLabels.practitioner + ' désactivé', 'success');
     }
@@ -941,7 +942,8 @@ async function deletePractPermanent(id) {
       const r2 = await fetch('/api/practitioners/' + id + '?permanent=true&cancel_bookings=true', { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + api.getToken() } });
       if (!r2.ok) { const _d = await r2.json().catch(() => ({})); throw new Error(_d.message || _d.error || "Erreur"); }
     } else if (!r.ok) {
-      { const _d = await r.json().catch(() => ({})); throw new Error(_d.message || _d.error || "Erreur"); }
+      const _d = await r.json().catch(() => ({}));
+      throw new Error(_d.message || _d.error || 'Erreur');
     }
     GendaUI.toast(sectorLabels.practitioner + ' supprimé définitivement', 'success');
     loadTeam();

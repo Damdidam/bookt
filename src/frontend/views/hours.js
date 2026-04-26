@@ -463,7 +463,7 @@ async function prefillBelgianHolidays(year) {
       body: JSON.stringify({ year })
     });
     const data = await r.json();
-    if (!r.ok) throw new Error(data.error);
+    if (!r.ok) throw new Error(data.message || data.error || 'Erreur');
     GendaUI.toast(`${data.inserted} jour${data.inserted > 1 ? 's' : ''} férié${data.inserted > 1 ? 's' : ''} ajouté${data.inserted > 1 ? 's' : ''} (${data.total} au total pour ${year})`, 'success');
     loadHours();
   } catch (e) { GendaUI.toast('Erreur: ' + e.message, 'error'); }
