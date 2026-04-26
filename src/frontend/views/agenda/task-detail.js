@@ -168,8 +168,10 @@ async function fcSaveTask() {
   if (!title) { gToast('Titre requis', 'error'); return; }
   if (!date || !startTime || !endTime) { gToast('Date et heures requises', 'error'); return; }
 
-  const start_at = toBrusselsISO(date, startTime);
-  const end_at = toBrusselsISO(date, endTime);
+  // EDG3-13 batch 45 : guard DST_SPRING_GAP throw (audit batch 44).
+  let start_at, end_at;
+  try { start_at = toBrusselsISO(date, startTime); end_at = toBrusselsISO(date, endTime); }
+  catch (e) { gToast(e.message, 'error'); return; }
 
   const _sBtn = document.getElementById('tdSaveBtn');
   if (_sBtn) { _sBtn.disabled = true; _sBtn.classList.add('is-loading'); }

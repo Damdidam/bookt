@@ -115,8 +115,10 @@ async function calSaveAll() {
 
   // Group practitioner reassignment (no time change) → /move with same time + new practitioner
   if (groupPracReassign) {
-    const start_at = toBrusselsISO(nd, ns);
-    const end_at = toBrusselsISO(nd, ne);
+    // EDG3-13 batch 45 : guard DST_SPRING_GAP throw (audit batch 44).
+    let start_at, end_at;
+    try { start_at = toBrusselsISO(nd, ns); end_at = toBrusselsISO(nd, ne); }
+    catch (e) { gToast(e.message, 'error'); return; }
     try {
       const r = await fetch(`/api/bookings/${calState.fcCurrentEventId}/move`, {
         method: 'PATCH',

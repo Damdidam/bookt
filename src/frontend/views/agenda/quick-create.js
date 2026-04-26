@@ -1235,7 +1235,15 @@ function qcCheckConflict() {
   }
   if (totalMin <= 0) { _qcConflict = false; if (btn) btn.disabled = false; return; }
 
-  const startISO = toBrusselsISO(date, time);
+  // EDG3-13 batch 45 : guard DST_SPRING_GAP throw (audit batch 44).
+  let startISO;
+  try { startISO = toBrusselsISO(date, time); }
+  catch (e) {
+    _qcConflict = true;
+    if (btn) btn.disabled = true;
+    gToast(e.message, 'error');
+    return;
+  }
   const newStart = new Date(startISO);
   const newEnd = new Date(newStart.getTime() + totalMin * 60000);
 
