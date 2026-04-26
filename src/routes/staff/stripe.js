@@ -1071,7 +1071,8 @@ async function handleStripeWebhook(req, res) {
           ? _objId
           : event.account;
         if (connectId && typeof connectId === 'string' && connectId.startsWith('acct_')) {
-          await query(
+          // batch 43 : RETURNING * pour recuperer business info pour email pro.
+          const _deauthRes = await query(
             `UPDATE businesses SET
               stripe_connect_id = NULL,
               stripe_connect_status = 'none',
@@ -1080,10 +1081,20 @@ async function handleStripeWebhook(req, res) {
                 '{giftcard_enabled}', 'false'::jsonb),
                 '{passes_enabled}', 'false'::jsonb),
               updated_at = NOW()
-             WHERE stripe_connect_id = $1`,
+             WHERE stripe_connect_id = $1
+             RETURNING id, name, email, theme`,
             [connectId]
           );
           console.log(`[STRIPE WH] Connect account ${connectId} deauthorized — flags auto-disabled`);
+          // Notifier le pro via email (audit batch 31 reco UX) — non-bloquant.
+          if (_deauthRes.rows.length > 0) {
+            const _deauthBiz = _deauthRes.rows[0];
+            try {
+              const { sendStripeDisconnectedEmail } = require('../../services/email');
+              sendStripeDisconnectedEmail({ business: _deauthBiz })
+                .catch(e => console.warn('[STRIPE WH] Deauth email error:', e.message));
+            } catch (_) { /* email module load fail = non-blocking */ }
+          }
         }
         break;
       }

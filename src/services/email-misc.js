@@ -493,4 +493,44 @@ async function sendInvoiceEmail({ invoice, business, pdfBuffer }) {
   });
 }
 
-module.exports = { sendSessionNotesEmail, sendPasswordResetEmail, sendReviewRequestEmail, sendGiftCardEmail, sendGiftCardReceiptEmail, sendPassPurchaseEmail, sendGiftCardPurchaseProEmail, sendPassPurchaseProEmail, sendBookingLookupEmail, sendInvoiceEmail };
+// ── Merchant notification: Stripe Connect deauthorized ──
+// Audit batch 31 reco UX : pro qui deauth via dashboard.stripe.com (sans
+// passer par DELETE /api/stripe/connect dans le UI Genda) doit etre
+// informe que les flags settings.deposit_enabled / giftcard_enabled /
+// passes_enabled ont ete auto-disabled (parite reconciliation backend).
+async function sendStripeDisconnectedEmail({ business }) {
+  if (!business?.email) return;
+  const color = safeColor(business.theme?.primary_color);
+  const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+  const html = buildEmailHTML({
+    title: 'Stripe déconnecté',
+    preheader: 'Votre compte Stripe Connect a été déconnecté de Genda',
+    bodyHTML: `
+      <p>Bonjour ${escHtml(business.name) || ''},</p>
+      <p>Nous avons détecté que votre compte <strong>Stripe Connect</strong> a été déconnecté.</p>
+      <div style="background:#FEF3C7;border-left:3px solid #F59E0B;border-radius:8px;padding:14px 16px;margin:16px 0">
+        <div style="font-size:14px;font-weight:600;color:#92400E;margin-bottom:8px">Conséquences automatiques :</div>
+        <ul style="margin:0;padding-left:20px;color:#78350F;font-size:13px;line-height:1.8">
+          <li>Acomptes en ligne : <strong>désactivés</strong></li>
+          <li>Cartes cadeaux en ligne : <strong>désactivées</strong></li>
+          <li>Abonnements en ligne : <strong>désactivés</strong></li>
+        </ul>
+      </div>
+      <p>Pour réactiver ces fonctionnalités, reconnectez votre compte Stripe depuis vos paramètres Genda et réactivez chaque fonctionnalité explicitement.</p>`,
+    ctaText: 'Reconnecter Stripe',
+    ctaUrl: `${baseUrl}/dashboard#settings`,
+    businessName: business.name,
+    primaryColor: color,
+    footerText: `${business.name} · Via Genda.be`
+  });
+  return sendEmail({
+    to: business.email,
+    toName: business.name,
+    businessId: business.id,
+    subject: 'Stripe Connect déconnecté — fonctionnalités payantes désactivées',
+    html,
+    fromName: 'Genda'
+  });
+}
+
+module.exports = { sendSessionNotesEmail, sendPasswordResetEmail, sendReviewRequestEmail, sendGiftCardEmail, sendGiftCardReceiptEmail, sendPassPurchaseEmail, sendGiftCardPurchaseProEmail, sendPassPurchaseProEmail, sendBookingLookupEmail, sendInvoiceEmail, sendStripeDisconnectedEmail };
