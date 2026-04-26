@@ -287,7 +287,11 @@ router.get('/:slug/multi-slots', slotsLimiter, async (req, res, next) => {
             if (varRes.rows[0]?.price_cents != null) priceCents = varRes.rows[0].price_cents;
           }
           totalCatalogCents += priceCents;
-          if (priceCents > 0 && priceCents < minPriceCents) anyBelowMin = true;
+          // EDG1-2 fix : align avec spec L271-276 "CHAQUE ligne dépasse minPriceCents".
+          // Avant : `priceCents > 0` excluait les services 0€ du check → un combo
+          // {free intro, paid} tombait en LM alors que la free intro ne respectait
+          // pas la regle. Maintenant strict : 0€ ne dépasse pas un minPriceCents > 0.
+          if (priceCents < minPriceCents) anyBelowMin = true;
         }
 
         if (totalCatalogCents > 0 && !anyBelowMin) {
