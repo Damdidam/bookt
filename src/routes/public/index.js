@@ -534,6 +534,28 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         const variantPriceMap = new Map(variantPricesRes.rows.map(r => [r.id, r.price_cents]));
         const servicePromoMap = new Map(servicePromoElgRes.rows.map(r => [r.id, r.promo_eligible]));
 
+        // EDG1-2 fix : pre-pass all-or-nothing pour combo multi-service.
+        // Spec produit 3b (slots.js:271) : LM s'applique au groupe uniquement si CHAQUE
+        // ligne dépasse minPriceCents. Avant, semantique etait per-slot → display
+        // (slots.js) disait "no LM" pour combo {0€, 50€} mais POST /book appliquait
+        // LM au 50€ quand meme. Drift display↔booking expose au client malicieux qui
+        // POSTAIT is_last_minute=true. Maintenant aligne avec slots.js : si ANY slot
+        // au-dessous de minPrice, LM disabled pour TOUT le combo.
+        if (multiDiscountPct) {
+          const lmMinPrice = bizSettings.last_minute_min_price_cents || 0;
+          let _anyBelow = false;
+          for (const slot of chainedSlots) {
+            const svcMatch = multiServices.find(s => s.id === slot.service_id);
+            let effPrice = svcMatch?.price_cents || 0;
+            if (slot.service_variant_id && variantPriceMap.has(slot.service_variant_id)) {
+              const vp = variantPriceMap.get(slot.service_variant_id);
+              if (vp != null) effPrice = vp;
+            }
+            if (effPrice < lmMinPrice) { _anyBelow = true; break; }
+          }
+          if (_anyBelow) multiDiscountPct = null;
+        }
+
         const slotDiscounts = []; // one per chainedSlot
         const slotBookedPrices = []; // effective price per slot (after LM discount)
         let totalPriceAfterLm = 0;
