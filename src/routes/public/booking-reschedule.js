@@ -439,10 +439,22 @@ router.post(['/manage/:token/reschedule', '/booking/:token/reschedule'], booking
         if (inLmWindow && svc && _comboQualifies && svc.eff_price > 0) {
           newDiscountPct = settings.last_minute_discount_pct || 10;
         }
-        await client.query(
-          `UPDATE bookings SET discount_pct = $1 WHERE id = $2 AND business_id = $3`,
-          [newDiscountPct, uid, bk.business_id]
-        );
+        // EDG1-2 batch 39 : reset booked_price_cents si discount NULL (parite bookings-time.js:1707).
+        // Sans ca, un member qui perd LM garde son ancien booked_price_cents discounted-stale.
+        if (svc && svc.eff_price > 0) {
+          const newBookedPrice = newDiscountPct
+            ? Math.round(svc.eff_price * (100 - newDiscountPct) / 100)
+            : svc.eff_price;
+          await client.query(
+            `UPDATE bookings SET discount_pct = $1, booked_price_cents = $2 WHERE id = $3 AND business_id = $4`,
+            [newDiscountPct, newBookedPrice, uid, bk.business_id]
+          );
+        } else {
+          await client.query(
+            `UPDATE bookings SET discount_pct = $1 WHERE id = $2 AND business_id = $3`,
+            [newDiscountPct, uid, bk.business_id]
+          );
+        }
       }
     }
 

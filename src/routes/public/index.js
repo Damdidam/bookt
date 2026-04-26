@@ -536,14 +536,13 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
 
         // EDG1-2 fix : pre-pass all-or-nothing pour combo multi-service.
         // Spec produit 3b (slots.js:271) : LM s'applique au groupe uniquement si CHAQUE
-        // ligne dépasse minPriceCents. Avant, semantique etait per-slot → display
-        // (slots.js) disait "no LM" pour combo {0€, 50€} mais POST /book appliquait
-        // LM au 50€ quand meme. Drift display↔booking expose au client malicieux qui
-        // POSTAIT is_last_minute=true. Maintenant aligne avec slots.js : si ANY slot
-        // au-dessous de minPrice, LM disabled pour TOUT le combo.
+        // ligne dépasse minPriceCents ET est promo_eligible. Avant, semantique etait
+        // per-slot → display (slots.js) disait "no LM" pour combo {0€, 50€} ou
+        // {eligible, non-eligible} mais POST /book appliquait LM au 50€ quand meme.
+        // Drift display↔booking expose au client malicieux qui POSTAIT is_last_minute=true.
         if (multiDiscountPct) {
           const lmMinPrice = bizSettings.last_minute_min_price_cents || 0;
-          let _anyBelow = false;
+          let _disqualifies = false;
           for (const slot of chainedSlots) {
             const svcMatch = multiServices.find(s => s.id === slot.service_id);
             let effPrice = svcMatch?.price_cents || 0;
@@ -551,9 +550,11 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
               const vp = variantPriceMap.get(slot.service_variant_id);
               if (vp != null) effPrice = vp;
             }
-            if (effPrice < lmMinPrice) { _anyBelow = true; break; }
+            if (effPrice < lmMinPrice) { _disqualifies = true; break; }
+            const promoElig = servicePromoMap.has(slot.service_id) ? servicePromoMap.get(slot.service_id) : true;
+            if (promoElig === false) { _disqualifies = true; break; }
           }
-          if (_anyBelow) multiDiscountPct = null;
+          if (_disqualifies) multiDiscountPct = null;
         }
 
         const slotDiscounts = []; // one per chainedSlot

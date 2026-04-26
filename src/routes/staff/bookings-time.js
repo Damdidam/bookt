@@ -365,10 +365,21 @@ let sql = `UPDATE bookings SET start_at = $1, end_at = $2, reminder_24h_sent_at 
               if (inLmWindow && svc && _comboQualifiesMv && svc.eff_price > 0) {
                 newDiscountPct = bizSettings.last_minute_discount_pct || 10;
               }
-              await client.query(
-                `UPDATE bookings SET discount_pct = $1 WHERE id = $2 AND business_id = $3`,
-                [newDiscountPct, u.id, bid]
-              );
+              // EDG1-2 batch 39 : reset booked_price_cents si discount change.
+              if (svc && svc.eff_price > 0) {
+                const newBookedPrice = newDiscountPct
+                  ? Math.round(svc.eff_price * (100 - newDiscountPct) / 100)
+                  : svc.eff_price;
+                await client.query(
+                  `UPDATE bookings SET discount_pct = $1, booked_price_cents = $2 WHERE id = $3 AND business_id = $4`,
+                  [newDiscountPct, newBookedPrice, u.id, bid]
+                );
+              } else {
+                await client.query(
+                  `UPDATE bookings SET discount_pct = $1 WHERE id = $2 AND business_id = $3`,
+                  [newDiscountPct, u.id, bid]
+                );
+              }
             }
           }
 

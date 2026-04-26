@@ -923,7 +923,7 @@ router.post('/:id/group-add', blockIfImpersonated, async (req, res, next) => {
           // OU promo_eligible=false → LM disabled pour TOUT le combo (reset existants
           // a null + nouvelle prestation a null).
           const _existingMembers = await client.query(
-            `SELECT b.id, s.promo_eligible, COALESCE(sv.price_cents, s.price_cents, 0) AS eff_price
+            `SELECT b.id, s.promo_eligible, s.quote_only, COALESCE(sv.price_cents, s.price_cents, 0) AS eff_price
              FROM bookings b LEFT JOIN services s ON s.id = b.service_id
              LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
              WHERE b.group_id = $1 AND b.business_id = $2`,
@@ -940,6 +940,8 @@ router.post('/:id/group-add', blockIfImpersonated, async (req, res, next) => {
             // sur les existants pour eviter drift (50€ avec 10% LM stale alors que
             // le combo ne devrait plus avoir LM).
             for (const m of _existingMembers.rows) {
+              // Skip quote_only : prix manuel staff, ne pas l'ecraser au reset (parite bookings-time.js:1707).
+              if (m.quote_only) continue;
               await client.query(
                 `UPDATE bookings SET discount_pct = NULL, booked_price_cents = $1
                  WHERE id = $2 AND business_id = $3 AND discount_pct IS NOT NULL`,
