@@ -9,6 +9,7 @@ const { refundGiftCardForBooking, getGcPaidCents } = require('../../services/gif
 const { refundPassForBooking } = require('../../services/pass-refund');
 const { blockIfImpersonated, requirePro } = require('../../middleware/auth');
 const { invalidateMinisiteCache } = require('../public/helpers');
+const { getStripeConnectStatus } = require('../../services/stripe-connect-helpers');
 
 // ===== STATE MACHINE: valid transitions (module-level for reuse) =====
 const TRANSITIONS = {
@@ -1812,9 +1813,8 @@ router.post('/:id/send-deposit-request', requirePro, blockIfImpersonated, async 
 
     // DEP-01 fix : Stripe Connect doit etre active sinon relance d'acompte envoie
     // un lien qui echouera cote client. Parite /require-deposit.
-    const connectRes = await queryWithRLS(bid, `SELECT stripe_connect_id, stripe_connect_status FROM businesses WHERE id = $1`, [bid]);
-    const connectRow = connectRes.rows[0];
-    if (!connectRow?.stripe_connect_id || connectRow.stripe_connect_status !== 'active') {
+    const _stripeConn = await getStripeConnectStatus(bid);
+    if (!_stripeConn.active) {
       return res.status(400).json({ error: 'stripe_connect_required', message: 'Activez Stripe Connect pour envoyer une demande d\'acompte' });
     }
 
@@ -2040,9 +2040,8 @@ router.post('/:id/require-deposit', requirePro, blockIfImpersonated, async (req,
     // DEP-01 fix : Stripe Connect doit etre active sinon le lien deposit genere
     // echoue cote client (create checkout session impossible) -> booking bloque
     // pending_deposit -> expire -> auto-cancel. Parite avec public/deposit.js:41.
-    const connectRes = await queryWithRLS(bid, `SELECT stripe_connect_id, stripe_connect_status FROM businesses WHERE id = $1`, [bid]);
-    const connectRow = connectRes.rows[0];
-    if (!connectRow?.stripe_connect_id || connectRow.stripe_connect_status !== 'active') {
+    const _stripeConnReq = await getStripeConnectStatus(bid);
+    if (!_stripeConnReq.active) {
       return res.status(400).json({ error: 'stripe_connect_required', message: 'Activez Stripe Connect pour exiger des acomptes' });
     }
 

@@ -3,6 +3,7 @@ const { query, queryWithRLS } = require('../../services/db');
 const { requireAuth, requireOwner, blockIfImpersonated } = require('../../middleware/auth');
 const { sanitizeRichText } = require('../../services/email-utils');
 const { invalidateMinisiteCache } = require('../public/helpers');
+const { getStripeConnectStatus } = require('../../services/stripe-connect-helpers');
 
 // V11-025: Strip HTML tags from text fields to prevent injection
 function stripHtml(str) {
@@ -138,9 +139,8 @@ router.patch('/', requireOwner, blockIfImpersonated, async (req, res, next) => {
       || req.body.settings_giftcard_enabled === true
       || req.body.settings_passes_enabled === true;
     if (_stripeGated) {
-      const _connRes = await queryWithRLS(req.businessId, `SELECT stripe_connect_id, stripe_connect_status FROM businesses WHERE id = $1`, [req.businessId]);
-      const _conn = _connRes.rows[0];
-      if (!_conn?.stripe_connect_id || _conn.stripe_connect_status !== 'active') {
+      const _conn = await getStripeConnectStatus(req.businessId);
+      if (!_conn.active) {
         return res.status(400).json({ error: 'stripe_connect_required', message: 'Activez Stripe Connect pour activer cette fonctionnalité (acomptes, cartes cadeau, abonnements).' });
       }
     }
